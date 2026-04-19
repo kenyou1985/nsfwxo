@@ -104,7 +104,7 @@ export function TagPanel({
       </div>
 
       {/* Mobile: Tag selector grid + FAB */}
-      <div className="lg:hidden relative" style={{ height: 'calc(100vh - 320px)' }}>
+      <div className="lg:hidden relative" style={{ height: 'calc(100vh - 250px)' }}>
         <TagSelector
           onTagClick={onAddTag}
           selectedTags={[...positiveTags, ...negativeTags].map((t) => t.tag)}

@@ -427,7 +427,7 @@ export function TextToImagePage({
       </div>
 
       {/* Mobile/Tablet: Single column layout */}
-      <div className="xl:hidden">
+      <div className="xl:hidden space-y-3">
         {/* Size controls */}
         <Section
           title="尺寸设置"
@@ -467,8 +467,8 @@ export function TextToImagePage({
           </div>
         </Section>
 
-        {/* Tag Panel - full width on mobile */}
-        <div className="rounded-xl bg-bg-surface border border-border overflow-hidden" style={{ maxHeight: '500px' }}>
+        {/* Tag Panel - full width on mobile, starts below tab bar */}
+        <div className="rounded-xl bg-bg-surface border border-border overflow-hidden">
           <TagPanel
             positiveTags={positiveTags}
             negativeTags={negativeTags}
