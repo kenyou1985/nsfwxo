@@ -424,6 +424,16 @@ export function TextToImagePage({
             </div>
           </div>
         </Section>
+
+        {/* Desktop: Generate button at bottom */}
+        <div className="pt-2 pb-4">
+          <GenerateButton
+            onClick={handleGenerate}
+            isLoading={false}
+            disabled={taskManager.isFull}
+            label={taskManager.isFull ? '队列已满' : `开始生成${totalSelected > 0 ? ` (${totalSelected}标签)` : ''}`}
+          />
+        </div>
       </div>
 
       {/* Mobile/Tablet: Single column layout */}
@@ -467,9 +477,8 @@ export function TextToImagePage({
           </div>
         </Section>
 
-        {/* Tag Panel - full width on mobile, starts below tab bar */}
-        <div className="rounded-xl bg-bg-surface border border-border overflow-hidden">
-          <TagPanel
+        {/* Tag Panel — full width on mobile, stacked with editor inline */}
+        <TagPanel
             positiveTags={positiveTags}
             negativeTags={negativeTags}
             customPrompt={customPrompt}
@@ -488,7 +497,6 @@ export function TextToImagePage({
             onDisplayLangChange={setDisplayLang}
             disabled={taskManager.isFull}
           />
-        </div>
 
         {/* Advanced */}
         <Section
@@ -548,16 +556,16 @@ export function TextToImagePage({
             </div>
           </div>
         </Section>
-      </div>
 
-      {/* Generate button */}
-      <div className="pt-2 pb-4">
-        <GenerateButton
-          onClick={handleGenerate}
-          isLoading={false}
-          disabled={taskManager.isFull}
-          label={taskManager.isFull ? '队列已满' : `开始生成${totalSelected > 0 ? ` (${totalSelected}标签)` : ''}`}
-        />
+        {/* Generate button at bottom of mobile */}
+        <div className="pt-1 pb-2">
+          <GenerateButton
+            onClick={handleGenerate}
+            isLoading={false}
+            disabled={taskManager.isFull}
+            label={taskManager.isFull ? '队列已满' : `开始生成${totalSelected > 0 ? ` (${totalSelected}标签)` : ''}`}
+          />
+        </div>
       </div>
 
       {/* Generated images gallery */}

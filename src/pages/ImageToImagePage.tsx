@@ -266,7 +266,7 @@ export function ImageToImagePage({
         />
       </div>
 
-      {/* Tag Panel - full width on desktop */}
+      {/* Desktop: Tag selector */}
       <div className="hidden lg:block">
         <TagPanel
           positiveTags={positiveTags}
@@ -289,10 +289,9 @@ export function ImageToImagePage({
         />
       </div>
 
-      {/* Mobile: Tag selector with FAB */}
+      {/* Mobile: Tag selector — stacked inline */}
       <div className="lg:hidden">
-        <div className="rounded-xl bg-bg-surface border border-border overflow-hidden" style={{ maxHeight: '500px' }}>
-          <TagPanel
+        <TagPanel
             positiveTags={positiveTags}
             negativeTags={negativeTags}
             customPrompt={customPrompt}
@@ -311,7 +310,6 @@ export function ImageToImagePage({
             onDisplayLangChange={setDisplayLang}
             disabled={taskManager.isFull}
           />
-        </div>
       </div>
 
       {/* Batch size */}
@@ -326,8 +324,18 @@ export function ImageToImagePage({
         />
       </div>
 
-      {/* Generate */}
-      <div className="pt-2 pb-4">
+      {/* Desktop: Generate button */}
+      <div className="hidden lg:block pt-2 pb-4">
+        <GenerateButton
+          onClick={handleGenerate}
+          isLoading={false}
+          disabled={!params.uploadedImagePath || taskManager.isFull}
+          label={taskManager.isFull ? '队列已满' : `开始生成${totalSelected > 0 ? ` (${totalSelected}标签)` : ''}`}
+        />
+      </div>
+
+      {/* Mobile: Generate button at bottom */}
+      <div className="lg:hidden pt-1 pb-2">
         <GenerateButton
           onClick={handleGenerate}
           isLoading={false}

@@ -34,6 +34,7 @@ export default {
         'pulse-glow': 'pulse-glow 2s ease-in-out infinite',
         'slide-in-right': 'slide-in-right 0.3s ease-out',
         'slide-out-right': 'slide-out-right 0.3s ease-in',
+        'slide-in-bottom': 'slide-in-bottom 0.3s ease-out',
         'fade-in': 'fade-in 0.3s ease-out',
         'fade-out': 'fade-out 0.3s ease-in',
       },
@@ -57,6 +58,10 @@ export default {
         'fade-out': {
           '0%': { opacity: '1', transform: 'translateY(0)' },
           '100%': { opacity: '0', transform: 'translateY(8px)' },
+        },
+        'slide-in-bottom': {
+          '0%': { transform: 'translateY(100%)' },
+          '100%': { transform: 'translateY(0)' },
         },
       },
     },
