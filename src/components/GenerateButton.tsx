@@ -19,13 +19,13 @@ export function GenerateButton({
       onClick={onClick}
       disabled={disabled || isLoading}
       className={`
-        w-full py-4 rounded-xl font-semibold text-base
+        w-full py-4 rounded-2xl font-semibold text-base
         flex items-center justify-center gap-2
         transition-all active:scale-[0.98]
         ${
           disabled || isLoading
-            ? 'bg-bg-elevated text-slate-500 cursor-not-allowed'
-            : 'bg-gradient-to-r from-primary to-secondary text-white hover:opacity-90 shadow-[0_0_20px_rgba(168,85,247,0.3)] hover:shadow-[0_0_30px_rgba(168,85,247,0.5)]'
+            ? 'bg-bg-elevated text-text-tertiary cursor-not-allowed'
+            : 'bg-primary text-white hover:bg-primary-hover shadow-button active:shadow-sm'
         }
       `}
     >

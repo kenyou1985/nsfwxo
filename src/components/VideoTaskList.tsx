@@ -38,15 +38,15 @@ function formatElapsed(seconds: number): string {
 function getStatusIcon(status: VideoTask['status']) {
   switch (status) {
     case 'QUEUEING':
-      return <Loader2 size={14} className="text-yellow-400 animate-spin" />;
+      return <Loader2 size={14} className="text-yellow-500 animate-spin" />;
     case 'RUNNING':
-      return <Loader2 size={14} className="text-blue-400 animate-spin" />;
+      return <Loader2 size={14} className="text-blue-500 animate-spin" />;
     case 'FINISHED':
-      return <CheckCircle size={14} className="text-green-400" />;
+      return <CheckCircle size={14} className="text-green-600" />;
     case 'FAILED':
-      return <XCircle size={14} className="text-red-400" />;
+      return <XCircle size={14} className="text-red-500" />;
     default:
-      return <Clock size={14} className="text-slate-500" />;
+      return <Clock size={14} className="text-text-tertiary" />;
   }
 }
 
@@ -110,7 +110,7 @@ function VideoTaskCard({ task, onCancel, onRegenerate, onSelectForRegenerate }: 
         <div className="flex items-start justify-between gap-2 mb-2">
           <div className="flex items-center gap-2 min-w-0">
             {getStatusIcon(task.status)}
-            <span className="text-xs font-medium text-slate-200">
+            <span className="text-xs font-medium text-text-primary">
               {getStatusText(task.status)}
             </span>
             {task.status === 'RUNNING' && (
@@ -122,7 +122,7 @@ function VideoTaskCard({ task, onCancel, onRegenerate, onSelectForRegenerate }: 
 
           <div className="flex items-center gap-1.5 flex-shrink-0">
             {isActive && (
-              <span className="text-xs text-slate-400 flex items-center gap-1">
+              <span className="text-xs text-text-secondary flex items-center gap-1">
                 <Clock size={12} />
                 {formatElapsed(task.elapsedSeconds)}
               </span>
@@ -135,10 +135,10 @@ function VideoTaskCard({ task, onCancel, onRegenerate, onSelectForRegenerate }: 
             )}
             <button
               onClick={onCancel}
-              className="w-6 h-6 rounded-lg hover:bg-white/10 flex items-center justify-center transition-colors"
+              className="w-6 h-6 rounded-lg hover:bg-black/5 flex items-center justify-center transition-colors"
               title="取消任务"
             >
-              <X size={12} className="text-slate-500" />
+              <X size={12} className="text-text-tertiary" />
             </button>
           </div>
         </div>
@@ -151,7 +151,7 @@ function VideoTaskCard({ task, onCancel, onRegenerate, onSelectForRegenerate }: 
             </div>
           )}
           {task.prompt && (
-            <p className="text-xs text-slate-400 line-clamp-2 flex-1">{task.prompt}</p>
+            <p className="text-xs text-text-secondary line-clamp-2 flex-1">{task.prompt}</p>
           )}
         </div>
 
@@ -194,7 +194,7 @@ function VideoTaskCard({ task, onCancel, onRegenerate, onSelectForRegenerate }: 
                 download
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-bg-elevated hover:bg-white/10 text-slate-300 text-xs font-medium transition-colors"
+                className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-bg-elevated hover:bg-black/5 text-text-primary text-xs font-medium transition-colors"
               >
                 <Download size={13} />
                 下载图片
@@ -219,7 +219,7 @@ function VideoTaskCard({ task, onCancel, onRegenerate, onSelectForRegenerate }: 
         )}
 
         {task.status === 'QUEUEING' && (
-          <p className="text-xs text-slate-500 mt-1">等待 RunningHub 处理...</p>
+          <p className="text-xs text-text-tertiary mt-1">等待 RunningHub 处理...</p>
         )}
       </div>
 
@@ -227,7 +227,7 @@ function VideoTaskCard({ task, onCancel, onRegenerate, onSelectForRegenerate }: 
       {isLightboxOpen && previewIndex !== null && (
         <div className="fixed inset-0 z-50 bg-black/95" onClick={closePreview}>
           <div className="absolute top-0 left-0 right-0 flex items-center justify-between p-4 z-10" onClick={(e) => e.stopPropagation()}>
-            <span className="text-sm text-slate-400">{previewIndex + 1} / {task.images.length}</span>
+            <span className="text-sm text-text-secondary">{previewIndex + 1} / {task.images.length}</span>
             <div className="flex items-center gap-2">
               <button
                 onClick={(e) => { e.stopPropagation(); window.open(task.images[previewIndex], '_blank'); }}
@@ -503,13 +503,13 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-slate-300">
+        <h3 className="text-sm font-medium text-text-primary">
           任务列表 ({tasks.length}/{maxTasks})
         </h3>
         {hasCompleted && (
           <button
             onClick={clearCompleted}
-            className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+            className="text-xs text-text-tertiary hover:text-text-primary transition-colors"
           >
             清除已完成
           </button>

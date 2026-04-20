@@ -167,7 +167,7 @@ export function HistoryPage({ onRegenerate }: HistoryPageProps) {
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
               activeTab === 'image'
                 ? 'bg-primary text-white'
-                : 'text-slate-400 hover:text-slate-200'
+                : 'text-text-secondary hover:text-text-primary'
             }`}
           >
             <ImageIcon size={14} />
@@ -178,7 +178,7 @@ export function HistoryPage({ onRegenerate }: HistoryPageProps) {
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
               activeTab === 'video'
                 ? 'bg-primary text-white'
-                : 'text-slate-400 hover:text-slate-200'
+                : 'text-text-secondary hover:text-text-primary'
             }`}
           >
             <Video size={14} />
@@ -197,7 +197,7 @@ export function HistoryPage({ onRegenerate }: HistoryPageProps) {
 
       {/* Empty state */}
       {!hasAnyRecords && (
-        <div className="flex flex-col items-center justify-center py-20 text-slate-500">
+        <div className="flex flex-col items-center justify-center py-20 text-text-secondary">
           <ImageIcon size={48} className="mb-4 opacity-30" />
           <p className="text-sm">暂无历史记录</p>
         </div>
@@ -220,13 +220,13 @@ export function HistoryPage({ onRegenerate }: HistoryPageProps) {
                       <span className="text-xs px-2 py-0.5 rounded-full bg-primary/20 text-primary text-[10px]">
                         {record.workflowType === 'txt2img' ? '文生图' : '图生图'}
                       </span>
-                      <span className="text-xs text-slate-500 flex items-center gap-1">
+                      <span className="text-xs text-text-secondary flex items-center gap-1">
                         <Clock size={11} />
                         {formatDate(record.createdAt)}
                       </span>
                     </div>
                     {record.prompt && (
-                      <p className="text-sm text-slate-300 line-clamp-2 mt-1">
+                      <p className="text-sm text-text-primary line-clamp-2 mt-1">
                         {record.prompt}
                       </p>
                     )}
@@ -234,14 +234,14 @@ export function HistoryPage({ onRegenerate }: HistoryPageProps) {
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <button
                       onClick={() => handleRegenerate(record)}
-                      className="w-7 h-7 rounded-lg hover:bg-primary/20 flex items-center justify-center text-slate-500 hover:text-primary transition-colors"
+                      className="w-7 h-7 rounded-lg hover:bg-primary/20 flex items-center justify-center text-text-secondary hover:text-primary transition-colors"
                       title="重新生成"
                     >
                       <RotateCcw size={14} />
                     </button>
                     <button
                       onClick={() => handleDelete(record.id)}
-                      className="w-7 h-7 rounded-lg hover:bg-red-500/20 flex items-center justify-center text-slate-500 hover:text-red-400 transition-colors"
+                      className="w-7 h-7 rounded-lg hover:bg-red-500/20 flex items-center justify-center text-text-secondary hover:text-red-400 transition-colors"
                     >
                       <Trash2 size={14} />
                     </button>
@@ -251,7 +251,7 @@ export function HistoryPage({ onRegenerate }: HistoryPageProps) {
                 {isLoading ? (
                   <div className="flex gap-2 overflow-x-auto pb-1">
                     <div className="flex-shrink-0 w-16 h-16 rounded-lg bg-bg-elevated flex items-center justify-center">
-                      <Loader2 size={16} className="text-slate-500 animate-spin" />
+                      <Loader2 size={16} className="text-text-secondary animate-spin" />
                     </div>
                   </div>
                 ) : images.length > 0 ? (
@@ -276,7 +276,7 @@ export function HistoryPage({ onRegenerate }: HistoryPageProps) {
                 ) : null}
 
                 <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/50">
-                  <span className="text-xs text-slate-500">
+                  <span className="text-xs text-text-secondary">
                     {images.length > 0 ? `${images.length} 张图片` : '暂无图片'}
                     {record.coins && ` · ${record.coins} RH币`}
                   </span>
@@ -298,23 +298,23 @@ export function HistoryPage({ onRegenerate }: HistoryPageProps) {
               <div className="flex items-start justify-between gap-2 mb-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 text-[10px]">
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-500 text-[10px]">
                       图生视频
                     </span>
-                    <span className="text-xs text-slate-500 flex items-center gap-1">
+                    <span className="text-xs text-text-secondary flex items-center gap-1">
                       <Clock size={11} />
                       {formatDate(record.createdAt)}
                     </span>
                   </div>
                   {record.prompt && (
-                    <p className="text-sm text-slate-300 line-clamp-2 mt-1">
+                    <p className="text-sm text-text-primary line-clamp-2 mt-1">
                       {record.prompt}
                     </p>
                   )}
                 </div>
                 <button
                   onClick={() => handleDeleteVideo(record.id)}
-                  className="w-7 h-7 rounded-lg hover:bg-red-500/20 flex items-center justify-center text-slate-500 hover:text-red-400 transition-colors"
+                  className="w-7 h-7 rounded-lg hover:bg-red-500/20 flex items-center justify-center text-text-secondary hover:text-red-400 transition-colors"
                 >
                   <Trash2 size={14} />
                 </button>
@@ -351,7 +351,7 @@ export function HistoryPage({ onRegenerate }: HistoryPageProps) {
               )}
 
               <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/50">
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-text-secondary">
                   {record.images.length} 张图片
                   {record.coins && ` · ${record.coins} RH币`}
                 </span>
@@ -380,7 +380,7 @@ export function HistoryPage({ onRegenerate }: HistoryPageProps) {
           onClick={closeLightbox}
         >
           <div className="absolute top-0 left-0 right-0 flex items-center justify-between p-4 z-10" onClick={(e) => e.stopPropagation()}>
-            <span className="text-sm text-slate-400">
+            <span className="text-sm text-text-secondary">
               {globalIndex} / {globalTotal}
             </span>
             <div className="flex items-center gap-2">

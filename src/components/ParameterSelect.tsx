@@ -80,15 +80,15 @@ export function ParameterSelect({
         disabled={disabled}
         className="
           w-full flex items-center justify-between bg-bg-elevated border border-border rounded-lg
-          px-4 py-3 text-sm text-slate-100 text-left
+          px-4 py-3 text-sm text-text-primary text-left
           focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30
           transition-colors cursor-pointer disabled:cursor-not-allowed
         "
       >
-        <span className={value ? '' : 'text-slate-500'}>{selectedLabel}</span>
+        <span className={value ? '' : 'text-text-secondary'}>{selectedLabel}</span>
         <ChevronDown
           size={16}
-          className={`text-slate-400 transition-transform flex-shrink-0 ml-2 ${
+          className={`text-text-secondary transition-transform flex-shrink-0 ml-2 ${
             isOpen ? 'rotate-180' : ''
           }`}
         />
@@ -126,13 +126,13 @@ export function ParameterSelect({
                       transition-colors focus:outline-none
                       ${opt.value === value
                         ? 'bg-primary/20 text-primary border border-primary/40'
-                        : 'text-slate-100 hover:bg-white/5 border border-transparent'
+                        : 'text-text-primary hover:bg-black/5 border border-transparent'
                       }
                     `}
                   >
                     <span className={`
                       flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors
-                      ${opt.value === value ? 'bg-primary border-primary' : 'border-slate-500'}
+                      ${opt.value === value ? 'bg-primary border-primary' : 'border-text-secondary'}
                     `}>
                       {opt.value === value && <Check size={11} className="text-white" />}
                     </span>
@@ -232,18 +232,18 @@ export function ParameterMultiSelect({
         disabled={disabled}
         className="
           w-full flex items-center justify-between bg-bg-elevated border border-border rounded-lg
-          px-4 py-3 text-sm text-slate-100 text-left
+          px-4 py-3 text-sm text-text-primary text-left
           focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30
           transition-colors cursor-pointer disabled:cursor-not-allowed
         "
       >
-        <span className={values.length ? '' : 'text-slate-500'}>{selectedLabel}</span>
+        <span className={values.length ? '' : 'text-text-secondary'}>{selectedLabel}</span>
         <div className="flex items-center gap-1">
           {values.length > 0 && (
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); handleClear(); }}
-              className="text-slate-500 hover:text-red-400 transition-colors leading-none"
+              className="text-text-secondary hover:text-red-400 transition-colors leading-none"
               tabIndex={-1}
             >
               ×
@@ -251,7 +251,7 @@ export function ParameterMultiSelect({
           )}
           <ChevronDown
             size={16}
-            className={`text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+            className={`text-text-secondary transition-transform ${isOpen ? 'rotate-180' : ''}`}
           />
         </div>
       </button>
@@ -290,13 +290,13 @@ export function ParameterMultiSelect({
                         transition-colors focus:outline-none
                         ${checked
                           ? 'bg-primary/20 text-primary border border-primary/40'
-                          : 'text-slate-100 hover:bg-white/5 border border-transparent'
+                          : 'text-text-primary hover:bg-black/5 border border-transparent'
                         }
                       `}
                     >
                       <span className={`
                         flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors
-                        ${checked ? 'bg-primary border-primary' : 'border-slate-500'}
+                        ${checked ? 'bg-primary border-primary' : 'border-text-secondary'}
                       `}>
                         {checked && <Check size={11} className="text-white" />}
                       </span>

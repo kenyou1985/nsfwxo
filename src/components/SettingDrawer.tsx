@@ -73,9 +73,9 @@ export function SettingDrawer({
           className="relative w-full max-w-sm h-full bg-bg-surface border-l border-border animate-slide-in-right overflow-y-auto flex flex-col"
         >
           <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-bg-surface sticky top-0 z-10">
-            <h2 className="text-base font-semibold text-slate-100">API 设置</h2>
+            <h2 className="text-base font-semibold text-text-primary">API 设置</h2>
             <button onClick={onClose} className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-bg-elevated transition-colors" aria-label="Close">
-              <X size={18} className="text-slate-400" />
+              <X size={18} className="text-text-secondary" />
             </button>
           </div>
           <div className="flex-1 overflow-y-auto p-4 space-y-5">
@@ -106,9 +106,9 @@ export function SettingDrawer({
         >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-bg-surface">
-            <h2 className="text-base font-semibold text-slate-100">API 设置</h2>
+            <h2 className="text-base font-semibold text-text-primary">API 设置</h2>
             <button onClick={onClose} className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-bg-elevated transition-colors" aria-label="Close">
-              <X size={18} className="text-slate-400" />
+              <X size={18} className="text-text-secondary" />
             </button>
           </div>
 
@@ -124,8 +124,8 @@ export function SettingDrawer({
               </>
             ) : (
               <>
-                <ChevronDown size={14} className="text-slate-400" />
-                <span className="text-slate-400">展开详情</span>
+                <ChevronDown size={14} className="text-text-secondary" />
+                <span className="text-text-secondary">展开详情</span>
               </>
             )}
           </button>
@@ -187,7 +187,7 @@ function ContentSection({
   return (
     <>
       <div className="space-y-3">
-        <label className="block text-sm font-medium text-slate-300">
+        <label className="block text-sm font-medium text-text-primary">
           RunningHub API Key
         </label>
 
@@ -205,20 +205,20 @@ function ContentSection({
             value={inputKey}
             onChange={(e) => onInputChange(e.target.value)}
             placeholder="请输入 32 位 API Key"
-            className="w-full bg-bg-elevated border border-border rounded-lg px-4 py-3 pr-12 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
+            className="w-full bg-bg-elevated border border-border rounded-lg px-4 py-3 pr-12 text-sm text-text-primary placeholder:text-gray-400 focus:outline-none focus:border-primary transition-colors"
             autoComplete="off"
             spellCheck={false}
           />
           <button
             type="button"
             onClick={() => onToggleKey(!showKey)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-200 transition-colors"
+            className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center text-text-secondary hover:text-text-primary transition-colors"
           >
             {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
         </div>
 
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-text-secondary">
           获取 API Key: 登录 RunningHub → 右上角头像 → API 控制台
         </p>
       </div>
@@ -232,7 +232,7 @@ function ContentSection({
             ${
               inputKey.trim()
                 ? 'bg-gradient-to-r from-primary to-primary/80 text-white hover:opacity-90 active:scale-[0.98]'
-                : 'bg-bg-elevated text-slate-500 cursor-not-allowed'
+                : 'bg-bg-elevated text-text-secondary cursor-not-allowed'
             }
           `}
         >
@@ -258,8 +258,8 @@ function ContentSection({
       </div>
 
       <div className="border-t border-border pt-4">
-        <h3 className="text-sm font-medium text-slate-300 mb-2">使用说明</h3>
-        <ol className="space-y-2 text-xs text-slate-500">
+        <h3 className="text-sm font-medium text-text-primary mb-2">使用说明</h3>
+        <ol className="space-y-2 text-xs text-text-secondary">
           <li className="flex gap-2">
             <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-medium">1</span>
             在 RunningHub 注册账号并开通会员

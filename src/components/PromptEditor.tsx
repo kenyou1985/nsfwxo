@@ -114,10 +114,10 @@ export function PromptEditor({
 
   const renderTagChip = (item: SelectedTag, isNegative: boolean) => {
     const weightBtn = item.weight === 'positive'
-      ? <span className="text-green-400 font-bold text-xs">+</span>
+      ? <span className="text-green-600 font-bold text-xs">+</span>
       : item.weight === 'negative'
-      ? <span className="text-red-400 font-bold text-xs">-</span>
-      : <span className="text-slate-600 font-bold text-xs">-</span>;
+      ? <span className="text-red-500 font-bold text-xs">-</span>
+      : <span className="text-text-tertiary font-bold text-xs">-</span>;
 
     return (
       <div
@@ -125,12 +125,12 @@ export function PromptEditor({
         className={`
           group relative flex items-center gap-1 px-2 py-1 rounded-md border text-xs transition-all
           ${isNegative
-            ? 'bg-red-500/10 border-red-500/30 text-red-300'
+            ? 'bg-red-50 border-red-200 text-red-700'
             : item.weight === 'positive'
-            ? 'bg-green-500/10 border-green-500/30 text-green-300'
+            ? 'bg-green-50 border-green-200 text-green-700'
             : item.weight === 'negative'
-            ? 'bg-red-500/10 border-red-500/30 text-red-300'
-            : 'bg-bg-elevated border-border/50 text-slate-300'
+            ? 'bg-red-50 border-red-200 text-red-700'
+            : 'bg-bg-elevated border-border text-text-primary'
           }
         `}
       >
@@ -142,7 +142,7 @@ export function PromptEditor({
             else onUpdateTagWeight(item.tag, 'none');
           }}
           disabled={disabled}
-          className="flex items-center justify-center w-4 h-4 rounded hover:bg-white/10 transition-colors"
+          className="flex items-center justify-center w-4 h-4 rounded hover:bg-black/5 transition-colors"
           title="切换权重 (+ 加权 / - 降权)"
         >
           {weightBtn}
@@ -157,7 +157,7 @@ export function PromptEditor({
             <button
               onClick={() => onMoveTagUp(item.tag)}
               disabled={disabled}
-              className="p-0.5 rounded hover:bg-white/10 text-slate-500 hover:text-slate-300 disabled:opacity-30"
+              className="p-0.5 rounded hover:bg-black/5 text-text-secondary hover:text-text-primary disabled:opacity-30"
               title="上移"
             >
               <ChevronUp size={10} />
@@ -165,7 +165,7 @@ export function PromptEditor({
             <button
               onClick={() => onMoveTagDown(item.tag)}
               disabled={disabled}
-              className="p-0.5 rounded hover:bg-white/10 text-slate-500 hover:text-slate-300 disabled:opacity-30"
+              className="p-0.5 rounded hover:bg-black/5 text-text-secondary hover:text-text-primary disabled:opacity-30"
               title="下移"
             >
               <ChevronDown size={10} />
@@ -177,7 +177,7 @@ export function PromptEditor({
         <button
           onClick={() => onRemoveTag(item.tag)}
           disabled={disabled}
-          className="ml-0.5 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-red-500/30 text-slate-500 hover:text-red-400 disabled:opacity-30 transition-all"
+          className="ml-0.5 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-red-500/30 text-text-secondary hover:text-red-400 disabled:opacity-30 transition-all"
         >
           <X size={10} />
         </button>
@@ -190,7 +190,7 @@ export function PromptEditor({
       {/* Header bar */}
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-slate-400">
+          <span className="text-xs font-medium text-text-secondary">
             {totalTags > 0
               ? displayLang === 'zh' ? `已选 ${totalTags} 个标签` : `Selected ${totalTags} tags`
               : displayLang === 'zh' ? '点击标签添加' : 'Click tags to add'
@@ -202,7 +202,7 @@ export function PromptEditor({
             <button
               onClick={handleCopy}
               disabled={disabled}
-              className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-slate-400 hover:text-slate-200 hover:bg-bg-elevated transition-colors disabled:opacity-50"
+              className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors disabled:opacity-50"
             >
               {copied
                 ? <><Check size={12} className="text-green-400" /> {displayLang === 'zh' ? '已复制' : 'Copied'}</>
@@ -213,7 +213,7 @@ export function PromptEditor({
           <button
             onClick={handleClear}
             disabled={disabled || totalTags === 0}
-            className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-30"
+            className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-text-secondary hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-30"
           >
             <Trash2 size={12} /> {displayLang === 'zh' ? '清空' : 'Clear'}
           </button>
@@ -228,13 +228,13 @@ export function PromptEditor({
           placeholder={displayLang === 'zh' ? '输入自定义描述，或直接点击下方标签添加...' : 'Enter custom description, or click tags below to add...'}
           rows={3}
           disabled={disabled}
-          className="w-full bg-bg-elevated border border-border rounded-xl px-4 py-3 pr-10 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-primary/60 transition-colors resize-none"
+          className="w-full bg-bg-elevated border border-border rounded-xl px-4 py-3 pr-10 text-sm text-text-primary placeholder:text-gray-400 focus:outline-none focus:border-primary/60 transition-colors resize-none"
         />
         {onOptimizePrompt && (
           <button
             onClick={onOptimizePrompt}
             disabled={disabled}
-            className="absolute right-2 bottom-2 p-1.5 rounded-lg text-slate-500 hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-30"
+            className="absolute right-2 bottom-2 p-1.5 rounded-lg text-text-secondary hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-30"
             title="优化提示词"
           >
             <Wand2 size={14} />
@@ -249,14 +249,14 @@ export function PromptEditor({
           {positiveTags.length > 0 && (
               <div className="mb-2">
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">
+                <span className="text-[10px] font-medium text-text-secondary uppercase tracking-wide">
                   {displayLang === 'zh' ? '正向标签' : 'Positive Tags'}
                 </span>
-                <span className="text-[10px] text-slate-600">{positiveTags.length}个</span>
+                <span className="text-[10px] text-text-tertiary">{positiveTags.length}个</span>
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {showAllTags ? positiveTags.map((item) => renderTagChip(item, false)) : (
-                  <span className="text-xs text-slate-500">
+                  <span className="text-xs text-text-secondary">
                     {displayLang === 'zh' ? `点击展开查看全部 ${positiveTags.length} 个标签` : `Click to expand all ${positiveTags.length} tags`}
                   </span>
                 )}
@@ -264,7 +264,7 @@ export function PromptEditor({
               {positiveTags.length > 10 && (
                 <button
                   onClick={() => setShowAllTags(!showAllTags)}
-                  className="mt-1.5 text-[10px] text-slate-500 hover:text-primary transition-colors"
+                  className="mt-1.5 text-[10px] text-text-secondary hover:text-primary transition-colors"
                 >
                   {showAllTags ? (displayLang === 'zh' ? '收起' : 'Collapse') : (displayLang === 'zh' ? `展开全部 ${positiveTags.length} 个` : `Expand all ${positiveTags.length}`)}
                 </button>
@@ -279,7 +279,7 @@ export function PromptEditor({
                 <span className="text-[10px] font-medium text-red-400/70 uppercase tracking-wide">
                   {displayLang === 'zh' ? '反向标签' : 'Negative Tags'}
                 </span>
-                <span className="text-[10px] text-slate-600">{negativeTags.length}个</span>
+                <span className="text-[10px] text-text-tertiary">{negativeTags.length}个</span>
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {negativeTags.map((item) => renderTagChip(item, true))}
@@ -306,7 +306,7 @@ export function PromptEditor({
               `}
             />
           </div>
-          <span className="text-xs text-slate-400">{displayLang === 'zh' ? '质量增强' : 'Quality Boost'}</span>
+          <span className="text-xs text-text-secondary">{displayLang === 'zh' ? '质量增强' : 'Quality Boost'}</span>
         </label>
 
         {onEnableR18 && (
@@ -325,13 +325,13 @@ export function PromptEditor({
                 `}
               />
             </div>
-            <span className="text-xs text-slate-400">R18</span>
+            <span className="text-xs text-text-secondary">R18</span>
           </label>
         )}
 
         <button
           onClick={() => setShowNegative(!showNegative)}
-          className="ml-auto flex items-center gap-1 px-2 py-1 rounded-md text-xs text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+          className="ml-auto flex items-center gap-1 px-2 py-1 rounded-md text-xs text-text-secondary hover:text-red-400 hover:bg-red-500/10 transition-colors"
         >
           {showNegative ? (displayLang === 'zh' ? '收起反向' : 'Hide Negative') : (displayLang === 'zh' ? '添加反向' : 'Add Negative')}
         </button>
@@ -342,7 +342,7 @@ export function PromptEditor({
         <div className="bg-bg-surface border border-red-500/20 rounded-xl p-3 animate-fade-in">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-medium text-red-400/70">{displayLang === 'zh' ? '反向提示词' : 'Negative Prompt'}</span>
-            <span className="text-[10px] text-slate-600">{displayLang === 'zh' ? '点击标签可直接添加至反向' : 'Click tags to add to negative'}</span>
+            <span className="text-[10px] text-text-tertiary">{displayLang === 'zh' ? '点击标签可直接添加至反向' : 'Click tags to add to negative'}</span>
           </div>
           <div className="flex items-center gap-2 mb-2">
             <button
@@ -359,10 +359,10 @@ export function PromptEditor({
       {/* Prompt preview */}
       <div className="bg-bg-surface border border-border/30 rounded-xl p-3">
         <div className="flex items-center justify-between mb-1.5">
-          <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">Prompt {displayLang === 'zh' ? '预览' : 'Preview'}</span>
+          <span className="text-[10px] font-medium text-text-secondary uppercase tracking-wide">Prompt {displayLang === 'zh' ? '预览' : 'Preview'}</span>
         </div>
-        <p className="text-xs text-slate-300 font-mono leading-relaxed break-all whitespace-pre-wrap">
-          {finalPrompt || <span className="text-slate-600 italic">{displayLang === 'zh' ? '点击标签生成提示词...' : 'Click tags to generate prompt...'}</span>}
+        <p className="text-xs text-text-primary font-mono leading-relaxed break-all whitespace-pre-wrap">
+          {finalPrompt || <span className="text-text-tertiary italic">{displayLang === 'zh' ? '点击标签生成提示词...' : 'Click tags to generate prompt...'}</span>}
         </p>
       </div>
 
@@ -370,8 +370,8 @@ export function PromptEditor({
         <div className="flex items-center justify-between mb-1.5">
           <span className="text-[10px] font-medium text-red-400/50 uppercase tracking-wide">Negative Prompt</span>
         </div>
-        <p className="text-xs text-slate-400 font-mono leading-relaxed break-all whitespace-pre-wrap">
-          {negativePrompt || <span className="text-slate-600 italic">{displayLang === 'zh' ? '无反向标签' : 'No negative tags'}</span>}
+        <p className="text-xs text-text-secondary font-mono leading-relaxed break-all whitespace-pre-wrap">
+          {negativePrompt || <span className="text-text-tertiary italic">{displayLang === 'zh' ? '无反向标签' : 'No negative tags'}</span>}
         </p>
       </div>
     </div>

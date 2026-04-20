@@ -8,8 +8,8 @@ export function ComingSoon() {
         <Video size={36} className="text-primary" />
       </div>
 
-      <h2 className="text-xl font-semibold text-slate-100 mb-2">图生视频</h2>
-      <p className="text-sm text-slate-500 mb-8 max-w-[280px]">
+      <h2 className="text-xl font-semibold text-text-primary mb-2">图生视频</h2>
+      <p className="text-sm text-text-secondary mb-8 max-w-[280px]">
         将静态图片转换为动态视频片段，让创作更加生动
       </p>
 
@@ -19,8 +19,8 @@ export function ComingSoon() {
       </div>
 
       <div className="mt-10 w-full max-w-sm p-4 rounded-xl bg-bg-surface border border-border">
-        <h3 className="text-sm font-medium text-slate-300 mb-3">功能预告</h3>
-        <ul className="space-y-2.5 text-sm text-slate-500">
+        <h3 className="text-sm font-medium text-text-primary mb-3">功能预告</h3>
+        <ul className="space-y-2.5 text-sm text-text-secondary">
           <li className="flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-primary" />
             基于参考图片生成连贯视频

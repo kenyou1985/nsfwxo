@@ -29,7 +29,7 @@ function getStatusIcon(status: QueuedTask['status']) {
     case 'FAILED':
       return <XCircle size={16} className="text-red-400" />;
     default:
-      return <Clock size={16} className="text-slate-500" />;
+      return <Clock size={16} className="text-text-secondary" />;
   }
 }
 
@@ -61,13 +61,13 @@ export function TaskList({ tasks, onCancel, onClearCompleted, onRegenerate }: Ta
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-slate-300">
+        <h3 className="text-sm font-medium text-text-primary">
           任务列表 ({tasks.length}/20)
         </h3>
         {hasCompleted && (
           <button
             onClick={onClearCompleted}
-            className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+            className="text-xs text-text-secondary hover:text-text-primary transition-colors"
           >
             清除已完成
           </button>
@@ -166,7 +166,7 @@ function TaskCard({ task, onCancel, onRegenerate }: { task: QueuedTask; onCancel
         <div className="flex items-start justify-between gap-2 mb-2">
           <div className="flex items-center gap-2 min-w-0">
             {getStatusIcon(task.status)}
-            <span className="text-xs font-medium text-slate-200">
+            <span className="text-xs font-medium text-text-primary">
               {getStatusText(task.status)}
             </span>
             {task.status === 'RUNNING' && (
@@ -178,7 +178,7 @@ function TaskCard({ task, onCancel, onRegenerate }: { task: QueuedTask; onCancel
 
           <div className="flex items-center gap-1.5 flex-shrink-0">
             {isActive && (
-              <span className="text-xs text-slate-400 flex items-center gap-1">
+              <span className="text-xs text-text-secondary flex items-center gap-1">
                 <Clock size={12} />
                 {formatElapsed(task.elapsedSeconds)}
               </span>
@@ -192,17 +192,17 @@ function TaskCard({ task, onCancel, onRegenerate }: { task: QueuedTask; onCancel
             {/* Cancel button */}
             <button
               onClick={onCancel}
-              className="w-6 h-6 rounded-lg hover:bg-white/10 flex items-center justify-center transition-colors"
+              className="w-6 h-6 rounded-lg hover:bg-black/5 flex items-center justify-center transition-colors"
               title="取消任务"
             >
-              <X size={14} className="text-slate-500" />
+              <X size={14} className="text-text-secondary" />
             </button>
           </div>
         </div>
 
         {/* Prompt preview */}
         {task.prompt && (
-          <p className="text-xs text-slate-400 line-clamp-2 mb-2">
+          <p className="text-xs text-text-secondary line-clamp-2 mb-2">
             {task.prompt}
           </p>
         )}
@@ -228,7 +228,7 @@ function TaskCard({ task, onCancel, onRegenerate }: { task: QueuedTask; onCancel
                 </div>
               ))}
               {task.images.length > 6 && (
-                <div className="flex-shrink-0 w-14 h-14 rounded-lg bg-bg-elevated flex items-center justify-center text-xs text-slate-500">
+                <div className="flex-shrink-0 w-14 h-14 rounded-lg bg-bg-elevated flex items-center justify-center text-xs text-text-secondary">
                   +{task.images.length - 6}
                 </div>
               )}
@@ -239,7 +239,7 @@ function TaskCard({ task, onCancel, onRegenerate }: { task: QueuedTask; onCancel
               <button
                 onClick={handleDownloadAll}
                 disabled={isDownloading}
-                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-bg-elevated hover:bg-white/10 text-slate-300 text-xs font-medium transition-colors disabled:opacity-50"
+                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-bg-elevated hover:bg-black/5 text-text-primary text-xs font-medium transition-colors disabled:opacity-50"
               >
                 <Download size={13} />
                 {isDownloading ? '打包中...' : `下载全部 (${task.images.length})`}
@@ -258,14 +258,14 @@ function TaskCard({ task, onCancel, onRegenerate }: { task: QueuedTask; onCancel
         {/* ZIP download fallback - show when finished but no images extracted */}
         {task.status === 'FINISHED' && task.images.length === 0 && task.zipUrl && (
           <div className="mt-2">
-            <p className="text-[10px] text-slate-500 mb-1.5">图片解压失败，请直接下载 ZIP 文件</p>
+            <p className="text-[10px] text-text-secondary mb-1.5">图片解压失败，请直接下载 ZIP 文件</p>
             <div className="flex gap-2">
               <a
                 href={task.zipUrl}
                 download
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-bg-elevated hover:bg-white/10 text-slate-300 text-xs font-medium transition-colors"
+                className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-bg-elevated hover:bg-black/5 text-text-primary text-xs font-medium transition-colors"
               >
                 <Download size={13} />
                 下载 ZIP 文件
@@ -297,7 +297,7 @@ function TaskCard({ task, onCancel, onRegenerate }: { task: QueuedTask; onCancel
         )}
 
         {task.status === 'QUEUEING' && (
-          <p className="text-xs text-slate-500 mt-1">等待 RunningHub 处理...</p>
+          <p className="text-xs text-text-secondary mt-1">等待 RunningHub 处理...</p>
         )}
       </div>
 
@@ -309,7 +309,7 @@ function TaskCard({ task, onCancel, onRegenerate }: { task: QueuedTask; onCancel
         >
           {/* Top bar */}
           <div className="absolute top-0 left-0 right-0 flex items-center justify-between p-4 z-10" onClick={(e) => e.stopPropagation()}>
-            <span className="text-sm text-slate-400">
+            <span className="text-sm text-text-secondary">
               {previewIndex + 1} / {previewImages.length}
             </span>
             <div className="flex items-center gap-2">

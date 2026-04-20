@@ -18,9 +18,9 @@ export function ParameterToggle({
   return (
     <div className={`flex items-start justify-between gap-4 ${disabled ? 'opacity-50' : ''}`}>
       <div className="flex-1 min-w-0">
-        <label className="block text-sm font-medium text-slate-300">{label}</label>
+        <label className="block text-sm font-medium text-text-primary">{label}</label>
         {description && (
-          <p className="mt-0.5 text-xs text-slate-500">{description}</p>
+          <p className="mt-0.5 text-xs text-text-secondary">{description}</p>
         )}
       </div>
       <button

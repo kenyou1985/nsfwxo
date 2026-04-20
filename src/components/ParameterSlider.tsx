@@ -24,7 +24,7 @@ export function ParameterSlider({
   return (
     <div className={`space-y-2 ${disabled ? 'opacity-50' : ''}`}>
       <div className="flex items-center justify-between">
-        <label className="text-sm font-medium text-slate-300">{label}</label>
+        <label className="text-sm font-medium text-text-primary">{label}</label>
         <span className="text-sm text-primary font-medium tabular-nums">
           {value}
           {unit}
@@ -46,7 +46,7 @@ export function ParameterSlider({
           [&::-webkit-slider-thumb]:h-4
           [&::-webkit-slider-thumb]:rounded-full
           [&::-webkit-slider-thumb]:bg-primary
-          [&::-webkit-slider-thumb]:shadow-[0_0_8px_rgba(168,85,247,0.5)]
+          [&::-webkit-slider-thumb]:shadow-[0_2px_6px_rgba(0,113,227,0.35)]
           [&::-webkit-slider-thumb]:transition-transform
           [&::-webkit-slider-thumb]:hover:scale-110
           [&::-moz-range-thumb]:w-4
@@ -54,12 +54,12 @@ export function ParameterSlider({
           [&::-moz-range-thumb]:rounded-full
           [&::-moz-range-thumb]:bg-primary
           [&::-moz-range-thumb]:border-0
-          [&::-moz-range-thumb]:shadow-[0_0_8px_rgba(168,85,247,0.5)]
+          [&::-moz-range-thumb]:shadow-[0_2px_6px_rgba(0,113,227,0.35)]
           disabled:[&::-webkit-slider-thumb]:cursor-not-allowed
           disabled:[&::-moz-range-thumb]:cursor-not-allowed
         "
       />
-      <div className="flex justify-between text-xs text-slate-600">
+      <div className="flex justify-between text-xs text-text-tertiary">
         <span>
           {min}
           {unit}

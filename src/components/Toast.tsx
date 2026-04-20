@@ -8,17 +8,17 @@ interface ToastProps {
 }
 
 const icons = {
-  success: <CheckCircle size={18} className="text-green-400" />,
-  error: <AlertCircle size={18} className="text-red-400" />,
-  warning: <AlertTriangle size={18} className="text-yellow-400" />,
-  info: <Info size={18} className="text-blue-400" />,
+  success: <CheckCircle size={18} className="text-green-600" />,
+  error: <AlertCircle size={18} className="text-red-500" />,
+  warning: <AlertTriangle size={18} className="text-yellow-600" />,
+  info: <Info size={18} className="text-blue-500" />,
 };
 
 const bgColors = {
-  success: 'bg-green-500/15 border-green-500/30',
-  error: 'bg-red-500/15 border-red-500/30',
-  warning: 'bg-yellow-500/15 border-yellow-500/30',
-  info: 'bg-blue-500/15 border-blue-500/30',
+  success: 'bg-green-50 border-green-200',
+  error: 'bg-red-50 border-red-200',
+  warning: 'bg-yellow-50 border-yellow-200',
+  info: 'bg-blue-50 border-blue-200',
 };
 
 export function Toast({ toasts, onRemove }: ToastProps) {
@@ -36,12 +36,12 @@ export function Toast({ toasts, onRemove }: ToastProps) {
           `}
         >
           <span className="flex-shrink-0 mt-0.5">{icons[toast.type]}</span>
-          <p className="flex-1 text-sm text-slate-100">{toast.message}</p>
+          <p className="flex-1 text-sm text-text-primary">{toast.message}</p>
           <button
             onClick={() => onRemove(toast.id)}
-            className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors"
+            className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-lg hover:bg-black/5 transition-colors"
           >
-            <X size={14} className="text-slate-400" />
+            <X size={14} className="text-text-tertiary" />
           </button>
         </div>
       ))}

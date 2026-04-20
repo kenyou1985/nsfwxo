@@ -233,19 +233,19 @@ export function TextToImagePage({
     icon?: React.ReactNode;
     count?: number;
   }) => (
-    <div className="rounded-xl bg-bg-surface border border-border overflow-hidden">
+    <div className="rounded-2xl bg-white border border-border shadow-card overflow-hidden">
       <button
         onClick={onToggle}
-        className="w-full flex items-center justify-between py-3 px-4 text-sm font-medium text-slate-200 hover:text-white transition-colors"
+        className="w-full flex items-center justify-between py-3 px-4 text-sm font-medium text-text-primary hover:bg-bg-hover transition-colors"
       >
         <div className="flex items-center gap-2">
           {icon}
           {title}
           {count !== undefined && count > 0 && (
-            <span className="px-1.5 py-0.5 rounded-full bg-primary/20 text-primary text-xs">{count}</span>
+            <span className="px-1.5 py-0.5 rounded-full bg-primary-light text-primary text-xs">{count}</span>
           )}
         </div>
-        {isOpen ? <ChevronUp size={16} className="text-slate-500" /> : <ChevronDown size={16} className="text-slate-500" />}
+        {isOpen ? <ChevronUp size={16} className="text-text-tertiary" /> : <ChevronDown size={16} className="text-text-tertiary" />}
       </button>
       {isOpen && <div className="px-4 pb-4 space-y-4">{children}</div>}
     </div>
@@ -264,7 +264,7 @@ export function TextToImagePage({
       {/* Desktop: Two-column layout */}
       <div className="hidden xl:block">
         {/* Top row: Size controls + Image count */}
-        <div className="rounded-xl bg-bg-surface border border-border p-4 mb-4">
+        <div className="rounded-2xl bg-white border border-border shadow-card p-4 mb-4">
           <div className="grid grid-cols-3 gap-6">
             <ParameterSlider
               label="宽度"
@@ -323,12 +323,12 @@ export function TextToImagePage({
           title="LoRA 参数"
           isOpen={advancedOpen}
           onToggle={() => setAdvancedOpen((v) => !v)}
-          icon={<Settings2 size={14} className="text-slate-500" />}
+          icon={<Settings2 size={14} className="text-text-tertiary" />}
         >
           <div className="grid grid-cols-1 gap-4">
             {/* LoRA 1 */}
             <div className="space-y-2">
-              <div className="text-xs text-slate-500 font-medium">LoRA 1</div>
+              <div className="text-xs text-text-tertiary font-medium">LoRA 1</div>
               <div className="flex gap-3">
                 <div className="flex-1">
                   <input
@@ -337,7 +337,7 @@ export function TextToImagePage({
                     onChange={(e) => updateParam('lora1Name', e.target.value)}
                     placeholder="LoRA 文件名.safetensors"
                     disabled={taskManager.isFull}
-                    className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
+                    className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-primary transition-colors"
                   />
                 </div>
                 <div className="w-28">
@@ -356,7 +356,7 @@ export function TextToImagePage({
 
             {/* LoRA 2 */}
             <div className="space-y-2">
-              <div className="text-xs text-slate-500 font-medium">LoRA 2</div>
+              <div className="text-xs text-text-tertiary font-medium">LoRA 2</div>
               <div className="flex gap-3">
                 <div className="flex-1">
                   <input
@@ -365,7 +365,7 @@ export function TextToImagePage({
                     onChange={(e) => updateParam('lora2Name', e.target.value)}
                     placeholder="LoRA 文件名.safetensors"
                     disabled={taskManager.isFull}
-                    className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
+                    className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-primary transition-colors"
                   />
                 </div>
                 <div className="w-28">
@@ -384,7 +384,7 @@ export function TextToImagePage({
 
             {/* LoRA 3 */}
             <div className="space-y-2">
-              <div className="text-xs text-slate-500 font-medium">LoRA 3</div>
+              <div className="text-xs text-text-tertiary font-medium">LoRA 3</div>
               <div className="flex gap-3">
                 <div className="flex-1">
                   <input
@@ -393,7 +393,7 @@ export function TextToImagePage({
                     onChange={(e) => updateParam('lora3Name', e.target.value)}
                     placeholder="LoRA 文件名.safetensors"
                     disabled={taskManager.isFull}
-                    className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
+                    className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-primary transition-colors"
                   />
                 </div>
                 <div className="w-28">
@@ -412,14 +412,14 @@ export function TextToImagePage({
 
             {/* Checkpoint */}
             <div>
-              <label className="block text-xs text-slate-400 mb-1">Checkpoint 模型</label>
+              <label className="block text-xs text-text-secondary mb-1">Checkpoint 模型</label>
               <input
                 type="text"
                 value={params.checkpoint}
                 onChange={(e) => updateParam('checkpoint', e.target.value)}
                 placeholder="留空使用默认模型"
                 disabled={taskManager.isFull}
-                className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
+                className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-primary transition-colors"
               />
             </div>
           </div>
@@ -443,7 +443,7 @@ export function TextToImagePage({
           title="尺寸设置"
           isOpen={basicOpen}
           onToggle={() => setBasicOpen((v) => !v)}
-          icon={<LayoutTemplate size={14} className="text-slate-500" />}
+          icon={<LayoutTemplate size={14} className="text-text-tertiary" />}
         >
           <div className="space-y-4">
             <ParameterSlider
@@ -503,55 +503,55 @@ export function TextToImagePage({
           title="高级选项"
           isOpen={advancedOpen}
           onToggle={() => setAdvancedOpen((v) => !v)}
-          icon={<Settings2 size={14} className="text-slate-500" />}
+          icon={<Settings2 size={14} className="text-text-tertiary" />}
         >
           <div className="space-y-4">
             {/* LoRA inputs */}
             <div className="space-y-3">
-              <div className="text-xs text-slate-500 font-medium">LoRA 1</div>
+              <div className="text-xs text-text-tertiary font-medium">LoRA 1</div>
               <input
                 type="text"
                 value={params.lora1Name}
                 onChange={(e) => updateParam('lora1Name', e.target.value)}
                 placeholder="LoRA 文件名.safetensors"
                 disabled={taskManager.isFull}
-                className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
+                className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-primary transition-colors"
               />
               <ParameterSlider label="权重" value={params.lora1Weight} min={0} max={2} step={0.05} onChange={(v) => updateParam('lora1Weight', v)} disabled={taskManager.isFull} />
             </div>
             <div className="border-t border-border/50 pt-3 space-y-3">
-              <div className="text-xs text-slate-500 font-medium">LoRA 2</div>
+              <div className="text-xs text-text-tertiary font-medium">LoRA 2</div>
               <input
                 type="text"
                 value={params.lora2Name}
                 onChange={(e) => updateParam('lora2Name', e.target.value)}
                 placeholder="LoRA 文件名.safetensors"
                 disabled={taskManager.isFull}
-                className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
+                className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-primary transition-colors"
               />
               <ParameterSlider label="权重" value={params.lora2Weight} min={0} max={2} step={0.05} onChange={(v) => updateParam('lora2Weight', v)} disabled={taskManager.isFull} />
             </div>
             <div className="border-t border-border/50 pt-3 space-y-3">
-              <div className="text-xs text-slate-500 font-medium">LoRA 3</div>
+              <div className="text-xs text-text-tertiary font-medium">LoRA 3</div>
               <input
                 type="text"
                 value={params.lora3Name}
                 onChange={(e) => updateParam('lora3Name', e.target.value)}
                 placeholder="LoRA 文件名.safetensors"
                 disabled={taskManager.isFull}
-                className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
+                className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-primary transition-colors"
               />
               <ParameterSlider label="权重" value={params.lora3Weight} min={0} max={2} step={0.05} onChange={(v) => updateParam('lora3Weight', v)} disabled={taskManager.isFull} />
             </div>
             <div className="border-t border-border/50 pt-3">
-              <label className="block text-xs text-slate-400 mb-1">Checkpoint 模型</label>
+              <label className="block text-xs text-text-secondary mb-1">Checkpoint 模型</label>
               <input
                 type="text"
                 value={params.checkpoint}
                 onChange={(e) => updateParam('checkpoint', e.target.value)}
                 placeholder="留空使用默认模型"
                 disabled={taskManager.isFull}
-                className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary transition-colors"
+                className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-primary transition-colors"
               />
             </div>
           </div>
@@ -572,8 +572,8 @@ export function TextToImagePage({
       {allImages.length > 0 && (
         <div className="rounded-xl bg-bg-surface border border-border p-4">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium text-slate-200">生成结果</h3>
-            <span className="text-xs text-slate-500">{allImages.length} 张图片</span>
+            <h3 className="text-sm font-medium text-text-primary">生成结果</h3>
+            <span className="text-xs text-text-tertiary">{allImages.length} 张图片</span>
           </div>
           <ImageGrid images={allImages} />
         </div>

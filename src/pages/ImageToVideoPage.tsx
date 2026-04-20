@@ -124,7 +124,7 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
 
       {/* Input form */}
       <div className="rounded-xl bg-bg-surface border border-border p-4">
-        <h3 className="text-sm font-medium text-slate-200 mb-3 flex items-center gap-2">
+        <h3 className="text-sm font-medium text-text-primary mb-3 flex items-center gap-2">
           <ImageIcon size={16} className="text-primary" />
           选择图片
         </h3>
@@ -139,19 +139,19 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
       </div>
 
       <div className="rounded-xl bg-bg-surface border border-border p-4">
-        <h3 className="text-sm font-medium text-slate-200 mb-3 flex items-center gap-2">
+        <h3 className="text-sm font-medium text-text-primary mb-3 flex items-center gap-2">
           <Video size={16} className="text-primary" />
           视频参数
         </h3>
 
         <div className="space-y-4">
           <div>
-            <label className="text-xs text-slate-400 mb-1.5 block">提示词</label>
+            <label className="text-xs text-text-secondary mb-1.5 block">提示词</label>
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               placeholder="描述视频中的人物动作、表情、场景变化..."
-              className="w-full px-3 py-2 rounded-lg bg-bg-elevated border border-border text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-primary/50 resize-none"
+              className="w-full px-3 py-2 rounded-lg bg-bg-elevated border border-border text-sm text-text-primary placeholder-slate-500 focus:outline-none focus:border-primary/50 resize-none"
               rows={3}
               disabled={isSubmitting}
             />
@@ -178,7 +178,7 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
             <button
               onClick={() => setInterpolation(!interpolation)}
               className={`w-10 h-6 rounded-full transition-colors relative ${
-                interpolation ? 'bg-primary' : 'bg-slate-600'
+                interpolation ? 'bg-primary' : 'bg-text-tertiary'
               }`}
               disabled={isSubmitting}
             >
@@ -188,11 +188,11 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
                 }`}
               />
             </button>
-            <span className="text-xs text-slate-400">补帧（视频更流畅但耗时更长）</span>
+            <span className="text-xs text-text-secondary">补帧（视频更流畅但耗时更长）</span>
           </div>
 
           <div className="border-t border-border/50 pt-4">
-            <h4 className="text-xs text-slate-500 mb-3">LoRA 设置（可选）</h4>
+            <h4 className="text-xs text-text-secondary mb-3">LoRA 设置（可选）</h4>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <ParameterSelect

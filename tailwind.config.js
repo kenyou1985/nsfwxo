@@ -8,30 +8,42 @@ export default {
     extend: {
       colors: {
         bg: {
-          base: '#0a0a0f',
-          surface: '#13131a',
-          elevated: '#1a1a24',
+          base: '#f5f5f7',
+          surface: '#ffffff',
+          elevated: '#f0f0f4',
+          hover: '#eaeaee',
         },
         border: {
-          DEFAULT: '#2a2a3a',
+          DEFAULT: '#d2d2d7',
+          light: '#e5e5ea',
         },
         primary: {
-          DEFAULT: '#a855f7',
-          glow: '#c084fc',
+          DEFAULT: '#0071e3',
+          hover: '#0077ed',
+          light: '#e8f3fd',
+          muted: '#6ba8e8',
         },
         secondary: {
-          DEFAULT: '#06b6d4',
+          DEFAULT: '#34c759',
         },
         accent: {
-          DEFAULT: '#f472b6',
+          DEFAULT: '#ff375f',
+        },
+        text: {
+          primary: '#1d1d1f',
+          secondary: '#86868b',
+          tertiary: '#6e6e73',
+        },
+        card: {
+          shadow: '0 2px 12px rgba(0,0,0,0.08)',
+          shadowHover: '0 4px 20px rgba(0,0,0,0.12)',
         },
       },
       fontFamily: {
-        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'system-ui', 'sans-serif'],
       },
       animation: {
         'spin-slow': 'spin 2s linear infinite',
-        'pulse-glow': 'pulse-glow 2s ease-in-out infinite',
         'slide-in-right': 'slide-in-right 0.3s ease-out',
         'slide-out-right': 'slide-out-right 0.3s ease-in',
         'slide-in-bottom': 'slide-in-bottom 0.3s ease-out',
@@ -39,10 +51,6 @@ export default {
         'fade-out': 'fade-out 0.3s ease-in',
       },
       keyframes: {
-        'pulse-glow': {
-          '0%, 100%': { boxShadow: '0 0 10px rgba(168, 85, 247, 0.3)' },
-          '50%': { boxShadow: '0 0 25px rgba(168, 85, 247, 0.6)' },
-        },
         'slide-in-right': {
           '0%': { transform: 'translateX(100%)' },
           '100%': { transform: 'translateX(0)' },
@@ -63,6 +71,15 @@ export default {
           '0%': { transform: 'translateY(100%)' },
           '100%': { transform: 'translateY(0)' },
         },
+      },
+      borderRadius: {
+        '2xl': '1rem',
+        '3xl': '1.25rem',
+      },
+      boxShadow: {
+        'card': '0 2px 12px rgba(0,0,0,0.08)',
+        'card-hover': '0 4px 20px rgba(0,0,0,0.12)',
+        'button': '0 2px 8px rgba(0,113,227,0.25)',
       },
     },
   },

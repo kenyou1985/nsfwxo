@@ -58,7 +58,7 @@ export interface UploadResponse {
   };
 }
 
-export type TabType = 'txt2img' | 'img2img' | 'img2vid' | 'history';
+export type TabType = 'txt2img' | 'img2img' | 'img2vid' | 'aiprompt' | 'history';
 
 export interface ToastMessage {
   id: string;

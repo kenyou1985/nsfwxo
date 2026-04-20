@@ -80,7 +80,7 @@ export function ImageUploader({
 
   return (
     <div className="space-y-2">
-      <label className="block text-sm font-medium text-slate-300">参考图片</label>
+      <label className="block text-sm font-medium text-text-primary">参考图片</label>
 
       <div
         onClick={() => !disabled && !isUploading && inputRef.current?.click()}
@@ -116,7 +116,7 @@ export function ImageUploader({
         {isUploading ? (
           <div className="flex flex-col items-center justify-center py-12 px-4">
             <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-            <p className="mt-3 text-sm text-slate-400">上传中...</p>
+            <p className="mt-3 text-sm text-text-secondary">上传中...</p>
           </div>
         ) : displayPreview ? (
           <div className="relative">
@@ -138,13 +138,13 @@ export function ImageUploader({
               {displayError ? (
                 <AlertCircle size={24} className="text-red-400" />
               ) : (
-                <Upload size={24} className="text-slate-500" />
+                <Upload size={24} className="text-text-secondary" />
               )}
             </div>
-            <p className="text-sm text-slate-400 font-medium">
+            <p className="text-sm text-text-secondary font-medium">
               {displayError ? displayError : '点击或拖拽上传图片'}
             </p>
-            <p className="mt-1 text-xs text-slate-600">
+            <p className="mt-1 text-xs text-text-tertiary">
               支持 JPG、PNG、WebP，最大 {MAX_SIZE_MB}MB
             </p>
           </div>

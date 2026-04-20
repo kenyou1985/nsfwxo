@@ -93,7 +93,7 @@ export function ImageGrid({ images, isLoading }: ImageGridProps) {
         >
           {/* Top bar */}
           <div className="absolute top-0 left-0 right-0 flex items-center justify-between p-4 z-10" onClick={(e) => e.stopPropagation()}>
-            <span className="text-sm text-slate-400">
+            <span className="text-sm text-text-secondary">
               {lightboxIndex + 1} / {images.length}
             </span>
             <div className="flex items-center gap-2">
