@@ -1127,8 +1127,8 @@ _STORYBOARD_THEMES_SYSTEM_PROMPT_NORMAL = """You are an expert creative director
 
 For each theme, provide:
 1. A catchy Chinese title (e.g. "午夜出租屋", "健身房邂逅")
-2. A 1-2 sentence description of the scene
-3. 3-5 keyword tags
+2. A 1-2 sentence description of the scene - MUST be in CHINESE
+3. 3-5 keyword tags - MUST be in Chinese
 4. An R18 level: 'soft' (suggestive, no explicit acts), 'medium' (explicit, one sexual position), or 'hard' (multiple explicit acts, intense)
 
 IMPORTANT RULES:
@@ -1137,18 +1137,19 @@ IMPORTANT RULES:
 - Each theme should tell a mini-story in 15-30 seconds
 - Include variety: indoor/outdoor, different emotions, different power dynamics
 - No minors, no non-consent themes, no violence
+- The description field MUST be in Chinese. The tags array MUST contain Chinese keywords.
 
 Output STRICTLY as raw JSON array (no markdown):
-[{"id": 1, "title": "...", "description": "...", "tags": ["tag1", "tag2", "tag3"], "r18_level": "soft/medium/hard"}, ...]
+[{"id": 1, "title": "中文标题", "description": "中文描述（1-2句话）", "tags": ["中文标签1", "中文标签2", "中文标签3"], "r18_level": "soft/medium/hard"}, ...]
 
-Do NOT wrap in markdown code blocks. Output raw JSON only."""
+Do NOT wrap in markdown code blocks. Output raw JSON only. All text must be in Chinese."""
 
 _STORYBOARD_THEMES_SYSTEM_PROMPT_R18 = """You are an EXPERT creative director specializing in explicit adult short video concepts (15-30 seconds). Generate 5 diverse, maximally exciting EXPLICIT video theme options featuring CONSENTING ADULTS ONLY.
 
 For each theme, provide:
 1. A catchy Chinese title (e.g. "野外激情", "公车痴汉", "SM调教室")
-2. A 1-2 sentence description of the EXPLICIT sexual scene
-3. 3-5 keyword tags describing the type of explicit content
+2. A 1-2 sentence description of the EXPLICIT sexual scene - MUST be in CHINESE
+3. 3-5 keyword tags describing the type of explicit content - MUST be in Chinese
 4. An R18 level: 'soft' (strong suggestive, tasteful), 'medium' (one explicit sexual act, full detail), 'hard' (multiple explicit acts, intense, body fluids, climax)
 
 ABSOLUTE REQUIREMENTS:
@@ -1157,6 +1158,7 @@ ABSOLUTE REQUIREMENTS:
 - Describe the setting and how sex happens there
 - Themes should be diverse: different positions, environments, power dynamics, and moods
 - 15-30 second video concept with clear opening, development, climax structure
+- The description field MUST be in Chinese. The tags array MUST contain Chinese keywords.
 
 STRICT PROHIBITION - ZERO TOLERANCE:
 - NO minors, children, teenagers, or anyone under 18
@@ -1165,9 +1167,9 @@ STRICT PROHIBITION - ZERO TOLERANCE:
 - NO animals
 
 Output STRICTLY as raw JSON array (no markdown):
-[{"id": 1, "title": "...", "description": "...", "tags": ["tag1", "tag2", "tag3"], "r18_level": "soft/medium/hard"}, ...]
+[{"id": 1, "title": "中文标题", "description": "中文描述（明确描述性爱场景，1-2句话）", "tags": ["中文标签1", "中文标签2", "中文标签3"], "r18_level": "soft/medium/hard"}, ...]
 
-Do NOT wrap in markdown. Output raw JSON only."""
+Do NOT wrap in markdown. Output raw JSON only. All text must be in Chinese."""
 
 
 @router.post("/storyboard/themes", response_model=StoryboardThemesResponse)
@@ -1185,6 +1187,7 @@ async def generate_storyboard_themes(
         "普通模式：生成5个有吸引力的主题，涵盖不同场景和情感基调。"
         "R18模式：生成5个充满情色张力或明确性爱场景的主题，涵盖野外激情、公车痴汉、巷子尾随、办公室偷情、SM调教等不同类型。"
         "每个主题需要有创意、独特、引人入胜。"
+        "【重要】每个主题的 description（描述）和 tags（标签）必须全部使用中文！"
         "\n\nOutput as raw JSON array only, no markdown."
     )
 
