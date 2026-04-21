@@ -105,6 +105,7 @@ export interface QueuedTask {
   id: string;
   taskId: string | null;
   workflowType: 'txt2img' | 'img2img' | 'img2vid';
+  workflowIdOverride?: string;
   status: TaskStatus;
   prompt: string;
   zipUrl: string | null;

@@ -9,6 +9,9 @@ import type { TextToImageParams, QueuedTask } from '../types';
 import type { TaskManagerReturn } from '../hooks/useTaskManager';
 import { DEFAULT_TXT2IMG_PARAMS } from '../constants';
 import type { WeightMode } from '../components/PromptEditor';
+import { buildTxt2ImgNodeList } from '../utils/txt2imgNodeBuilder';
+import { expandPrompt } from '../services/promptApi';
+import { PosePresetSelector } from '../components/PosePresetSelector';
 
 interface SelectedTag {
   tag: string;
@@ -46,6 +49,9 @@ export function TextToImagePage({
   // UI state
   const [basicOpen, setBasicOpen] = useState(true);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [isGeneratingFromPrompt, setIsGeneratingFromPrompt] = useState(false);
+  const [expandedPrompt, setExpandedPrompt] = useState('');
 
   const updateParam = <K extends keyof TextToImageParams>(
     key: K,
@@ -54,7 +60,25 @@ export function TextToImagePage({
     setParams((prev) => ({ ...prev, [key]: value }));
   };
 
-  // Build final prompt from tags
+  // Build tag-only prompt (for expand API — excludes customPrompt to avoid duplication)
+  const buildTagPrompt = useCallback((): string => {
+    const parts: string[] = [];
+    positiveTags.forEach((item) => {
+      if (item.weight === 'positive') {
+        parts.push(`(${item.tag}:1.3)`);
+      } else if (item.weight === 'negative') {
+        parts.push(`[${item.tag}:0.7]`);
+      } else {
+        parts.push(item.tag);
+      }
+    });
+    if (enableRandomPrompt) {
+      parts.push('masterpiece, ultra-HD, high detail, best quality, 8k, ergonomic, sharp focus, realistic, real skin');
+    }
+    return parts.join(', ');
+  }, [positiveTags, enableRandomPrompt]);
+
+  // Build final prompt from tags + custom text (for actual generation)
   const buildFinalPrompt = useCallback((): string => {
     const parts: string[] = [];
 
@@ -73,7 +97,7 @@ export function TextToImagePage({
     }
 
     if (enableRandomPrompt) {
-      parts.push('masterpiece, best quality, highly detailed, beautiful lighting, 8k, ultra sharp');
+      parts.push('masterpiece, ultra-HD, high detail, best quality, 8k, ergonomic, sharp focus, realistic, real skin');
     }
 
     return parts.join(', ');
@@ -169,28 +193,96 @@ export function TextToImagePage({
     setTagCounter(0);
   }, []);
 
+  const handlePoseSelect = useCallback((posePrompt: string, poseName: string) => {
+    const current = customPrompt.trim();
+    const newPrompt = current ? `${current}, ${posePrompt}` : posePrompt;
+    setCustomPrompt(newPrompt);
+    onSuccess(`已添加姿势: ${poseName}`);
+  }, [customPrompt, onSuccess]);
+
+  const handleOptimizePrompt = useCallback(async () => {
+    // Use tags-only for expand (avoid duplicating customPrompt which is shown in textarea separately)
+    const tagPart = buildTagPrompt();
+    const userText = customPrompt.trim();
+    // Send tags + user-typed text to expand API together
+    const combined = userText
+      ? `${tagPart}, ${userText}`
+      : tagPart;
+
+    if (!combined.trim()) return;
+
+    // Extract ethnicity hint from input to pick the right diversity variant
+    const lower = combined.toLowerCase();
+    const isWestern = /\b(european|western|american|british|french|italian|german|blonde|blue eyes|pale|r18)\b/.test(lower);
+    const isEastAsian = /\b(east asian|chinese|japanese|korean|black|african|dark skin|indian|south asian)\b/.test(lower);
+    const variantIndex = isEastAsian ? 0 : isWestern ? 1 : 0;
+
+    setIsOptimizing(true);
+    try {
+      const res = await expandPrompt(combined, 'image', isR18Enabled, 1, variantIndex);
+      if (res.results.length > 0) {
+        // Put expanded result in the separate output field, NOT the input field
+        setExpandedPrompt(res.results[0].prompt);
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setIsOptimizing(false);
+    }
+  }, [buildTagPrompt, customPrompt, isR18Enabled]);
+
+  const handleGenerateFromPrompt = useCallback(async () => {
+    const textToUse = expandedPrompt.trim() || customPrompt.trim();
+    if (!textToUse) return;
+    if (taskManager.isFull) {
+      onError('任务队列已满（最多 20 个任务），请等待当前任务完成');
+      return;
+    }
+    setIsGeneratingFromPrompt(true);
+    try {
+      const negPrompt = buildNegativePrompt();
+      const prompt = `${textToUse}, masterpiece, ultra-HD, high detail, best quality, 8k, ergonomic, sharp focus, realistic, real skin`;
+      const nodeList = buildTxt2ImgNodeList({
+        width: params.width,
+        height: params.height,
+        imageCount: params.imageCount,
+        prompt,
+        negativePrompt: negPrompt,
+        lora1Name: params.lora1Name || undefined,
+        lora1Weight: params.lora1Weight,
+        lora2Name: params.lora2Name || undefined,
+        lora2Weight: params.lora2Weight,
+        lora3Name: params.lora3Name || undefined,
+        lora3Weight: params.lora3Weight,
+        checkpoint: params.checkpoint || undefined,
+      });
+      await taskManager.addTask('txt2img', nodeList, textToUse);
+      onSuccess('任务已提交');
+    } catch (err) {
+      onError(err instanceof Error ? err.message : '提交失败');
+    } finally {
+      setIsGeneratingFromPrompt(false);
+    }
+  }, [expandedPrompt, customPrompt, params, taskManager, buildNegativePrompt, onError, onSuccess]);
+
   const buildNodeList = useCallback(() => {
     const finalPrompt = buildFinalPrompt();
     const negPrompt = buildNegativePrompt();
 
-    const nodes: Array<{ nodeId: string; fieldName: string; fieldValue: string; description: string; fieldData?: string }> = [
-      { nodeId: '5', fieldName: 'width', fieldValue: String(params.width), description: '宽度' },
-      { nodeId: '5', fieldName: 'height', fieldValue: String(params.height), description: '高度' },
-      { nodeId: '5', fieldName: 'batch_size', fieldValue: String(params.imageCount), description: '数量' },
-      { nodeId: '6', fieldName: 'text', fieldValue: finalPrompt, description: '提示词' },
-      { nodeId: '7', fieldName: 'text', fieldValue: negPrompt, description: '反向提示词' },
-    ];
-
-    if (params.lora1Name) {
-      nodes.push({ nodeId: '11', fieldName: 'lora_name', fieldValue: params.lora1Name, description: 'lora1' });
-      nodes.push({ nodeId: '11', fieldName: 'strength_model', fieldValue: String(params.lora1Weight), description: 'lora1权重' });
-    }
-    if (params.lora2Name) {
-      nodes.push({ nodeId: '13', fieldName: 'lora_name', fieldValue: params.lora2Name, description: 'lora2' });
-      nodes.push({ nodeId: '13', fieldName: 'strength_model', fieldValue: String(params.lora2Weight), description: 'lora2权重' });
-    }
-
-    return nodes;
+    return buildTxt2ImgNodeList({
+      width: params.width,
+      height: params.height,
+      imageCount: params.imageCount,
+      prompt: finalPrompt,
+      negativePrompt: negPrompt,
+      lora1Name: params.lora1Name || undefined,
+      lora1Weight: params.lora1Weight,
+      lora2Name: params.lora2Name || undefined,
+      lora2Weight: params.lora2Weight,
+      lora3Name: params.lora3Name || undefined,
+      lora3Weight: params.lora3Weight,
+      checkpoint: params.checkpoint || undefined,
+    });
   }, [params, buildFinalPrompt, buildNegativePrompt]);
 
   const handleGenerate = async () => {
@@ -316,7 +408,16 @@ export function TextToImagePage({
           onEnableR18={() => setIsR18Enabled(!isR18Enabled)}
           onDisplayLangChange={setDisplayLang}
           disabled={taskManager.isFull}
+          onOptimizePrompt={handleOptimizePrompt}
+          isOptimizing={isOptimizing}
+          onGenerateFromPrompt={handleGenerateFromPrompt}
+          isGeneratingFromPrompt={isGeneratingFromPrompt}
+          expandedPrompt={expandedPrompt}
+          onExpandedPromptChange={setExpandedPrompt}
         />
+
+        {/* 预设姿势 */}
+        <PosePresetSelector type="image" onSelect={handlePoseSelect} disabled={taskManager.isFull} />
 
         {/* LoRA & Advanced */}
         <Section
@@ -496,7 +597,16 @@ export function TextToImagePage({
             onEnableR18={() => setIsR18Enabled(!isR18Enabled)}
             onDisplayLangChange={setDisplayLang}
             disabled={taskManager.isFull}
+            onOptimizePrompt={handleOptimizePrompt}
+            isOptimizing={isOptimizing}
+            onGenerateFromPrompt={handleGenerateFromPrompt}
+            isGeneratingFromPrompt={isGeneratingFromPrompt}
+            expandedPrompt={expandedPrompt}
+            onExpandedPromptChange={setExpandedPrompt}
           />
+
+        {/* 预设姿势 */}
+        <PosePresetSelector type="image" onSelect={handlePoseSelect} disabled={taskManager.isFull} />
 
         {/* Advanced */}
         <Section

@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useCallback } from 'react';
-import { X, Copy, Wand2, Trash2, ChevronUp, ChevronDown, Check, Plus } from 'lucide-react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { X, Copy, Wand2, Trash2, ChevronUp, ChevronDown, Check, Plus, Sparkles, Shuffle } from 'lucide-react';
 import { getTagDisplayName, type DisplayLang } from '../data/tags';
 
 export type WeightMode = 'none' | 'positive' | 'negative';
@@ -28,6 +28,15 @@ interface PromptEditorProps {
   isR18Enabled?: boolean;
   onEnableR18?: () => void;
   displayLang: DisplayLang;
+  isOptimizing?: boolean;
+  onGenerateFromPrompt?: () => void;
+  isGeneratingFromPrompt?: boolean;
+  expandedPrompt?: string;
+  onExpandedPromptChange?: (v: string) => void;
+  onGacha?: () => void;
+  isGachaLoading?: boolean;
+  gachaPrompt?: string;
+  onGachaPromptChange?: (v: string) => void;
 }
 
 export function PromptEditor({
@@ -48,12 +57,80 @@ export function PromptEditor({
   isR18Enabled = false,
   onEnableR18,
   displayLang,
+  isOptimizing = false,
+  onGenerateFromPrompt,
+  isGeneratingFromPrompt = false,
+  expandedPrompt,
+  onExpandedPromptChange,
+  onGacha,
+  isGachaLoading = false,
+  gachaPrompt,
+  onGachaPromptChange,
 }: PromptEditorProps) {
   const [showNegative, setShowNegative] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showAllTags, setShowAllTags] = useState(true);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const expandedTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const gachaTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-resize textarea
+  const autoResize = useCallback(() => {
+    const ta = textareaRef.current;
+    if (ta) {
+      ta.style.height = 'auto';
+      ta.style.height = `${ta.scrollHeight}px`;
+    }
+  }, []);
+
+  // Auto-resize expanded prompt textarea
+  const autoResizeExpanded = useCallback(() => {
+    const ta = expandedTextareaRef.current;
+    if (ta) {
+      ta.style.height = 'auto';
+      ta.style.height = `${ta.scrollHeight}px`;
+    }
+  }, []);
+
+  useEffect(() => {
+    autoResize();
+  }, [customPrompt, autoResize]);
+
+  useEffect(() => {
+    autoResizeExpanded();
+  }, [expandedPrompt, autoResizeExpanded]);
+
+  useEffect(() => {
+    autoResize();
+    autoResizeExpanded();
+    if (gachaTextareaRef.current) {
+      gachaTextareaRef.current.style.height = 'auto';
+      gachaTextareaRef.current.style.height = `${gachaTextareaRef.current.scrollHeight}px`;
+    }
+  }, [gachaPrompt, autoResize, autoResizeExpanded]);
 
   const allSelectedTags = useMemo(() => [...positiveTags, ...negativeTags], [positiveTags, negativeTags]);
+
+  // Build the tag-based prompt string (what appears in the textarea from tags)
+  const buildTagPrompt = useCallback(() => {
+    const parts: string[] = [];
+    positiveTags.forEach((item) => {
+      if (item.weight === 'positive') {
+        parts.push(`(${item.tag}:1.3)`);
+      } else if (item.weight === 'negative') {
+        parts.push(`[${item.tag}:0.7]`);
+      } else {
+        parts.push(item.tag);
+      }
+    });
+    if (enableRandomPrompt) {
+      parts.push('masterpiece, ultra-HD, high detail, best quality, 8k, ergonomic, sharp focus, realistic, real skin');
+    }
+    return parts.join(', ');
+  }, [positiveTags, enableRandomPrompt]);
+
+  // Sync textarea: show tag prompt + user custom text
+  // Only update automatically when the user hasn't manually edited (no cursor movement)
 
   const generatePrompt = useCallback(() => {
     const parts: string[] = [];
@@ -73,7 +150,7 @@ export function PromptEditor({
     }
 
     if (enableRandomPrompt) {
-      parts.push('masterpiece, best quality, highly detailed, beautiful lighting, 8k, ultra sharp');
+      parts.push('masterpiece, ultra-HD, high detail, best quality, 8k, ergonomic, sharp focus, realistic, real skin');
     }
 
     return parts.join(', ');
@@ -82,6 +159,9 @@ export function PromptEditor({
   const generateNegativePrompt = useCallback(() => {
     return negativeTags.map((item) => item.tag).join(', ') || 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, bad feet';
   }, [negativeTags]);
+
+  // Tag prompt for display (readonly, generated from selected tags)
+  const tagPromptText = buildTagPrompt();
 
   const finalPrompt = useMemo(() => generatePrompt(), [generatePrompt]);
   const negativePrompt = useMemo(() => generateNegativePrompt(), [generateNegativePrompt]);
@@ -111,6 +191,7 @@ export function PromptEditor({
   };
 
   const totalTags = allSelectedTags.length;
+  const hasContent = totalTags > 0 || customPrompt.trim().length > 0;
 
   const renderTagChip = (item: SelectedTag, isNegative: boolean) => {
     const weightBtn = item.weight === 'positive'
@@ -191,14 +272,14 @@ export function PromptEditor({
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
           <span className="text-xs font-medium text-text-secondary">
-            {totalTags > 0
-              ? displayLang === 'zh' ? `已选 ${totalTags} 个标签` : `Selected ${totalTags} tags`
+            {hasContent
+              ? displayLang === 'zh' ? `已选 ${totalTags} 个标签${customPrompt.trim() ? ' + 文本' : ''}` : `Selected ${totalTags} tags${customPrompt.trim() ? ' + text' : ''}`
               : displayLang === 'zh' ? '点击标签添加' : 'Click tags to add'
             }
           </span>
         </div>
         <div className="flex items-center gap-1">
-          {totalTags > 0 && (
+          {hasContent && (
             <button
               onClick={handleCopy}
               disabled={disabled}
@@ -212,7 +293,7 @@ export function PromptEditor({
           )}
           <button
             onClick={handleClear}
-            disabled={disabled || totalTags === 0}
+            disabled={disabled || !hasContent}
             className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-text-secondary hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-30"
           >
             <Trash2 size={12} /> {displayLang === 'zh' ? '清空' : 'Clear'}
@@ -220,25 +301,154 @@ export function PromptEditor({
         </div>
       </div>
 
-      {/* Custom prompt area */}
-      <div className="relative">
-        <textarea
-          value={customPrompt}
-          onChange={(e) => onCustomPromptChange(e.target.value)}
-          placeholder={displayLang === 'zh' ? '输入自定义描述，或直接点击下方标签添加...' : 'Enter custom description, or click tags below to add...'}
-          rows={3}
-          disabled={disabled}
-          className="w-full bg-bg-elevated border border-border rounded-xl px-4 py-3 pr-10 text-sm text-text-primary placeholder:text-gray-400 focus:outline-none focus:border-primary/60 transition-colors resize-none"
-        />
-        {onOptimizePrompt && (
-          <button
-            onClick={onOptimizePrompt}
+      {/* User description input + Expanded prompt output */}
+      <div className="space-y-2">
+        {/* Tag prompt preview (readonly, generated from selected tags) */}
+        {tagPromptText && (
+          <div className="bg-bg-surface border border-border/40 rounded-xl px-3 py-2">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[9px] font-medium text-text-tertiary uppercase tracking-wide">标签生成</span>
+              <span className="text-[9px] text-text-tertiary/50">{positiveTags.length} 标签</span>
+            </div>
+            <p className="text-[10px] text-text-secondary font-mono leading-relaxed break-all line-clamp-3">
+              {tagPromptText}
+            </p>
+          </div>
+        )}
+
+        {/* User description input */}
+        <div className="relative">
+          <div className="absolute right-2 top-2 z-10 flex items-center gap-1">
+            {onGacha && (
+              <button
+                onClick={onGacha}
+                disabled={disabled || isGachaLoading}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                title="随机抽卡生成提示词"
+              >
+                {isGachaLoading ? (
+                  <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <Shuffle size={11} />
+                )}
+                <span>抽卡</span>
+              </button>
+            )}
+            {onOptimizePrompt && (
+              <button
+                onClick={onOptimizePrompt}
+                disabled={disabled || isOptimizing}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                title="AI 一键扩写"
+              >
+                {isOptimizing ? (
+                  <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <Wand2 size={11} />
+                )}
+                <span>扩写</span>
+              </button>
+            )}
+          </div>
+          <textarea
+            ref={textareaRef}
+            value={customPrompt}
+            onChange={(e) => { onCustomPromptChange(e.target.value); }}
+            placeholder={displayLang === 'zh' ? '输入你的描述想法（可选），或直接点击下方标签添加...' : 'Your description (optional)...'}
             disabled={disabled}
-            className="absolute right-2 bottom-2 p-1.5 rounded-lg text-text-secondary hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-30"
-            title="优化提示词"
-          >
-            <Wand2 size={14} />
-          </button>
+            className="w-full bg-bg-elevated border border-border rounded-xl px-4 py-2.5 pr-20 text-xs text-text-primary placeholder:text-text-tertiary/50 focus:outline-none focus:border-primary/60 transition-colors resize-none overflow-hidden leading-relaxed"
+          />
+        </div>
+
+        {/* Gacha prompt output — only show when gacha result exists */}
+        {gachaPrompt && (
+          <div className="bg-gradient-to-br from-amber-50/60 to-orange-50/40 border border-amber-200/60 rounded-xl p-3">
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="flex items-center gap-1.5">
+                <Shuffle size={10} className="text-amber-500" />
+                <span className="text-[10px] font-medium text-amber-600 uppercase tracking-wide">
+                  {displayLang === 'zh' ? '抽卡结果' : 'Gacha Result'}
+                </span>
+              </div>
+              {onGachaPromptChange && (
+                <button
+                  onClick={() => onGachaPromptChange('')}
+                  className="text-[10px] text-text-tertiary hover:text-red-400 transition-colors"
+                >
+                  清空
+                </button>
+              )}
+            </div>
+            <textarea
+              ref={gachaTextareaRef}
+              value={gachaPrompt}
+              onChange={(e) => { onGachaPromptChange?.(e.target.value); }}
+              className="w-full bg-white/70 border border-amber-200/50 rounded-lg px-3 py-2 text-xs text-text-primary font-mono leading-relaxed placeholder:text-text-tertiary/40 focus:outline-none focus:border-amber-400/60 transition-colors resize-none overflow-hidden"
+              placeholder="抽卡生成的提示词将显示在这里..."
+            />
+            {onGenerateFromPrompt && (
+              <div className="flex justify-end mt-2">
+                <button
+                  onClick={onGenerateFromPrompt}
+                  disabled={disabled || isGeneratingFromPrompt || !gachaPrompt.trim()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                >
+                  {isGeneratingFromPrompt ? (
+                    <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <Sparkles size={11} />
+                  )}
+                  <span>基于抽卡生图</span>
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Expanded prompt output — only show when expand result exists */}
+        {expandedPrompt && (
+          <div className="bg-gradient-to-br from-purple-50/60 to-pink-50/40 border border-purple-200/60 rounded-xl p-3">
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="flex items-center gap-1.5">
+                <Wand2 size={10} className="text-purple-500" />
+                <span className="text-[10px] font-medium text-purple-600 uppercase tracking-wide">
+                  {displayLang === 'zh' ? 'AI 扩写结果' : 'Expanded Prompt'}
+                </span>
+              </div>
+              {onExpandedPromptChange && (
+                <button
+                  onClick={() => onExpandedPromptChange('')}
+                  className="text-[10px] text-text-tertiary hover:text-red-400 transition-colors"
+                >
+                  清空
+                </button>
+              )}
+            </div>
+            <textarea
+              ref={expandedTextareaRef}
+              value={expandedPrompt}
+              onChange={(e) => { onExpandedPromptChange?.(e.target.value); }}
+              className="w-full bg-white/70 border border-purple-200/50 rounded-lg px-3 py-2 text-xs text-text-primary font-mono leading-relaxed placeholder:text-text-tertiary/40 focus:outline-none focus:border-purple-400/60 transition-colors resize-none overflow-hidden"
+              placeholder="扩写后的提示词将显示在这里..."
+            />
+            {/* 生图 button — uses expanded prompt */}
+            {onGenerateFromPrompt && (
+              <div className="flex justify-end mt-2">
+                <button
+                  onClick={onGenerateFromPrompt}
+                  disabled={disabled || isGeneratingFromPrompt || !expandedPrompt.trim()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                >
+                  {isGeneratingFromPrompt ? (
+                    <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <Sparkles size={11} />
+                  )}
+                  <span>基于提示词生图</span>
+                </button>
+              </div>
+            )}
+          </div>
         )}
       </div>
 

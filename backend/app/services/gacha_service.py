@@ -20,6 +20,67 @@ _BLOCK_PATTERNS: List[re.Pattern] = [
     re.compile(r'\b(small breasts)\b', re.I),
 ]
 
+# ── 种族优先级权重 (East Asian 优先，其他降低) ──
+_ETHNICITY_WEIGHTS: Dict[str, float] = {
+    "east asian": 8.0,
+    "asian": 6.0,
+    "southeast asian": 5.0,
+    "chinese": 5.0,
+    "japanese": 5.0,
+    "korean": 5.0,
+    "thai": 4.0,
+    "vietnamese": 4.0,
+    "filipino": 3.0,
+    "caucasian": 2.0,
+    "european": 2.0,
+    "mediterranean": 1.5,
+    "nordic": 1.5,
+    "mixed race": 2.0,
+    "multiracial": 1.5,
+    "biracial": 1.5,
+    "middle eastern": 1.0,
+    "south asian": 2.0,
+    "indian": 2.0,
+    "pacific islander": 1.0,
+    "polynesian": 1.0,
+    "native american": 1.0,
+    "aboriginal": 0.5,
+    "indigenous": 0.5,
+    "african": 0.5,
+    "african american": 0.5,
+    "afro-caribbean": 0.5,
+    "hispanic": 0.5,
+    "hispanic and latino": 0.5,
+    "latino": 0.5,
+    "mestizo": 0.5,
+    "inuit": 0.5,
+    "caucasian and asian": 1.5,
+}
+
+
+def _weighted_ethnicity_pick(items: List[str]) -> Optional[str]:
+    """基于权重的种族选择，优先东方面孔"""
+    if not items:
+        return None
+    safe_items = [i for i in items if _is_safe(str(i))]
+    if not safe_items:
+        return None
+
+    weights = []
+    for item in safe_items:
+        name_lower = str(item).lower()
+        weight = _ETHNICITY_WEIGHTS.get(name_lower, 1.0)
+        weights.append(weight)
+
+    total = sum(weights)
+    rand = random.random() * total
+    cumulative = 0.0
+    for i, w in enumerate(weights):
+        cumulative += w
+        if rand <= cumulative:
+            return safe_items[i]
+    return safe_items[-1]
+
 
 def _load_tags_db() -> Optional[dict]:
     global _TAGS_DB
@@ -51,11 +112,13 @@ def _pick(items: List[Any], count: int) -> List[Any]:
 def generate_random_tags(
     prompt_type: str = "image",
     r18_mode: bool = False,
+    img2img_mode: bool = False,
 ) -> List[Dict[str, str]]:
     """
     从 tags_db.json 中随机抽取多维度标签组合。
     返回标签列表，每项包含 _category 和 _name。
     r18_mode=True 时增加 R18 标签权重。
+    img2img_mode=True 时过滤所有外貌/体态标签（图生图模式保留参考图人物特征）。
     所有标签经过安全过滤 + 冲突解决。
     """
     db = _load_tags_db()
@@ -72,26 +135,55 @@ def generate_random_tags(
             if isinstance(name, str) and _is_safe(name):
                 result.append({"_category": cat_key, "_name": name})
 
+    # ── 图生图模式：过滤所有外貌/体态/人物特征标签 ──
+    _IMG2IMG_EXCLUDE_CATS = {
+        "character", "hair", "hairstyles", "skin_tone",
+        "ethnicity", "face", "face_features", "eyes",
+        "makeup_styles", "body", "body_markings",
+        "tattoos_scars", "age_group",
+    }
+
+    def _should_add(cat_key: str) -> bool:
+        if not img2img_mode:
+            return True
+        return cat_key not in _IMG2IMG_EXCLUDE_CATS
+
     # ── 基础质量标签 ──
     add("quality", 3)
 
-    # ── 角色/外貌 ──
-    add("character", 1)
-    add("hair", 1)
-    add("hairstyles", 1)
-    add("skin_tone", 1)
-    add("ethnicity", 1)
+    # ── 角色/外貌（img2img 模式下跳过）──
+    if _should_add("character"):
+        add("character", 1)
+    if _should_add("hair"):
+        add("hair", 1)
+    if _should_add("hairstyles"):
+        add("hairstyles", 1)
+    if _should_add("skin_tone"):
+        add("skin_tone", 1)
 
-    # ── 面部/妆容 ──
-    add("face", 1)
-    add("face_features", 1)
-    add("eyes", 1)
-    add("makeup_styles", 1)
+    # 种族使用权重抽样，优先东方面孔（img2img 模式下跳过）
+    if _should_add("ethnicity"):
+        ethnicity_tag = _weighted_ethnicity_pick(db.get("ethnicity", []))
+        if ethnicity_tag:
+            result.append({"_category": "ethnicity", "_name": ethnicity_tag})
 
-    # ── 身体 ──
-    add("body", 1)
-    add("body_markings", 1)
-    add("tattoos_scars", 1)
+    # ── 面部/妆容（img2img 模式下跳过）──
+    if _should_add("face"):
+        add("face", 1)
+    if _should_add("face_features"):
+        add("face_features", 1)
+    if _should_add("eyes"):
+        add("eyes", 1)
+    if _should_add("makeup_styles"):
+        add("makeup_styles", 1)
+
+    # ── 身体（img2img 模式下跳过）──
+    if _should_add("body"):
+        add("body", 1)
+    if _should_add("body_markings"):
+        add("body_markings", 1)
+    if _should_add("tattoos_scars"):
+        add("tattoos_scars", 1)
 
     # ── 服装（合理数量，2-3件）──
     add("clothes", 2 if r18_mode else 2)
@@ -126,9 +218,9 @@ def generate_random_tags(
 
     # ── R18 核心（适度增加）──
     if r18_mode:
-        add("r18", 5)
-        add("nsfw_details", 4)
-        add("action", 1)
+        add("r18", 8)
+        add("nsfw_details", 6)
+        add("action", 2)
         add("body", 1)
     else:
         add("r18", 1)

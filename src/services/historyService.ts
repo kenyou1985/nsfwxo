@@ -30,7 +30,7 @@ function generateId(): string {
 }
 
 export function createRecord(
-  workflowType: 'txt2img' | 'img2img',
+  workflowType: 'txt2img' | 'img2img' | 'img2vid',
   prompt: string,
   params: Record<string, unknown>,
   images: string[],
@@ -93,6 +93,17 @@ export function saveTaskToHistory(task: QueuedTask): void {
   if (task.status !== 'FINISHED') return;
   const records = getRecords();
   if (task.taskId && records.some((r) => r.taskId === task.taskId)) return;
+
+  let images = task.images || [];
+
+  // For img2vid, extract uploaded image path from nodeInfoList (nodeId '21' field 'image')
+  if (task.workflowType === 'img2vid' && task.nodeInfoList && images.length === 0) {
+    const imgNode = task.nodeInfoList.find((n) => n.nodeId === '21' && n.fieldName === 'image');
+    if (imgNode?.fieldValue && typeof imgNode.fieldValue === 'string' && imgNode.fieldValue.trim()) {
+      images = [imgNode.fieldValue.trim()];
+    }
+  }
+
   const record: HistoryRecord = {
     id: `${task.id}-${Date.now()}`,
     name: generateId(),
@@ -101,8 +112,7 @@ export function saveTaskToHistory(task: QueuedTask): void {
     prompt: task.prompt,
     params: {},
     nodeInfoList: task.nodeInfoList,
-    // Store empty images — they will be restored from cache/zipUrl on load
-    images: [],
+    images,
     zipUrl: task.zipUrl,
     coins: task.coins,
     createdAt: Date.now(),

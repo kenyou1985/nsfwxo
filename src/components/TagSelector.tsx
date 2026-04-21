@@ -111,7 +111,7 @@ export function TagSelector({
                       </div>
                     )}
                     <div className="flex flex-wrap gap-1.5">
-                      {sub.tags.map((tag) => {
+                      {[...new Set(sub.tags)].map((tag) => {
                         const isSelected = selectedTags.includes(tag);
                         return (
                           <button
@@ -217,7 +217,7 @@ export function TagSelector({
                     </div>
                   )}
                   <div className="flex flex-wrap gap-1.5">
-                    {sub.tags.map((tag) => {
+                    {[...new Set(sub.tags)].map((tag) => {
                       const isSelected = selectedTags.includes(tag);
                       return (
                         <button

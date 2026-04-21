@@ -115,6 +115,9 @@ function App() {
             onError={toast.error}
             onSuccess={toast.success}
             onOpenSettings={() => setIsSettingsOpen(true)}
+            taskManager={taskManager}
+            apiKey={apiKey}
+            onNavigate={(tab) => setActiveTab(tab)}
           />
         );
       default:

@@ -30,12 +30,14 @@ export interface TaskManagerReturn {
   addTask: (
     workflowType: 'txt2img' | 'img2img' | 'img2vid',
     nodeInfoList: NodeInfo[],
-    prompt: string
+    prompt: string,
+    workflowIdOverride?: string
   ) => Promise<string>;
   addTaskWithNodeList: (
     workflowType: 'txt2img' | 'img2img' | 'img2vid',
     nodeInfoList: NodeInfo[],
-    prompt: string
+    prompt: string,
+    workflowIdOverride?: string
   ) => Promise<string>;
   cancelTask: (id: string) => void;
   clearCompleted: () => void;
@@ -202,7 +204,15 @@ export function useTaskManager({
           onTaskCompleteRef.current?.(updatedTask, elapsed);
         }
       } else if (newStatus === 'FAILED') {
-        const errorMsg = '任务失败';
+        let errorMsg = '任务失败';
+        try {
+          const resultsResponse = await getTaskResults(currentApiKey, task.taskId);
+          if (resultsResponse.errorMessage) {
+            errorMsg = resultsResponse.errorMessage;
+          }
+        } catch {
+          // ignore
+        }
         setTasks((prev) =>
           prev.map((t) =>
             t.id === task.id ? { ...t, error: errorMsg } : t
@@ -245,7 +255,8 @@ export function useTaskManager({
     async (
       workflowType: 'txt2img' | 'img2img' | 'img2vid',
       nodeInfoList: NodeInfo[],
-      prompt: string
+      prompt: string,
+      workflowIdOverride?: string
     ): Promise<string> => {
       const currentApiKey = apiKeyRef.current;
       if (!currentApiKey) {
@@ -277,9 +288,14 @@ export function useTaskManager({
       });
 
       try {
+        const resolvedWorkflowId = workflowIdOverride
+          || (workflowType === 'txt2img' ? WORKFLOW.TEXT_TO_IMAGE
+            : workflowType === 'img2img' ? WORKFLOW.IMAGE_TO_IMAGE
+            : WORKFLOW.IMAGE_TO_VIDEO);
+
         const data = await runTask(
           currentApiKey,
-          workflowType === 'txt2img' ? WORKFLOW.TEXT_TO_IMAGE : WORKFLOW.IMAGE_TO_IMAGE,
+          resolvedWorkflowId,
           nodeInfoList
         );
 
@@ -373,56 +389,55 @@ export function useTaskManager({
       // Submit API call outside of setState
       const currentApiKey = apiKeyRef.current;
       if (currentApiKey) {
-        runTask(
-          currentApiKey,
-          task.workflowType === 'txt2img' ? WORKFLOW.TEXT_TO_IMAGE : WORKFLOW.IMAGE_TO_IMAGE,
-          task.nodeInfoList
-        ).then((data) => {
-          const taskId = data.taskId || '';
-          const initialStatus = mapTaskStatus(data.status);
-          const initialCoins = data.usage?.consumeCoins || null;
-          const initialZipUrl = data.results?.find((r) => r.outputType === 'zip')?.url || null;
-          const initialElapsed = data.usage?.taskCostTime ? parseInt(data.usage.taskCostTime, 10) : 0;
+        const resolvedWorkflowId = task.workflowIdOverride
+          || (task.workflowType === 'txt2img' ? WORKFLOW.TEXT_TO_IMAGE
+            : task.workflowType === 'img2img' ? WORKFLOW.IMAGE_TO_IMAGE
+            : WORKFLOW.IMAGE_TO_VIDEO);
+        runTask(currentApiKey, resolvedWorkflowId, task.nodeInfoList)
+          .then((data) => {
+            const taskId = data.taskId || '';
+            const initialStatus = mapTaskStatus(data.status);
+            const initialCoins = data.usage?.consumeCoins || null;
+            const initialZipUrl = data.results?.find((r) => r.outputType === 'zip')?.url || null;
+            const initialElapsed = data.usage?.taskCostTime ? parseInt(data.usage.taskCostTime, 10) : 0;
 
-          setTasks((current) =>
-            current.map((t) =>
-              t.id === newId
-                ? { ...t, taskId, status: initialStatus, coins: initialCoins, zipUrl: initialZipUrl, elapsedSeconds: initialElapsed }
-                : t
-            )
-          );
-          onTaskStatusChangeRef.current?.(newId, initialStatus);
+            setTasks((current) =>
+              current.map((t) =>
+                t.id === newId
+                  ? { ...t, taskId, status: initialStatus, coins: initialCoins, zipUrl: initialZipUrl, elapsedSeconds: initialElapsed }
+                  : t
+              )
+            );
+            onTaskStatusChangeRef.current?.(newId, initialStatus);
 
-          if (initialStatus === 'FINISHED' && initialZipUrl) {
-            Promise.all([
-              extractImagesFromZip(initialZipUrl),
-              extractImagesFromZipAsDataUrls(initialZipUrl),
-            ]).then(([blobUrls, dataUrls]) => {
-              setTasks((current) => {
-                return current.map((t) => t.id === newId ? { ...t, images: blobUrls } : t);
+            if (initialStatus === 'FINISHED' && initialZipUrl) {
+              Promise.all([
+                extractImagesFromZip(initialZipUrl),
+                extractImagesFromZipAsDataUrls(initialZipUrl),
+              ]).then(([blobUrls, dataUrls]) => {
+                setTasks((current) => {
+                  return current.map((t) => t.id === newId ? { ...t, images: blobUrls } : t);
+                });
+                cacheImages(initialZipUrl, dataUrls).catch(() => {});
+                onTaskCompleteRef.current?.({ ...newTask, taskId, images: blobUrls, zipUrl: initialZipUrl, coins: initialCoins, elapsedSeconds: initialElapsed }, initialElapsed);
+              }).catch(() => {
+                onTaskCompleteRef.current?.({ ...newTask, taskId, zipUrl: initialZipUrl, coins: initialCoins, elapsedSeconds: initialElapsed }, initialElapsed);
               });
-              cacheImages(initialZipUrl, dataUrls).catch(() => {});
-              // Call callback with images from the zip
-              onTaskCompleteRef.current?.({ ...newTask, taskId, images: blobUrls, zipUrl: initialZipUrl, coins: initialCoins, elapsedSeconds: initialElapsed }, initialElapsed);
-            }).catch(() => {
-              // zip extraction failed
-              onTaskCompleteRef.current?.({ ...newTask, taskId, zipUrl: initialZipUrl, coins: initialCoins, elapsedSeconds: initialElapsed }, initialElapsed);
-            });
-          } else if (initialStatus === 'FAILED') {
-            const errorMsg = data.errorMessage || '任务失败';
-            setTasks((current) => current.map((t) => t.id === newId ? { ...t, error: errorMsg } : t));
-            onErrorRef.current?.(newId, errorMsg);
-          }
-        }).catch((err) => {
-          setTasks((current) =>
-            current.map((t) =>
-              t.id === newId
-                ? { ...t, status: 'FAILED' as TaskStatus, error: err instanceof Error ? err.message : '提交失败' }
-                : t
-            )
-          );
-          onErrorRef.current?.(newId, err instanceof Error ? err.message : '提交失败');
-        });
+            } else if (initialStatus === 'FAILED') {
+              const errorMsg = data.errorMessage || '任务失败';
+              setTasks((current) => current.map((t) => t.id === newId ? { ...t, error: errorMsg } : t));
+              onErrorRef.current?.(newId, errorMsg);
+            }
+          }).catch((err) => {
+            setTasks((current) =>
+              current.map((t) =>
+                t.id === newId
+                  ? { ...t, status: 'FAILED' as TaskStatus, error: err instanceof Error ? err.message : '提交失败' }
+                  : t
+              )
+            );
+            onErrorRef.current?.(newId, err instanceof Error ? err.message : '提交失败');
+          });
       }
 
       return [...prev, newTask];

@@ -7,7 +7,157 @@ export const WORKFLOW = {
   TEXT_TO_IMAGE: '2016821668009742337',
   IMAGE_TO_IMAGE: '2016833201292976129',
   IMAGE_TO_VIDEO: '2018678819216953345',
+  QWEN_IMG2IMG: '2018659687624876033',
 } as const;
+
+export interface WorkflowNode {
+  nodeId: string;
+  nodeName?: string;
+  fields?: Record<string, {
+    name?: string;
+    type?: string;
+    options?: Array<{ label?: string; value?: string }>;
+    defaultValue?: unknown;
+  }>;
+}
+
+export async function getWorkflowAvailableLoRAs(
+  apiKey: string,
+  workflowId: string,
+  forceRefresh = false
+): Promise<Set<string>> {
+  const cacheKey = `lora_cache_${workflowId}`;
+  if (!forceRefresh) {
+    try {
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) {
+        const { loras, timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp < 5 * 60 * 1000) {
+          return new Set(loras);
+        }
+      }
+    } catch {}
+  }
+
+  try {
+    const format = await getWorkflowFormat(apiKey, workflowId);
+    const loras = new Set<string>();
+
+    // Parse workflow format - look for LoraLoader nodes
+    const parseNode = (node: Record<string, unknown>) => {
+      const nodeName = (node.nodeName || node.title || '') as string;
+      if (typeof nodeName === 'string' &&
+          (nodeName.includes('LoraLoader') || nodeName.includes('Lora'))) {
+        const fields = node.fields as Record<string, unknown> | undefined;
+        if (fields) {
+          const loraField = fields.lora_name || fields.loraName || fields.Lora_Name;
+          if (loraField && typeof loraField === 'object') {
+            const opts = (loraField as { options?: Array<{ label?: string; value?: string }> }).options;
+            if (Array.isArray(opts)) {
+              for (const opt of opts) {
+                const val = opt.value || opt.label;
+                if (val && typeof val === 'string' && val.endsWith('.safetensors')) {
+                  loras.add(val);
+                }
+              }
+            }
+          }
+        }
+      }
+    };
+
+    if (Array.isArray(format.nodes)) {
+      for (const node of format.nodes as unknown[]) {
+        if (node && typeof node === 'object') {
+          parseNode(node as Record<string, unknown>);
+        }
+      }
+    }
+
+    if (Array.isArray(format.nodeList)) {
+      for (const node of format.nodeList as unknown[]) {
+        if (node && typeof node === 'object') {
+          parseNode(node as Record<string, unknown>);
+        }
+      }
+    }
+
+    // Also check the raw format for any array of lora options
+    const findLoraArrays = (obj: unknown, depth = 0) => {
+      if (depth > 5 || !obj || typeof obj !== 'object') return;
+      if (Array.isArray(obj)) {
+        const allStrings = obj.every((v) => typeof v === 'string');
+        if (allStrings && obj.length > 10) {
+          for (const item of obj) {
+            if (item.endsWith('.safetensors')) {
+              loras.add(item);
+            }
+          }
+        }
+        obj.forEach(findLoraArrays);
+      } else {
+        for (const val of Object.values(obj as Record<string, unknown>)) {
+          findLoraArrays(val, depth + 1);
+        }
+      }
+    };
+    findLoraArrays(format);
+
+    try {
+      sessionStorage.setItem(cacheKey, JSON.stringify({
+        loras: [...loras],
+        timestamp: Date.now(),
+      }));
+    } catch {}
+
+    return loras;
+  } catch (err) {
+    console.warn('[getWorkflowAvailableLoRAs] Failed to fetch LoRA list:', err);
+    return new Set();
+  }
+}
+
+export function validateLoRANames(
+  loras: Array<{ name: string; nodeId: string }>,
+  availableLoRAs: Set<string>
+): Array<{ nodeId: string; name: string; suggestion: string }> {
+  const invalid: Array<{ nodeId: string; name: string; suggestion: string }> = [];
+  for (const { name, nodeId } of loras) {
+    if (!name.trim()) continue;
+    if (!availableLoRAs.has(name.trim())) {
+      // Find closest match
+      let closest = '';
+      let bestScore = 0;
+      for (const avail of availableLoRAs) {
+        const lName = name.toLowerCase();
+        const aName = avail.toLowerCase();
+        if (aName.includes(lName) || lName.includes(aName)) {
+          if (aName.length > bestScore) {
+            bestScore = aName.length;
+            closest = avail;
+          }
+        }
+      }
+      invalid.push({
+        nodeId,
+        name,
+        suggestion: closest || 'LoRA 名称不在工作流可用列表中',
+      });
+    }
+  }
+  return invalid;
+}
+
+export async function getWorkflowFormat(
+  apiKey: string,
+  workflowId: string
+): Promise<Record<string, unknown>> {
+  const url = `${BASE_URL}/workflow/format/${workflowId}`;
+  const response = await apiRequest<Record<string, unknown>>(url, {
+    method: 'GET',
+  }, apiKey, true);
+  return response;
+}
 
 interface ApiResponse {
   code?: number;
@@ -217,10 +367,45 @@ export async function getTaskResults(
     };
   }
 
+  // /outputs can also return code=0 with data="FAILED" string for failed tasks
+  if (outputsData.data === 'FAILED') {
+    return {
+      taskId,
+      status: 'FAILED',
+      errorCode: '',
+      errorMessage: '任务执行失败，请检查图片和提示词参数',
+      results: null,
+      clientId: '',
+      promptTips: '',
+      failedReason: {},
+      usage: null,
+      parentTaskId: null,
+      taskUsageList: null,
+    };
+  }
+
+  // For FAILED status from /status endpoint, try to get error detail from a separate inquiry endpoint
+  // Fallback: return FAILED with whatever msg is available
+  if (code !== 0) {
+    return {
+      taskId,
+      status: 'FAILED',
+      errorCode: String(code),
+      errorMessage: outputsData.msg || '任务失败，请检查参数是否正确',
+      results: null,
+      clientId: '',
+      promptTips: '',
+      failedReason: {},
+      usage: null,
+      parentTaskId: null,
+      taskUsageList: null,
+    };
+  }
+
   // code=804: RUNNING / code=813: QUEUED / other: still in progress
   return {
     taskId,
-    status: code === 813 ? 'QUEUED' : 'RUNNING',
+    status: 'RUNNING',
     errorCode: '',
     errorMessage: '',
     results: null,

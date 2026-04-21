@@ -8,6 +8,8 @@ interface ImageUploaderProps {
   onUpload: (file: File) => Promise<void>;
   disabled?: boolean;
   error?: string;
+  label?: string;
+  uploadLabel?: string;
 }
 
 const MAX_SIZE_MB = 10;
@@ -20,6 +22,8 @@ export function ImageUploader({
   onUpload,
   disabled = false,
   error,
+  label,
+  uploadLabel,
 }: ImageUploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -80,7 +84,7 @@ export function ImageUploader({
 
   return (
     <div className="space-y-2">
-      <label className="block text-sm font-medium text-text-primary">参考图片</label>
+      <label className="block text-sm font-medium text-text-primary">{label || '参考图片'}</label>
 
       <div
         onClick={() => !disabled && !isUploading && inputRef.current?.click()}
@@ -142,7 +146,7 @@ export function ImageUploader({
               )}
             </div>
             <p className="text-sm text-text-secondary font-medium">
-              {displayError ? displayError : '点击或拖拽上传图片'}
+              {displayError ? displayError : (displayPreview ? uploadLabel || '点击或拖拽更换图片' : '点击或拖拽上传图片')}
             </p>
             <p className="mt-1 text-xs text-text-tertiary">
               支持 JPG、PNG、WebP，最大 {MAX_SIZE_MB}MB

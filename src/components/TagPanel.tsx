@@ -21,6 +21,16 @@ interface TagPanelProps {
   onEnableR18: () => void;
   onDisplayLangChange: (lang: 'en' | 'zh') => void;
   disabled?: boolean;
+  onOptimizePrompt?: () => void;
+  isOptimizing?: boolean;
+  onGenerateFromPrompt?: () => void;
+  isGeneratingFromPrompt?: boolean;
+  expandedPrompt?: string;
+  onExpandedPromptChange?: (v: string) => void;
+  onGacha?: () => void;
+  isGachaLoading?: boolean;
+  gachaPrompt?: string;
+  onGachaPromptChange?: (v: string) => void;
 }
 
 export function TagPanel({
@@ -41,6 +51,16 @@ export function TagPanel({
   onEnableR18,
   onDisplayLangChange,
   disabled = false,
+  onOptimizePrompt,
+  isOptimizing,
+  onGenerateFromPrompt,
+  isGeneratingFromPrompt,
+  expandedPrompt,
+  onExpandedPromptChange,
+  onGacha,
+  isGachaLoading,
+  gachaPrompt,
+  onGachaPromptChange,
 }: TagPanelProps) {
   return (
     <div>
@@ -96,6 +116,16 @@ export function TagPanel({
             isR18Enabled={isR18Enabled}
             onEnableR18={onEnableR18}
             displayLang={displayLang}
+            onOptimizePrompt={onOptimizePrompt}
+            isOptimizing={isOptimizing}
+            onGenerateFromPrompt={onGenerateFromPrompt}
+            isGeneratingFromPrompt={isGeneratingFromPrompt}
+            expandedPrompt={expandedPrompt}
+            onExpandedPromptChange={onExpandedPromptChange}
+            onGacha={onGacha}
+            isGachaLoading={isGachaLoading}
+            gachaPrompt={gachaPrompt}
+            onGachaPromptChange={onGachaPromptChange}
           />
         </div>
       </div>
@@ -145,6 +175,16 @@ export function TagPanel({
               isR18Enabled={isR18Enabled}
               onEnableR18={onEnableR18}
               displayLang={displayLang}
+              onOptimizePrompt={onOptimizePrompt}
+              isOptimizing={isOptimizing}
+              onGenerateFromPrompt={onGenerateFromPrompt}
+              isGeneratingFromPrompt={isGeneratingFromPrompt}
+              expandedPrompt={expandedPrompt}
+              onExpandedPromptChange={onExpandedPromptChange}
+              onGacha={onGacha}
+              isGachaLoading={isGachaLoading}
+              gachaPrompt={gachaPrompt}
+              onGachaPromptChange={onGachaPromptChange}
             />
           </div>
         </div>
