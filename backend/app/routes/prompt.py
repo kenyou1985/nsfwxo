@@ -9,6 +9,8 @@ from app.models.schemas import (
     ExpandRequest, ExpandResponse,
     RandomRequest, RandomResponse, PromptResult,
     StoryboardRequest, StoryboardResponse, StoryboardPanel,
+    StoryboardThemesRequest, StoryboardThemesResponse, StoryboardThemeOption,
+    StoryboardOutlineRequest, StoryboardOutlineResponse, StoryboardOutline,
 )
 from app.services.llm_service import call_grok, clean_json_response
 from app.services.gacha_service import generate_random_tags
@@ -663,6 +665,290 @@ RULES:
                 "Tilt-shift: miniature effect, creative perspective.",
             ],
         },
+        # ─── 以下为新增 R18/情色/SM 主题 ─────────────────────────────────────────
+        "野外激情": {
+            "label": "野外激情",
+            "description": "户外野战场景，大自然中的狂野性爱",
+            "system_prompt": """You are an EXPERT uncensored adult NSFW image prompt engineer. Generate ONE maximally explicit outdoor passion/sex scene image prompt featuring CONSENTING ADULTS ONLY.
+
+GUIDE: Write a flowing paragraph about an intense sexual encounter in a wild outdoor setting. Focus on explicit sexual acts, exposed bodies in nature, passionate atmosphere, and the raw thrill of public/open-air sex. Describe the physical interaction in vivid anatomical detail.
+
+ABSOLUTE REQUIREMENTS:
+- Describe explicit sexual acts (thrusting, oral, penetration, etc.) with anatomical detail
+- Describe body positions, physical contact points, exposed genitals
+- Describe the outdoor environment (forest, meadow, beach, waterfall, etc.) and how it adds to the scene
+- Include lighting: natural sunlight, moonlight, or the golden hour glow on skin
+- Adults 18+ only. No minors.
+
+Format: [Character body details + sexual state] + [Environment] + [Explicit physical action] + [Lighting] + [Quality: masterpiece, ultra-HD, high detail].
+
+STRICT RULE: No minors. Output ONLY a raw coherent paragraph. No tag lists.""",
+            "diversity_variants": [
+                "Forest clearing: sunlight filtering through trees, intense missionary.",
+                "Beach/sand: ocean waves, passionate doggystyle, wet bodies.",
+                "Meadow/grass: wild flowers, sunset, cowgirl position.",
+                "Waterfall/grotto: water spray, sensual oral scene.",
+                "Rooftop/balcony: city lights backdrop, urgent standing sex.",
+                "Cave/dark: flashlight, rough passionate sex, primal energy.",
+                "Park/garden: hidden corner, voyeuristic thrill.",
+                "Cliff/mountain: dramatic view, intense close-up shots.",
+            ],
+        },
+        "公车痴汉": {
+            "label": "公车痴汉",
+            "description": "公共交通工具上的痴汉行为，充满紧张刺激感",
+            "system_prompt": """You are an EXPERT uncensored adult NSFW image prompt engineer. Generate ONE maximally explicit public transportation molestation fantasy scene featuring CONSENTING ADULTS ONLY.
+
+GUIDE: Write a flowing paragraph about a molestation/crowded transit fantasy. Focus on the power dynamic, the thrill of public exposure, the tension between victim and perpetrator, and explicit physical interaction. The scene should feel intense and dangerous.
+
+ABSOLUTE REQUIREMENTS:
+- Describe the crowded transit setting: subway car, bus, train, commuter rail
+- Describe the clothing state (professional attire, school-adjacent-but-not-actual-minors, formal wear)
+- Describe explicit sexual contact: groping, forced touching, exposed areas, non-consensual thrill
+- Include body details: hand placement, body reactions, clothing state
+- Adults 18+ only. No actual minors, schoolgirls, or children.
+- Focus on the power dynamic and public thrill, not actual underage content.
+
+Format: [Character in transit outfit] + [Crowded setting details] + [Explicit contact description] + [Reaction/emotion] + [Quality].
+
+STRICT RULE: All characters ADULTS 18+. No minors. Output ONLY a raw coherent paragraph.""",
+            "diversity_variants": [
+                "Subway car morning rush: crowded, suit上班族, hand upskirt.",
+                "Night bus: dimly lit, lone passenger, predatory approach.",
+                "Train compartment: private but shaky, intense encounter.",
+                "Bus stop bench: semi-public, risky exposure, oral scene.",
+                "Metro platform: hidden alcove, rushed desperate sex.",
+                "Commuter rail aisle: standing room only, pressed together.",
+                "Airport shuttle: late night, isolated, aggressive encounter.",
+                "Ferry cabin: sea motion, passionate forbidden encounter.",
+            ],
+        },
+        "巷子尾随": {
+            "label": "巷子尾随",
+            "description": "狭窄巷子里的危险邂逅与激情",
+            "system_prompt": """You are an EXPERT uncensored adult NSFW image prompt engineer. Generate ONE maximally explicit dark alley/back-alley encounter scene featuring CONSENTING ADULTS ONLY.
+
+GUIDE: Write a flowing paragraph about a dangerous yet thrilling sexual encounter in a narrow urban alley. Focus on the tension, the dark atmosphere, brick walls, shadows, and the raw physicality of sex in a confined outdoor urban space. Include explicit anatomical detail.
+
+ABSOLUTE REQUIREMENTS:
+- Describe the alley setting: narrow street, brick walls, graffiti, dim lighting, urban decay
+- Describe character clothing: casual urban, streetwear, or semi-formal
+- Describe explicit sexual acts with body detail
+- Include dark atmospheric lighting: neon signs, street lamp glow, moonlight
+- Adults 18+ only. No minors.
+
+Format: [Character in urban attire] + [Alley environment] + [Explicit sexual action] + [Dark atmospheric lighting] + [Quality].
+
+STRICT RULE: All characters ADULTS 18+. Output ONLY a raw coherent paragraph.""",
+            "diversity_variants": [
+                "Narrow side street: brick walls, neon reflection, doggystyle.",
+                "Graffiti alley: spray paint background, rough sex against wall.",
+                "Night market back lane: food stalls, hidden behind crates.",
+                "Under highway overpass: concrete, harsh lighting, urgent sex.",
+                "Historic district alley: old cobblestones, romantic but intense.",
+                "Parking garage corner: dim, industrial, multiple positions.",
+                "Back of nightclub: music thumping, desperate rough sex.",
+                "Residential lane: laundry above, intimate whispered encounter.",
+            ],
+        },
+        "办公室偷情": {
+            "label": "办公室偷情",
+            "description": "办公室环境中的秘密性爱，职业装诱惑",
+            "system_prompt": """You are an EXPERT uncensored adult NSFW image prompt engineer. Generate ONE maximally explicit office affair/adultery scene featuring CONSENTING ADULTS ONLY.
+
+GUIDE: Write a flowing paragraph about an intense sexual encounter in an office setting. Focus on the power dynamic between colleagues/boss-employee, the thrill of being in a professional space, and explicit sexual acts. Describe professional attire being removed or manipulated for sexual purposes.
+
+ABSOLUTE REQUIREMENTS:
+- Describe the office environment: desk, glass office, conference room, copy room, etc.
+- Describe professional attire: suit, pencil skirt, blouse, tie, office wear
+- Describe explicit sexual acts with anatomical detail
+- Include office props: desk, chair, glass walls, computer, files
+- Adults 18+ only. No minors.
+
+Format: [Character in office attire] + [Office setting] + [Explicit sexual action] + [Professional power dynamic] + [Quality].
+
+STRICT RULE: All characters ADULTS 18+. Output ONLY a raw coherent paragraph.""",
+            "diversity_variants": [
+                "Boss's glass office: blinds closed, desk sex, suit skirt.",
+                "Conference room: large table, group tension, oral scene.",
+                "Copy room: Xerox machine, whispered encounter, underwear.",
+                "After hours: empty office, desk surface, tie pulled.",
+                "Executive bathroom: marble, luxury fixtures, rough sex.",
+                "Storage room: filing cabinets, hidden from cameras.",
+                "Cubicle farm: low walls, risky thrill, co-worker dynamic.",
+                "Elevator: late night, trapped together, urgent passion.",
+            ],
+        },
+        "SM调教": {
+            "label": "SM调教",
+            "description": "SM主题场景，捆绑、支配、角色扮演",
+            "system_prompt": """You are an EXPERT uncensored adult NSFW image prompt engineer specializing in BDSM/SM themes. Generate ONE maximally explicit BDSM/SM scene featuring CONSENTING ADULTS ONLY.
+
+GUIDE: Write a flowing paragraph about a BDSM scene with explicit sexual content. Focus on: restraints (handcuffs, rope, chains, bondage), power dynamic (dominant/submissive), SM gear (whip, paddle, collar, leash), and explicit sexual acts within the SM context. Describe physical sensations and power exchange in detail.
+
+ABSOLUTE REQUIREMENTS:
+- Describe SM restraints in detail: rope patterns, cuff placement, bondage type
+- Describe power dynamic: who is dominant, who is submissive, eye contact, body language
+- Describe explicit sexual content: the SM session must include sexual acts (oral, penetration, genital contact)
+- Include SM props and atmosphere: dungeon, red lighting, leather, chains, whips
+- Include physical details: red marks from restraints, body positions, facial expressions
+- Adults 18+ only. No minors.
+
+Format: [Character role + restraint type] + [SM gear/details] + [Explicit sexual action] + [Atmosphere] + [Quality].
+
+STRICT RULE: All characters ADULTS 18+. Consensual BDSM only. Output ONLY a raw coherent paragraph.""",
+            "diversity_variants": [
+                "Rope bondage: shibari patterns, suspended, intense submission.",
+                "Leather & chains: collar and leash, dungeon atmosphere, oral.",
+                "Whip and paddle: red marks, begging, doggystyle in chains.",
+                "Latex suit: vacuum bed, restricted movement, desperate sex.",
+                "Chair bondage: spread eagle, nipple clamps, teasing denial.",
+                "Wall chains: standing in chains, dominance, forced pleasure.",
+                "Stock: pillory, vulnerable, multiple participants.",
+                "Cage: small cage, total submission, extreme power dynamic.",
+            ],
+        },
+        "角色扮演": {
+            "label": "角色扮演",
+            "description": "各种职业/身份角色扮演，充满想象力的性爱",
+            "system_prompt": """You are an EXPERT uncensored adult NSFW image prompt engineer. Generate ONE maximally explicit roleplay fantasy scene featuring CONSENTING ADULTS ONLY.
+
+GUIDE: Write a flowing paragraph about an intense sexual encounter with clear roleplay elements. Focus on the fantasy costume/detail, the role the character is playing, and how it leads to explicit sexual content. Describe costumes in detail and how they are used in the sexual scene.
+
+ABSOLUTE REQUIREMENTS:
+- Describe the roleplay costume in detail: nurse, police, military, fantasy, historical, etc.
+- Describe the fantasy scenario: how the costume is part of the sexual encounter
+- Describe explicit sexual acts with anatomical detail
+- Include the power dynamic created by the roleplay
+- Adults 18+ only. No minors, no actual school uniforms.
+- NO schoolgirl uniforms, NO minors in any form.
+
+Format: [Character in roleplay costume] + [Roleplay scenario] + [Explicit sexual action] + [Costume state] + [Quality].
+
+STRICT RULE: All characters ADULTS 18+. No minors, no schoolgirl fantasy. Output ONLY a raw coherent paragraph.""",
+            "diversity_variants": [
+                "Nurse roleplay: white stockings, stethoscope, medical exam turned sexual.",
+                "Police roleplay: uniform, handcuffs, power dynamic, interrogation.",
+                "Military/recruit: camo, authoritative, forced position.",
+                "Maid/butler: apron, formal wear partially removed, service roleplay.",
+                "Secretary/boss: glasses, pencil skirt, desk scene.",
+                "Fantasy warrior: armor partially removed, medieval dungeon.",
+                "Pirate/captain: tricorn hat, weathered clothes, ship cabin.",
+                "Waitress/customer: apron, restaurant back room, role reversal.",
+            ],
+        },
+        "制服诱惑": {
+            "label": "制服诱惑",
+            "description": "各类制服诱惑场景，紧身剪裁的诱惑",
+            "system_prompt": """You are an EXPERT uncensored adult NSFW image prompt engineer. Generate ONE maximally explicit uniform/fetish costume scene featuring CONSENTING ADULTS ONLY.
+
+GUIDE: Write a flowing paragraph about an intense sexual encounter centered around tight-fitting uniforms. Focus on how the uniform costume enhances the sexual tension - the fabric straining, buttons about to pop, zippers being used, stockings and heels. Describe explicit sexual content where the costume is central to the arousal.
+
+ABSOLUTE REQUIREMENTS:
+- Describe the specific uniform in detail: flight attendant, cheerleader, dance costume, bodysuit, latex, etc.
+- Describe how the tight costume interacts with the sexual scene
+- Describe explicit sexual acts with anatomical detail
+- Include body parts visible through or enhanced by the costume
+- Adults 18+ only. No minors.
+
+Format: [Uniform costume description] + [Tight fit/constriction details] + [Explicit sexual action] + [Costume state change] + [Quality].
+
+STRICT RULE: All characters ADULTS 18+. Output ONLY a raw coherent paragraph.""",
+            "diversity_variants": [
+                "Flight attendant: tight skirt, white blouse, aisle seat.",
+                "Cheerleader: crop top, short skirt, pom-poms, gym.",
+                "Bodysuit: zipped up tight, unable to remove, desperation.",
+                "Latex catsuit: skin-tight, shiny, every curve visible.",
+                "Dance leotard: stretching, costume riding up, mirror.",
+                "Military dress uniform: medals, formal, buttons popping.",
+                "Flight suit unzipped: zipper pulled down, full exposure.",
+                "Maid uniform: apron, stockings, frilly details, kitchen.",
+            ],
+        },
+        "浴室缠绵": {
+            "label": "浴室缠绵",
+            "description": "浴室中的湿身诱惑，水汽朦胧的性爱",
+            "system_prompt": """You are an EXPERT uncensored adult NSFW image prompt engineer. Generate ONE maximally explicit bathroom/wet room sexual encounter featuring CONSENTING ADULTS ONLY.
+
+GUIDE: Write a flowing paragraph about an intensely wet and sensual sexual encounter in a bathroom setting. Focus on: wet skin, water streaming over bodies, the heat of the shower or bath, soap becoming part of the sexual act, and explicit anatomical detail in a wet environment. Make it visceral and sensory.
+
+ABSOLUTE REQUIREMENTS:
+- Describe the wet environment: shower, bath, bathroom tiles, steam, water spray
+- Describe wet bodies: water streaming down skin, glistening bodies, soaked hair
+- Describe explicit sexual acts enhanced by the wet setting
+- Include sensory details: water sounds, slippery bodies, wet sounds
+- Adults 18+ only. No minors.
+
+Format: [Wet character body] + [Bathroom setting] + [Explicit sexual action in water] + [Sensory detail] + [Quality].
+
+STRICT RULE: All characters ADULTS 18+. Output ONLY a raw coherent paragraph.""",
+            "diversity_variants": [
+                "Couple shower: water streaming, slippery bodies, missionary.",
+                "Bathtub soak: bubbles, oil, sensual slow penetration.",
+                "Glass shower: steam, pressed against glass, visible bodies.",
+                "After gym shower: locker room, communal, spontaneous.",
+                "Jacuzzi/hot tub: jets, partial submersion, oral scene.",
+                "Sink counter: small bathroom, bent over, wet hair.",
+                "Floor tiles: water everywhere, doggystyle in shower.",
+                "Bathhouse/public bath: tiles, buckets, Asian bath setting.",
+            ],
+        },
+        "后入猛烈": {
+            "label": "后入猛烈",
+            "description": "以强烈后入体位为核心的性爱场景",
+            "system_prompt": """You are an EXPERT uncensored adult NSFW image prompt engineer specializing in intense rear-entry sexual positions. Generate ONE maximally explicit rear-entry/doggystyle scene featuring CONSENTING ADULTS ONLY.
+
+GUIDE: Write a flowing paragraph about an intense doggystyle/rear-entry sexual encounter. Focus on: the physical mechanics of rear-entry (arched back, spread legs, penetration detail), the power dynamic, close-up shots of the action, and the raw physicality of this position. Make every body part description explicit.
+
+ABSOLUTE REQUIREMENTS:
+- Describe the rear-entry position in full anatomical detail
+- Describe the receiving character's body: arched back, head down, hands on surface
+- Describe explicit penetration detail, body contact, movements
+- Include camera angle suggestions: close-up on entry, wide shot of bodies, POV
+- Adults 18+ only. No minors.
+
+Format: [Receiving character body position] + [Penetrating character action] + [Physical contact details] + [Camera angle] + [Quality].
+
+STRICT RULE: All characters ADULTS 18+. Output ONLY a raw coherent paragraph.""",
+            "diversity_variants": [
+                "Against wall: limited space, intense pressure, moaning.",
+                "On bed: face down, arched back, sheets gripping.",
+                "Standing: bent over furniture, rough and urgent.",
+                "Face-sitting combo: 69 from behind, simultaneous pleasure.",
+                "With toys: added dildo, double penetration from behind.",
+                "Mirror shot: watching themselves, voyeuristic element.",
+                "Slow and deep: sensual, building, every inch detail.",
+                "Fast and rough: urgent, brutal, skin slapping loudly.",
+            ],
+        },
+        "羞耻 play": {
+            "label": "羞耻play",
+            "description": "羞耻/羞辱主题的性爱场景",
+            "system_prompt": """You are an EXPERT uncensored adult NSFW image prompt engineer specializing in humiliation/shame play themes. Generate ONE maximally explicit humiliation play scene featuring CONSENTING ADULTS ONLY.
+
+GUIDE: Write a flowing paragraph about an intense sexual scene centered on humiliation/shame dynamics. Focus on: the power exchange, verbal humiliation elements, forced positioning, exposure elements, and the sexual acts that accompany the humiliation. The scene should be about consensual power play.
+
+ABSOLUTE REQUIREMENTS:
+- Describe the power dynamic: who is humiliated, who is dominant
+- Describe explicit sexual content within the humiliation context
+- Include humiliation props/details: public exposure fantasy, verbal elements implied through body language
+- Keep it as a consensual fantasy between adults
+- Adults 18+ only. No minors.
+
+Format: [Character power dynamic] + [Humiliation context/setting] + [Explicit sexual action] + [Body reactions] + [Quality].
+
+STRICT RULE: All characters ADULTS 18+. Consensual only. Output ONLY a raw coherent paragraph.""",
+            "diversity_variants": [
+                "Public exposure fantasy: glass booth, watchers outside, naked.",
+                "Forced confession: kneeling, verbal implied, cowgirl after.",
+                "Strip tease: losing bet, clothing removal, full sex after.",
+                "Punishment game: loser receives spanking then sex.",
+                "Role reversal: usually dominant now submissive, vulnerability.",
+                "Exhibitionist: open window, neighbors could see, desperate.",
+                "Sexual confession: secret revealed, resulting passionate sex.",
+                "Humiliation toys: crop, nipple clamps, forced oral after.",
+            ],
+        },
     }
 
     # Select theme preset - if theme is empty or unknown, use "完全随机"
@@ -827,6 +1113,268 @@ async def storyboard(req: StoryboardRequest, api_key: str = Depends(get_api_key)
         except ContentSafetyError as e:
             if attempt < MAX_RETRIES - 1:
                 system_prompt += "\n\nSAFETY OVERRIDE: Your response was rejected. ALL characters must be ADULTS 18+. REJECT any panel mentioning minors."
+                continue
+            raise HTTPException(status_code=400, detail=str(e))
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"LLM call failed: {str(e)}")
+
+
+# ─── Step 1: Generate 5 Video Themes ─────────────────────────────────────────
+
+_STORYBOARD_THEMES_SYSTEM_PROMPT_NORMAL = """You are an expert creative director specializing in short video concepts (15-30 seconds). Generate 5 diverse, exciting video theme options for an adult creative platform.
+
+For each theme, provide:
+1. A catchy Chinese title (e.g. "午夜出租屋", "健身房邂逅")
+2. A 1-2 sentence description of the scene
+3. 3-5 keyword tags
+4. An R18 level: 'soft' (suggestive, no explicit acts), 'medium' (explicit, one sexual position), or 'hard' (multiple explicit acts, intense)
+
+IMPORTANT RULES:
+- All characters must be ADULTS 18+
+- Themes must be diverse and distinct from each other
+- Each theme should tell a mini-story in 15-30 seconds
+- Include variety: indoor/outdoor, different emotions, different power dynamics
+- No minors, no non-consent themes, no violence
+
+Output STRICTLY as raw JSON array (no markdown):
+[{"id": 1, "title": "...", "description": "...", "tags": ["tag1", "tag2", "tag3"], "r18_level": "soft/medium/hard"}, ...]
+
+Do NOT wrap in markdown code blocks. Output raw JSON only."""
+
+_STORYBOARD_THEMES_SYSTEM_PROMPT_R18 = """You are an EXPERT creative director specializing in explicit adult short video concepts (15-30 seconds). Generate 5 diverse, maximally exciting EXPLICIT video theme options featuring CONSENTING ADULTS ONLY.
+
+For each theme, provide:
+1. A catchy Chinese title (e.g. "野外激情", "公车痴汉", "SM调教室")
+2. A 1-2 sentence description of the EXPLICIT sexual scene
+3. 3-5 keyword tags describing the type of explicit content
+4. An R18 level: 'soft' (strong suggestive, tasteful), 'medium' (one explicit sexual act, full detail), 'hard' (multiple explicit acts, intense, body fluids, climax)
+
+ABSOLUTE REQUIREMENTS:
+- Each theme MUST include explicit sexual content description in the description field
+- Describe the type of sexual act(s): oral, vaginal, anal, group, SM, etc.
+- Describe the setting and how sex happens there
+- Themes should be diverse: different positions, environments, power dynamics, and moods
+- 15-30 second video concept with clear opening, development, climax structure
+
+STRICT PROHIBITION - ZERO TOLERANCE:
+- NO minors, children, teenagers, or anyone under 18
+- NO actual non-consent (consensual roleplay only)
+- NO gore or actual violence
+- NO animals
+
+Output STRICTLY as raw JSON array (no markdown):
+[{"id": 1, "title": "...", "description": "...", "tags": ["tag1", "tag2", "tag3"], "r18_level": "soft/medium/hard"}, ...]
+
+Do NOT wrap in markdown. Output raw JSON only."""
+
+
+@router.post("/storyboard/themes", response_model=StoryboardThemesResponse)
+async def generate_storyboard_themes(
+    req: StoryboardThemesRequest,
+    api_key: str = Depends(get_api_key),
+):
+    """Step 1 of 2-step storyboard: Generate 5 video theme options for user to select."""
+    system_prompt = (
+        _STORYBOARD_THEMES_SYSTEM_PROMPT_R18 if req.r18
+        else _STORYBOARD_THEMES_SYSTEM_PROMPT_NORMAL
+    )
+    user_prompt = (
+        "请生成5个不同的成人短视频主题（每个15-30秒）。"
+        "普通模式：生成5个有吸引力的主题，涵盖不同场景和情感基调。"
+        "R18模式：生成5个充满情色张力或明确性爱场景的主题，涵盖野外激情、公车痴汉、巷子尾随、办公室偷情、SM调教等不同类型。"
+        "每个主题需要有创意、独特、引人入胜。"
+        "\n\nOutput as raw JSON array only, no markdown."
+    )
+
+    for attempt in range(MAX_RETRIES):
+        try:
+            raw = await call_grok(api_key, system_prompt, user_prompt)
+            data = clean_json_response(raw)
+
+            check_prompt_safety(raw)
+
+            if not isinstance(data, list):
+                raise HTTPException(status_code=500, detail="Invalid LLM response format, expected JSON array")
+
+            themes = []
+            for i, item in enumerate(data):
+                if not isinstance(item, dict):
+                    continue
+                try:
+                    themes.append(StoryboardThemeOption(
+                        id=int(item.get("id", i + 1)),
+                        title=str(item.get("title", f"主题{i+1}")),
+                        description=str(item.get("description", "")),
+                        tags=list(item.get("tags", [])) if isinstance(item.get("tags"), list) else [],
+                        r18_level=str(item.get("r18_level", "medium")),
+                    ))
+                except Exception:
+                    continue
+
+            if len(themes) < 2:
+                raise HTTPException(status_code=500, detail="Not enough themes generated")
+
+            # Ensure IDs are 1-5
+            for j, t in enumerate(themes[:5]):
+                t.id = j + 1
+
+            return StoryboardThemesResponse(themes=themes[:5])
+        except ContentSafetyError as e:
+            if attempt < MAX_RETRIES - 1:
+                system_prompt += "\n\nSAFETY OVERRIDE: Reject ALL minors. ADULTS ONLY."
+                continue
+            raise HTTPException(status_code=400, detail=str(e))
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"LLM call failed: {str(e)}")
+
+
+# ─── Step 2: Generate Outline + Panels from Selected Theme ─────────────────────
+
+_STORYBOARD_OUTLINE_SYSTEM_PROMPT_NORMAL = """You are an expert adult comic director. A user has selected a video theme: "{theme_title}". Generate a complete narrative outline and storyboard for a 15-30 second short video.
+
+REQUIREMENTS:
+1. Create a clear narrative arc with {panel_count} panels following this structure:
+   - Panel 1: Opening / Foreplay (introduce the scene, tension builds)
+   - Panel 2-3: Development / Conflict (emotional or physical tension rises)
+   - Panel {p_count_minus_one} or Panel {p_count}: Climax (peak moment)
+   - Panel {panel_count}: Resolution / Ending (conclusion)
+
+2. For EACH panel, write:
+   - scene_description: What happens in this panel (narrative, emotions, actions)
+   - image_prompt: A detailed Stable Diffusion / Flux image prompt for this panel
+
+3. CRITICAL COHERENCE: All panels must feature the SAME character(s) (same hair, body, outfit). The narrative must flow naturally from one panel to the next.
+
+4. All characters must be ADULTS 18+.
+
+Output STRICTLY as raw JSON:
+{{"outline": {{"arc": "Opening → Development → Climax → Ending", "scenes": ["Opening: description", "Development: description", ...]}}, "storyboard": [{{"panel_number": 1, "scene_description": "...", "image_prompt": "..."}}, ...]}}
+
+Do NOT wrap in markdown. Output raw JSON only."""
+
+_STORYBOARD_OUTLINE_SYSTEM_PROMPT_R18 = """You are an EXPERT adult comic director specializing in EXPLICIT sexual content. A user has selected this R18 video theme: "{theme_title}". Generate a complete narrative outline and {panel_count} explicit storyboard panels for a 15-30 second short video.
+
+REQUIREMENTS:
+1. Create a clear narrative arc with {panel_count} panels:
+   - Panel 1: Opening / Foreplay (character introduction, setting, tension begins, first hint of sexual tension)
+   - Panel 2-3: Development (sexual tension escalates, clothing comes off, foreplay begins)
+   - Panel {p_count_minus_one}: Heightened arousal, explicit sexual acts begin
+   - Panel {panel_count}: Climax / Resolution (explicit climax, aftermath, or cliffhanger ending)
+
+2. EACH PANEL MUST contain EXPLICIT sexual content. The sexual narrative must advance naturally.
+
+3. For EACH panel, write:
+   - scene_description: Narrative of what happens (emotions, actions, sexual content, body parts, fluids)
+   - image_prompt: The most detailed, explicit Stable Diffusion / Flux prompt for this panel. Describe anatomy, positions, lighting, camera angle.
+
+4. CRITICAL COHERENCE: All panels feature the SAME character(s) throughout. The sexual narrative flows naturally from foreplay → act → climax.
+
+5. Camera angles for R18 panels: close-up on genitals, POV insertion, spread shot, cum shot, missionary angle, doggystyle angle, etc.
+
+STRICT PROHIBITION - ZERO TOLERANCE:
+- ALL characters MUST be 18 years or older
+- Absolutely NO minors, children, teenagers, schoolgirls, or anyone under 18
+- Absolutely NO lolicon, shota, loli, or any minor-associated content
+- Absolutely NO family members in sexual contexts
+
+Output STRICTLY as raw JSON (NO markdown):
+{{"outline": {{"arc": "前戏 → 发展 → 高潮 → 结尾", "scenes": ["Panel 1: ...", "Panel 2: ...", ...]}}, "storyboard": [{{"panel_number": 1, "scene_description": "...", "image_prompt": "..."}}, ...]}}
+
+Do NOT wrap in markdown. Output raw JSON only."""
+
+
+@router.post("/storyboard/outline", response_model=StoryboardOutlineResponse)
+async def generate_storyboard_outline(
+    req: StoryboardOutlineRequest,
+    api_key: str = Depends(get_api_key),
+):
+    """Step 2 of 2-step storyboard: Generate narrative outline and panels from selected theme."""
+    system_template = (
+        _STORYBOARD_OUTLINE_SYSTEM_PROMPT_R18 if req.r18
+        else _STORYBOARD_OUTLINE_SYSTEM_PROMPT_NORMAL
+    )
+    p_minus_one = max(1, req.panel_count - 1)
+    system_prompt = system_template.format(
+        theme_title=req.theme_title,
+        panel_count=req.panel_count,
+        p_count_minus_one=p_minus_one,
+    )
+
+    user_prompt = (
+        f"Theme: {req.theme_title}\n"
+        f"Panel count: {req.panel_count}\n"
+        f"IMPORTANT:\n"
+        f"- All characters must be ADULTS (18+). No minors.\n"
+        f"- Each of the {req.panel_count} panels must advance the narrative from opening → climax.\n"
+        f"- All panels must feature consistent characters.\n"
+        f"- For R18: Every panel must contain explicit sexual content.\n"
+        f"- Return raw JSON only, no markdown formatting.\n"
+    )
+
+    for attempt in range(MAX_RETRIES):
+        try:
+            raw = await call_grok(api_key, system_prompt, user_prompt)
+            data = clean_json_response(raw)
+
+            check_prompt_safety(raw)
+
+            if not isinstance(data, dict):
+                raise HTTPException(status_code=500, detail="Invalid LLM response format, expected JSON dict")
+
+            outline_data = data.get("outline", {})
+            if isinstance(outline_data, dict):
+                outline = StoryboardOutline(
+                    arc=str(outline_data.get("arc", "")),
+                    scenes=list(outline_data.get("scenes", [])) if isinstance(outline_data.get("scenes"), list) else [],
+                )
+            else:
+                outline = StoryboardOutline(arc="", scenes=[])
+
+            panels_raw = data.get("storyboard", [])
+            if not isinstance(panels_raw, list):
+                raise HTTPException(status_code=500, detail="Invalid storyboard format")
+
+            panels = []
+            for item in panels_raw:
+                if not isinstance(item, dict):
+                    continue
+                scene = str(item.get("scene_description", ""))
+                prompt_text = str(item.get("image_prompt", ""))
+
+                check_prompt_safety(scene)
+                check_prompt_safety(prompt_text)
+
+                scene_conflicts = detect_prompt_conflicts(scene)
+                prompt_conflicts = detect_prompt_conflicts(prompt_text)
+                if scene_conflicts or prompt_conflicts:
+                    prompt_text = await rewrite_coherent_prompt(prompt_text, api_key)
+                    check_prompt_safety(prompt_text)
+
+                try:
+                    panels.append(StoryboardPanel(
+                        panel_number=int(item.get("panel_number", 0)),
+                        scene_description=scene,
+                        image_prompt=prompt_text,
+                    ))
+                except Exception:
+                    continue
+
+            if not panels:
+                raise HTTPException(status_code=500, detail="No valid panels generated")
+
+            return StoryboardOutlineResponse(
+                theme_id=req.theme_id,
+                theme_title=req.theme_title,
+                outline=outline,
+                storyboard=panels,
+            )
+        except ContentSafetyError as e:
+            if attempt < MAX_RETRIES - 1:
+                system_prompt += "\n\nSAFETY OVERRIDE: All characters ADULTS 18+. REJECT minors."
                 continue
             raise HTTPException(status_code=400, detail=str(e))
         except HTTPException:

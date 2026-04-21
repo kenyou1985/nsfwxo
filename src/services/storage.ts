@@ -248,6 +248,10 @@ export interface StoryboardSession {
   panelCount: number;
   panels: { panel_number: number; scene_description: string; image_prompt: string }[];
   expandedPanel: number | null;
+  themeId?: number;
+  themeTitle?: string;
+  outlineArc?: string;
+  outlineScenes?: string[];
 }
 
 function loadSession<T>(key: string): T | null {

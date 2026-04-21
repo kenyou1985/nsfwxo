@@ -3,12 +3,14 @@ import {
   Wand2, Shuffle, LayoutList, Copy, Check, Loader2,
   ChevronDown, ChevronUp, Sparkles, RotateCcw, Send,
   AlertCircle, Settings, Eye, Tag, History, Trash2, Plus, Clock,
-  Image, Zap, X, Download, User, Heart, Star,
+  Image, Zap, X, Download, User, Heart, Star, Clapperboard,
 } from 'lucide-react';
 import {
   expandPrompt,
   randomPrompt,
   generateStoryboard,
+  generateStoryboardThemes,
+  generateStoryboardOutline,
   PromptResult,
 } from '../services/promptApi';
 import {
@@ -842,6 +844,16 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     { key: '性感睡衣', label: '性感睡衣' },
     { key: '浴室氛围', label: '浴室氛围' },
     { key: '写真艺术', label: '写真艺术' },
+    { key: '野外激情', label: '野外激情' },
+    { key: '公车痴汉', label: '公车痴汉' },
+    { key: '巷子尾随', label: '巷子尾随' },
+    { key: '办公室偷情', label: '办公室偷情' },
+    { key: 'SM调教', label: 'SM调教' },
+    { key: '角色扮演', label: '角色扮演' },
+    { key: '制服诱惑', label: '制服诱惑' },
+    { key: '浴室缠绵', label: '浴室缠绵' },
+    { key: '后入猛烈', label: '后入猛烈' },
+    { key: '羞耻play', label: '羞耻play' },
   ];
 
   const handleGenerate = async () => {
@@ -1349,7 +1361,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
 }) {
   const savedStoryboard = getStoryboardSession();
   const [plot, setPlot] = useState(savedStoryboard?.plot || '');
-  const [panelCount, setPanelCount] = useState(savedStoryboard?.panelCount || 4);
+  const [panelCount, setPanelCount] = useState(savedStoryboard?.panelCount || 5);
   const [panels, setPanels] = useState<{ panel_number: number; scene_description: string; image_prompt: string }[]>(savedStoryboard?.panels || []);
   const [expandedPanel, setExpandedPanel] = useState<number | null>(savedStoryboard?.expandedPanel ?? null);
   const [copiedPanel, setCopiedPanel] = useState<number | null>(null);
@@ -1358,42 +1370,95 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   const [genStates, setGenStates] = useState<Record<number, { loading: boolean; images: string[] }>>({});
   const [batchLoading, setBatchLoading] = useState(false);
 
-  // Persist storyboard state to sessionStorage
+  // 2-step storyboard state
+  const [storyStep, setStoryStep] = useState<'themes' | 'outline' | 'panels'>(
+    savedStoryboard?.themeId ? 'panels' : 'themes'
+  );
+  const [themeOptions, setThemeOptions] = useState<{
+    id: number; title: string; description: string; tags: string[]; r18_level: string;
+  }[]>([]);
+  const [selectedTheme, setSelectedTheme] = useState<{
+    id: number; title: string; description: string; tags: string[]; r18_level: string;
+  } | null>(null);
+  const [outlineArc, setOutlineArc] = useState(savedStoryboard?.outlineArc || '');
+  const [outlineScenes, setOutlineScenes] = useState<string[]>(savedStoryboard?.outlineScenes || []);
+  const [generatingOutline, setGeneratingOutline] = useState(false);
+
+  // Persist storyboard state
   useEffect(() => {
-    if (plot || panels.length > 0) {
-      saveStoryboardSession({ plot, panelCount, panels, expandedPanel });
+    if (plot || panels.length > 0 || selectedTheme) {
+      saveStoryboardSession({
+        plot, panelCount, panels, expandedPanel,
+        themeId: selectedTheme?.id,
+        themeTitle: selectedTheme?.title,
+        outlineArc,
+        outlineScenes,
+      });
     } else {
       clearStoryboardSession();
     }
-  }, [plot, panelCount, panels, expandedPanel]);
+  }, [plot, panelCount, panels, expandedPanel, selectedTheme, outlineArc, outlineScenes]);
 
-  const handleGenerate = async () => {
-    if (!plot.trim()) { onError('请输入剧情描述'); return; }
+  // Step 1: Generate 5 theme options
+  const handleGenerateThemes = async () => {
     setLoading(true);
     try {
-      const res = await generateStoryboard(plot.trim(), panelCount, r18Mode);
-      setPanels(res.storyboard);
-      setExpandedPanel(null);
-      addStoryboardHistory({ plot: plot.trim(), panel_count: panelCount, r18: r18Mode, panels: res.storyboard });
-      setHistory(getStoryboardHistory());
-      onSuccess(`生成了 ${res.storyboard.length} 个分镜`);
+      const res = await generateStoryboardThemes(r18Mode);
+      setThemeOptions(res.themes);
+      setStoryStep('themes');
+      setSelectedTheme(null);
+      setPanels([]);
+      setOutlineArc('');
+      setOutlineScenes([]);
+      onSuccess(`生成了 ${res.themes.length} 个主题，请选择一个`);
     } catch (err) {
-      onError(err instanceof Error ? err.message : '生成失败');
+      onError(err instanceof Error ? err.message : '主题生成失败');
     } finally {
       setLoading(false);
     }
   };
 
+  // Step 2: Generate outline + panels from selected theme
+  const handleGenerateOutline = async () => {
+    if (!selectedTheme) { onError('请先选择一个主题'); return; }
+    setGeneratingOutline(true);
+    try {
+      const res = await generateStoryboardOutline(selectedTheme.id, selectedTheme.title, panelCount, r18Mode);
+      setOutlineArc(res.outline.arc);
+      setOutlineScenes(res.outline.scenes);
+      setPanels(res.storyboard);
+      setExpandedPanel(null);
+      setStoryStep('panels');
+      addStoryboardHistory({ plot: selectedTheme.title, panel_count: panelCount, r18: r18Mode, panels: res.storyboard });
+      setHistory(getStoryboardHistory());
+      onSuccess(`剧情大纲已生成，${res.storyboard.length} 个分镜就绪`);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : '分镜生成失败');
+    } finally {
+      setGeneratingOutline(false);
+    }
+  };
+
+  // Reset everything
+  const handleReset = () => {
+    setPlot('');
+    setPanels([]);
+    setExpandedPanel(null);
+    setThemeOptions([]);
+    setSelectedTheme(null);
+    setOutlineArc('');
+    setOutlineScenes([]);
+    setStoryStep('themes');
+    clearStoryboardSession();
+  };
+
   const handleCopyPanel = (panel: { image_prompt: string }, idx: number) => { navigator.clipboard.writeText(panel.image_prompt).then(() => { setCopiedPanel(idx); setTimeout(() => setCopiedPanel(null), 2000); }); };
   const handleCopyAll = () => { navigator.clipboard.writeText(panels.map((p) => `[Panel ${p.panel_number}]\n${p.image_prompt}`).join('\n\n')).then(() => { setCopiedPanel(-1); setTimeout(() => setCopiedPanel(null), 2000); }); };
   const handleDeleteHistory = (id: string) => { removeStoryboardHistory(id); setHistory(getStoryboardHistory()); };
-  const handleHistoryLoad = (item: StoryboardHistoryItem) => { setPlot(item.plot); setPanels(item.panels); setShowHistory(false); };
+  const handleHistoryLoad = (item: StoryboardHistoryItem) => { setPlot(item.plot); setPanels(item.panels); setStoryStep('panels'); setShowHistory(false); };
 
   const handleGenerateImage = useCallback(async (panelIdx: number, prompt: string) => {
-    if (taskManager.isFull) {
-      onError('任务队列已满（最多 20 个任务），请等待当前任务完成');
-      return;
-    }
+    if (taskManager.isFull) { onError('任务队列已满'); return; }
     setGenStates((prev) => ({ ...prev, [panelIdx]: { loading: true, images: [] } }));
     let imagePath = selectedGirlfriend?.portraitUrl || '';
     if (digitalHumanMode && selectedGirlfriend) {
@@ -1404,23 +1469,18 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         const uploadResult = await uploadImage(apiKey, file);
         imagePath = uploadResult.imagePath;
       } catch {
-        setGenStates((prev) => {
-          const next = { ...prev };
-          delete next[panelIdx];
-          return next;
-        });
-        onError('AI 女友图片上传失败，请重试');
-        return;
+        setGenStates((prev) => { const next = { ...prev }; delete next[panelIdx]; return next; });
+        onError('AI 女友图片上传失败'); return;
       }
     }
     if (digitalHumanMode && selectedGirlfriend) {
       const nodes = [
         { nodeId: '60', fieldName: 'image', fieldValue: imagePath, description: '选择图片' },
         { nodeId: '64', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: '图片数量' },
-        { nodeId: '82', fieldName: 'value', fieldValue: 'false', description: 'tt/zip（默认zip）' },
+        { nodeId: '82', fieldName: 'value', fieldValue: 'false', description: 'tt/zip' },
         { nodeId: '59', fieldName: 'text', fieldValue: prompt, description: '文字描述' },
-        { nodeId: '70', fieldName: 'ckpt_name', fieldValue: 'Qwen-Rapid-AIO-NSFW-v18.safetensors', description: '模型选择（qwen-2511-edit）' },
-        { nodeId: '80', fieldName: 'lora_name', fieldValue: 'any2realV2.safetensors', description: 'lora(qwen-2511)' },
+        { nodeId: '70', fieldName: 'ckpt_name', fieldValue: 'Qwen-Rapid-AIO-NSFW-v18.safetensors', description: '模型' },
+        { nodeId: '80', fieldName: 'lora_name', fieldValue: 'any2realV2.safetensors', description: 'lora' },
         { nodeId: '80', fieldName: 'strength_model', fieldValue: '0', description: 'lora权重' },
       ];
       try {
@@ -1429,11 +1489,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         if (onNavigate) onNavigate('img2img');
       } catch (err) {
         onError(err instanceof Error ? err.message : '提交失败');
-        setGenStates((prev) => {
-          const next = { ...prev };
-          delete next[panelIdx];
-          return next;
-        });
+        setGenStates((prev) => { const next = { ...prev }; delete next[panelIdx]; return next; });
       }
     } else {
       const nodes = [
@@ -1449,11 +1505,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         if (onNavigate) onNavigate('txt2img');
       } catch (err) {
         onError(err instanceof Error ? err.message : '提交失败');
-        setGenStates((prev) => {
-          const next = { ...prev };
-          delete next[panelIdx];
-          return next;
-        });
+        setGenStates((prev) => { const next = { ...prev }; delete next[panelIdx]; return next; });
       }
     }
   }, [taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, onNavigate]);
@@ -1461,10 +1513,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   const handleBatchGenerate = useCallback(async () => {
     if (panels.length === 0) return;
     const availableSlots = 20 - taskManager.tasks.length;
-    if (availableSlots <= 0) {
-      onError('任务队列已满，请等待当前任务完成');
-      return;
-    }
+    if (availableSlots <= 0) { onError('任务队列已满'); return; }
     setBatchLoading(true);
     let submitted = 0;
     let imagePath = selectedGirlfriend?.portraitUrl || '';
@@ -1477,8 +1526,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         imagePath = uploadResult.imagePath;
       } catch {
         setBatchLoading(false);
-        onError('AI 女友图片上传失败，请重试');
-        return;
+        onError('AI 女友图片上传失败'); return;
       }
     }
     for (let i = 0; i < Math.min(panels.length, availableSlots); i++) {
@@ -1487,18 +1535,16 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         const nodes = [
           { nodeId: '60', fieldName: 'image', fieldValue: imagePath, description: '选择图片' },
           { nodeId: '64', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: '图片数量' },
-          { nodeId: '82', fieldName: 'value', fieldValue: 'false', description: 'tt/zip（默认zip）' },
+          { nodeId: '82', fieldName: 'value', fieldValue: 'false', description: 'tt/zip' },
           { nodeId: '59', fieldName: 'text', fieldValue: panel.image_prompt, description: '文字描述' },
-          { nodeId: '70', fieldName: 'ckpt_name', fieldValue: 'Qwen-Rapid-AIO-NSFW-v18.safetensors', description: '模型选择（qwen-2511-edit）' },
-          { nodeId: '80', fieldName: 'lora_name', fieldValue: 'any2realV2.safetensors', description: 'lora(qwen-2511)' },
+          { nodeId: '70', fieldName: 'ckpt_name', fieldValue: 'Qwen-Rapid-AIO-NSFW-v18.safetensors', description: '模型' },
+          { nodeId: '80', fieldName: 'lora_name', fieldValue: 'any2realV2.safetensors', description: 'lora' },
           { nodeId: '80', fieldName: 'strength_model', fieldValue: '0', description: 'lora权重' },
         ];
         try {
           await taskManager.addTask('img2img', nodes, panel.image_prompt, WORKFLOW.QWEN_IMG2IMG);
           submitted++;
-        } catch (err) {
-          onError(`提交第 ${i + 1} 个时失败: ${err instanceof Error ? err.message : '未知错误'}`);
-        }
+        } catch (err) { onError(`提交第 ${i + 1} 个时失败: ${err instanceof Error ? err.message : '未知错误'}`); }
       } else {
         const nodes = [
           { nodeId: '5', fieldName: 'width', fieldValue: '1024', description: '宽度' },
@@ -1510,21 +1556,18 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         try {
           await taskManager.addTask('txt2img', nodes, panel.image_prompt);
           submitted++;
-        } catch (err) {
-          onError(`提交第 ${i + 1} 个时失败: ${err instanceof Error ? err.message : '未知错误'}`);
-        }
+        } catch (err) { onError(`提交第 ${i + 1} 个时失败: ${err instanceof Error ? err.message : '未知错误'}`); }
       }
     }
     setBatchLoading(false);
     if (submitted > 0) {
       onSuccess(`已提交 ${submitted} 个生图任务`);
-      if (digitalHumanMode && selectedGirlfriend) {
-        if (onNavigate) onNavigate('img2img');
-      } else {
-        if (onNavigate) onNavigate('txt2img');
-      }
+      if (digitalHumanMode && selectedGirlfriend) { if (onNavigate) onNavigate('img2img'); }
+      else { if (onNavigate) onNavigate('txt2img'); }
     }
   }, [panels, taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, onNavigate]);
+
+  const hasContent = storyStep === 'panels' && panels.length > 0;
 
   return (
     <div className="space-y-4">
@@ -1532,44 +1575,144 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <LayoutList size={14} className={r18Mode ? 'text-red-500' : 'text-primary'} />
-            <span className="text-sm font-medium text-text-primary">剧情连续分镜{r18Mode && <span className="ml-2 text-xs text-red-500 font-medium">(R18)</span>}</span>
+            <span className="text-sm font-medium text-text-primary">
+              剧情分镜{r18Mode && <span className="ml-2 text-xs text-red-500 font-medium">(R18)</span>}
+            </span>
           </div>
           <button onClick={() => setShowHistory(!showHistory)} className={`flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-medium transition-all ${showHistory ? 'bg-primary/10 text-primary border border-primary/20' : 'bg-bg-elevated text-text-tertiary hover:bg-bg-hover'}`}>
             <History size={12} />历史记录
           </button>
         </div>
 
-        <textarea value={plot} onChange={(e) => setPlot(e.target.value)}
-          placeholder={r18Mode ? '输入成人剧情描述...' : '输入一段短剧情...'}
-          rows={5}
-          className={`w-full border rounded-xl px-4 py-3 text-sm placeholder:text-text-secondary focus:outline-none transition-colors resize-none mb-3 ${r18Mode ? 'bg-red-50/50 border-red-200 focus:border-red-400' : 'bg-bg-elevated border-border focus:border-primary'}`}
-        />
+        {/* Step indicator */}
+        <div className="flex items-center gap-2 mb-3">
+          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${storyStep === 'themes' ? 'bg-primary text-white' : 'bg-bg-elevated text-text-tertiary'}`}>
+            <span className="w-4 h-4 rounded-full bg-current/20 flex items-center justify-center text-[10px] font-bold">1</span>
+            <span>选主题</span>
+          </div>
+          <div className="flex-1 h-px bg-border" />
+          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${storyStep === 'outline' ? 'bg-primary text-white' : storyStep === 'panels' ? 'bg-green-500 text-white' : 'bg-bg-elevated text-text-tertiary'}`}>
+            <span className="w-4 h-4 rounded-full bg-current/20 flex items-center justify-center text-[10px] font-bold">2</span>
+            <span>生成大纲</span>
+          </div>
+          <div className="flex-1 h-px bg-border" />
+          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${storyStep === 'panels' ? 'bg-green-500 text-white' : 'bg-bg-elevated text-text-tertiary'}`}>
+            <span className="w-4 h-4 rounded-full bg-current/20 flex items-center justify-center text-[10px] font-bold">3</span>
+            <span>分镜就绪</span>
+          </div>
+        </div>
 
+        {/* Panel count selector */}
         <div className="flex items-center gap-3 mb-3">
           <span className="text-xs text-text-tertiary">分镜数量:</span>
           <div className="flex gap-1">
             {[2, 3, 4, 5, 6].map((n) => (
-              <button key={n} onClick={() => setPanelCount(n)} className={`w-8 h-8 rounded-lg text-xs font-medium transition-all ${panelCount === n ? 'bg-primary text-white' : 'bg-bg-elevated text-text-tertiary hover:bg-bg-hover'}`}>{n}</button>
+              <button key={n} onClick={() => setPanelCount(n)} className={`w-8 h-7 rounded-lg text-xs font-medium transition-all ${panelCount === n ? 'bg-primary text-white' : 'bg-bg-elevated text-text-tertiary hover:bg-bg-hover'}`}>{n}</button>
             ))}
           </div>
         </div>
 
-        <div className="flex gap-2">
-          <button onClick={handleGenerate} disabled={loading || !plot.trim()}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-medium text-sm transition-all ${loading || !plot.trim() ? 'bg-bg-elevated text-text-secondary cursor-not-allowed' : r18Mode ? 'bg-gradient-to-r from-red-500 to-red-600 text-white hover:opacity-90 active:scale-[0.98]' : 'bg-gradient-to-r from-primary to-primary/80 text-white hover:opacity-90 active:scale-[0.98]'}`}>
-            {loading ? <><Loader2 size={16} className="animate-spin" /> 生成分镜中...</> : <><Wand2 size={16} />{r18Mode ? '生成 R18 分镜' : '生成分镜'}</>}
+        {/* Step 1: Generate themes */}
+        {storyStep === 'themes' && (
+          <div className="flex gap-2">
+            <button onClick={handleGenerateThemes} disabled={loading}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-medium text-sm transition-all ${loading ? 'bg-bg-elevated text-text-secondary cursor-not-allowed' : r18Mode ? 'bg-gradient-to-r from-red-500 to-red-600 text-white hover:opacity-90 active:scale-[0.98]' : 'bg-gradient-to-r from-primary to-primary/80 text-white hover:opacity-90 active:scale-[0.98]'}`}>
+              {loading ? <><Loader2 size={16} className="animate-spin" /> 生成主题中...</> : <><Wand2 size={16} />{r18Mode ? '生成 R18 主题' : '生成视频主题'}</>}
+            </button>
+          </div>
+        )}
+
+        {/* Step 2: Theme selection grid */}
+        {storyStep === 'themes' && themeOptions.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs text-text-tertiary font-medium">请选择一个主题（{themeOptions.length} 个可选）</p>
+            <div className="grid grid-cols-1 gap-2">
+              {themeOptions.map((theme) => (
+                <button
+                  key={theme.id}
+                  onClick={() => setSelectedTheme(theme)}
+                  className={`w-full text-left p-3 rounded-xl border transition-all ${selectedTheme?.id === theme.id
+                    ? r18Mode ? 'border-red-400 bg-red-50/60' : 'border-primary bg-primary/5'
+                    : 'border-border bg-bg-elevated hover:bg-bg-hover'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${selectedTheme?.id === theme.id ? (r18Mode ? 'bg-red-500 text-white' : 'bg-primary text-white') : 'bg-bg-elevated text-text-tertiary'}`}>
+                      {theme.id}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className={`text-sm font-semibold ${r18Mode ? 'text-red-700' : 'text-text-primary'}`}>{theme.title}</p>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${theme.r18_level === 'hard' ? 'bg-red-100 text-red-600' : theme.r18_level === 'medium' ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}`}>
+                          {theme.r18_level === 'hard' ? '高强度' : theme.r18_level === 'medium' ? '中等' : '柔和'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-text-tertiary leading-relaxed">{theme.description}</p>
+                      {theme.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {theme.tags.map((tag, i) => (
+                            <span key={i} className="text-[10px] px-1.5 py-0.5 rounded-full bg-bg-elevated text-text-secondary">{tag}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {selectedTheme?.id === theme.id && (
+                      <Check size={16} className={r18Mode ? 'text-red-500' : 'text-primary'} />
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+            {selectedTheme && (
+              <button
+                onClick={handleGenerateOutline}
+                disabled={generatingOutline}
+                className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-medium text-sm transition-all ${generatingOutline ? 'bg-bg-elevated text-text-secondary cursor-not-allowed' : r18Mode ? 'bg-gradient-to-r from-orange-500 to-red-600 text-white hover:opacity-90 active:scale-[0.98]' : 'bg-gradient-to-r from-indigo-500 to-primary text-white hover:opacity-90 active:scale-[0.98]'}`}
+              >
+                {generatingOutline ? <><Loader2 size={16} className="animate-spin" /> 生成大纲和分镜中...</> : <><Wand2 size={16} />生成「{selectedTheme.title}」的大纲和分镜</>}
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Step 3: Outline + panels */}
+        {storyStep === 'panels' && panels.length > 0 && (
+          <>
+            {outlineArc && (
+              <div className={`mb-3 p-3 rounded-xl border ${r18Mode ? 'bg-red-50/40 border-red-200' : 'bg-primary/5 border-primary/20'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Clapperboard size={14} className={r18Mode ? 'text-red-500' : 'text-primary'} />
+                  <span className={`text-xs font-semibold ${r18Mode ? 'text-red-600' : 'text-primary'}`}>剧情大纲</span>
+                </div>
+                <p className="text-sm font-medium text-text-primary mb-2">{outlineArc}</p>
+                {outlineScenes.length > 0 && (
+                  <div className="space-y-1.5">
+                    {outlineScenes.map((scene, i) => (
+                      <div key={i} className="flex items-start gap-2">
+                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5 ${r18Mode ? 'bg-red-500 text-white' : 'bg-primary text-white'}`}>{i + 1}</span>
+                        <p className="text-xs text-text-secondary leading-relaxed">{scene}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <button onClick={handleCopyAll} className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl font-medium text-sm bg-bg-elevated text-text-tertiary hover:bg-bg-hover transition-colors">
+                {copiedPanel === -1 ? <><Check size={14} className="text-green-500" /> 已复制</> : <><Copy size={14} />复制全部</>}
+              </button>
+              <button onClick={() => { setStoryStep('themes'); setSelectedTheme(null); setOutlineArc(''); setOutlineScenes([]); setPanels([]); }} className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl font-medium text-sm bg-bg-elevated text-text-tertiary hover:bg-bg-hover transition-colors">
+                <RotateCcw size={14} />换主题
+              </button>
+            </div>
+          </>
+        )}
+
+        {hasContent && (
+          <button onClick={handleReset} className="w-full mt-2 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl font-medium text-sm bg-bg-elevated text-text-tertiary hover:bg-bg-hover transition-colors">
+            <RotateCcw size={14} />重新开始
           </button>
-          {panels.length > 0 && (
-            <>
-              <button onClick={handleCopyAll} className="flex items-center justify-center gap-1.5 px-3 py-3 rounded-xl font-medium text-sm bg-bg-elevated text-text-tertiary hover:bg-bg-hover transition-colors">
-                {copiedPanel === -1 ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
-              </button>
-              <button onClick={() => { setPlot(''); setPanels([]); setExpandedPanel(null); clearStoryboardSession(); clearStoryboardHistory(); setHistory(getStoryboardHistory()); }} className="flex items-center justify-center gap-1.5 px-3 py-3 rounded-xl font-medium text-sm bg-bg-elevated text-text-tertiary hover:bg-bg-hover transition-colors">
-                <RotateCcw size={14} />
-              </button>
-            </>
-          )}
-        </div>
+        )}
       </div>
 
       {/* Storyboard History */}
@@ -1584,11 +1727,13 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       )}
 
       {/* Panels */}
-      {panels.length > 0 && (
+      {storyStep === 'panels' && panels.length > 0 && (
         <div className="space-y-3">
-          {/* Batch Generate Header */}
           <div className="flex items-center justify-between px-1">
-            <span className="text-xs text-text-tertiary font-medium">分镜列表 · {panels.length} 个</span>
+            <span className="text-xs text-text-tertiary font-medium">
+              {selectedTheme && <span className="mr-1">{selectedTheme.title} · </span>}
+              {panels.length} 个分镜
+            </span>
             <button
               onClick={handleBatchGenerate}
               disabled={batchLoading || taskManager.isFull || (digitalHumanMode && !selectedGirlfriend)}

@@ -158,14 +158,61 @@ NUDE_PATTERNS = re.compile(
     r"\b(completely naked|fully naked|totally nude|streaking|naked\b|in the nude|"
     r"bare naked|stripped naked|nude body|nude form|nude figure|stark naked|"
     r"without clothes|without clothing|devoid of clothing|all skin|skin exposed|"
-    r"clothes off|clothing off|naked skin|fully exposed|in birthday suit)\b",
+    r"clothes off|clothing off|naked skin|fully exposed|in birthday suit|"
+    r"stripped down|nude flesh|skin to skin|hardcore nude|full frontal|"
+    r"sexually exposed| genitals visible|bare genitals|exposed breasts|"
+    r"exposed nipples|exposed anus|bare butt|exposed body)\b",
     re.I,
 )
 CLOTHED_PATTERNS = re.compile(
     r"\b(wearing|clothed|clad|dressed|with\s+\w+\s+on|has\s+\w+\s+on|"
     r"outfit|dressed in|attired|garbed|robed|swimsuit|bikini|underwear|"
     r"panties|bra|lingerie|pajamas|uniform|costume|dressed up|"
-    r"fully clothed|semi-clothed|partially clothed)\b",
+    r"fully clothed|semi-clothed|partially clothed|intact clothing)\b",
+    re.I,
+)
+
+# ── 制服/套装关键词 ──
+UNIFORM_PATTERNS = re.compile(
+    r"\b(flight attendant|airline uniform|police uniform|police officer uniform|"
+    r"nurse uniform|scrubs|maid costume|maid outfit|cheerleader uniform|"
+    r"cheerleader outfit|school-adjacent|school uniform adjacent|"
+    r"military uniform|army uniform|naval uniform|business suit|"
+    r"office suit|executive suit|formal uniform|waitress uniform|"
+    r"waiter uniform|fantasy armor|medieval costume|maid apron|"
+    r"latex catsuit|bodysuit|fetish costume|uniform fetish|"
+    r"flight suit|chef uniform|barista apron|kimono|traditional costume)\b",
+    re.I,
+)
+
+# ── SM/束缚关键词 ──
+SM_PATTERNS = re.compile(
+    r"\b(handcuff|handcuffs|behind back|wrist restraint|wrist restraints|chained|"
+    r"bound\b|cuffed\b|restrained|shackled|manacled|bondage|strapped|leather cuff|"
+    r"floor chain|head under|head between|spreader bar|pillory|stocks|hogtied|rope bind|"
+    r"rope bondage|shibari|latex|ballgag|gag|bondage gag|rope tie|ankle cuff|"
+    r"leg shackle|chained feet|leg chain|leather harness|leather collar|leash|"
+    r"whip|paddle|flog|spank|dominant|dominatrix|submissive|bdsm|sm\b|"
+    r"restraint|bondage gear|latex suit|rubber suit|straitjacket|nipple clamp|"
+    r"clothespin|crotch rope|anal hook|sounding|extreme restraint|hanging chain)\b",
+    re.I,
+)
+
+# ── 性玩具/道具关键词 ──
+SEX_TOYS_PATTERNS = re.compile(
+    r"\b(dildo|vibrator|massager|sex toy|sex toys|butt plug|anal plug|anal beads|"
+    r"ben wa ball|love ball|steel ball|egg vibrator|prostate massager|"
+    r"strap-on|dildonic|toy inserted|toy in|toys used|vibrating| vibrating |"
+    r"electric toy|glass dildo|double-ended|silicone toy|rubber toy)\b",
+    re.I,
+)
+
+# ── 多人/群P关键词 ──
+MULTI_PERSON_PATTERNS = re.compile(
+    r"\b(two people|three people|group sex|gangbang|threesome|foursome|"
+    r"orgy|group scene|multiple partners|double penetration|triple penetration|"
+    r"double|doubled|multiple men|multiple women|two men|three men|two women|"
+    r"dp\b|dp scene|tp\b|gang bang|swap|partner swap|swinging)\b",
     re.I,
 )
 
@@ -452,6 +499,36 @@ def detect_prompt_conflicts(prompt: str) -> List[str]:
     )
     if sleepwear_items and formal_shoes:
         conflicts.append("服装搭配违和（睡衣/内衣与正式鞋/靴同时出现不合理）")
+
+    # 3s. 制服/套装 + 不兼容的鞋类
+    uniform_items = UNIFORM_PATTERNS.findall(prompt)
+    if uniform_items and legwear_items:
+        for ui in uniform_items:
+            if any(w in ui.lower() for w in ['maid', 'nurse', 'cheerleader', 'costume', 'kimono', 'armor']):
+                conflicts.append("制服/套装与特定鞋类搭配可能不合理")
+
+    # 3t. SM/束缚 + 手部自由动作矛盾（增强）
+    sm_items = SM_PATTERNS.search(prompt)
+    has_free_hand = HAND_GESTURE_PATTERNS.search(prompt)
+    if sm_items and has_free_hand:
+        conflicts.append("SM/束缚状态与手部自由动作矛盾（戴着手铐/绳缚时无法自由抬手）")
+
+    # 3u. SM + 多人场景冲突
+    sm_count = len(SM_PATTERNS.findall(prompt))
+    multi_person_count = len(MULTI_PERSON_PATTERNS.findall(prompt))
+    if sm_count > 0 and multi_person_count > 0:
+        conflicts.append("SM场景与多人场景同时出现，可能产生构图冲突")
+
+    # 3v. 多人 + 站立姿势矛盾
+    multi_matches = MULTI_PERSON_PATTERNS.findall(prompt)
+    has_standing_full = re.search(r"\bstanding\b", prompt, re.I)
+    if len(multi_matches) >= 2 and has_standing_full:
+        conflicts.append("多人场景中同时描述站立姿势可能导致构图混乱")
+
+    # 3w. 过多性玩具描述
+    toy_matches = SEX_TOYS_PATTERNS.findall(prompt)
+    if len(toy_matches) > 3:
+        conflicts.append(f"过多性玩具描述（{len(toy_matches)}个），可能导致构图元素过多")
 
     # 3q. 提示词过长且包含过多标签（可能导致构图混乱）
     comma_count = prompt.count(",")

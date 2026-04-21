@@ -67,3 +67,48 @@ class StoryboardPanel(BaseModel):
 
 class StoryboardResponse(BaseModel):
     storyboard: List[StoryboardPanel]
+
+
+# ─── Storyboard Themes ───────────────────────────────────────────────────
+
+class StoryboardThemesRequest(BaseModel):
+    """Request to generate 5 video theme options (step 1 of 2-step storyboard)"""
+    r18: bool = Field(default=False, description="是否启用 R18 模式")
+
+
+class StoryboardThemeOption(BaseModel):
+    """A single video theme option"""
+    id: int = Field(..., description="Theme option number (1-5)")
+    title: str = Field(..., description="Theme title in Chinese (e.g. '野外激情', '公车痴汉')")
+    description: str = Field(..., description="Brief description of the theme (1-2 sentences)")
+    tags: List[str] = Field(..., description="List of theme keywords/tags")
+    r18_level: str = Field(..., description="R18 level: 'soft' / 'medium' / 'hard'")
+
+
+class StoryboardThemesResponse(BaseModel):
+    """Response containing 5 theme options for user to select"""
+    themes: List[StoryboardThemeOption]
+
+
+# ─── Storyboard Outline ──────────────────────────────────────────────────
+
+class StoryboardOutlineRequest(BaseModel):
+    """Request to generate outline and panels after user selects a theme (step 2 of 2-step storyboard)"""
+    theme_id: int = Field(..., description="Selected theme ID (1-5)")
+    theme_title: str = Field(..., description="Selected theme title")
+    panel_count: int = Field(default=5, ge=2, le=8, description="分镜数量 2-8")
+    r18: bool = Field(default=False, description="是否启用 R18 模式")
+
+
+class StoryboardOutline(BaseModel):
+    """The narrative arc/outline of the short video"""
+    arc: str = Field(..., description="Narrative arc description (e.g. '开场前戏 → 冲突 → 发展 → 高潮 → 结尾')")
+    scenes: List[str] = Field(..., description="List of scene descriptions matching the arc stages")
+
+
+class StoryboardOutlineResponse(BaseModel):
+    """Response containing the narrative outline and storyboard panels"""
+    theme_id: int
+    theme_title: str
+    outline: StoryboardOutline
+    storyboard: List[StoryboardPanel]

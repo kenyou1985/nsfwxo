@@ -65,6 +65,30 @@ export interface StoryboardResponse {
   storyboard: StoryboardPanel[];
 }
 
+export interface StoryboardThemeOption {
+  id: number;
+  title: string;
+  description: string;
+  tags: string[];
+  r18_level: string;
+}
+
+export interface StoryboardThemesResponse {
+  themes: StoryboardThemeOption[];
+}
+
+export interface StoryboardOutline {
+  arc: string;
+  scenes: string[];
+}
+
+export interface StoryboardOutlineResponse {
+  theme_id: number;
+  theme_title: string;
+  outline: StoryboardOutline;
+  storyboard: StoryboardPanel[];
+}
+
 async function apiRequest<T>(
   url: string,
   options: RequestInit,
@@ -155,6 +179,35 @@ export async function generateStoryboard(
     {
       method: 'POST',
       body: JSON.stringify({ plot, panel_count: panelCount, r18 } satisfies StoryboardRequest),
+    },
+  );
+  return response;
+}
+
+export async function generateStoryboardThemes(r18: boolean = false): Promise<StoryboardThemesResponse> {
+  const base = getBackendUrl();
+  const response = await apiRequest<StoryboardThemesResponse>(
+    `${base}/api/prompt/storyboard/themes`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ r18 }),
+    },
+  );
+  return response;
+}
+
+export async function generateStoryboardOutline(
+  themeId: number,
+  themeTitle: string,
+  panelCount: number,
+  r18: boolean = false,
+): Promise<StoryboardOutlineResponse> {
+  const base = getBackendUrl();
+  const response = await apiRequest<StoryboardOutlineResponse>(
+    `${base}/api/prompt/storyboard/outline`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ theme_id: themeId, theme_title: themeTitle, panel_count: panelCount, r18 }),
     },
   );
   return response;
