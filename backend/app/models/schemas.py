@@ -112,3 +112,30 @@ class StoryboardOutlineResponse(BaseModel):
     theme_title: str
     outline: StoryboardOutline
     storyboard: List[StoryboardPanel]
+
+
+# ─── Video Script ─────────────────────────────────────────────────────────
+
+class StoryboardScriptRequest(BaseModel):
+    """Request to generate video script from storyboard panels"""
+    theme_title: str = Field(..., description="Selected theme title")
+    r18: bool = Field(default=False, description="是否启用 R18 模式")
+    panels: List[StoryboardPanel] = Field(..., description="已生成的分镜列表，用于生成视频脚本")
+
+
+class VideoScriptPanel(BaseModel):
+    """A single panel/section in the video script"""
+    panel: int = Field(..., description="分镜编号")
+    heading: str = Field(..., description="场景标题 (e.g. INT. HOTEL ROOM - NIGHT)")
+    action: str = Field(..., description="动作描述")
+    dialogue: str = Field(default="", description="对白")
+    sound_cue: str = Field(default="", description="声音提示 (e.g. [MUSIC], [MOANING])")
+    camera: str = Field(default="", description="镜头方向 (e.g. POV, close-up, wide)")
+
+
+class StoryboardScriptResponse(BaseModel):
+    """Response containing the complete video script"""
+    theme_title: str
+    script_title: str
+    duration: str = Field(default="15-30秒")
+    panels: List[VideoScriptPanel]

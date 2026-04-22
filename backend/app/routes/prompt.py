@@ -11,6 +11,7 @@ from app.models.schemas import (
     StoryboardRequest, StoryboardResponse, StoryboardPanel,
     StoryboardThemesRequest, StoryboardThemesResponse, StoryboardThemeOption,
     StoryboardOutlineRequest, StoryboardOutlineResponse, StoryboardOutline,
+    StoryboardScriptRequest, StoryboardScriptResponse,
 )
 from app.services.llm_service import call_grok, clean_json_response
 from app.services.gacha_service import generate_random_tags
@@ -1121,55 +1122,44 @@ async def storyboard(req: StoryboardRequest, api_key: str = Depends(get_api_key)
             raise HTTPException(status_code=502, detail=f"LLM call failed: {str(e)}")
 
 
-# ─── Step 1: Generate 5 Video Themes ─────────────────────────────────────────
+# ─── Step 1: Generate 5 Video Themes (Database-Driven) ────────────────────────
 
-_STORYBOARD_THEMES_SYSTEM_PROMPT_NORMAL = """You are an expert creative director specializing in short video concepts (15-30 seconds). Generate 5 diverse, exciting video theme options for an adult creative platform.
+_THEMES_SYSTEM_PROMPT_NORMAL = """You are an expert creative director. Based on the provided theme pool, select and describe 5 diverse video theme options.
 
-For each theme, provide:
-1. A catchy Chinese title (e.g. "午夜出租屋", "健身房邂逅")
-2. A 1-2 sentence description of the scene - MUST be in CHINESE
-3. 3-5 keyword tags - MUST be in Chinese
-4. An R18 level: 'soft' (suggestive, no explicit acts), 'medium' (explicit, one sexual position), or 'hard' (multiple explicit acts, intense)
-
-IMPORTANT RULES:
+IMPORTANT:
+- Each theme MUST be from a DIFFERENT category (transport, outdoor, indoor, costume, work, fantasy, etc.)
+- No two themes should share the same category
+- Each description must be 2-3 sentences in Chinese, vivid and exciting
+- Each tags array must contain ONLY Chinese keywords (3-5 tags)
 - All characters must be ADULTS 18+
-- Themes must be diverse and distinct from each other
-- Each theme should tell a mini-story in 15-30 seconds
-- Include variety: indoor/outdoor, different emotions, different power dynamics
-- No minors, no non-consent themes, no violence
-- The description field MUST be in Chinese. The tags array MUST contain Chinese keywords.
 
 Output STRICTLY as raw JSON array (no markdown):
-[{"id": 1, "title": "中文标题", "description": "中文描述（1-2句话）", "tags": ["中文标签1", "中文标签2", "中文标签3"], "r18_level": "soft/medium/hard"}, ...]
+[{{"id": 1, "title": "中文标题", "description": "中文描述2-3句", "tags": ["中文标签1", "中文标签2", "标签3"], "r18_level": "soft", "category": "分类"}}, ...]
 
-Do NOT wrap in markdown code blocks. Output raw JSON only. All text must be in Chinese."""
+Output in Chinese only. Do NOT wrap in markdown."""
 
-_STORYBOARD_THEMES_SYSTEM_PROMPT_R18 = """You are an EXPERT creative director specializing in explicit adult short video concepts (15-30 seconds). Generate 5 diverse, maximally exciting EXPLICIT video theme options featuring CONSENTING ADULTS ONLY.
 
-For each theme, provide:
-1. A catchy Chinese title (e.g. "野外激情", "公车痴汉", "SM调教室")
-2. A 1-2 sentence description of the EXPLICIT sexual scene - MUST be in CHINESE
-3. 3-5 keyword tags describing the type of explicit content - MUST be in Chinese
-4. An R18 level: 'soft' (strong suggestive, tasteful), 'medium' (one explicit sexual act, full detail), 'hard' (multiple explicit acts, intense, body fluids, climax)
+_THEMES_SYSTEM_PROMPT_R18 = """You are an EXPERT creative director specializing in EXPLICIT adult content. Based on the provided theme pool, select and describe 5 maximally diverse EXPLICIT video themes.
+
+IMPORTANT - DIVERSITY RULES:
+- Each theme MUST be from a DIFFERENT category. Pick from: 交通工具(transport), 户外野战(outdoor), 酒店室内(indoor), 制服诱惑(costume), SM调教(sm), 多人场景(multi), 口交(oral), 肛交(anal), 玩具(toys), 职场(work), 特殊场景(special), 幻想(fantasy)
+- NO two themes can share the same category
+- Each description MUST be 2-3 sentences in CHINESE, describing the explicit sexual content vividly
+- Each tags array MUST contain ONLY Chinese keywords (3-5 tags)
+- R18 level: 'soft'=有暗示但无直接性行为, 'medium'=直接性爱描写(口交/后入/传教士等), 'hard'=高强度(颜射/内射/肛交/SM/多人等)
 
 ABSOLUTE REQUIREMENTS:
-- Each theme MUST include explicit sexual content description in the description field
-- Describe the type of sexual act(s): oral, vaginal, anal, group, SM, etc.
-- Describe the setting and how sex happens there
-- Themes should be diverse: different positions, environments, power dynamics, and moods
-- 15-30 second video concept with clear opening, development, climax structure
-- The description field MUST be in Chinese. The tags array MUST contain Chinese keywords.
+- Each description must describe explicit sexual acts in detail
+- Themes should vary: different positions (传教士/后入/口交/女上位/69等), different environments, different moods
+- Vary the explicit acts: oral, vaginal, anal, toys, SM, group scenes, etc.
 
-STRICT PROHIBITION - ZERO TOLERANCE:
-- NO minors, children, teenagers, or anyone under 18
-- NO actual non-consent (consensual roleplay only)
-- NO gore or actual violence
+STRICT PROHIBITION:
+- NO minors (18+ ONLY)
+- NO non-consent (consensual only)
 - NO animals
 
-Output STRICTLY as raw JSON array (no markdown):
-[{"id": 1, "title": "中文标题", "description": "中文描述（明确描述性爱场景，1-2句话）", "tags": ["中文标签1", "中文标签2", "中文标签3"], "r18_level": "soft/medium/hard"}, ...]
-
-Do NOT wrap in markdown. Output raw JSON only. All text must be in Chinese."""
+Output STRICTLY as raw JSON array (no markdown). All text in Chinese only.
+[{{"id": 1, "title": "中文标题", "description": "中文描述2-3句，明确描述性爱动作和场景", "tags": ["中文标签1", "中文标签2", "标签3"], "r18_level": "soft/medium/hard", "category": "分类"}}, ...]"""
 
 
 @router.post("/storyboard/themes", response_model=StoryboardThemesResponse)
@@ -1177,19 +1167,44 @@ async def generate_storyboard_themes(
     req: StoryboardThemesRequest,
     api_key: str = Depends(get_api_key),
 ):
-    """Step 1 of 2-step storyboard: Generate 5 video theme options for user to select."""
+    """Step 1 of 2-step storyboard: Generate 5 diverse video theme options from theme database."""
+    # Import here to avoid circular deps
+    from app.services.theme_database import (
+        ADULT_THEMES, COSTUMES, SCENARIOS, get_all_themes,
+    )
+
+    # Build a rich theme pool from the database
+    all_db_themes = get_all_themes()
+
+    # Build context for the LLM: include theme names, costumes, scenarios
+    theme_names = [t["name"] for t in all_db_themes]
+    costume_names = [c["name"] for c in COSTUMES]
+    scenario_names = [s["name"] for s in SCENARIOS]
+
     system_prompt = (
-        _STORYBOARD_THEMES_SYSTEM_PROMPT_R18 if req.r18
-        else _STORYBOARD_THEMES_SYSTEM_PROMPT_NORMAL
+        _THEMES_SYSTEM_PROMPT_R18 if req.r18
+        else _THEMES_SYSTEM_PROMPT_NORMAL
     )
-    user_prompt = (
-        "请生成5个不同的成人短视频主题（每个15-30秒）。"
-        "普通模式：生成5个有吸引力的主题，涵盖不同场景和情感基调。"
-        "R18模式：生成5个充满情色张力或明确性爱场景的主题，涵盖野外激情、公车痴汉、巷子尾随、办公室偷情、SM调教等不同类型。"
-        "每个主题需要有创意、独特、引人入胜。"
-        "【重要】每个主题的 description（描述）和 tags（标签）必须全部使用中文！"
-        "\n\nOutput as raw JSON array only, no markdown."
-    )
+
+    r18_context = ""
+    if req.r18:
+        r18_context = (
+            "\n\nR18主题池（包含55+主题，涵盖多种类别和场景）：\n"
+            f"主题: {', '.join(theme_names[:30])}\n"
+            f"制服: {', '.join(costume_names[:20])}\n"
+            f"场景: {', '.join(scenario_names[:20])}\n\n"
+            "请从中选择5个完全不同类别的R18主题，确保多样性（交通工具/户外/酒店/SM/多人/口交/肛交/玩具等各有不同）。"
+        )
+    else:
+        r18_context = (
+            "\n\n主题池（包含多种场景）：\n"
+            f"主题: {', '.join(theme_names[:30])}\n"
+            f"制服: {', '.join(costume_names[:15])}\n"
+            f"场景: {', '.join(scenario_names[:15])}\n\n"
+            "请从中选择5个完全不同类别的主题，确保多样性。"
+        )
+
+    user_prompt = f"请生成5个不同的成人短视频主题（每个15-30秒）。{r18_context}\n\n【重要】每个主题的description（描述）和tags（标签）必须全部使用中文！description需要2-3句话，描述场景和情节。Output as raw JSON array only, no markdown."
 
     for attempt in range(MAX_RETRIES):
         try:
@@ -1235,59 +1250,104 @@ async def generate_storyboard_themes(
             raise HTTPException(status_code=502, detail=f"LLM call failed: {str(e)}")
 
 
-# ─── Step 2: Generate Outline + Panels from Selected Theme ─────────────────────
+# ─── Step 2: Generate Outline + Panels (Strict Pacing) ─────────────────────
 
-_STORYBOARD_OUTLINE_SYSTEM_PROMPT_NORMAL = """You are an expert adult comic director. A user has selected a video theme: "{theme_title}". Generate a complete narrative outline and storyboard for a 15-30 second short video.
+# Strict pacing: Panel 1 = 开场前戏/遇见, Panel 2 = 升温调情,
+# Panel 3 = 脱衣亲密/前戏, Panel 4 = 性爱进行, Panel 5 = 高潮/结尾
+# NO Panel skips directly to sex. Each panel must advance the narrative.
 
-REQUIREMENTS:
-1. Create a clear narrative arc with {panel_count} panels following this structure:
-   - Panel 1: Opening / Foreplay (introduce the scene, tension builds)
-   - Panel 2-3: Development / Conflict (emotional or physical tension rises)
-   - Panel {p_count_minus_one} or Panel {p_count}: Climax (peak moment)
-   - Panel {panel_count}: Resolution / Ending (conclusion)
+_NORMAL_ARC_PANELS = {
+    2: ["Panel 1: 开场 - 场景介绍、人物出现、情感铺垫", "Panel 2: 发展 - 情感/身体升温、亲密接触、高潮结尾"],
+    3: ["Panel 1: 开场 - 场景介绍、人物出现", "Panel 2: 升温 - 暧昧互动、调情", "Panel 3: 高潮 - 亲密行为、情感爆发"],
+    4: ["Panel 1: 开场 - 场景介绍、人物出现", "Panel 2: 发展 - 暧昧互动、调情", "Panel 3: 亲密 - 脱衣亲密、前戏", "Panel 4: 高潮 - 情感/身体高潮、结尾"],
+    5: ["Panel 1: 开场 - 场景介绍、人物出现", "Panel 2: 发展 - 暧昧互动、情感铺垫", "Panel 3: 亲密 - 脱衣、亲吻、爱抚", "Panel 4: 进行 - 深入亲密、身体交流", "Panel 5: 高潮 - 高潮、情感释放、结尾"],
+    6: ["Panel 1: 开场 - 场景介绍、人物出现", "Panel 2: 发展 - 暧昧互动、调情", "Panel 3: 升温 - 情感升温、身体接触", "Panel 4: 亲密 - 脱衣、亲吻、爱抚", "Panel 5: 进行 - 深入亲密", "Panel 6: 高潮 - 高潮、情感释放、结尾"],
+}
 
-2. For EACH panel, write:
-   - scene_description: What happens in this panel (narrative, emotions, actions)
-   - image_prompt: A detailed Stable Diffusion / Flux image prompt for this panel
+_R18_ARC_PANELS = {
+    2: [
+        "Panel 1: 开场前戏 - 场景介绍、人物出现、暗示性的服装和肢体语言、暧昧氛围（NO sex yet）",
+        "Panel 2: 性爱高潮 - 明确的性爱描写，可以包含口交、后入、传教士等体位，射前特写",
+    ],
+    3: [
+        "Panel 1: 开场前戏 - 场景介绍、人物出现、服装描述、暗示性抚摸和亲吻（NO sex yet）",
+        "Panel 2: 脱衣亲密/前戏 - 脱去衣物、亲吻爱抚、口交或手淫前戏（explicit foreplay）",
+        "Panel 3: 性爱高潮 - 直接性爱描写、体位变化、射前特写或体内射精",
+    ],
+    4: [
+        "Panel 1: 开场前戏 - 场景介绍、人物出现、暗示性互动、眼神交流、暧昧升温（NO sex yet）",
+        "Panel 2: 脱衣亲密 - 脱去衣物、互相亲吻爱抚、口交前戏、挑逗暗示",
+        "Panel 3: 性爱进行 - 直接性爱描写、体位、口交或插入、手部/口部刺激",
+        "Panel 4: 高潮结尾 - 高潮特写、身体反应、事后温存或开放式结局",
+    ],
+    5: [
+        "Panel 1: 开场遇见 - 场景介绍、人物出现、制服/场景描述、暧昧互动、眼神交流（NO sex yet）",
+        "Panel 2: 升温调情 - 身体接触、亲吻、暗示性语言、情感铺垫、服装开始脱去",
+        "Panel 3: 脱衣前戏 - 衣物全部脱去或部分脱去、亲吻爱抚、口交或乳交等前戏",
+        "Panel 4: 性爱进行 - 直接插入或口交性爱、体位变化、抽插特写、呻吟描述",
+        "Panel 5: 高潮射精 - 高潮特写、颜射/内射/体外射精、事后温存或开放式结局",
+    ],
+    6: [
+        "Panel 1: 开场遇见 - 场景介绍、人物出现、暗示性的第一眼、服装描述（NO sex yet）",
+        "Panel 2: 升温调情 - 暧昧对话、轻微身体接触、衣服开始松开",
+        "Panel 3: 脱衣亲密 - 衣物脱去、互相亲吻爱抚、口交前戏开始",
+        "Panel 4: 性爱进行 - 直接插入性爱或深度口交、体位、抽插、口水/体液",
+        "Panel 5: 高潮逼近 - 性爱继续、体位变化、双方反应、呻吟",
+        "Panel 6: 高潮射精 - 高潮特写、颜射/内射/体外射精、事后反应、结局",
+    ],
+}
 
-3. CRITICAL COHERENCE: All panels must feature the SAME character(s) (same hair, body, outfit). The narrative must flow naturally from one panel to the next.
 
-4. All characters must be ADULTS 18+.
+_NORMAL_OUTLINE_SYSTEM = """You are an expert adult comic director. A user selected theme: "{theme_title}".
 
-Output STRICTLY as raw JSON:
-{{"outline": {{"arc": "Opening → Development → Climax → Ending", "scenes": ["Opening: description", "Development: description", ...]}}, "storyboard": [{{"panel_number": 1, "scene_description": "...", "image_prompt": "..."}}, ...]}}
+Generate a complete narrative outline and {panel_count} storyboard panels for a 15-30 second short video.
+
+STRICT PACING - Each panel MUST follow this structure:
+{arc_panels}
+
+Panel requirements:
+- All panels feature the SAME characters (consistent appearance throughout)
+- Each panel advances the narrative naturally
+- All characters are ADULTS 18+
+- No minors
+
+For EACH panel provide:
+- scene_description: What happens in this panel (emotions, actions, setting)
+- image_prompt: Stable Diffusion / Flux image prompt (detailed, cinematic)
+
+Output as raw JSON:
+{{"outline": {{"arc": "{arc_label}", "scenes": ["场景1描述", "场景2描述", ...]}}, "storyboard": [{{"panel_number": 1, "scene_description": "...", "image_prompt": "..."}}, ...]}}
 
 Do NOT wrap in markdown. Output raw JSON only."""
 
-_STORYBOARD_OUTLINE_SYSTEM_PROMPT_R18 = """You are an EXPERT adult comic director specializing in EXPLICIT sexual content. A user has selected this R18 video theme: "{theme_title}". Generate a complete narrative outline and {panel_count} explicit storyboard panels for a 15-30 second short video.
 
-REQUIREMENTS:
-1. Create a clear narrative arc with {panel_count} panels:
-   - Panel 1: Opening / Foreplay (character introduction, setting, tension begins, first hint of sexual tension)
-   - Panel 2-3: Development (sexual tension escalates, clothing comes off, foreplay begins)
-   - Panel {p_count_minus_one}: Heightened arousal, explicit sexual acts begin
-   - Panel {panel_count}: Climax / Resolution (explicit climax, aftermath, or cliffhanger ending)
+_R18_OUTLINE_SYSTEM = """You are an EXPERT adult comic director specializing in EXPLICIT sexual content. User selected theme: "{theme_title}".
 
-2. EACH PANEL MUST contain EXPLICIT sexual content. The sexual narrative must advance naturally.
+Generate a complete narrative outline and {panel_count} EXPLICIT storyboard panels for a 15-30 second short video.
 
-3. For EACH panel, write:
-   - scene_description: Narrative of what happens (emotions, actions, sexual content, body parts, fluids)
-   - image_prompt: The most detailed, explicit Stable Diffusion / Flux prompt for this panel. Describe anatomy, positions, lighting, camera angle.
+STRICT PACING - Each panel MUST follow this arc (NO skipping to sex in Panel 1):
+{arc_panels}
 
-4. CRITICAL COHERENCE: All panels feature the SAME character(s) throughout. The sexual narrative flows naturally from foreplay → act → climax.
+CRITICAL PACING RULES:
+- Panel 1: NO explicit sex. Focus on: character intro, costume, setting, building sexual tension, eye contact, clothing, atmosphere. TENSION first.
+- Panel 2: Clothes start coming off. Kissing, foreplay begins. Still building.
+- Panel 3+: ONLY THEN show explicit sexual acts (oral, vaginal, anal, toys, climax)
+- Each panel must ADVANCE the sexual narrative naturally
+- NEVER jump directly to penetration in Panel 1
 
-5. Camera angles for R18 panels: close-up on genitals, POV insertion, spread shot, cum shot, missionary angle, doggystyle angle, etc.
+EXPLICIT CONTENT requirements for Panel 3+:
+- Use explicit sexual terms: suck, lick, fuck, penetrate, thrust, cum, ejackulate, spray, spread, thrust in, balls deep, face covered
+- Describe anatomy: penis, vagina, breasts, nipples, asshole, lips, tongue
+- Describe body fluids: saliva, precum, cum, vaginal fluids
+- Describe positions: missionary, doggystyle, cowgirl, 69, oral, anal, standing
+- Describe camera angles: POV, close-up on genitals, spread shot, cum shot, POV insertion
 
-STRICT PROHIBITION - ZERO TOLERANCE:
-- ALL characters MUST be 18 years or older
-- Absolutely NO minors, children, teenagers, schoolgirls, or anyone under 18
-- Absolutely NO lolicon, shota, loli, or any minor-associated content
-- Absolutely NO family members in sexual contexts
+CRITICAL: ALL characters 18+. NO minors. NO non-consent. NO animals.
 
-Output STRICTLY as raw JSON (NO markdown):
-{{"outline": {{"arc": "前戏 → 发展 → 高潮 → 结尾", "scenes": ["Panel 1: ...", "Panel 2: ...", ...]}}, "storyboard": [{{"panel_number": 1, "scene_description": "...", "image_prompt": "..."}}, ...]}}
+Output as raw JSON:
+{{"outline": {{"arc": "{arc_label}", "scenes": ["Panel 1: 前戏描述", "Panel 2: 升温描述", ...]}}, "storyboard": [{{"panel_number": 1, "scene_description": "中文场景描述", "image_prompt": "explicit SD prompt"}}, ...]}}
 
-Do NOT wrap in markdown. Output raw JSON only."""
+Do NOT wrap in markdown."""
 
 
 @router.post("/storyboard/outline", response_model=StoryboardOutlineResponse)
@@ -1295,27 +1355,37 @@ async def generate_storyboard_outline(
     req: StoryboardOutlineRequest,
     api_key: str = Depends(get_api_key),
 ):
-    """Step 2 of 2-step storyboard: Generate narrative outline and panels from selected theme."""
-    system_template = (
-        _STORYBOARD_OUTLINE_SYSTEM_PROMPT_R18 if req.r18
-        else _STORYBOARD_OUTLINE_SYSTEM_PROMPT_NORMAL
-    )
-    p_minus_one = max(1, req.panel_count - 1)
+    """Step 2 of 2-step storyboard: Generate narrative outline and panels with STRICT pacing."""
+    panel_count = req.panel_count
+    if panel_count < 2:
+        panel_count = 2
+    if panel_count > 6:
+        panel_count = 6
+
+    if req.r18:
+        arc_panels = _R18_ARC_PANELS.get(panel_count, _R18_ARC_PANELS[5])
+        system_template = _R18_OUTLINE_SYSTEM
+        arc_label = "开场遇见 → 升温调情 → 脱衣前戏 → 性爱进行 → 高潮射精"
+    else:
+        arc_panels = _NORMAL_ARC_PANELS.get(panel_count, _NORMAL_ARC_PANELS[4])
+        system_template = _NORMAL_OUTLINE_SYSTEM
+        arc_label = "开场 → 发展 → 亲密 → 高潮 → 结尾"
+
+    arc_panels_str = "\n".join(f"  - {p}" for p in arc_panels)
+
     system_prompt = system_template.format(
         theme_title=req.theme_title,
-        panel_count=req.panel_count,
-        p_count_minus_one=p_minus_one,
+        panel_count=panel_count,
+        arc_panels=arc_panels_str,
+        arc_label=arc_label,
     )
 
     user_prompt = (
         f"Theme: {req.theme_title}\n"
-        f"Panel count: {req.panel_count}\n"
-        f"IMPORTANT:\n"
-        f"- All characters must be ADULTS (18+). No minors.\n"
-        f"- Each of the {req.panel_count} panels must advance the narrative from opening → climax.\n"
-        f"- All panels must feature consistent characters.\n"
-        f"- For R18: Every panel must contain explicit sexual content.\n"
-        f"- Return raw JSON only, no markdown formatting.\n"
+        f"Panel count: {panel_count}\n"
+        f"【重要】Panel 1 不能有直接性爱！必须先从开场/前戏开始，逐步发展到性爱。\n"
+        f"【重要】R18模式：每个分镜的 image_prompt 必须非常详细和露骨，描述体位、身体部位、体液等。\n"
+        f"Output as raw JSON only, no markdown."
     )
 
     for attempt in range(MAX_RETRIES):
@@ -1335,12 +1405,13 @@ async def generate_storyboard_outline(
                     scenes=list(outline_data.get("scenes", [])) if isinstance(outline_data.get("scenes"), list) else [],
                 )
             else:
-                outline = StoryboardOutline(arc="", scenes=[])
+                outline = StoryboardOutline(arc=arc_label, scenes=list(arc_panels))
 
             panels_raw = data.get("storyboard", [])
             if not isinstance(panels_raw, list):
                 raise HTTPException(status_code=500, detail="Invalid storyboard format")
 
+            # Enforce pacing: if panel 1 has sex keywords, flag/warn
             panels = []
             for item in panels_raw:
                 if not isinstance(item, dict):
@@ -1377,10 +1448,113 @@ async def generate_storyboard_outline(
             )
         except ContentSafetyError as e:
             if attempt < MAX_RETRIES - 1:
-                system_prompt += "\n\nSAFETY OVERRIDE: All characters ADULTS 18+. REJECT minors."
+                system_prompt += "\n\nSAFETY OVERRIDE: All characters ADULTS 18+. REJECT minors. Panel 1 must be foreplay, not sex."
                 continue
             raise HTTPException(status_code=400, detail=str(e))
         except HTTPException:
             raise
         except Exception as e:
             raise HTTPException(status_code=502, detail=f"LLM call failed: {str(e)}")
+
+
+# ─── Step 3: Generate Video Script from Panels ─────────────────────────────────
+
+_VIDEO_SCRIPT_SYSTEM = """You are an EXPERT adult video director. Based on the provided {panel_count} storyboard panels, write a complete VIDEO SCRIPT for a 15-30 second short video.
+
+The script should be written as a professional film screenplay with:
+1. SCENE HEADING: Time of day, location (e.g. INT. HOTEL ROOM - NIGHT)
+2. ACTION/LINE: What's happening physically
+3. DIALOGUE: Character dialogue (if any)
+4. SOUND CUE: [MUSIC], [AMBIENT], [MOANING], [SLAPPING], [HEAVY BREATHING]
+5. CAMERA: Camera direction (e.g. POV, close-up, wide shot, tracking)
+
+CRITICAL PACING: Follow the same arc as the panels:
+- If Panel 1 is foreplay → script should describe tension and anticipation
+- If Panel N is climax → script should describe the peak moment
+
+For R18 content, the script MUST include:
+- Explicit descriptions of sexual actions, positions, body parts
+- Sound cues for sexual activity: wet sounds, skin slapping, moaning, breathing
+- Camera directions: POV insertion, close-up on genitals, spread shot, POV oral, cum shot
+- Dialogue that enhances the scene
+
+Each panel becomes a section of the script. Write in Chinese for scene headings and action, with English technical terms for positions/acts where appropriate.
+
+Output as raw JSON:
+{{"script_title": "视频标题", "duration": "15-30秒", "panels": [
+  {{"panel": 1, "heading": "场景", "action": "动作描述", "dialogue": "对白", "sound_cue": "声音提示", "camera": "镜头方向"}},
+  ...
+]}}
+
+Do NOT wrap in markdown."""
+
+
+@router.post("/storyboard/script", response_model=StoryboardScriptResponse)
+async def generate_video_script(
+    req: StoryboardScriptRequest,
+    api_key: str = Depends(get_api_key),
+):
+    """Step 3: Generate a complete video script from the storyboard panels."""
+    if not req.panels or len(req.panels) == 0:
+        raise HTTPException(status_code=400, detail="No panels provided for script generation")
+
+    panels_context = "\n\n".join([
+        f"Panel {p.panel_number}: {p.scene_description}\nImage Prompt: {p.image_prompt}"
+        for p in req.panels
+    ])
+
+    system_prompt = _VIDEO_SCRIPT_SYSTEM.format(panel_count=len(req.panels))
+
+    user_prompt = (
+        f"Theme: {req.theme_title}\n"
+        f"R18 Mode: {'Yes' if req.r18 else 'No'}\n"
+        f"Panels:\n{panels_context}\n\n"
+        f"Please generate a complete video script in Chinese. "
+        f"For R18: describe sexual acts explicitly, include sound cues for sex sounds, camera POV shots. "
+        f"Output as raw JSON only."
+    )
+
+    for attempt in range(MAX_RETRIES):
+        try:
+            raw = await call_grok(api_key, system_prompt, user_prompt)
+            data = clean_json_response(raw)
+
+            check_prompt_safety(raw)
+
+            if not isinstance(data, dict):
+                raise HTTPException(status_code=500, detail="Invalid script format")
+
+            script_title = str(data.get("script_title", f"{req.theme_title} - 短视频脚本"))
+            panels_raw = data.get("panels", [])
+
+            script_panels = []
+            for item in panels_raw:
+                if not isinstance(item, dict):
+                    continue
+                try:
+                    script_panels.append(VideoScriptPanel(
+                        panel=int(item.get("panel", 0)),
+                        heading=str(item.get("heading", "")),
+                        action=str(item.get("action", "")),
+                        dialogue=str(item.get("dialogue", "")),
+                        sound_cue=str(item.get("sound_cue", "")),
+                        camera=str(item.get("camera", "")),
+                    ))
+                except Exception:
+                    continue
+
+            return StoryboardScriptResponse(
+                theme_title=req.theme_title,
+                script_title=script_title,
+                duration=str(data.get("duration", "15-30秒")),
+                panels=script_panels,
+            )
+        except ContentSafetyError as e:
+            if attempt < MAX_RETRIES - 1:
+                continue
+            raise HTTPException(status_code=400, detail=str(e))
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"LLM call failed: {str(e)}")
+

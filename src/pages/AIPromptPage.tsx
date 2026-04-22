@@ -11,6 +11,7 @@ import {
   generateStoryboard,
   generateStoryboardThemes,
   generateStoryboardOutline,
+  generateVideoScript,
   PromptResult,
 } from '../services/promptApi';
 import {
@@ -1384,6 +1385,14 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   const [outlineScenes, setOutlineScenes] = useState<string[]>(savedStoryboard?.outlineScenes || []);
   const [generatingOutline, setGeneratingOutline] = useState(false);
 
+  // Video script state
+  const [videoScript, setVideoScript] = useState<{
+    script_title: string; duration: string; panels: {
+      panel: number; heading: string; action: string; dialogue: string; sound_cue: string; camera: string;
+    }[];
+  } | null>(null);
+  const [generatingScript, setGeneratingScript] = useState(false);
+
   // Persist storyboard state
   useEffect(() => {
     if (plot || panels.length > 0 || selectedTheme) {
@@ -1448,14 +1457,30 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     setSelectedTheme(null);
     setOutlineArc('');
     setOutlineScenes([]);
+    setVideoScript(null);
     setStoryStep('themes');
     clearStoryboardSession();
+  };
+
+  // Generate video script
+  const handleGenerateScript = async () => {
+    if (panels.length === 0) { onError('先生成分镜'); return; }
+    setGeneratingScript(true);
+    try {
+      const res = await generateVideoScript(selectedTheme?.title || '默认主题', r18Mode, panels);
+      setVideoScript(res);
+      onSuccess('视频脚本已生成');
+    } catch (err) {
+      onError(err instanceof Error ? err.message : '脚本生成失败');
+    } finally {
+      setGeneratingScript(false);
+    }
   };
 
   const handleCopyPanel = (panel: { image_prompt: string }, idx: number) => { navigator.clipboard.writeText(panel.image_prompt).then(() => { setCopiedPanel(idx); setTimeout(() => setCopiedPanel(null), 2000); }); };
   const handleCopyAll = () => { navigator.clipboard.writeText(panels.map((p) => `[Panel ${p.panel_number}]\n${p.image_prompt}`).join('\n\n')).then(() => { setCopiedPanel(-1); setTimeout(() => setCopiedPanel(null), 2000); }); };
   const handleDeleteHistory = (id: string) => { removeStoryboardHistory(id); setHistory(getStoryboardHistory()); };
-  const handleHistoryLoad = (item: StoryboardHistoryItem) => { setPlot(item.plot); setPanels(item.panels); setStoryStep('panels'); setShowHistory(false); };
+  const handleHistoryLoad = (item: StoryboardHistoryItem) => { setPlot(item.plot); setPanels(item.panels); setStoryStep('panels'); setVideoScript(null); setOutlineArc(''); setOutlineScenes([]); setShowHistory(false); };
 
   const handleGenerateImage = useCallback(async (panelIdx: number, prompt: string) => {
     if (taskManager.isFull) { onError('任务队列已满'); return; }
@@ -1697,14 +1722,52 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                 )}
               </div>
             )}
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <button onClick={handleCopyAll} className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl font-medium text-sm bg-bg-elevated text-text-tertiary hover:bg-bg-hover transition-colors">
                 {copiedPanel === -1 ? <><Check size={14} className="text-green-500" /> 已复制</> : <><Copy size={14} />复制全部</>}
               </button>
-              <button onClick={() => { setStoryStep('themes'); setSelectedTheme(null); setOutlineArc(''); setOutlineScenes([]); setPanels([]); }} className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl font-medium text-sm bg-bg-elevated text-text-tertiary hover:bg-bg-hover transition-colors">
+              <button
+                onClick={handleGenerateScript}
+                disabled={generatingScript}
+                className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl font-medium text-sm transition-all ${generatingScript ? 'bg-bg-elevated text-text-secondary cursor-not-allowed' : 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90'}`}
+              >
+                {generatingScript ? <><Loader2 size={14} className="animate-spin" /> 生成脚本...</> : <><Clapperboard size={14} />生成视频脚本</>}
+              </button>
+              <button onClick={() => { setStoryStep('themes'); setSelectedTheme(null); setOutlineArc(''); setOutlineScenes([]); setPanels([]); setVideoScript(null); }} className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl font-medium text-sm bg-bg-elevated text-text-tertiary hover:bg-bg-hover transition-colors">
                 <RotateCcw size={14} />换主题
               </button>
             </div>
+
+            {/* Video Script Display */}
+            {videoScript && (
+              <div className={`mt-3 p-3 rounded-xl border ${r18Mode ? 'bg-purple-50/40 border-purple-200' : 'bg-purple-50/40 border-purple-200'}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Clapperboard size={14} className="text-purple-500" />
+                    <span className="text-xs font-semibold text-purple-600">视频脚本</span>
+                    {videoScript.duration && <span className="text-[10px] text-purple-400">{videoScript.duration}</span>}
+                  </div>
+                  <button onClick={() => setVideoScript(null)} className="text-xs text-purple-400 hover:text-purple-600">
+                    <X size={14} />
+                  </button>
+                </div>
+                <p className="text-sm font-medium text-text-primary mb-2">{videoScript.script_title}</p>
+                <div className="space-y-2">
+                  {videoScript.panels.map((sp) => (
+                    <div key={sp.panel} className={`rounded-lg p-3 text-xs ${r18Mode ? 'bg-red-50/50 border border-red-100' : 'bg-bg-elevated'}`}>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white ${r18Mode ? 'bg-red-500' : 'bg-purple-500'}`}>{sp.panel}</span>
+                        <span className="font-medium text-text-primary">{sp.heading}</span>
+                      </div>
+                      {sp.action && <p className="text-text-secondary leading-relaxed mb-1"><span className="text-text-tertiary">动作: </span>{sp.action}</p>}
+                      {sp.dialogue && <p className="text-text-secondary leading-relaxed mb-1"><span className="text-text-tertiary">对白: </span><em>"{sp.dialogue}"</em></p>}
+                      {sp.sound_cue && <p className="text-text-secondary leading-relaxed mb-1"><span className="text-text-tertiary">音效: </span><span className="text-purple-500">{sp.sound_cue}</span></p>}
+                      {sp.camera && <p className="text-text-secondary leading-relaxed"><span className="text-text-tertiary">镜头: </span><span className="text-blue-500">{sp.camera}</span></p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
 

@@ -89,6 +89,28 @@ export interface StoryboardOutlineResponse {
   storyboard: StoryboardPanel[];
 }
 
+export interface VideoScriptPanel {
+  panel: number;
+  heading: string;
+  action: string;
+  dialogue: string;
+  sound_cue: string;
+  camera: string;
+}
+
+export interface StoryboardScriptResponse {
+  theme_title: string;
+  script_title: string;
+  duration: string;
+  panels: VideoScriptPanel[];
+}
+
+export interface StoryboardScriptRequest {
+  theme_title: string;
+  r18: boolean;
+  panels: StoryboardPanel[];
+}
+
 async function apiRequest<T>(
   url: string,
   options: RequestInit,
@@ -208,6 +230,30 @@ export async function generateStoryboardOutline(
     {
       method: 'POST',
       body: JSON.stringify({ theme_id: themeId, theme_title: themeTitle, panel_count: panelCount, r18 }),
+    },
+  );
+  return response;
+}
+
+export async function generateVideoScript(
+  themeTitle: string,
+  r18: boolean,
+  panels: { panel_number: number; scene_description: string; image_prompt: string }[],
+): Promise<StoryboardScriptResponse> {
+  const base = getBackendUrl();
+  const response = await apiRequest<StoryboardScriptResponse>(
+    `${base}/api/prompt/storyboard/script`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        theme_title: themeTitle,
+        r18,
+        panels: panels.map(p => ({
+          panel_number: p.panel_number,
+          scene_description: p.scene_description,
+          image_prompt: p.image_prompt,
+        })),
+      }),
     },
   );
   return response;
