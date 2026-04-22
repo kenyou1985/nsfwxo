@@ -1460,6 +1460,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   const [customThemeCount, setCustomThemeCount] = useState(10);
   const [themeLibraryOpen, setThemeLibraryOpen] = useState(false);
   const [loadingThemeLibrary, setLoadingThemeLibrary] = useState(false);
+  const [themeSearchQuery, setThemeSearchQuery] = useState('');
+  const [themeCategoryFilter, setThemeCategoryFilter] = useState('');
   const [outlineArc, setOutlineArc] = useState(savedStoryboard?.outlineArc || '');
   const [outlineScenes, setOutlineScenes] = useState<string[]>(savedStoryboard?.outlineScenes || []);
   const [generatingOutline, setGeneratingOutline] = useState(false);
@@ -1472,6 +1474,15 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     panels: { panel_number: number; scene_description: string; image_prompt: string }[];
     historyId?: string;
   }>>({});
+
+  // Active theme tab (for tab switching between themes)
+  const [activeThemeTab, setActiveThemeTab] = useState<number | null>(null);
+
+  // Derived: panels from active theme tab
+  const activePanels = activeThemeTab !== null ? (themeOutlineStates[activeThemeTab]?.panels || []) : panels;
+  const activeOutlineArc = activeThemeTab !== null ? (themeOutlineStates[activeThemeTab]?.outlineArc || '') : outlineArc;
+  const activeOutlineScenes = activeThemeTab !== null ? (themeOutlineStates[activeThemeTab]?.outlineScenes || []) : outlineScenes;
+  const activeThemeInfo = activeThemeTab !== null ? selectedThemes.find((t) => t.id === activeThemeTab) : selectedTheme;
 
   // Video prompt state
   const [videoScript, setVideoScript] = useState<{
@@ -1683,10 +1694,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   const handleViewThemePanels = (themeId: number) => {
     const state = themeOutlineStates[themeId];
     if (!state) return;
-    // Set panels to show in the main panel area
-    setPanels(state.panels);
-    setOutlineArc(state.outlineArc);
-    setOutlineScenes(state.outlineScenes);
+    // Set active tab to this theme
+    setActiveThemeTab(themeId);
     setStoryStep('panels');
     onSuccess(`已加载「${themeOptions.find((t) => t.id === themeId)?.title}」的分镜`);
   };
@@ -1696,9 +1705,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     const state = themeOutlineStates[themeId];
     if (!state) return;
     const theme = themeOptions.find((t) => t.id === themeId);
-    setPanels(state.panels);
-    setOutlineArc(state.outlineArc);
-    setOutlineScenes(state.outlineScenes);
+    // Set active tab to this theme
+    setActiveThemeTab(themeId);
     setStoryStep('panels');
     if (theme && state.historyId) {
       // Reuse existing history entry instead of creating a duplicate
@@ -1949,13 +1957,13 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
 
   // Handle batch video generation from storyboard panels
   const handleBatchGenerateVideo = useCallback(async () => {
-    if (panels.length === 0) { onError('没有可用的分镜'); return; }
+    if (activePanels.length === 0) { onError('没有可用的分镜'); return; }
     setBatchVideoLoading(true);
     let submitted = 0;
     const submittedTasks: Array<{ id: string; prompt: string; imagePreview: string; nodeInfoList: NodeInfo[] }> = [];
     try {
-      for (let i = 0; i < panels.length; i++) {
-        const panel = panels[i];
+      for (let i = 0; i < activePanels.length; i++) {
+        const panel = activePanels[i];
         const panelKey = `panel-${i}`;
         const panelGenState = genStates[i];
         const panelTasks = taskManager.tasks.filter((t) => t.prompt === panel.image_prompt && t.images.length > 0);
@@ -2029,10 +2037,10 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     } finally {
       setBatchVideoLoading(false);
     }
-  }, [panels, genStates, taskManager, apiKey, generateVideoPromptForPanel, onError, onSuccess]);
+  }, [activePanels, genStates, taskManager, apiKey, generateVideoPromptForPanel, onError, onSuccess]);
 
   const handleBatchGenerate = useCallback(async () => {
-    if (panels.length === 0) return;
+    if (activePanels.length === 0) return;
     const availableSlots = 20 - taskManager.tasks.length;
     if (availableSlots <= 0) { onError('任务队列已满'); return; }
     setBatchLoading(true);
@@ -2041,7 +2049,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     // Mark all panels as loading immediately
     setGenStates((prev) => {
       const next = { ...prev };
-      for (let i = 0; i < panels.length; i++) {
+      for (let i = 0; i < activePanels.length; i++) {
         next[i] = { loading: true, images: [] };
       }
       return next;
@@ -2059,8 +2067,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         onError('AI 女友图片上传失败'); return;
       }
     }
-    for (let i = 0; i < Math.min(panels.length, availableSlots); i++) {
-      const panel = panels[i];
+    for (let i = 0; i < Math.min(activePanels.length, availableSlots); i++) {
+      const panel = activePanels[i];
       if (digitalHumanMode && selectedGirlfriend) {
         // Format prompt with Qwen-2511 face-lock for character consistency
         const charName = selectedGirlfriend.nameZh || selectedGirlfriend.name;
@@ -2264,11 +2272,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                   type="text"
                   placeholder="搜索主题..."
                   className="w-full px-3 py-2 rounded-lg bg-bg-elevated border border-border text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary/30"
-                  onChange={(e) => {
-                    const q = e.target.value.toLowerCase();
-                    // filter displayed themes in the modal
-                    const allLoaded = []; // we only show from what was loaded
-                  }}
+                  onChange={(e) => setThemeSearchQuery(e.target.value.toLowerCase())}
                 />
                 <div className="flex flex-wrap gap-1">
                   {[
@@ -2288,7 +2292,15 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                     { label: '颜射', cat: 'facial' },
                     { label: '交通', cat: 'transport' },
                   ].map(({ label, cat }) => (
-                    <button key={cat} className="px-2 py-0.5 rounded-full text-[11px] bg-bg-elevated text-text-secondary hover:bg-primary hover:text-white transition-all">
+                    <button
+                      key={cat}
+                      onClick={() => setThemeCategoryFilter(cat)}
+                      className={`px-2 py-0.5 rounded-full text-[11px] transition-all ${
+                        themeCategoryFilter === cat
+                          ? 'bg-primary text-white'
+                          : 'bg-bg-elevated text-text-secondary hover:bg-primary hover:text-white'
+                      }`}
+                    >
                       {label}
                     </button>
                   ))}
@@ -2308,36 +2320,73 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {/* Select all checkbox */}
-                    {themeOptions.length > 1 && (
-                      <div className="flex items-center gap-2 px-1">
-                        <button
-                          onClick={() => {
-                            if (selectedThemes.length === themeOptions.length) {
-                              // Deselect all
-                              setSelectedThemes([]);
-                            } else {
-                              // Select all
-                              setSelectedThemes([...themeOptions]);
-                            }
-                          }}
-                          className="flex items-center gap-2 text-xs text-text-secondary hover:text-primary transition-colors"
-                        >
-                          <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${
-                            selectedThemes.length === themeOptions.length && themeOptions.length > 0
-                              ? 'bg-primary border-primary'
-                              : 'border-border hover:border-primary'
-                          }`}>
-                            {selectedThemes.length === themeOptions.length && themeOptions.length > 0 && (
-                              <Check size={10} className="text-white" />
-                            )}
+                    {/* Filtered themes based on search and category */}
+                    {(() => {
+                      const filteredThemes = themeOptions.filter((t) => {
+                        const matchesCategory = !themeCategoryFilter || t.category === themeCategoryFilter;
+                        const matchesSearch = !themeSearchQuery ||
+                          t.title.toLowerCase().includes(themeSearchQuery) ||
+                          t.description.toLowerCase().includes(themeSearchQuery) ||
+                          t.tags.some((tag) => tag.toLowerCase().includes(themeSearchQuery));
+                        return matchesCategory && matchesSearch;
+                      });
+                      return (
+                        <>
+                          <div className="flex items-center gap-2 px-1">
+                            <span className="text-xs text-text-tertiary">显示 {filteredThemes.length} / {themeOptions.length} 个主题</span>
                           </div>
-                          <span className="font-medium">全选 ({selectedThemes.length}/{themeOptions.length})</span>
-                        </button>
-                      </div>
-                    )}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {themeOptions.map((theme) => {
+                          {filteredThemes.length === 0 ? (
+                            <div className="text-center py-8 text-text-tertiary text-sm">
+                              <p>没有找到匹配的主题</p>
+                            </div>
+                          ) : (
+                            <>
+                              {/* Select all filtered */}
+                              {filteredThemes.length > 1 && (
+                                <div className="flex items-center gap-2 px-1">
+                                  <button
+                                    onClick={() => {
+                                      const filteredIds = filteredThemes.map((t) => t.id);
+                                      const currentlySelectedIds = selectedThemes.map((t) => t.id);
+                                      const allFilteredSelected = filteredIds.every((id) => currentlySelectedIds.includes(id));
+                                      if (allFilteredSelected) {
+                                        // Deselect all filtered
+                                        setSelectedThemes(selectedThemes.filter((t) => !filteredIds.includes(t.id)));
+                                      } else {
+                                        // Select all filtered
+                                        const newThemes = [...selectedThemes.filter((t) => !filteredIds.includes(t.id)), ...filteredThemes];
+                                        setSelectedThemes(newThemes);
+                                      }
+                                    }}
+                                    className="flex items-center gap-2 text-xs text-text-secondary hover:text-primary transition-colors"
+                                  >
+                                    <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${
+                                      (() => {
+                                        const filteredIds = filteredThemes.map((t) => t.id);
+                                        const currentlySelectedIds = selectedThemes.map((t) => t.id);
+                                        return filteredIds.length > 0 && filteredIds.every((id) => currentlySelectedIds.includes(id));
+                                      })()
+                                        ? 'bg-primary border-primary'
+                                        : 'border-border hover:border-primary'
+                                    }`}>
+                                      {((): boolean => {
+                                        const filteredIds = filteredThemes.map((t) => t.id);
+                                        const currentlySelectedIds = selectedThemes.map((t) => t.id);
+                                        return filteredIds.length > 0 && filteredIds.every((id) => currentlySelectedIds.includes(id));
+                                      })() && (
+                                        <Check size={10} className="text-white" />
+                                      )}
+                                    </div>
+                                    <span className="font-medium">全选 ({(() => {
+                                      const filteredIds = filteredThemes.map((t) => t.id);
+                                      const currentlySelectedIds = selectedThemes.map((t) => t.id);
+                                      return filteredIds.filter((id) => currentlySelectedIds.includes(id)).length;
+                                    })()}/{filteredThemes.length})</span>
+                                  </button>
+                                </div>
+                              )}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {filteredThemes.map((theme) => {
                         const isAlreadySelected = selectedThemes.some((t) => t.id === theme.id);
                         return (
                           <div
@@ -2407,6 +2456,11 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                         );
                       })}
                     </div>
+                            </>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 )}
               </div>
@@ -2718,19 +2772,46 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       )}
 
       {/* Panels */}
-      {storyStep === 'panels' && panels.length > 0 && (
+      {storyStep === 'panels' && activePanels.length > 0 && (
         <div className="space-y-3">
+          {/* Theme tabs - show when multiple themes have generated outlines */}
+          {selectedThemes.length > 0 && selectedThemes.some((t) => themeOutlineStates[t.id]?.outlineArc) && (
+            <div className="flex flex-wrap gap-2 px-1">
+              {selectedThemes.filter((t) => themeOutlineStates[t.id]?.outlineArc).map((theme) => {
+                const isActive = activeThemeTab === theme.id;
+                return (
+                  <button
+                    key={theme.id}
+                    onClick={() => handleViewThemePanels(theme.id)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      isActive
+                        ? 'bg-primary text-white shadow-sm'
+                        : 'bg-bg-elevated text-text-secondary hover:bg-bg-hover hover:text-text-primary'
+                    }`}
+                  >
+                    <LayoutList size={12} />
+                    {theme.title}
+                    {themeOutlineStates[theme.id]?.generating && (
+                      <Loader2 size={10} className="animate-spin" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Active theme label */}
           <div className="flex items-center justify-between px-1">
             <span className="text-xs text-text-tertiary font-medium">
-              {selectedTheme && <span className="mr-1">{selectedTheme.title} · </span>}
-              {panels.length} 个分镜
+              {activeThemeInfo && <span className="mr-1">{activeThemeInfo.title} · </span>}
+              {activePanels.length} 个分镜
             </span>
             <div className="flex items-center gap-2">
               <button
                 onClick={handleBatchGenerateVideo}
-                disabled={batchVideoLoading || panels.length === 0}
+                disabled={batchVideoLoading || activePanels.length === 0}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  batchVideoLoading || panels.length === 0
+                  batchVideoLoading || activePanels.length === 0
                     ? 'bg-purple-100 text-purple-400 cursor-not-allowed'
                     : 'bg-purple-500 text-white hover:bg-purple-600'
                 }`}
@@ -2750,8 +2831,9 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
               </button>
             </div>
           </div>
-          {panels.map((panel, idx) => {
-            const panelKey = `panel-${idx}`;
+          {activePanels.map((panel, idx) => {
+            // Use theme-specific panel key to avoid conflicts when switching tabs
+            const panelKey = activeThemeTab !== null ? `theme-${activeThemeTab}-panel-${idx}` : `panel-${idx}`;
             const selectedImage = selectedPanelImages[panelKey];
             const videoPrompt = generateVideoPromptForPanel(panel.image_prompt);
             const normalizedPanelPrompt = panel.image_prompt.trim().replace(/\s+/g, ' ');
@@ -2768,7 +2850,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
             const hasGenerated = (genStates[idx]?.images?.length ?? 0) > 0 && hasActiveTask;
             return (
               <StoryboardPanelCard
-                key={idx}
+                key={panelKey}
                 panel={panel}
                 idx={idx}
                 isExpanded={expandedPanel === idx}
