@@ -2307,62 +2307,92 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                     <p>暂无主题，请先点击「从主题库选择」加载</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {themeOptions.map((theme) => {
-                      const isAlreadySelected = selectedThemes.some((t) => t.id === theme.id);
-                      return (
-                        <div
-                          key={theme.id}
-                          className={`relative p-3 rounded-xl border transition-all ${
-                            isAlreadySelected
-                              ? 'border-green-400 bg-green-50/50'
-                              : 'border-border bg-bg-elevated hover:bg-bg-hover hover:border-primary/40'
-                          }`}
+                  <div className="space-y-2">
+                    {/* Select all checkbox */}
+                    {themeOptions.length > 1 && (
+                      <div className="flex items-center gap-2 px-1">
+                        <button
+                          onClick={() => {
+                            if (selectedThemes.length === themeOptions.length) {
+                              // Deselect all
+                              setSelectedThemes([]);
+                            } else {
+                              // Select all
+                              setSelectedThemes([...themeOptions]);
+                            }
+                          }}
+                          className="flex items-center gap-2 text-xs text-text-secondary hover:text-primary transition-colors"
                         >
-                          <div className="flex items-start gap-2">
-                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0 ${
-                              isAlreadySelected ? 'bg-green-500 text-white' : r18Mode ? 'bg-red-100 text-red-600' : 'bg-primary/10 text-primary'
-                            }`}>
-                              {theme.id}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-                                <p className="text-sm font-semibold text-text-primary leading-tight">{theme.title}</p>
-                                {theme.category && (
-                                  <span className="text-[9px] px-1 py-0.5 rounded-full bg-bg-elevated text-text-tertiary">{theme.category}</span>
-                                )}
-                                <span className={`text-[9px] px-1 py-0.5 rounded-full font-medium ${
-                                  theme.r18_level === 'hard' ? 'bg-red-100 text-red-600' : theme.r18_level === 'medium' ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'
-                                }`}>
-                                  {theme.r18_level === 'hard' ? '高强度' : theme.r18_level === 'medium' ? '中等' : '柔和'}
-                                </span>
-                              </div>
-                              <p className="text-[11px] text-text-tertiary leading-relaxed line-clamp-2">{theme.description}</p>
-                              <div className="flex flex-wrap gap-1 mt-1">
-                                {theme.tags.slice(0, 3).map((tag, i) => (
-                                  <span key={i} className="text-[9px] px-1 py-0.5 rounded-full bg-bg-elevated text-text-secondary">{tag}</span>
-                                ))}
-                              </div>
-                            </div>
-                            <button
-                              onClick={() => {
-                                if (!isAlreadySelected) {
-                                  handleAddThemeFromLibrary(theme);
-                                }
-                              }}
-                              disabled={isAlreadySelected}
-                              className={`flex-shrink-0 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
-                                isAlreadySelected
-                                  ? 'bg-green-100 text-green-600 cursor-not-allowed'
-                                  : 'bg-primary text-white hover:bg-primary/90'
-                              }`}
-                            >
-                              {isAlreadySelected ? <><Check size={10} /> 已选</> : <><Plus size={10} /> 添加</>}
-                            </button>
+                          <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${
+                            selectedThemes.length === themeOptions.length && themeOptions.length > 0
+                              ? 'bg-primary border-primary'
+                              : 'border-border hover:border-primary'
+                          }`}>
+                            {selectedThemes.length === themeOptions.length && themeOptions.length > 0 && (
+                              <Check size={10} className="text-white" />
+                            )}
                           </div>
-                        </div>
-                      );
-                    })}
+                          <span className="font-medium">全选 ({selectedThemes.length}/{themeOptions.length})</span>
+                        </button>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {themeOptions.map((theme) => {
+                        const isAlreadySelected = selectedThemes.some((t) => t.id === theme.id);
+                        return (
+                          <div
+                            key={theme.id}
+                            onClick={() => {
+                              if (isAlreadySelected) {
+                                setSelectedThemes(selectedThemes.filter((t) => t.id !== theme.id));
+                              } else {
+                                setSelectedThemes([...selectedThemes, theme]);
+                              }
+                            }}
+                            className={`relative p-3 rounded-xl border cursor-pointer transition-all ${
+                              isAlreadySelected
+                                ? 'border-green-400 bg-green-50/50'
+                                : 'border-border bg-bg-elevated hover:bg-bg-hover hover:border-primary/40'
+                            }`}
+                          >
+                            <div className="flex items-start gap-2">
+                              {/* Checkbox */}
+                              <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-all ${
+                                isAlreadySelected
+                                  ? 'bg-green-500 border-green-500'
+                                  : 'border-border bg-white'
+                              }`}>
+                                {isAlreadySelected && <Check size={10} className="text-white" />}
+                              </div>
+                              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0 ${
+                                isAlreadySelected ? 'bg-green-500 text-white' : r18Mode ? 'bg-red-100 text-red-600' : 'bg-primary/10 text-primary'
+                              }`}>
+                                {theme.id}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                                  <p className="text-sm font-semibold text-text-primary leading-tight">{theme.title}</p>
+                                  {theme.category && (
+                                    <span className="text-[9px] px-1 py-0.5 rounded-full bg-bg-elevated text-text-tertiary">{theme.category}</span>
+                                  )}
+                                  <span className={`text-[9px] px-1 py-0.5 rounded-full font-medium ${
+                                    theme.r18_level === 'hard' ? 'bg-red-100 text-red-600' : theme.r18_level === 'medium' ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'
+                                  }`}>
+                                    {theme.r18_level === 'hard' ? '高强度' : theme.r18_level === 'medium' ? '中等' : '柔和'}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-text-tertiary leading-relaxed line-clamp-2">{theme.description}</p>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {theme.tags.slice(0, 3).map((tag, i) => (
+                                    <span key={i} className="text-[9px] px-1 py-0.5 rounded-full bg-bg-elevated text-text-secondary">{tag}</span>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>
@@ -2710,7 +2740,18 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
             const panelKey = `panel-${idx}`;
             const selectedImage = selectedPanelImages[panelKey];
             const videoPrompt = generateVideoPromptForPanel(panel.image_prompt);
-            const hasGenerated = (genStates[idx]?.images?.length ?? 0) > 0 || taskManager.tasks.some((t) => t.prompt === panel.image_prompt && t.images.length > 0);
+            const normalizedPanelPrompt = panel.image_prompt.trim().replace(/\s+/g, ' ');
+            const panelRelatedTasks = taskManager.tasks.filter(
+              (t: QueuedTask) => (t.status === 'RUNNING' || t.status === 'QUEUEING' || t.status === 'FINISHED') && t.images.length > 0
+            ).filter((t: QueuedTask) => {
+              const taskPromptNorm = t.prompt.trim().replace(/\s+/g, ' ');
+              return taskPromptNorm === normalizedPanelPrompt ||
+                taskPromptNorm.includes(normalizedPanelPrompt) ||
+                normalizedPanelPrompt.includes(taskPromptNorm) ||
+                (normalizedPanelPrompt.length > 50 && taskPromptNorm.includes(normalizedPanelPrompt.substring(0, Math.min(normalizedPanelPrompt.length, 150))));
+            });
+            const hasActiveTask = panelRelatedTasks.some((t: QueuedTask) => t.status === 'RUNNING' || t.status === 'QUEUEING');
+            const hasGenerated = (genStates[idx]?.images?.length ?? 0) > 0 && hasActiveTask;
             return (
               <StoryboardPanelCard
                 key={idx}
@@ -2898,7 +2939,7 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
   const displayImages = genState?.images ?? [];
 
   const normalizedPanelPrompt = panel.image_prompt.trim().replace(/\s+/g, ' ');
-  const relatedTasks = taskManager.tasks.filter(
+  const panelRelatedTasks = taskManager.tasks.filter(
     (t: QueuedTask) => (t.status === 'RUNNING' || t.status === 'QUEUEING' || t.status === 'FINISHED') && t.images.length > 0
   ).filter((t: QueuedTask) => {
     const taskPromptNorm = t.prompt.trim().replace(/\s+/g, ' ');
@@ -2909,7 +2950,9 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
       (normalizedPanelPrompt.length > 50 && taskPromptNorm.includes(normalizedPanelPrompt.substring(0, Math.min(normalizedPanelPrompt.length, 150))));
   });
 
-  const allDisplayImages = displayImages.length > 0 ? displayImages : relatedTasks.flatMap((t: QueuedTask) => t.images);
+  // Only show cached images if there's a matching active/queued task, otherwise hide them
+  const hasActiveTask = panelRelatedTasks.some((t: QueuedTask) => t.status === 'RUNNING' || t.status === 'QUEUEING');
+  const allDisplayImages = hasActiveTask ? (displayImages.length > 0 ? displayImages : panelRelatedTasks.flatMap((t: QueuedTask) => t.images)) : panelRelatedTasks.flatMap((t: QueuedTask) => t.images);
   const hasImages = allDisplayImages.length > 0;
 
   return (
@@ -3022,7 +3065,7 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
             </div>
 
             {/* Running status */}
-            {relatedTasks.filter((t: QueuedTask) => t.status === 'RUNNING' || t.status === 'QUEUEING').length > 0 && allDisplayImages.length === 0 && (
+            {panelRelatedTasks.filter((t: QueuedTask) => t.status === 'RUNNING' || t.status === 'QUEUEING').length > 0 && allDisplayImages.length === 0 && (
               <div className="flex items-center gap-2 text-xs text-blue-500 mt-3">
                 <Loader2 size={12} className="animate-spin" />
                 正在生成中...
