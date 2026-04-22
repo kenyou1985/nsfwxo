@@ -1437,6 +1437,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     // Also save to history record directly (like image history page)
     if (Object.keys(panelImages).length > 0) {
       updateStoryboardHistoryImages(currentHistoryId, panelImages);
+      // Update local history state so StoryboardHistoryPanel can see the new images immediately
+      setHistory(getStoryboardHistory());
     }
   }, [genStates, currentHistoryId]);
 
@@ -1765,18 +1767,23 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     setOutlineArc('');
     setOutlineScenes([]);
     setShowHistory(false);
-    // Restore cached images for this history entry AND persist historyId to session
-    // so the caching useEffect can write updated genStates back to this entry
-    const cachedImages = getAllCachedPanelImages(item.id, item.panels.length);
-    if (Object.keys(cachedImages).length > 0) {
-      const initial: Record<number, { loading: boolean; images: string[] }> = {};
+    // Restore images for this history entry (like image history page)
+    // First try direct images field, then fallback to cached panel images
+    let initial: Record<number, { loading: boolean; images: string[] }> = {};
+
+    // First check if history item has direct images field (new method)
+    if (item.panelImages) {
+      for (const [idx, imgs] of Object.entries(item.panelImages)) {
+        initial[Number(idx)] = { loading: false, images: imgs };
+      }
+    } else {
+      // Fallback to legacy cached panel images
+      const cachedImages = getAllCachedPanelImages(item.id, item.panels.length);
       for (const [idx, imgs] of Object.entries(cachedImages)) {
         initial[Number(idx)] = { loading: false, images: imgs };
       }
-      setGenStates(initial);
-    } else {
-      setGenStates({});
     }
+    setGenStates(initial);
     setCurrentHistoryId(item.id);
     saveStoryboardSession({
       plot: item.plot, panelCount: item.panel_count, panels: item.panels, expandedPanel: null,
