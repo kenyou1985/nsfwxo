@@ -71,6 +71,9 @@ export interface StoryboardThemeOption {
   description: string;
   tags: string[];
   r18_level: string;
+  category?: string;
+  scenario_count?: number;
+  costume_count?: number;
 }
 
 export interface StoryboardThemesResponse {
@@ -222,6 +225,15 @@ export async function generateStoryboardThemes(
         ...(customDescription ? { custom_description: customDescription } : {}),
       }),
     },
+  );
+  return response;
+}
+
+export async function listStoryboardThemes(): Promise<StoryboardThemesResponse> {
+  const base = getBackendUrl();
+  const response = await apiRequest<StoryboardThemesResponse>(
+    `${base}/api/prompt/storyboard/themes/list`,
+    { method: 'GET' },
   );
   return response;
 }

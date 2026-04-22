@@ -85,6 +85,9 @@ class StoryboardThemeOption(BaseModel):
     description: str = Field(..., description="Brief description of the theme (1-2 sentences)")
     tags: List[str] = Field(..., description="List of theme keywords/tags")
     r18_level: str = Field(..., description="R18 level: 'soft' / 'medium' / 'hard'")
+    category: str = Field(default="", description="Theme category: transport/outdoor/indoor/costume/sm/multi/oral/fluid/facial/anal/toys/work/fantasy/special")
+    scenario_count: int = Field(default=0, description="Number of scenarios available for this theme")
+    costume_count: int = Field(default=0, description="Number of costumes available for this theme")
 
 
 class StoryboardThemesResponse(BaseModel):

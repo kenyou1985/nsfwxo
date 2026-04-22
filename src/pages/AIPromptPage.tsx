@@ -1447,13 +1447,13 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     savedStoryboard?.themeId ? 'panels' : 'themes'
   );
   const [themeOptions, setThemeOptions] = useState<{
-    id: number; title: string; description: string; tags: string[]; r18_level: string; category: string;
+    id: number; title: string; description: string; tags: string[]; r18_level: string; category?: string; scenario_count?: number; costume_count?: number;
   }[]>([]);
   const [selectedThemes, setSelectedThemes] = useState<{
-    id: number; title: string; description: string; tags: string[]; r18_level: string; category: string;
+    id: number; title: string; description: string; tags: string[]; r18_level: string; category?: string; scenario_count?: number; costume_count?: number;
   }[]>([]);
   const [selectedTheme, setSelectedTheme] = useState<{
-    id: number; title: string; description: string; tags: string[]; r18_level: string; category: string;
+    id: number; title: string; description: string; tags: string[]; r18_level: string; category?: string; scenario_count?: number; costume_count?: number;
   } | null>(null);
   const [customThemeMode, setCustomThemeMode] = useState(false);
   const [customThemeDescription, setCustomThemeDescription] = useState('');
@@ -1549,7 +1549,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   };
 
   // Add a single theme from library to selected themes (for manual selection)
-  const handleAddThemeFromLibrary = (theme: { id: number; title: string; description: string; tags: string[]; r18_level: string; category: string }) => {
+  const handleAddThemeFromLibrary = (theme: { id: number; title: string; description: string; tags: string[]; r18_level: string; category?: string; scenario_count?: number; costume_count?: number }) => {
     if (selectedThemes.some((t) => t.id === theme.id)) return;
     setSelectedThemes((prev) => [...prev, theme]);
   };
@@ -1566,7 +1566,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   };
 
   // Generate outline for ONE single selected theme (independent, not batch)
-  const handleGenerateOutlineSingle = async (theme: { id: number; title: string; description: string; tags: string[]; r18_level: string; category: string }) => {
+  const handleGenerateOutlineSingle = async (theme: { id: number; title: string; description: string; tags: string[]; r18_level: string; category?: string; scenario_count?: number; costume_count?: number }) => {
     // Mark this theme as generating
     setThemeOutlineStates((prev) => ({
       ...prev,
@@ -1639,7 +1639,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   };
 
   // Generate outline for a specific theme (multi-select mode) - independent execution
-  const handleGenerateOutlineForTheme = async (theme: { id: number; title: string; description: string; tags: string[]; r18_level: string; category: string }) => {
+  const handleGenerateOutlineForTheme = async (theme: { id: number; title: string; description: string; tags: string[]; r18_level: string; category?: string; scenario_count?: number; costume_count?: number }) => {
     // Mark as generating immediately so UI reflects live progress
     setThemeOutlineStates((prev) => ({
       ...prev,
@@ -2387,6 +2387,20 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                                     <span key={i} className="text-[9px] px-1 py-0.5 rounded-full bg-bg-elevated text-text-secondary">{tag}</span>
                                   ))}
                                 </div>
+                                {(theme.scenario_count || 0) > 0 || (theme.costume_count || 0) > 0 ? (
+                                  <div className="flex flex-wrap gap-1 mt-1.5">
+                                    {(theme.scenario_count || 0) > 0 && (
+                                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 font-medium">
+                                        {theme.scenario_count} 个场景
+                                      </span>
+                                    )}
+                                    {(theme.costume_count || 0) > 0 && (
+                                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-600 font-medium">
+                                        {theme.costume_count} 种服装
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : null}
                               </div>
                             </div>
                           </div>

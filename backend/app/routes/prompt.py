@@ -1215,64 +1215,101 @@ Output STRICTLY as raw JSON array (no markdown). All text in Chinese only.
 [{{"id": 1, "title": "创意中文标题", "description": "中文描述2-3句", "tags": ["中文标签1", "中文标签2", "标签3"], "r18_level": "soft/medium/hard", "category": "分类"}}]"""
 
 
+@router.get("/storyboard/themes/list", response_model=StoryboardThemesResponse)
+async def list_storyboard_themes():
+    """直接从主题库返回所有主题，无需调用 LLM，避免 502 错误。
+
+    按 category 分组返回，前端可直接下拉选择主题，选中的主题会直接传给大纲生成。
+    """
+    from app.services.theme_database import ADULT_THEMES
+    import random
+
+    themes = []
+    for i, t in enumerate(ADULT_THEMES):
+        if not isinstance(t, dict):
+            continue
+        scenarios = t.get("scenarios", []) if isinstance(t.get("scenarios"), list) else []
+        costumes = t.get("costumes", []) if isinstance(t.get("costumes"), list) else []
+        themes.append(StoryboardThemeOption(
+            id=i + 1,
+            title=t.get("name", f"主题{i + 1}"),
+            description=t.get("description", ""),
+            tags=t.get("tags", []) if isinstance(t.get("tags"), list) else [],
+            r18_level=t.get("r18_level", "medium"),
+            category=t.get("category", ""),
+            scenario_count=len(scenarios),
+            costume_count=len(costumes),
+        ))
+
+    # Shuffle for variety when displayed
+    random.seed()
+    random.shuffle(themes)
+    # Re-number after shuffle
+    for i, t in enumerate(themes):
+        t.id = i + 1
+
+    return StoryboardThemesResponse(themes=themes)
+
+
 @router.post("/storyboard/themes", response_model=StoryboardThemesResponse)
 async def generate_storyboard_themes(
     req: StoryboardThemesRequest,
     api_key: str = Depends(get_api_key),
 ):
     """Step 1 of 2-step storyboard: Generate diverse video theme options.
-    Supports custom description mode (user provides description) and random mode (system picks themes).
+
+    - 有 custom_description → 调用 LLM 根据描述生成主题
+    - 无 custom_description → 直接从数据库随机选取，不调用 LLM（避免 502）
     """
-    # Import here to avoid circular deps
-    from app.services.theme_database import (
-        ADULT_THEMES, COSTUMES, SCENARIOS, get_all_themes,
-    )
+    from app.services.theme_database import get_all_themes
     import random
 
-    count = min(max(req.count, 5), 20)  # Clamp between 5-20
-    all_db_themes = get_all_themes()
+    count = min(max(req.count, 5), 20)
 
-    random.seed()  # Use system time for true randomness
+    # ── 无自定义描述：直接从数据库随机选取，完全不调用 LLM ──
+    if not req.custom_description:
+        all_db_themes = get_all_themes()
+        random.seed()
+        random.shuffle(all_db_themes)
+        picked = all_db_themes[:count]
+        themes = []
+        for i, t in enumerate(picked):
+            if not isinstance(t, dict):
+                continue
+            scenarios = t.get("scenarios", []) if isinstance(t.get("scenarios"), list) else []
+            costumes = t.get("costumes", []) if isinstance(t.get("costumes"), list) else []
+            themes.append(StoryboardThemeOption(
+                id=i + 1,
+                title=t.get("name", f"主题{i + 1}"),
+                description=t.get("description", ""),
+                tags=t.get("tags", []) if isinstance(t.get("tags"), list) else [],
+                r18_level=t.get("r18_level", "medium"),
+                category=t.get("category", ""),
+                scenario_count=len(scenarios),
+                costume_count=len(costumes),
+            ))
+        return StoryboardThemesResponse(themes=themes)
+
+    # ── 有自定义描述：调用 LLM 生成 ──
+    from app.services.theme_database import COSTUMES, SCENARIOS
+    all_db_themes = get_all_themes()
+    random.seed()
     pool_size = min(15, len(all_db_themes))
     selected_themes = random.sample(all_db_themes, pool_size)
-
     costume_names = [c["name"] for c in COSTUMES]
     scenario_names = [s["name"] for s in SCENARIOS]
-
     system_prompt = (
         _THEMES_SYSTEM_PROMPT_R18 if req.r18
         else _THEMES_SYSTEM_PROMPT_NORMAL
     )
-
-    if req.custom_description:
-        # Custom description mode: generate themes from user's description
-        r18_context = (
-            f"\n\n【用户描述】{req.custom_description}\n\n"
-            f"请根据以上描述创作 {count} 个独特视频主题。\n"
-            "标题新颖，description 2-3句描述场景情节，tags用中文。\n"
-            "参考灵感：\n"
-            + "\n".join([f"- {t['name']}" for t in random.sample(all_db_themes, min(15, len(all_db_themes)))])
-        )
-        user_prompt = f"生成 {count} 个成人短视频主题（每个15-30秒）。{r18_context}\n\ndescription和tags必须全部使用中文！Output as raw JSON array only, no markdown."
-    else:
-        # Random/system mode: generate themes from random selection
-        if req.r18:
-            r18_context = (
-                f"\n\n【主题池】：\n"
-                + "\n".join([f"- {t['name']}" for t in selected_themes])
-                + f"\n\n【服装池】：{', '.join(random.sample(costume_names, min(10, len(costume_names))))}"
-                + f"\n\n【场景池】：{', '.join(random.sample(scenario_names, min(10, len(scenario_names))))}"
-                + f"\n\n从上述池中自由组合，创造 {count} 个不同主题，混合服装+场景+角色元素。"
-                + "\n标题新颖，避免重复。"
-            )
-        else:
-            r18_context = (
-                f"\n\n【主题池】：\n"
-                + "\n".join([f"- {t['name']}" for t in selected_themes])
-                + f"\n\n从上述主题池中自由组合，创造 {count} 个不同主题。"
-                + "\n标题新颖，有创意发挥。"
-            )
-        user_prompt = f"生成 {count} 个成人短视频主题（每个15-30秒）。{r18_context}\n\ndescription和tags必须全部使用中文！Output as raw JSON array only, no markdown."
+    r18_context = (
+        f"\n\n【用户描述】{req.custom_description}\n\n"
+        f"请根据以上描述创作 {count} 个独特视频主题。\n"
+        "标题新颖，description 2-3句描述场景情节，tags用中文。\n"
+        "参考灵感：\n"
+        + "\n".join([f"- {t['name']}" for t in random.sample(all_db_themes, min(15, len(all_db_themes)))])
+    )
+    user_prompt = f"生成 {count} 个成人短视频主题（每个15-30秒）。{r18_context}\n\ndescription和tags必须全部使用中文！Output as raw JSON array only, no markdown."
 
     for attempt in range(MAX_RETRIES):
         try:
@@ -1294,6 +1331,7 @@ async def generate_storyboard_themes(
                         description=str(item.get("description", "")),
                         tags=list(item.get("tags", [])) if isinstance(item.get("tags"), list) else [],
                         r18_level=str(item.get("r18_level", "medium")),
+                        category=str(item.get("category", "")),
                     ))
                 except Exception:
                     continue
