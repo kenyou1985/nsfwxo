@@ -22,17 +22,6 @@ function App() {
   const { yunwuKey, maskedYunwuKey, hasYunwuKey, saveYunwuKey, removeYunwuKey } = useYunwuKey();
   const { backendUrl, saveBackendUrl, resetBackendUrl, defaultUrl } = useBackendUrl();
   const toast = useToast();
-
-  // Loading state: return loading spinner BEFORE any other hooks
-  // to keep hook order consistent across renders
-  if (!isLoaded) {
-    return (
-      <div className="min-h-screen bg-bg-base flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
   const [activeTab, setActiveTab] = useState<TabType>('txt2img');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
@@ -135,11 +124,17 @@ function App() {
 
       {/* Responsive container: mobile=max-w-[480px], desktop=full */}
       <main className="max-w-[480px] lg:max-w-none mx-auto px-4 lg:px-6 pt-24 lg:pt-20 pb-8">
-        {renderPage()}
+        {!isLoaded ? (
+          <div className="flex items-center justify-center min-h-[40vh]">
+            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : (
+          renderPage()
+        )}
       </main>
 
       {/* Mobile: Inline API Key editor panel */}
-      {isSettingsOpen && (
+      {isSettingsOpen && isLoaded && (
         <div className="lg:hidden fixed inset-x-0 bottom-0 z-50 bg-white border-t border-border rounded-t-2xl shadow-2xl animate-slide-in-bottom">
           <InlineApiKeyEditor
             // RunningHub
@@ -163,7 +158,7 @@ function App() {
       )}
 
       {/* Desktop: full overlay drawer */}
-      {isSettingsOpen && (
+      {isSettingsOpen && isLoaded && (
         <div className="hidden lg:block fixed inset-0 z-50 flex justify-end">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setIsSettingsOpen(false)} />
           <div className="relative w-full max-w-sm h-full bg-bg-surface border-l border-border animate-slide-in-right overflow-y-auto flex flex-col">
