@@ -4,7 +4,7 @@ import {
   ChevronDown, ChevronUp, Sparkles, RotateCcw, Send,
   AlertCircle, Settings, Eye, Tag, History, Trash2, Plus, Clock,
   Image, Zap, X, Download, User, Heart, Star, Clapperboard,
-  ChevronLeft, ChevronRight, Video, ZoomIn,
+  ChevronLeft, ChevronRight, Video, ZoomIn, RefreshCw,
 } from 'lucide-react';
 import {
   expandPrompt,
@@ -13,6 +13,7 @@ import {
   generateStoryboardThemes,
   generateStoryboardOutline,
   generateVideoScript,
+  listStoryboardThemes,
   PromptResult,
 } from '../services/promptApi';
 import {
@@ -20,9 +21,11 @@ import {
   getExpandHistory, addExpandHistory, removeExpandHistory, clearExpandHistory,
   getRandomHistory, addRandomHistory, removeRandomHistory, clearRandomHistory,
   getStoryboardHistory, addStoryboardHistory, removeStoryboardHistory, clearStoryboardHistory,
+  updateStoryboardHistoryImages,
   getExpandSession, saveExpandSession, clearExpandSession,
   getRandomSession, saveRandomSession, clearRandomSession,
   getStoryboardSession, saveStoryboardSession, clearStoryboardSession,
+  cacheStoryboardPanelImages, getAllCachedPanelImages,
   type ExpandHistoryItem, type RandomHistoryItem, type StoryboardHistoryItem,
 } from '../services/storage';
 import type { TaskManagerReturn } from '../hooks/useTaskManager';
@@ -1369,53 +1372,92 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   const [copiedPanel, setCopiedPanel] = useState<number | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<StoryboardHistoryItem[]>(() => getStoryboardHistory());
-  const [genStates, setGenStates] = useState<Record<number, { loading: boolean; images: string[] }>>({});
+  const [genStates, setGenStates] = useState<Record<number, { loading: boolean; images: string[] }>>(() => {
+    const saved = getStoryboardSession();
+    if (saved?.historyId) {
+      const cachedImages = getAllCachedPanelImages(saved.historyId, saved.panels.length);
+      const initial: Record<number, { loading: boolean; images: string[] }> = {};
+      for (const [idx, imgs] of Object.entries(cachedImages)) {
+        initial[Number(idx)] = { loading: false, images: imgs };
+      }
+      return initial;
+    }
+    return {};
+  });
   const [batchLoading, setBatchLoading] = useState(false);
   const [batchVideoLoading, setBatchVideoLoading] = useState(false);
+  const [currentHistoryId, setCurrentHistoryId] = useState<string | null>(() => {
+    const saved = getStoryboardSession();
+    return saved?.historyId || null;
+  });
 
   // Sync genStates with taskManager.tasks so panel cards reflect live images
   useEffect(() => {
     setGenStates((prev) => {
       let changed = false;
       const next = { ...prev };
-      for (const task of taskManager.tasks) {
-        if (task.images.length === 0) continue;
-        // Find any panel index whose prompt matches the task prompt (normalized)
-        const taskPromptNorm = task.prompt.trim().replace(/\s+/g, ' ');
-        for (const [panelIdx, state] of Object.entries(next)) {
-          if (state.loading) {
-            const panelPromptNorm = panels[Number(panelIdx)]?.image_prompt?.trim().replace(/\s+/g, ' ') || '';
-            // Match on normalized prompts (handles anchor prompt + original prompt for img2img)
-            const matches = panelPromptNorm === taskPromptNorm ||
-              taskPromptNorm.includes(panelPromptNorm) ||
-              panelPromptNorm.includes(taskPromptNorm.substring(0, Math.min(taskPromptNorm.length, 200)));
-            if (matches || (taskPromptNorm.length > 20 && panelPromptNorm.includes(taskPromptNorm.substring(0, 100)))) {
-              next[Number(panelIdx)] = { loading: false, images: task.images };
-              changed = true;
-            }
+      for (let i = 0; i < panels.length; i++) {
+        const panel = panels[i];
+        const panelPromptNorm = panel.image_prompt.trim().replace(/\s+/g, ' ');
+        // Find any task whose prompt matches this panel (same robust matching as StoryboardPanelCard)
+        const matchedTask = taskManager.tasks.find((t) => {
+          if (t.images.length === 0) return false;
+          const taskPromptNorm = t.prompt.trim().replace(/\s+/g, ' ');
+          return taskPromptNorm === panelPromptNorm ||
+            taskPromptNorm.includes(panelPromptNorm) ||
+            panelPromptNorm.includes(taskPromptNorm) ||
+            (panelPromptNorm.length > 50 && taskPromptNorm.includes(panelPromptNorm.substring(0, Math.min(panelPromptNorm.length, 150))));
+        });
+        if (matchedTask) {
+          const currentImages = next[i]?.images ?? [];
+          // Always sync if we found a task with images (even if already synced, refresh with latest)
+          if (currentImages.length === 0 || currentImages[0] !== matchedTask.images[0]) {
+            next[i] = { loading: false, images: matchedTask.images };
+            changed = true;
           }
+        } else if (next[i]?.loading === undefined) {
+          // Ensure panel index exists in genStates even before batch generate is clicked
+          // (no-op entry so panels appear in the state map)
         }
       }
       return changed ? next : prev;
     });
   }, [taskManager.tasks, panels]);
 
+  // Persist generated panel images to history record (both legacy cache and direct storage for consistency)
+  useEffect(() => {
+    if (!currentHistoryId) return;
+    const panelImages: Record<number, string[]> = {};
+    for (const [panelIdx, state] of Object.entries(genStates)) {
+      if (state.images && state.images.length > 0) {
+        panelImages[Number(panelIdx)] = state.images;
+        cacheStoryboardPanelImages(currentHistoryId, Number(panelIdx), state.images);
+      }
+    }
+    // Also save to history record directly (like image history page)
+    if (Object.keys(panelImages).length > 0) {
+      updateStoryboardHistoryImages(currentHistoryId, panelImages);
+    }
+  }, [genStates, currentHistoryId]);
+
   // 2-step storyboard state
   const [storyStep, setStoryStep] = useState<'themes' | 'outline' | 'panels'>(
     savedStoryboard?.themeId ? 'panels' : 'themes'
   );
   const [themeOptions, setThemeOptions] = useState<{
-    id: number; title: string; description: string; tags: string[]; r18_level: string;
+    id: number; title: string; description: string; tags: string[]; r18_level: string; category: string;
   }[]>([]);
   const [selectedThemes, setSelectedThemes] = useState<{
-    id: number; title: string; description: string; tags: string[]; r18_level: string;
+    id: number; title: string; description: string; tags: string[]; r18_level: string; category: string;
   }[]>([]);
   const [selectedTheme, setSelectedTheme] = useState<{
-    id: number; title: string; description: string; tags: string[]; r18_level: string;
+    id: number; title: string; description: string; tags: string[]; r18_level: string; category: string;
   } | null>(null);
   const [customThemeMode, setCustomThemeMode] = useState(false);
   const [customThemeDescription, setCustomThemeDescription] = useState('');
   const [customThemeCount, setCustomThemeCount] = useState(10);
+  const [themeLibraryOpen, setThemeLibraryOpen] = useState(false);
+  const [loadingThemeLibrary, setLoadingThemeLibrary] = useState(false);
   const [outlineArc, setOutlineArc] = useState(savedStoryboard?.outlineArc || '');
   const [outlineScenes, setOutlineScenes] = useState<string[]>(savedStoryboard?.outlineScenes || []);
   const [generatingOutline, setGeneratingOutline] = useState(false);
@@ -1426,6 +1468,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     outlineArc: string;
     outlineScenes: string[];
     panels: { panel_number: number; scene_description: string; image_prompt: string }[];
+    historyId?: string;
   }>>({});
 
   // Video prompt state
@@ -1452,11 +1495,12 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         themeTitle: selectedTheme?.title,
         outlineArc,
         outlineScenes,
+        historyId: currentHistoryId || undefined,
       });
     } else {
       clearStoryboardSession();
     }
-  }, [plot, panelCount, panels, expandedPanel, selectedTheme, outlineArc, outlineScenes]);
+  }, [plot, panelCount, panels, expandedPanel, selectedTheme, outlineArc, outlineScenes, currentHistoryId]);
 
   // Step 1: Generate theme options (supports custom description)
   const handleGenerateThemes = async (customDesc?: string, customCnt?: number) => {
@@ -1481,6 +1525,86 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     }
   };
 
+  // Load theme library directly from database (no LLM, no 502 risk)
+  const handleOpenThemeLibrary = async () => {
+    setThemeLibraryOpen(true);
+    setLoadingThemeLibrary(true);
+    try {
+      const res = await listStoryboardThemes();
+      setThemeOptions(res.themes);
+      setStoryStep('themes');
+      setSelectedTheme(null);
+      setSelectedThemes([]);
+      setPanels([]);
+      setOutlineArc('');
+      setOutlineScenes([]);
+      setThemeOutlineStates({});
+    } catch (err) {
+      onError(err instanceof Error ? err.message : '主题库加载失败');
+    } finally {
+      setLoadingThemeLibrary(false);
+    }
+  };
+
+  // Add a single theme from library to selected themes (for manual selection)
+  const handleAddThemeFromLibrary = (theme: { id: number; title: string; description: string; tags: string[]; r18_level: string; category: string }) => {
+    if (selectedThemes.some((t) => t.id === theme.id)) return;
+    setSelectedThemes((prev) => [...prev, theme]);
+  };
+
+  // Remove a theme from selected themes
+  const handleRemoveThemeFromSelected = (themeId: number) => {
+    setSelectedThemes((prev) => prev.filter((t) => t.id !== themeId));
+    // Also reset its outline state if it was generated
+    setThemeOutlineStates((prev) => {
+      const next = { ...prev };
+      delete next[themeId];
+      return next;
+    });
+  };
+
+  // Generate outline for ONE single selected theme (independent, not batch)
+  const handleGenerateOutlineSingle = async (theme: { id: number; title: string; description: string; tags: string[]; r18_level: string; category: string }) => {
+    // Mark this theme as generating
+    setThemeOutlineStates((prev) => ({
+      ...prev,
+      [theme.id]: { generating: true, outlineArc: '', outlineScenes: [], panels: [], historyId: undefined },
+    }));
+    try {
+      const res = await generateStoryboardOutline(theme.id, theme.title, panelCount, r18Mode);
+      addStoryboardHistory({ plot: theme.title, panel_count: panelCount, r18: r18Mode, panels: res.storyboard });
+      const updatedHistory = getStoryboardHistory();
+      const historyId = updatedHistory[0]?.id;
+      setThemeOutlineStates((prev) => ({
+        ...prev,
+        [theme.id]: {
+          generating: false,
+          outlineArc: res.outline.arc,
+          outlineScenes: res.outline.scenes,
+          panels: res.storyboard,
+          historyId,
+        },
+      }));
+      onSuccess(`「${theme.title}」的大纲已生成`);
+    } catch (err) {
+      setThemeOutlineStates((prev) => {
+        const next = { ...prev };
+        delete next[theme.id];
+        return next;
+      });
+      onError(err instanceof Error ? err.message : `「${theme.title}」分镜生成失败`);
+    }
+  };
+
+  // Generate outlines for ALL selected themes independently (each runs on its own)
+  const handleGenerateSelectedThemes = async () => {
+    if (selectedThemes.length === 0) return;
+    onSuccess(`开始为 ${selectedThemes.length} 个主题独立生成大纲...`);
+    // Kick off all of them concurrently — each updates its own card state independently
+    await Promise.all(selectedThemes.map((theme) => handleGenerateOutlineSingle(theme)));
+    onSuccess(`已完成 ${selectedThemes.length} 个主题的大纲生成`);
+  };
+
   // Step 2: Generate outline + panels from selected theme
   const handleGenerateOutline = async () => {
     if (!selectedTheme) { onError('请先选择一个主题'); return; }
@@ -1493,7 +1617,17 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       setExpandedPanel(null);
       setStoryStep('panels');
       addStoryboardHistory({ plot: selectedTheme.title, panel_count: panelCount, r18: r18Mode, panels: res.storyboard });
-      setHistory(getStoryboardHistory());
+      const updatedHistory = getStoryboardHistory();
+      const newEntry = updatedHistory[0];
+      if (newEntry) {
+        setCurrentHistoryId(newEntry.id);
+        saveStoryboardSession({
+          plot: selectedTheme.title, panelCount, panels: res.storyboard, expandedPanel: null,
+          themeId: selectedTheme.id, themeTitle: selectedTheme.title,
+          outlineArc: res.outline.arc, outlineScenes: res.outline.scenes, historyId: newEntry.id,
+        });
+      }
+      setHistory(updatedHistory);
       onSuccess(`剧情大纲已生成，${res.storyboard.length} 个分镜就绪`);
     } catch (err) {
       onError(err instanceof Error ? err.message : '分镜生成失败');
@@ -1502,11 +1636,18 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     }
   };
 
-  // Generate outline for a specific theme (multi-select mode)
-  const handleGenerateOutlineForTheme = async (theme: { id: number; title: string; description: string; tags: string[]; r18_level: string }) => {
-    setGeneratingOutline(true);
+  // Generate outline for a specific theme (multi-select mode) - independent execution
+  const handleGenerateOutlineForTheme = async (theme: { id: number; title: string; description: string; tags: string[]; r18_level: string; category: string }) => {
+    // Mark as generating immediately so UI reflects live progress
+    setThemeOutlineStates((prev) => ({
+      ...prev,
+      [theme.id]: { generating: true, outlineArc: '', outlineScenes: [], panels: [], historyId: prev[theme.id]?.historyId },
+    }));
     try {
       const res = await generateStoryboardOutline(theme.id, theme.title, panelCount, r18Mode);
+      addStoryboardHistory({ plot: theme.title, panel_count: panelCount, r18: r18Mode, panels: res.storyboard });
+      const updatedHistory = getStoryboardHistory();
+      const historyId = updatedHistory[0]?.id;
       setThemeOutlineStates((prev) => ({
         ...prev,
         [theme.id]: {
@@ -1514,26 +1655,26 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
           outlineArc: res.outline.arc,
           outlineScenes: res.outline.scenes,
           panels: res.storyboard,
+          historyId,
         },
       }));
       onSuccess(`「${theme.title}」的大纲已生成`);
     } catch (err) {
+      setThemeOutlineStates((prev) => {
+        const next = { ...prev };
+        delete next[theme.id];
+        return next;
+      });
       onError(err instanceof Error ? err.message : `「${theme.title}」分镜生成失败`);
-    } finally {
-      setGeneratingOutline(false);
     }
   };
 
-  // Generate outlines for all selected themes in parallel
+  // Generate outlines for all selected themes independently (each updates its own card state)
   const handleGenerateMultipleOutlines = async () => {
     if (selectedThemes.length === 0) return;
-    setGeneratingOutline(true);
-    try {
-      await Promise.all(selectedThemes.map((theme) => handleGenerateOutlineForTheme(theme)));
-      onSuccess(`已为 ${selectedThemes.length} 个主题生成大纲`);
-    } finally {
-      setGeneratingOutline(false);
-    }
+    onSuccess(`开始为 ${selectedThemes.length} 个主题独立生成大纲...`);
+    await Promise.all(selectedThemes.map((theme) => handleGenerateOutlineForTheme(theme)));
+    onSuccess(`已完成 ${selectedThemes.length} 个主题的大纲生成`);
   };
 
   // View panels for a specific theme in multi-select mode
@@ -1557,8 +1698,26 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     setOutlineArc(state.outlineArc);
     setOutlineScenes(state.outlineScenes);
     setStoryStep('panels');
-    if (theme) {
-      addStoryboardHistory({ plot: theme.title, panel_count: panelCount, r18: r18Mode, panels: state.panels });
+    if (theme && state.historyId) {
+      // Reuse existing history entry instead of creating a duplicate
+      const historyId = state.historyId;
+      setCurrentHistoryId(historyId);
+      // Restore cached images for this history entry
+      const cachedImages = getAllCachedPanelImages(historyId, state.panels.length);
+      if (Object.keys(cachedImages).length > 0) {
+        const initial: Record<number, { loading: boolean; images: string[] }> = {};
+        for (const [idx, imgs] of Object.entries(cachedImages)) {
+          initial[Number(idx)] = { loading: false, images: imgs };
+        }
+        setGenStates(initial);
+      } else {
+        setGenStates({});
+      }
+      saveStoryboardSession({
+        plot: theme.title, panelCount, panels: state.panels, expandedPanel: null,
+        themeId: theme.id, themeTitle: theme.title, outlineArc: state.outlineArc,
+        outlineScenes: state.outlineScenes, historyId,
+      });
       setHistory(getStoryboardHistory());
     }
     onSuccess(`已加载「${theme?.title}」到分镜区`);
@@ -1575,6 +1734,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     setOutlineScenes([]);
     setVideoScript(null);
     setStoryStep('themes');
+    setGenStates({});
+    setCurrentHistoryId(null);
     clearStoryboardSession();
   };
 
@@ -1596,7 +1757,32 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   const handleCopyPanel = (panel: { image_prompt: string }, idx: number) => { navigator.clipboard.writeText(panel.image_prompt).then(() => { setCopiedPanel(idx); setTimeout(() => setCopiedPanel(null), 2000); }); };
   const handleCopyAll = () => { navigator.clipboard.writeText(panels.map((p) => `[Panel ${p.panel_number}]\n${p.image_prompt}`).join('\n\n')).then(() => { setCopiedPanel(-1); setTimeout(() => setCopiedPanel(null), 2000); }); };
   const handleDeleteHistory = (id: string) => { removeStoryboardHistory(id); setHistory(getStoryboardHistory()); };
-  const handleHistoryLoad = (item: StoryboardHistoryItem) => { setPlot(item.plot); setPanels(item.panels); setStoryStep('panels'); setVideoScript(null); setOutlineArc(''); setOutlineScenes([]); setShowHistory(false); };
+  const handleHistoryLoad = (item: StoryboardHistoryItem) => {
+    setPlot(item.plot);
+    setPanels(item.panels);
+    setStoryStep('panels');
+    setVideoScript(null);
+    setOutlineArc('');
+    setOutlineScenes([]);
+    setShowHistory(false);
+    // Restore cached images for this history entry AND persist historyId to session
+    // so the caching useEffect can write updated genStates back to this entry
+    const cachedImages = getAllCachedPanelImages(item.id, item.panels.length);
+    if (Object.keys(cachedImages).length > 0) {
+      const initial: Record<number, { loading: boolean; images: string[] }> = {};
+      for (const [idx, imgs] of Object.entries(cachedImages)) {
+        initial[Number(idx)] = { loading: false, images: imgs };
+      }
+      setGenStates(initial);
+    } else {
+      setGenStates({});
+    }
+    setCurrentHistoryId(item.id);
+    saveStoryboardSession({
+      plot: item.plot, panelCount: item.panel_count, panels: item.panels, expandedPanel: null,
+      themeTitle: item.plot, historyId: item.id,
+    });
+  };
 
   const handleGenerateImage = useCallback(async (panelIdx: number, prompt: string) => {
     if (taskManager.isFull) { onError('任务队列已满'); return; }
@@ -1763,16 +1949,21 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     try {
       for (let i = 0; i < panels.length; i++) {
         const panel = panels[i];
-        // Get the first generated image for this panel
+        const panelKey = `panel-${i}`;
         const panelGenState = genStates[i];
         const panelTasks = taskManager.tasks.filter((t) => t.prompt === panel.image_prompt && t.images.length > 0);
         let imageUrl = '';
 
-        // Try local state first
-        if (panelGenState?.images && panelGenState.images.length > 0) {
+        // Priority 1: User manually selected an image for this panel
+        const manualSelection = selectedPanelImages[panelKey];
+        if (manualSelection) {
+          imageUrl = manualSelection.url;
+        }
+        // Priority 2: Local genState (includes cached images from history)
+        else if (panelGenState?.images && panelGenState.images.length > 0) {
           imageUrl = panelGenState.images[0];
         }
-        // Then try task manager tasks
+        // Priority 3: Task manager tasks (live running tasks)
         else if (panelTasks.length > 0) {
           imageUrl = panelTasks[0].images[0];
         }
@@ -1938,6 +2129,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
           </div>
         </div>
 
+        {/* ── Theme Selection Area ── */}
         {/* Panel count selector */}
         <div className="flex items-center gap-3 mb-3">
           <span className="text-xs text-text-tertiary">分镜数量:</span>
@@ -1948,75 +2140,390 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
           </div>
         </div>
 
-        {/* Step 1: Generate themes */}
-        {storyStep === 'themes' && (
-          <div className="space-y-3">
-            {/* Theme generation controls */}
-            <div className="flex gap-2">
-              <button onClick={() => handleGenerateThemes()} disabled={loading}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-medium text-sm transition-all ${loading ? 'bg-bg-elevated text-text-secondary cursor-not-allowed' : r18Mode ? 'bg-gradient-to-r from-red-500 to-red-600 text-white hover:opacity-90 active:scale-[0.98]' : 'bg-gradient-to-r from-primary to-primary/80 text-white hover:opacity-90 active:scale-[0.98]'}`}>
-                {loading ? <><Loader2 size={16} className="animate-spin" /> 生成主题中...</> : <><Wand2 size={16} />{r18Mode ? '随机生成 R18 主题' : '随机生成视频主题'}</>}
+        {/* Theme library button + custom mode */}
+        <div className="space-y-2">
+          {/* Primary actions */}
+          <div className="flex gap-2">
+            <button
+              onClick={handleOpenThemeLibrary}
+              disabled={loadingThemeLibrary}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-medium text-sm transition-all ${
+                loadingThemeLibrary
+                  ? 'bg-bg-elevated text-text-secondary cursor-not-allowed'
+                  : r18Mode
+                    ? 'bg-gradient-to-r from-red-500 to-red-600 text-white hover:opacity-90 active:scale-[0.98]'
+                    : 'bg-gradient-to-r from-primary to-primary/80 text-white hover:opacity-90 active:scale-[0.98]'
+              }`}
+            >
+              {loadingThemeLibrary ? (
+                <><Loader2 size={16} className="animate-spin" /> 加载主题库...</>
+              ) : (
+                <><LayoutList size={16} />从主题库选择</>
+              )}
+            </button>
+            <button
+              onClick={() => handleGenerateThemes()}
+              disabled={loading}
+              className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium text-sm transition-all ${
+                loading
+                  ? 'bg-bg-elevated text-text-secondary cursor-not-allowed'
+                  : r18Mode
+                    ? 'bg-gradient-to-r from-orange-500 to-red-600 text-white hover:opacity-90 active:scale-[0.98]'
+                    : 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90 active:scale-[0.98]'
+              }`}
+            >
+              {loading ? (
+                <><Loader2 size={16} className="animate-spin" /> 生成中...</>
+              ) : (
+                <><Wand2 size={16} />随机生成</>
+              )}
+            </button>
+          </div>
+
+          {/* Custom description toggle */}
+          <div className="p-3 rounded-xl border border-border bg-bg-elevated">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-text-primary">自定义选题</span>
+                <span className="text-[10px] text-text-tertiary">输入描述生成主题</span>
+              </div>
+              <button
+                onClick={() => setCustomThemeMode(!customThemeMode)}
+                className={`relative w-10 h-5 rounded-full transition-all flex-shrink-0 ${customThemeMode ? 'bg-primary' : 'bg-gray-300'}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${customThemeMode ? 'translate-x-5' : 'translate-x-0'}`} />
               </button>
             </div>
-            {/* Custom description mode */}
-            <div className="p-3 rounded-xl border border-border bg-bg-elevated">
-              <div className="flex items-center justify-between mb-2">
+            {customThemeMode && (
+              <div className="space-y-2">
+                <textarea
+                  value={customThemeDescription}
+                  onChange={(e) => setCustomThemeDescription(e.target.value)}
+                  placeholder="例如：办公室暧昧、浴室激情、古风青楼..."
+                  className="w-full px-3 py-2 rounded-lg bg-white border border-border text-sm text-text-primary placeholder:text-text-tertiary resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  rows={2}
+                />
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-text-primary">自定义选题</span>
-                  <span className="text-[10px] text-text-tertiary">输入描述生成主题</span>
+                  <span className="text-xs text-text-tertiary">数量:</span>
+                  <input
+                    type="number"
+                    value={customThemeCount}
+                    onChange={(e) => setCustomThemeCount(Math.max(5, Math.min(20, parseInt(e.target.value) || 5)))}
+                    min={5}
+                    max={20}
+                    className="w-14 px-2 py-1 rounded-lg bg-white border border-border text-xs text-text-primary text-center focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                  <span className="text-xs text-text-tertiary">个</span>
+                  <div className="flex-1" />
+                  <button
+                    onClick={() => handleGenerateThemes()}
+                    disabled={loading || !customThemeDescription.trim()}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      loading || !customThemeDescription.trim()
+                        ? 'bg-bg-elevated text-text-secondary cursor-not-allowed'
+                        : r18Mode
+                          ? 'bg-red-500 text-white hover:bg-red-600'
+                          : 'bg-primary text-white hover:bg-primary/90'
+                    }`}
+                  >
+                    {loading ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
+                    根据描述生成
+                  </button>
                 </div>
-                <button
-                  onClick={() => setCustomThemeMode(!customThemeMode)}
-                  className={`relative w-10 h-5 rounded-full transition-all flex-shrink-0 ${customThemeMode ? 'bg-primary' : 'bg-gray-300'}`}
-                >
-                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${customThemeMode ? 'translate-x-5' : 'translate-x-0'}`} />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── Theme Library Modal ── */}
+        {themeLibraryOpen && (
+          <div className="fixed inset-0 z-[9999] bg-black/60 flex items-center justify-center p-4 animate-fade-in" onClick={() => setThemeLibraryOpen(false)}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[80vh] flex flex-col overflow-hidden animate-slide-up" onClick={(e) => e.stopPropagation()}>
+              {/* Modal header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
+                <div className="flex items-center gap-2">
+                  <LayoutList size={18} className="text-primary" />
+                  <span className="font-semibold text-text-primary">主题库</span>
+                  <span className="px-2 py-0.5 rounded-full text-[11px] bg-bg-elevated text-text-tertiary">{themeOptions.length} 个主题</span>
+                </div>
+                <button onClick={() => setThemeLibraryOpen(false)} className="p-2 rounded-lg hover:bg-bg-hover transition-colors">
+                  <X size={18} className="text-text-tertiary" />
                 </button>
               </div>
-              {customThemeMode && (
-                <div className="space-y-2">
-                  <textarea
-                    value={customThemeDescription}
-                    onChange={(e) => setCustomThemeDescription(e.target.value)}
-                    placeholder="例如：办公室暧昧、浴室激情、古风青楼、护士诱惑..."
-                    className="w-full px-3 py-2 rounded-lg bg-white border border-border text-sm text-text-primary placeholder:text-text-tertiary resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
-                    rows={2}
-                  />
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-text-tertiary">生成数量:</span>
-                    <input
-                      type="number"
-                      value={customThemeCount}
-                      onChange={(e) => setCustomThemeCount(Math.max(5, Math.min(20, parseInt(e.target.value) || 5)))}
-                      min={5}
-                      max={20}
-                      className="w-14 px-2 py-1 rounded-lg bg-white border border-border text-xs text-text-primary text-center focus:outline-none focus:ring-2 focus:ring-primary/30"
-                    />
-                    <span className="text-xs text-text-tertiary">个 (5-20)</span>
-                    <div className="flex-1" />
-                    <button
-                      onClick={() => handleGenerateThemes()}
-                      disabled={loading || !customThemeDescription.trim()}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                        loading || !customThemeDescription.trim()
-                          ? 'bg-bg-elevated text-text-secondary cursor-not-allowed'
-                          : r18Mode
-                            ? 'bg-red-500 text-white hover:bg-red-600'
-                            : 'bg-primary text-white hover:bg-primary/90'
-                      }`}
-                    >
-                      {loading ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
-                      根据描述生成
+
+              {/* Search & filter */}
+              <div className="px-5 py-3 border-b border-border flex-shrink-0 space-y-2">
+                <input
+                  type="text"
+                  placeholder="搜索主题..."
+                  className="w-full px-3 py-2 rounded-lg bg-bg-elevated border border-border text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  onChange={(e) => {
+                    const q = e.target.value.toLowerCase();
+                    // filter displayed themes in the modal
+                    const allLoaded = []; // we only show from what was loaded
+                  }}
+                />
+                <div className="flex flex-wrap gap-1">
+                  {[
+                    { label: '全部', cat: '' },
+                    { label: '户外', cat: 'outdoor' },
+                    { label: '室内', cat: 'indoor' },
+                    { label: '制服', cat: 'costume' },
+                    { label: 'SM', cat: 'sm' },
+                    { label: '幻想', cat: 'fantasy' },
+                    { label: '职场', cat: 'work' },
+                    { label: '多人', cat: 'multi' },
+                    { label: '特殊', cat: 'special' },
+                    { label: '玩具', cat: 'toys' },
+                    { label: '口交', cat: 'oral' },
+                    { label: '肛交', cat: 'anal' },
+                    { label: '体液', cat: 'fluid' },
+                    { label: '颜射', cat: 'facial' },
+                    { label: '交通', cat: 'transport' },
+                  ].map(({ label, cat }) => (
+                    <button key={cat} className="px-2 py-0.5 rounded-full text-[11px] bg-bg-elevated text-text-secondary hover:bg-primary hover:text-white transition-all">
+                      {label}
                     </button>
-                  </div>
+                  ))}
                 </div>
-              )}
+              </div>
+
+              {/* Theme grid */}
+              <div className="flex-1 overflow-y-auto p-5">
+                {loadingThemeLibrary ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 size={24} className="animate-spin text-text-tertiary" />
+                  </div>
+                ) : themeOptions.length === 0 ? (
+                  <div className="text-center py-12 text-text-tertiary text-sm">
+                    <LayoutList size={32} className="mx-auto mb-2 opacity-40" />
+                    <p>暂无主题，请先点击「从主题库选择」加载</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {themeOptions.map((theme) => {
+                      const isAlreadySelected = selectedThemes.some((t) => t.id === theme.id);
+                      return (
+                        <div
+                          key={theme.id}
+                          className={`relative p-3 rounded-xl border transition-all ${
+                            isAlreadySelected
+                              ? 'border-green-400 bg-green-50/50'
+                              : 'border-border bg-bg-elevated hover:bg-bg-hover hover:border-primary/40'
+                          }`}
+                        >
+                          <div className="flex items-start gap-2">
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0 ${
+                              isAlreadySelected ? 'bg-green-500 text-white' : r18Mode ? 'bg-red-100 text-red-600' : 'bg-primary/10 text-primary'
+                            }`}>
+                              {theme.id}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                                <p className="text-sm font-semibold text-text-primary leading-tight">{theme.title}</p>
+                                {theme.category && (
+                                  <span className="text-[9px] px-1 py-0.5 rounded-full bg-bg-elevated text-text-tertiary">{theme.category}</span>
+                                )}
+                                <span className={`text-[9px] px-1 py-0.5 rounded-full font-medium ${
+                                  theme.r18_level === 'hard' ? 'bg-red-100 text-red-600' : theme.r18_level === 'medium' ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'
+                                }`}>
+                                  {theme.r18_level === 'hard' ? '高强度' : theme.r18_level === 'medium' ? '中等' : '柔和'}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-text-tertiary leading-relaxed line-clamp-2">{theme.description}</p>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {theme.tags.slice(0, 3).map((tag, i) => (
+                                  <span key={i} className="text-[9px] px-1 py-0.5 rounded-full bg-bg-elevated text-text-secondary">{tag}</span>
+                                ))}
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => {
+                                if (!isAlreadySelected) {
+                                  handleAddThemeFromLibrary(theme);
+                                }
+                              }}
+                              disabled={isAlreadySelected}
+                              className={`flex-shrink-0 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
+                                isAlreadySelected
+                                  ? 'bg-green-100 text-green-600 cursor-not-allowed'
+                                  : 'bg-primary text-white hover:bg-primary/90'
+                              }`}
+                            >
+                              {isAlreadySelected ? <><Check size={10} /> 已选</> : <><Plus size={10} /> 添加</>}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Modal footer */}
+              <div className="px-5 py-3 border-t border-border flex items-center justify-between flex-shrink-0 bg-bg-elevated/50">
+                <span className="text-xs text-text-tertiary">已选 {selectedThemes.length} 个主题</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setThemeLibraryOpen(false)}
+                    className="px-4 py-2 rounded-lg text-xs text-text-tertiary hover:bg-bg-hover transition-all"
+                  >
+                    关闭
+                  </button>
+                  {selectedThemes.length > 0 && (
+                    <button
+                      onClick={() => {
+                        setThemeLibraryOpen(false);
+                        setStoryStep('themes');
+                      }}
+                      className="px-4 py-2 rounded-lg text-xs bg-primary text-white hover:bg-primary/90 transition-all"
+                    >
+                      查看已选主题 ({selectedThemes.length})
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}
 
-        {/* Step 2: Theme selection grid */}
-        {storyStep === 'themes' && themeOptions.length > 0 && (
-          <div className="space-y-2">
+        {/* ── Selected Themes: Independent Cards with Live Progress ── */}
+        {storyStep === 'themes' && selectedThemes.length > 0 && (
+          <div className="space-y-3 mt-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-text-primary">已选主题</span>
+                <span className="px-1.5 py-0.5 rounded-full text-[11px] bg-primary/10 text-primary font-medium">{selectedThemes.length}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleGenerateSelectedThemes}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    r18Mode
+                      ? 'bg-gradient-to-r from-red-500 to-red-600 text-white hover:opacity-90'
+                      : 'bg-gradient-to-r from-primary to-primary/80 text-white hover:opacity-90'
+                  }`}
+                >
+                  <Wand2 size={12} />
+                  为 {selectedThemes.length} 个主题生成大纲
+                </button>
+              </div>
+            </div>
+
+            {/* Independent theme cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {selectedThemes.map((theme) => {
+                const state = themeOutlineStates[theme.id];
+                const isGenerating = !!state?.generating;
+                const isDone = !!state?.outlineArc;
+
+                return (
+                  <div
+                    key={theme.id}
+                    className={`rounded-xl border overflow-hidden transition-all ${
+                      isDone
+                        ? 'border-green-300 bg-green-50/30'
+                        : isGenerating
+                          ? 'border-yellow-300 bg-yellow-50/30 animate-pulse-subtle'
+                          : 'border-border bg-bg-elevated hover:border-primary/30'
+                    }`}
+                  >
+                    {/* Card header */}
+                    <div className="flex items-center gap-2 px-3 py-2 border-b border-border/50">
+                      <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
+                        isDone ? 'bg-green-500 text-white' : isGenerating ? 'bg-yellow-500 text-white' : r18Mode ? 'bg-red-100 text-red-600' : 'bg-primary/10 text-primary'
+                      }`}>
+                        {isGenerating ? <Loader2 size={10} className="animate-spin" /> : theme.id}
+                      </span>
+                      <p className="flex-1 text-xs font-semibold text-text-primary truncate">{theme.title}</p>
+                      {theme.category && (
+                        <span className="text-[9px] px-1 py-0.5 rounded-full bg-bg-elevated text-text-tertiary">{theme.category}</span>
+                      )}
+                      <button
+                        onClick={() => handleRemoveThemeFromSelected(theme.id)}
+                        className="p-0.5 rounded text-text-tertiary hover:text-red-500 transition-colors"
+                        title="移除"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+
+                    {/* Card body */}
+                    <div className="px-3 py-2">
+                      {isGenerating && (
+                        <div className="flex items-center gap-1.5 text-[11px] text-yellow-600">
+                          <Loader2 size={10} className="animate-spin" />
+                          正在生成大纲...
+                        </div>
+                      )}
+                      {isDone && state && (
+                        <div className="space-y-1.5">
+                          <p className="text-[11px] text-text-secondary leading-relaxed">{state.outlineArc}</p>
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-text-tertiary">{state.panels.length} 个分镜</span>
+                            <div className="flex-1" />
+                            <button
+                              onClick={() => {
+                                const st = themeOutlineStates[theme.id];
+                                if (st) {
+                                  setPanels(st.panels);
+                                  setOutlineArc(st.outlineArc);
+                                  setOutlineScenes(st.outlineScenes);
+                                  setStoryStep('panels');
+                                  const hid = st.historyId;
+                                  if (hid) {
+                                    setCurrentHistoryId(hid);
+                                    const cached = getAllCachedPanelImages(hid, st.panels.length);
+                                    if (Object.keys(cached).length > 0) {
+                                      const initial: Record<number, { loading: boolean; images: string[] }> = {};
+                                      for (const [idx, imgs] of Object.entries(cached)) {
+                                        initial[Number(idx)] = { loading: false, images: imgs };
+                                      }
+                                      setGenStates(initial);
+                                    }
+                                  }
+                                }
+                              }}
+                              className="px-2 py-0.5 rounded text-[10px] font-medium bg-primary text-white hover:bg-primary/90 transition-all"
+                            >
+                              加载分镜
+                            </button>
+                            <button
+                              onClick={() => handleGenerateOutlineSingle(theme)}
+                              className="px-2 py-0.5 rounded text-[10px] font-medium bg-bg-elevated text-text-secondary hover:bg-bg-hover transition-all"
+                            >
+                              重新生成
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      {!isGenerating && !isDone && (
+                        <div className="flex items-center gap-2">
+                          <p className="text-[10px] text-text-tertiary line-clamp-2 flex-1">{theme.description}</p>
+                          <button
+                            onClick={() => handleGenerateOutlineSingle(theme)}
+                            className={`flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium transition-all ${
+                              r18Mode
+                                ? 'bg-red-500 text-white hover:bg-red-600'
+                                : 'bg-primary text-white hover:bg-primary/90'
+                            }`}
+                          >
+                            <Wand2 size={10} />
+                            生成大纲
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── Single theme selection (non-multi) ── */}
+        {storyStep === 'themes' && selectedThemes.length === 0 && themeOptions.length > 0 && (
+          <div className="space-y-2 mt-3">
             <p className="text-xs text-text-tertiary font-medium">请选择一个主题（{themeOptions.length} 个可选）</p>
             <div className="grid grid-cols-1 gap-2">
               {themeOptions.map((theme) => (
@@ -2038,6 +2545,9 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                         <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${theme.r18_level === 'hard' ? 'bg-red-100 text-red-600' : theme.r18_level === 'medium' ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}`}>
                           {theme.r18_level === 'hard' ? '高强度' : theme.r18_level === 'medium' ? '中等' : '柔和'}
                         </span>
+                        {theme.category && (
+                          <span className="text-[9px] px-1 py-0.5 rounded-full bg-bg-elevated text-text-tertiary">{theme.category}</span>
+                        )}
                       </div>
                       <p className="text-xs text-text-tertiary leading-relaxed">{theme.description}</p>
                       {theme.tags.length > 0 && (
@@ -2063,105 +2573,6 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
               >
                 {generatingOutline ? <><Loader2 size={16} className="animate-spin" /> 生成大纲和分镜中...</> : <><Wand2 size={16} />生成「{selectedTheme.title}」的大纲和分镜</>}
               </button>
-            )}
-            {/* Multi-select mode: select multiple themes for parallel generation */}
-            {themeOptions.length > 1 && (
-              <div className="mt-2 pt-2 border-t border-border">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs text-text-tertiary">
-                    {selectedThemes.length > 0 ? `已选 ${selectedThemes.length} 个主题（并行生成）` : '多选模式：点击序号多选'}
-                  </p>
-                  {selectedThemes.length > 0 && (
-                    <button
-                      onClick={handleGenerateMultipleOutlines}
-                      disabled={generatingOutline}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                        generatingOutline
-                          ? 'bg-bg-elevated text-text-secondary cursor-not-allowed'
-                          : r18Mode
-                            ? 'bg-gradient-to-r from-red-500 to-red-600 text-white hover:opacity-90'
-                            : 'bg-gradient-to-r from-primary to-primary/80 text-white hover:opacity-90'
-                      }`}
-                    >
-                      {generatingOutline ? (
-                        <><Loader2 size={12} className="animate-spin" /> 生成中...</>
-                      ) : (
-                        <><Wand2 size={12} />一键生成 {selectedThemes.length} 个</>
-                      )}
-                    </button>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {themeOptions.map((theme) => {
-                    const isSelected = selectedThemes.some((t) => t.id === theme.id);
-                    const state = themeOutlineStates[theme.id];
-                    const isGenerating = generatingOutline && !state?.outlineArc;
-                    return (
-                      <div
-                        key={theme.id}
-                        className={`relative flex-1 min-w-[180px] p-2 rounded-xl border transition-all cursor-pointer ${
-                          isSelected
-                            ? r18Mode ? 'border-red-400 bg-red-50/60' : 'border-primary bg-primary/5'
-                            : 'border-border bg-bg-elevated hover:bg-bg-hover'
-                        }`}
-                        onClick={() => {
-                          if (isSelected) {
-                            setSelectedThemes((prev) => prev.filter((t) => t.id !== theme.id));
-                          } else {
-                            setSelectedThemes((prev) => [...prev, theme]);
-                          }
-                        }}
-                      >
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                            isSelected
-                              ? r18Mode ? 'bg-red-500 text-white' : 'bg-primary text-white'
-                              : 'bg-bg-elevated text-text-tertiary'
-                          }`}>
-                            {theme.id}
-                          </span>
-                          <p className={`text-xs font-medium truncate ${r18Mode ? 'text-red-700' : 'text-text-primary'}`}>{theme.title}</p>
-                          {isSelected && <Check size={12} className={r18Mode ? 'text-red-500' : 'text-primary'} />}
-                        </div>
-                        {/* Show loading state */}
-                        {isGenerating && isSelected && (
-                          <div className="mt-1 flex items-center gap-1 text-[10px] text-text-tertiary">
-                            <Loader2 size={8} className="animate-spin" />
-                            生成中...
-                          </div>
-                        )}
-                        {/* Show generated outline preview */}
-                        {state?.outlineArc && (
-                          <div className={`mt-1 p-1.5 rounded-lg text-[10px] leading-tight ${r18Mode ? 'bg-red-100/50' : 'bg-white/50'}`}>
-                            <p className="font-medium text-text-primary truncate">{state.outlineArc}</p>
-                            {state.panels.length > 0 && (
-                              <p className="text-text-tertiary">{state.panels.length} 个分镜</p>
-                            )}
-                            <div className="flex gap-1 mt-1">
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleViewThemePanels(theme.id); }}
-                                className={`px-2 py-0.5 rounded text-[10px] font-medium ${
-                                  r18Mode ? 'bg-red-200 text-red-700 hover:bg-red-300' : 'bg-primary/20 text-primary hover:bg-primary/30'
-                                }`}
-                              >
-                                查看
-                              </button>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleLoadThemeToPanels(theme.id); }}
-                                className={`px-2 py-0.5 rounded text-[10px] font-medium ${
-                                  r18Mode ? 'bg-orange-100 text-orange-600 hover:bg-orange-200' : 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200'
-                                }`}
-                              >
-                                加载
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
             )}
           </div>
         )}
@@ -2386,6 +2797,30 @@ function StoryboardHistoryPanel({ history, r18Mode, onLoad, onDelete, onClear }:
   onDelete: (id: string) => void;
   onClear: () => void;
 }) {
+  // Load cached images for history items (just first panel for preview)
+  // Use direct history images field first (like image history page), fallback to cached panel images
+  const [previewImages, setPreviewImages] = useState<Record<string, string[]>>({});
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    const newPreviews: Record<string, string[]> = {};
+    for (const h of history) {
+      // First try direct images field (like image history page)
+      let allImages: string[] = h.images || [];
+
+      // Fallback to cached panel images if no direct images
+      if (allImages.length === 0) {
+        const cached = getAllCachedPanelImages(h.id, h.panel_count);
+        for (const imgs of Object.values(cached)) {
+          allImages.push(...imgs);
+        }
+      }
+
+      if (allImages.length > 0) newPreviews[h.id] = allImages.slice(0, 6);
+    }
+    setPreviewImages(newPreviews);
+  }, [history, refreshKey]);
+
   return (
     <div className={`rounded-2xl bg-white border shadow-card overflow-hidden ${r18Mode ? 'border-red-200' : 'border-border'}`}>
       <div className={`flex items-center justify-between px-4 py-3 border-b ${r18Mode ? 'border-red-100 bg-red-50/40' : 'border-border/50 bg-bg-elevated'}`}>
@@ -2394,7 +2829,12 @@ function StoryboardHistoryPanel({ history, r18Mode, onLoad, onDelete, onClear }:
           <span className={`text-sm font-medium ${r18Mode ? 'text-red-600' : 'text-text-primary'}`}>分镜历史</span>
           <span className="px-2 py-0.5 rounded-full text-[11px] bg-bg-elevated text-text-tertiary">{history.length}</span>
         </div>
-        {history.length > 0 && <button onClick={onClear} className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs text-text-tertiary hover:text-red-500 hover:bg-red-50 transition-all"><Trash2 size={11} />清空</button>}
+        {history.length > 0 && (
+          <div className="flex items-center gap-1">
+            <button onClick={() => setRefreshKey((k) => k + 1)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-text-tertiary hover:text-primary hover:bg-bg-hover transition-all" title="刷新缩略图"><RefreshCw size={11} /></button>
+            <button onClick={onClear} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-text-tertiary hover:text-red-500 hover:bg-red-50 transition-all"><Trash2 size={11} />清空</button>
+          </div>
+        )}
       </div>
       {history.length === 0 ? (
         <div className="px-4 py-8 text-center"><Clock size={24} className="mx-auto text-text-tertiary/40 mb-2" /><p className="text-sm text-text-tertiary">暂无历史记录</p></div>
@@ -2403,7 +2843,18 @@ function StoryboardHistoryPanel({ history, r18Mode, onLoad, onDelete, onClear }:
           {history.map((h) => (
             <div key={h.id} className="flex items-start gap-2 px-4 py-3 border-b border-border/50 last:border-0 hover:bg-bg-hover/30 transition-colors">
               <button onClick={() => onLoad(h)} className="flex-1 flex items-start gap-2 w-full min-w-0 text-left group">
-                <Plus size={13} className="flex-shrink-0 mt-0.5 text-text-tertiary group-hover:text-primary transition-colors" />
+                {/* Thumbnail strip for cached images */}
+                {previewImages[h.id] && previewImages[h.id].length > 0 ? (
+                  <div className="flex-shrink-0 flex gap-0.5">
+                    {previewImages[h.id].slice(0, 4).map((img, i) => (
+                      <img key={i} src={img} alt="" className="w-9 h-9 rounded object-cover border border-border/50" />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex-shrink-0 w-9 h-9 rounded bg-bg-elevated flex items-center justify-center border border-border/50">
+                    <Image size={14} className="text-text-tertiary/40" />
+                  </div>
+                )}
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-text-primary font-medium line-clamp-1">{h.panel_count} 个分镜</p>
                   <p className="text-[11px] text-text-tertiary line-clamp-1 mt-0.5">{h.plot}</p>

@@ -131,6 +131,8 @@ export interface StoryboardHistoryItem {
   r18: boolean;
   panels: { panel_number: number; scene_description: string; image_prompt: string }[];
   timestamp: number;
+  panelImages?: Record<number, string[]>; // panelIdx -> cached data URL images (for direct storage)
+  images?: string[]; // flat array of all images for easy display
 }
 
 const MAX_HISTORY = 50;
@@ -212,10 +214,137 @@ export function addStoryboardHistory(item: Omit<StoryboardHistoryItem, 'id' | 't
 export function removeStoryboardHistory(id: string): void {
   const history = getStoryboardHistory().filter((h) => h.id !== id);
   saveHistory(STORYBOARD_HISTORY_KEY, history);
+  deleteCachedStoryboardPanelImages(id);
+}
+
+export function updateStoryboardHistoryImages(id: string, panelImages: Record<number, string[]>): void {
+  const history = getStoryboardHistory();
+  const index = history.findIndex((h) => h.id === id);
+  if (index !== -1) {
+    // Flatten panel images for easy access
+    const allImages: string[] = [];
+    for (const imgs of Object.values(panelImages)) {
+      allImages.push(...imgs);
+    }
+    history[index] = { ...history[index], panelImages, images: allImages.slice(0, 12) };
+    saveHistory(STORYBOARD_HISTORY_KEY, history);
+  }
 }
 
 export function clearStoryboardHistory(): void {
   try { localStorage.removeItem(STORYBOARD_HISTORY_KEY); } catch {}
+  // Clear all cached panel images
+  const keys: string[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key?.startsWith(STORYBOARD_IMAGE_CACHE_PREFIX)) keys.push(key);
+  }
+  keys.forEach((k) => localStorage.removeItem(k));
+}
+
+// ─── Storyboard Panel Image Cache ─────────────────────────────────────────────────
+
+const STORYBOARD_IMAGE_CACHE_PREFIX = 'sb_img_cache_';
+const STORYBOARD_MAX_CACHE_SIZE_MB = 200;
+
+interface PanelImageCacheEntry {
+  images: string[];
+  cachedAt: number;
+}
+
+function getPanelCacheKey(historyId: string, panelIdx: number): string {
+  return `${STORYBOARD_IMAGE_CACHE_PREFIX}${historyId}_${panelIdx}`;
+}
+
+function getAllPanelCacheEntries(): Map<string, PanelImageCacheEntry> {
+  const map = new Map<string, PanelImageCacheEntry>();
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key?.startsWith(STORYBOARD_IMAGE_CACHE_PREFIX)) {
+      try {
+        const entry = JSON.parse(localStorage.getItem(key) || '{}') as PanelImageCacheEntry;
+        if (entry.images && entry.images.length > 0) {
+          map.set(key, entry);
+        }
+      } catch {
+        localStorage.removeItem(key);
+      }
+    }
+  }
+  return map;
+}
+
+function getTotalPanelCacheSize(): number {
+  return Array.from(getAllPanelCacheEntries().values()).reduce((sum, e) => {
+    return sum + e.images.reduce((s, img) => s + img.length * 2, 0);
+  }, 0);
+}
+
+function evictPanelCache(targetBytes: number): void {
+  const entries = getAllPanelCacheEntries();
+  const sorted = Array.from(entries.entries()).sort((a, b) => a[1].cachedAt - b[1].cachedAt);
+  const currentSize = getTotalPanelCacheSize();
+  let freed = 0;
+  for (const [key, entry] of sorted) {
+    const remaining = currentSize - freed;
+    if (remaining <= targetBytes) break;
+    const size = entry.images.reduce((s, img) => s + img.length * 2, 0);
+    freed += size;
+    localStorage.removeItem(key);
+  }
+}
+
+export function cacheStoryboardPanelImages(historyId: string, panelIdx: number, images: string[]): void {
+  if (images.length === 0) return;
+  const cacheKey = getPanelCacheKey(historyId, panelIdx);
+  const totalBytes = images.reduce((s, img) => s + img.length * 2, 0);
+  const maxBytes = STORYBOARD_MAX_CACHE_SIZE_MB * 1024 * 1024;
+  const currentSize = getTotalPanelCacheSize();
+  if (currentSize + totalBytes > maxBytes) {
+    evictPanelCache(maxBytes - totalBytes);
+  }
+  const entry: PanelImageCacheEntry = { images, cachedAt: Date.now() };
+  try {
+    localStorage.setItem(cacheKey, JSON.stringify(entry));
+  } catch {
+    evictPanelCache(totalBytes);
+    try { localStorage.setItem(cacheKey, JSON.stringify(entry)); } catch {}
+  }
+}
+
+export function getCachedStoryboardPanelImages(historyId: string, panelIdx: number): string[] {
+  const cacheKey = getPanelCacheKey(historyId, panelIdx);
+  try {
+    const raw = localStorage.getItem(cacheKey);
+    if (raw) {
+      const entry = JSON.parse(raw) as PanelImageCacheEntry;
+      if (entry.images && entry.images.length > 0) {
+        // Touch accessed entry to mark it recently used
+        entry.cachedAt = Date.now();
+        localStorage.setItem(cacheKey, JSON.stringify(entry));
+        return entry.images;
+      }
+    }
+  } catch {}
+  return [];
+}
+
+export function getAllCachedPanelImages(historyId: string, panelCount: number): Record<number, string[]> {
+  const result: Record<number, string[]> = {};
+  for (let i = 0; i < panelCount; i++) {
+    const imgs = getCachedStoryboardPanelImages(historyId, i);
+    if (imgs.length > 0) result[i] = imgs;
+  }
+  return result;
+}
+
+export function deleteCachedStoryboardPanelImages(historyId: string): void {
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key?.startsWith(`${STORYBOARD_IMAGE_CACHE_PREFIX}${historyId}_`)) {
+      localStorage.removeItem(key);
+    }
+  }
 }
 
 // ─── Active Session Storage (persists current expand/random/storyboard state across page switches) ───
@@ -265,6 +394,7 @@ export interface StoryboardSession {
   themeTitle?: string;
   outlineArc?: string;
   outlineScenes?: string[];
+  historyId?: string; // reference to storyboard history entry for image cache lookup
 }
 
 function loadSession<T>(key: string): T | null {
