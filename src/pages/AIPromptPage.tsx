@@ -26,7 +26,8 @@ import {
   getRandomSession, saveRandomSession, clearRandomSession,
   getStoryboardSession, saveStoryboardSession, clearStoryboardSession,
   cacheStoryboardPanelImages, getAllCachedPanelImages,
-  type ExpandHistoryItem, type RandomHistoryItem, type StoryboardHistoryItem,
+  addFavorite, removeFavorite, getFavorites,
+  type ExpandHistoryItem, type RandomHistoryItem, type StoryboardHistoryItem, type FavoriteItem,
 } from '../services/storage';
 import type { TaskManagerReturn } from '../hooks/useTaskManager';
 import type { GirlfriendPreset } from '../data/girlfriendPresets';
@@ -656,6 +657,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
                 setSelectedOutputIdx(idx);
                 setOutputText(result.prompt);
               }}
+              onFavorited={(url) => handleToggleFavorite(url, result.prompt)}
               taskManager={taskManager}
             />
           ))}
@@ -742,11 +744,12 @@ function ExpandHistoryPanel({ history, r18Mode, onLoad, onDelete, onClear, onCop
   );
 }
 
-function ExpandResultCard({ result, r18Mode, isCopied, genState, onCopy, onDelete, onGenerateImage, onUseAsOutput, taskManager, digitalHumanMode, selectedGirlfriend }: {
+function ExpandResultCard({ result, r18Mode, isCopied, genState, onCopy, onDelete, onGenerateImage, onUseAsOutput, onFavorited, taskManager, digitalHumanMode, selectedGirlfriend }: {
   result: { id: string; original: string; prompt: string; r18: boolean };
   r18Mode: boolean; isCopied: boolean;
   genState?: { loading: boolean; images: string[]; taskId: string | null };
   onCopy: () => void; onDelete: () => void; onGenerateImage: () => void; onUseAsOutput: () => void;
+  onFavorited?: (url: string) => void;
   taskManager: TaskManagerReturn;
   digitalHumanMode?: boolean; selectedGirlfriend?: GirlfriendPreset | null;
 }) {
@@ -802,7 +805,7 @@ function ExpandResultCard({ result, r18Mode, isCopied, genState, onCopy, onDelet
             </div>
             <div className="grid grid-cols-3 gap-2">
               {displayImages.slice(0, 6).map((img, idx) => (
-                <AIGeneratedImagePreview key={idx} src={img} />
+                <AIGeneratedImagePreview key={idx} src={img} prompt={result.prompt} onFavorited={onFavorited} />
               ))}
               {displayImages.length > 6 && (
                 <div className="aspect-square rounded-lg bg-bg-elevated flex items-center justify-center text-xs text-text-tertiary">
@@ -1198,6 +1201,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               onCopy={() => handleCopy(idx, result.prompt)}
               genState={genStates[idx]}
               onGenerateImage={() => handleGenerateImage(idx, result.prompt)}
+              onFavorited={(url) => handleToggleFavorite(url, result.prompt)}
               taskManager={taskManager}
               digitalHumanMode={digitalHumanMode}
               selectedGirlfriend={selectedGirlfriend}
@@ -1286,10 +1290,11 @@ function RandomHistoryPanel({ history, r18Mode, onLoad, onDelete, onClear, onCop
   );
 }
 
-function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r18Mode, onToggle, onCopy, genState, onGenerateImage, taskManager, digitalHumanMode, selectedGirlfriend }: {
+function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r18Mode, onToggle, onCopy, genState, onGenerateImage, onFavorited, taskManager, digitalHumanMode, selectedGirlfriend }: {
   index: number; result: PromptResult; isExpanded: boolean; isCopied: boolean; tagsVisible: boolean; r18Mode: boolean; onToggle: () => void; onCopy: () => void;
   genState?: { loading: boolean; images: string[] };
   onGenerateImage: () => void;
+  onFavorited?: (url: string) => void;
   taskManager: TaskManagerReturn;
   digitalHumanMode?: boolean; selectedGirlfriend?: GirlfriendPreset | null;
 }) {
@@ -1355,7 +1360,7 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
               </div>
               <div className="grid grid-cols-3 gap-2">
                 {allDisplayImages.slice(0, 6).map((img, idx) => (
-                  <AIGeneratedImagePreview key={idx} src={img} />
+                  <AIGeneratedImagePreview key={idx} src={img} prompt={result.prompt} onFavorited={onFavorited} />
                 ))}
                 {allDisplayImages.length > 6 && (
                   <div className="aspect-square rounded-lg bg-bg-elevated flex items-center justify-center text-xs text-text-tertiary">
@@ -1408,7 +1413,9 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   const [expandedPanel, setExpandedPanel] = useState<number | null>(savedStoryboard?.expandedPanel ?? null);
   const [copiedPanel, setCopiedPanel] = useState<number | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [historyTab, setHistoryTab] = useState<'history' | 'favorites'>('history');
   const [history, setHistory] = useState<StoryboardHistoryItem[]>(() => getStoryboardHistory());
+  const [favorites, setFavorites] = useState<FavoriteItem[]>(() => getFavorites());
   const [genStates, setGenStates] = useState<Record<number, { loading: boolean; images: string[] }>>(() => {
     const saved = getStoryboardSession();
     if (saved?.historyId) {
@@ -1477,7 +1484,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       // Also save to history record directly (like image history page)
       if (Object.keys(panelImages).length > 0) {
         updateStoryboardHistoryImages(currentHistoryId, panelImages);
-        // Update local history state so StoryboardHistoryPanel can see the new images immediately
+        // Update local history state so the history list can see the new images immediately
         setHistory(getStoryboardHistory());
       }
     };
@@ -1539,6 +1546,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   const [videoGenLoading, setVideoGenLoading] = useState<Record<string, boolean>>({});
   const [previewImages, setPreviewImages] = useState<string[]>([]);
   const [previewIndex, setPreviewIndex] = useState(0);
+  const [previewPrompt, setPreviewPrompt] = useState<string>('');
   const [showPreview, setShowPreview] = useState(false);
 
   // Persist storyboard state
@@ -1843,6 +1851,17 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     });
   };
 
+  const handleToggleFavorite = (imageUrl: string, prompt?: string) => {
+    const existing = favorites.find((f) => f.imageUrl === imageUrl);
+    if (existing) {
+      removeFavorite(existing.id);
+      setFavorites(getFavorites());
+    } else {
+      addFavorite({ imageUrl, prompt, source: 'storyboard', r18: r18Mode });
+      setFavorites(getFavorites());
+    }
+  };
+
   const handleGenerateImage = useCallback(async (panelIdx: number, prompt: string) => {
     if (taskManager.isFull) { onError('任务队列已满'); return; }
     // Set loading state immediately
@@ -1945,9 +1964,10 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   }, []);
 
   // Handle preview images
-  const handlePreviewImage = useCallback((images: string[], index: number) => {
+  const handlePreviewImage = useCallback((images: string[], index: number, prompt?: string) => {
     setPreviewImages(images);
     setPreviewIndex(index);
+    setPreviewPrompt(prompt || '');
     setShowPreview(true);
   }, []);
 
@@ -2166,7 +2186,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
             </span>
           </div>
           <button onClick={() => setShowHistory(!showHistory)} className={`flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-medium transition-all ${showHistory ? 'bg-primary/10 text-primary border border-primary/20' : 'bg-bg-elevated text-text-tertiary hover:bg-bg-hover'}`}>
-            <History size={12} />历史记录
+            <History size={12} />历史记录{favorites.length > 0 && <span className="px-1 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-bold">{favorites.length}</span>}
           </button>
         </div>
 
@@ -2620,6 +2640,53 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                       {isDone && (
                         <p className="text-[10px] text-text-tertiary mt-0.5">{state.panels.length} 个分镜</p>
                       )}
+                      {/* Action buttons */}
+                      <div className="flex items-center gap-1.5 mt-2">
+                        {isDone && state && (
+                          <>
+                            <button
+                              onClick={() => {
+                                setActiveThemeTab(theme.id);
+                                setPanels(state.panels);
+                                setOutlineArc(state.outlineArc);
+                                setOutlineScenes(state.outlineScenes);
+                                setStoryStep('panels');
+                                const hid = state.historyId;
+                                if (hid) {
+                                  setCurrentHistoryId(hid);
+                                  const cached = getAllCachedPanelImages(hid, state.panels.length);
+                                  if (Object.keys(cached).length > 0) {
+                                    const initial: Record<number, { loading: boolean; images: string[] }> = {};
+                                    for (const [idx, imgs] of Object.entries(cached)) {
+                                      initial[Number(idx)] = { loading: false, images: imgs };
+                                    }
+                                    setGenStates(initial);
+                                  }
+                                }
+                              }}
+                              className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-primary text-white hover:bg-primary/90 transition-all"
+                            >
+                              加载分镜
+                            </button>
+                            <button
+                              onClick={() => handleGenerateOutlineSingle(theme)}
+                              className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-bg-elevated text-text-secondary hover:bg-bg-hover transition-all"
+                            >
+                              重新生成
+                            </button>
+                          </>
+                        )}
+                        {!isGenerating && !isDone && (
+                          <button
+                            onClick={() => handleGenerateOutlineSingle(theme)}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
+                              r18Mode ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-primary text-white hover:bg-primary/90'
+                            }`}
+                          >
+                            生成大纲
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -2775,15 +2842,48 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         )}
       </div>
 
-      {/* Storyboard History */}
+      {/* Storyboard History + Favorites */}
       {showHistory && (
-        <StoryboardHistoryPanel
-          history={history}
-          r18Mode={r18Mode}
-          onLoad={handleHistoryLoad}
-          onDelete={handleDeleteHistory}
-          onClear={() => { clearStoryboardHistory(); setHistory([]); }}
-        />
+        <div className="rounded-2xl bg-white border border-border shadow-card overflow-hidden">
+          <div className="flex items-center border-b border-border/50 bg-bg-elevated">
+            <button
+              onClick={() => setHistoryTab('history')}
+              className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-r border-border/50 transition-all ${historyTab === 'history' ? 'text-primary border-b-2 border-primary bg-white' : 'text-text-tertiary hover:text-text-primary'}`}
+            >
+              <History size={12} />
+              分镜历史<span className="px-1.5 py-0.5 rounded-full text-[10px] bg-bg-elevated">{history.length}</span>
+            </button>
+            <button
+              onClick={() => setHistoryTab('favorites')}
+              className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-r border-border/50 transition-all ${historyTab === 'favorites' ? 'text-red-500 border-b-2 border-red-500 bg-white' : 'text-text-tertiary hover:text-text-primary'}`}
+            >
+              <Heart size={12} />
+              我的收藏<span className="px-1.5 py-0.5 rounded-full text-[10px] bg-bg-elevated">{favorites.length}</span>
+            </button>
+            <div className="flex-1" />
+            <button onClick={() => setShowHistory(false)} className="px-3 py-2.5 text-text-tertiary hover:text-text-primary transition-colors">
+              <X size={14} />
+            </button>
+          </div>
+          <div className="max-h-[500px] overflow-y-auto">
+            {historyTab === 'history' ? (
+              <StoryboardHistoryList
+                history={history}
+                r18Mode={r18Mode}
+                onLoad={handleHistoryLoad}
+                onDelete={handleDeleteHistory}
+                onClear={() => { clearStoryboardHistory(); setHistory([]); }}
+              />
+            ) : (
+              <FavoritesList
+                favorites={favorites}
+                r18Mode={r18Mode}
+                onRemove={(id) => { removeFavorite(id); setFavorites(getFavorites()); }}
+                onClear={() => { clearFavorites(); setFavorites([]); }}
+              />
+            )}
+          </div>
+        </div>
       )}
 
       {/* Panels */}
@@ -2861,8 +2961,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                 normalizedPanelPrompt.includes(taskPromptNorm) ||
                 (normalizedPanelPrompt.length > 50 && taskPromptNorm.includes(normalizedPanelPrompt.substring(0, Math.min(normalizedPanelPrompt.length, 150))));
             });
-            const hasActiveTask = panelRelatedTasks.some((t: QueuedTask) => t.status === 'RUNNING' || t.status === 'QUEUEING');
-            const hasGenerated = (genStates[idx]?.images?.length ?? 0) > 0 && hasActiveTask;
+            const hasGenerated = (genStates[idx]?.images?.length ?? 0) > 0;
             return (
               <StoryboardPanelCard
                 key={panelKey}
@@ -2875,6 +2974,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                 onCopyPanel={() => handleCopyPanel(panel, idx)}
                 genState={genStates[idx]}
                 onGenerateImage={() => handleGenerateImage(idx, panel.image_prompt)}
+                onFavorited={(url) => handleToggleFavorite(url, panel.image_prompt)}
                 taskManager={taskManager}
                 digitalHumanMode={digitalHumanMode}
                 selectedGirlfriend={selectedGirlfriend}
@@ -2898,7 +2998,20 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
           onClick={() => setShowPreview(false)}
         >
           <div className="flex items-center justify-between px-6 py-4" onClick={(e) => e.stopPropagation()}>
-            <span className="text-sm text-white/60">{previewIndex + 1} / {previewImages.length}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-white/60">{previewIndex + 1} / {previewImages.length}</span>
+              <button
+                onClick={() => handleToggleFavorite(previewImages[previewIndex], previewPrompt)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                  favorites.some((f) => f.imageUrl === previewImages[previewIndex])
+                    ? 'bg-red-500 text-white'
+                    : 'bg-white/10 text-white hover:bg-white/20'
+                }`}
+              >
+                <Heart size={12} fill={favorites.some((f) => f.imageUrl === previewImages[previewIndex]) ? 'currentColor' : 'none'} />
+                {favorites.some((f) => f.imageUrl === previewImages[previewIndex]) ? '已收藏' : '收藏'}
+              </button>
+            </div>
             <button
               onClick={() => setShowPreview(false)}
               className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
@@ -2949,92 +3062,127 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   );
 }
 
-function StoryboardHistoryPanel({ history, r18Mode, onLoad, onDelete, onClear }: {
+function StoryboardHistoryList({ history, onLoad, onDelete }: {
   history: StoryboardHistoryItem[];
-  r18Mode: boolean;
   onLoad: (h: StoryboardHistoryItem) => void;
   onDelete: (id: string) => void;
-  onClear: () => void;
 }) {
-  // Load cached images for history items (just first panel for preview)
-  // Use direct history images field first (like image history page), fallback to cached panel images
   const [previewImages, setPreviewImages] = useState<Record<string, string[]>>({});
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     const newPreviews: Record<string, string[]> = {};
     for (const h of history) {
-      // First try direct images field (like image history page)
       let allImages: string[] = h.images || [];
-
-      // Fallback to cached panel images if no direct images
       if (allImages.length === 0) {
         const cached = getAllCachedPanelImages(h.id, h.panel_count);
         for (const imgs of Object.values(cached)) {
           allImages.push(...imgs);
         }
       }
-
       if (allImages.length > 0) newPreviews[h.id] = allImages.slice(0, 6);
     }
     setPreviewImages(newPreviews);
   }, [history, refreshKey]);
 
+  if (history.length === 0) {
+    return <div className="px-4 py-8 text-center"><Clock size={24} className="mx-auto text-text-tertiary/40 mb-2" /><p className="text-sm text-text-tertiary">暂无历史记录</p></div>;
+  }
+
   return (
-    <div className={`rounded-2xl bg-white border shadow-card overflow-hidden ${r18Mode ? 'border-red-200' : 'border-border'}`}>
-      <div className={`flex items-center justify-between px-4 py-3 border-b ${r18Mode ? 'border-red-100 bg-red-50/40' : 'border-border/50 bg-bg-elevated'}`}>
-        <div className="flex items-center gap-2">
-          <History size={14} className={r18Mode ? 'text-red-500' : 'text-text-tertiary'} />
-          <span className={`text-sm font-medium ${r18Mode ? 'text-red-600' : 'text-text-primary'}`}>分镜历史</span>
-          <span className="px-2 py-0.5 rounded-full text-[11px] bg-bg-elevated text-text-tertiary">{history.length}</span>
-        </div>
-        {history.length > 0 && (
-          <div className="flex items-center gap-1">
-            <button onClick={() => setRefreshKey((k) => k + 1)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-text-tertiary hover:text-primary hover:bg-bg-hover transition-all" title="刷新缩略图"><RefreshCw size={11} /></button>
-            <button onClick={onClear} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-text-tertiary hover:text-red-500 hover:bg-red-50 transition-all"><Trash2 size={11} />清空</button>
-          </div>
-        )}
-      </div>
-      {history.length === 0 ? (
-        <div className="px-4 py-8 text-center"><Clock size={24} className="mx-auto text-text-tertiary/40 mb-2" /><p className="text-sm text-text-tertiary">暂无历史记录</p></div>
-      ) : (
-        <div className="max-h-[400px] overflow-y-auto">
-          {history.map((h) => (
-            <div key={h.id} className="flex items-start gap-2 px-4 py-3 border-b border-border/50 last:border-0 hover:bg-bg-hover/30 transition-colors">
-              <button onClick={() => onLoad(h)} className="flex-1 flex items-start gap-2 w-full min-w-0 text-left group">
-                {/* Thumbnail strip for cached images */}
-                {previewImages[h.id] && previewImages[h.id].length > 0 ? (
-                  <div className="flex-shrink-0 flex gap-0.5">
-                    {previewImages[h.id].slice(0, 4).map((img, i) => (
-                      <img key={i} src={img} alt="" className="w-9 h-9 rounded object-cover border border-border/50" />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex-shrink-0 w-9 h-9 rounded bg-bg-elevated flex items-center justify-center border border-border/50">
-                    <Image size={14} className="text-text-tertiary/40" />
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-text-primary font-medium line-clamp-1">{h.panel_count} 个分镜</p>
-                  <p className="text-[11px] text-text-tertiary line-clamp-1 mt-0.5">{h.plot}</p>
-                  <p className="text-[10px] text-text-tertiary/60 mt-0.5">{new Date(h.timestamp).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
-                </div>
-              </button>
-              <button onClick={() => onDelete(h.id)} className="p-1.5 rounded-lg text-text-tertiary hover:text-red-500 hover:bg-red-50 transition-all flex-shrink-0"><Trash2 size={13} /></button>
+    <div>
+      {history.map((h) => (
+        <div key={h.id} className="flex items-start gap-2 px-4 py-3 border-b border-border/50 last:border-0 hover:bg-bg-hover/30 transition-colors">
+          <button onClick={() => onLoad(h)} className="flex-1 flex items-start gap-2 w-full min-w-0 text-left group">
+            {previewImages[h.id] && previewImages[h.id].length > 0 ? (
+              <div className="flex-shrink-0 flex gap-0.5">
+                {previewImages[h.id].slice(0, 4).map((img, i) => (
+                  <img key={i} src={img} alt="" className="w-9 h-9 rounded object-cover border border-border/50" />
+                ))}
+              </div>
+            ) : (
+              <div className="flex-shrink-0 w-9 h-9 rounded bg-bg-elevated flex items-center justify-center border border-border/50">
+                <Image size={14} className="text-text-tertiary/40" />
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-text-primary font-medium line-clamp-1">{h.panel_count} 个分镜</p>
+              <p className="text-[11px] text-text-tertiary line-clamp-1 mt-0.5">{h.plot}</p>
+              <p className="text-[10px] text-text-tertiary/60 mt-0.5">{new Date(h.timestamp).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
             </div>
-          ))}
+          </button>
+          <button onClick={() => onDelete(h.id)} className="p-1.5 rounded-lg text-text-tertiary hover:text-red-500 hover:bg-red-50 transition-all flex-shrink-0"><Trash2 size={13} /></button>
         </div>
-      )}
+      ))}
     </div>
   );
 }
 
-function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onToggle, onCopyPanel, genState, onGenerateImage, taskManager, digitalHumanMode, selectedGirlfriend, selectedImageIndex, onSelectImage, onGenerateVideo, videoPrompt, hasGeneratedImages, onPreviewImage, videoGenLoading, onDirectGenerateVideo }: {
+function FavoritesList({ favorites, r18Mode, onRemove, onClear }: {
+  favorites: FavoriteItem[];
+  r18Mode: boolean;
+  onRemove: (id: string) => void;
+  onClear: () => void;
+}) {
+  const handleDownload = (e: React.MouseEvent, item: FavoriteItem) => {
+    e.stopPropagation();
+    const a = document.createElement('a');
+    a.href = item.imageUrl;
+    a.download = `favorite_${item.id}.png`;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.click();
+  };
+
+  if (favorites.length === 0) {
+    return <div className="px-4 py-8 text-center"><Heart size={24} className="mx-auto text-text-tertiary/40 mb-2" /><p className="text-sm text-text-tertiary">暂无收藏</p><p className="text-[11px] text-text-tertiary/60 mt-1">在图片预览中点击收藏按钮添加</p></div>;
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/50">
+        <span className="text-xs text-text-tertiary">{favorites.length} 张收藏</span>
+        {favorites.length > 0 && (
+          <button onClick={onClear} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-text-tertiary hover:text-red-500 hover:bg-red-50 transition-all">
+            <Trash2 size={11} />清空全部
+          </button>
+        )}
+      </div>
+      <div className="grid grid-cols-3 gap-2 p-3">
+        {favorites.map((item) => (
+          <div key={item.id} className="relative group aspect-square rounded-lg overflow-hidden bg-bg-elevated">
+            <img src={item.imageUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
+              <button
+                onClick={(e) => handleDownload(e, item)}
+                className="w-8 h-8 rounded-full bg-white/90 flex items-center justify-center text-gray-700 hover:bg-white transition-colors"
+              >
+                <Download size={14} />
+              </button>
+              <button
+                onClick={() => onRemove(item.id)}
+                className="w-8 h-8 rounded-full bg-white/90 flex items-center justify-center text-red-500 hover:bg-red-500 hover:text-white transition-colors"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+              <p className="text-[9px] text-white/80 truncate">{item.prompt?.slice(0, 40) || '已收藏图片'}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onToggle, onCopyPanel, genState, onGenerateImage, onFavorited, taskManager, digitalHumanMode, selectedGirlfriend, selectedImageIndex, onSelectImage, onGenerateVideo, videoPrompt, hasGeneratedImages, onPreviewImage, videoGenLoading, onDirectGenerateVideo }: {
   panel: { panel_number: number; scene_description: string; image_prompt: string };
   idx: number; isExpanded: boolean; r18Mode: boolean; copiedPanel: number | null;
   onToggle: () => void; onCopyPanel: () => void;
   genState?: { loading: boolean; images: string[] };
   onGenerateImage: () => void;
+  onFavorited?: (url: string) => void;
   taskManager: TaskManagerReturn;
   digitalHumanMode?: boolean; selectedGirlfriend?: GirlfriendPreset | null;
   selectedImageIndex?: number;
@@ -3042,7 +3190,7 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
   onGenerateVideo?: (imageUrl: string, prompt: string) => void;
   videoPrompt?: string;
   hasGeneratedImages?: boolean;
-  onPreviewImage?: (images: string[], currentIndex: number) => void;
+  onPreviewImage?: (images: string[], currentIndex: number, prompt?: string) => void;
   videoGenLoading?: boolean;
   onDirectGenerateVideo?: (imageUrl: string, prompt: string) => void;
 }) {
@@ -3054,16 +3202,14 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
     (t: QueuedTask) => (t.status === 'RUNNING' || t.status === 'QUEUEING' || t.status === 'FINISHED') && t.images.length > 0
   ).filter((t: QueuedTask) => {
     const taskPromptNorm = t.prompt.trim().replace(/\s+/g, ' ');
-    // Match on exact or partial (longer) prompt overlap
     return taskPromptNorm === normalizedPanelPrompt ||
       taskPromptNorm.includes(normalizedPanelPrompt) ||
       normalizedPanelPrompt.includes(taskPromptNorm) ||
       (normalizedPanelPrompt.length > 50 && taskPromptNorm.includes(normalizedPanelPrompt.substring(0, Math.min(normalizedPanelPrompt.length, 150))));
   });
 
-  // Only show cached images if there's a matching active/queued task, otherwise hide them
-  const hasActiveTask = panelRelatedTasks.some((t: QueuedTask) => t.status === 'RUNNING' || t.status === 'QUEUEING');
-  const allDisplayImages = hasActiveTask ? (displayImages.length > 0 ? displayImages : panelRelatedTasks.flatMap((t: QueuedTask) => t.images)) : panelRelatedTasks.flatMap((t: QueuedTask) => t.images);
+  const taskImages = panelRelatedTasks.flatMap((t: QueuedTask) => t.images);
+  const allDisplayImages = displayImages.length > 0 ? displayImages : taskImages;
   const hasImages = allDisplayImages.length > 0;
 
   return (
@@ -3117,14 +3263,22 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
                       }`}
                       onClick={() => {
                         onSelectImage?.(i, img);
-                        onPreviewImage?.(allDisplayImages, i);
+                        onPreviewImage?.(allDisplayImages, i, panel.image_prompt);
                       }}
                     >
                       <img src={img} alt="" className="w-full aspect-square object-cover" loading="lazy" />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-1">
                         <div className="w-8 h-8 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                           <ZoomIn size={16} className="text-white" />
                         </div>
+                        {onFavorited && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); onFavorited(img); }}
+                            className="w-8 h-8 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
+                          >
+                            <Heart size={14} className="text-white" />
+                          </button>
+                        )}
                       </div>
                       {selectedImageIndex === i && (
                         <div className="absolute top-1 left-1 bg-purple-500 text-white text-[9px] px-1.5 py-0.5 rounded font-medium flex items-center gap-0.5">
@@ -3191,7 +3345,7 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
 
 // ─── Shared Image Preview Component ─────────────────────────────────────────
 
-function AIGeneratedImagePreview({ src }: { src: string }) {
+function AIGeneratedImagePreview({ src, prompt, onFavorited }: { src: string; prompt?: string; onFavorited?: (url: string) => void }) {
   const [lightbox, setLightbox] = useState(false);
 
   const handleDownload = (e: React.MouseEvent) => {
@@ -3204,6 +3358,11 @@ function AIGeneratedImagePreview({ src }: { src: string }) {
     a.click();
   };
 
+  const handleFavorite = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onFavorited?.(src);
+  };
+
   return (
     <>
       <div className="relative group aspect-square rounded-lg overflow-hidden bg-bg-elevated cursor-pointer" onClick={() => setLightbox(true)}>
@@ -3212,18 +3371,30 @@ function AIGeneratedImagePreview({ src }: { src: string }) {
           <button onClick={handleDownload} className="w-7 h-7 rounded-full bg-white/90 flex items-center justify-center text-gray-700 hover:bg-white transition-colors">
             <Download size={12} />
           </button>
-          <button onClick={() => setLightbox(true)} className="w-7 h-7 rounded-full bg-white/90 flex items-center justify-center text-gray-700 hover:bg-white transition-colors">
-            <span className="text-xs font-bold">+</span>
-          </button>
+          {onFavorited && (
+            <button onClick={handleFavorite} className="w-7 h-7 rounded-full bg-white/90 flex items-center justify-center text-gray-700 hover:bg-white transition-colors">
+              <Heart size={12} />
+            </button>
+          )}
         </div>
       </div>
       {lightbox && (
-        <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center animate-fade-in" onClick={() => setLightbox(false)}>
-          <button onClick={() => setLightbox(false)} className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors">
-            <X size={20} />
-          </button>
-          <img src={src} alt="" className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg" onClick={(e) => e.stopPropagation()} />
-          <button onClick={handleDownload} className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-gray-800 text-sm font-medium hover:bg-gray-100 transition-colors">
+        <div className="fixed inset-0 z-[100] bg-black/90 flex flex-col items-center justify-center animate-fade-in" onClick={() => setLightbox(false)}>
+          <div className="absolute top-4 right-4 flex items-center gap-2">
+            {prompt && (
+              <button onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(prompt); }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 text-white text-xs hover:bg-white/20 transition-colors">
+                <Copy size={12} />复制提示词
+              </button>
+            )}
+            <button onClick={handleDownload} className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors">
+              <Download size={16} />
+            </button>
+            <button onClick={setLightbox.bind(null, false)} className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors">
+              <X size={20} />
+            </button>
+          </div>
+          <img src={src} alt="" className="max-w-[90vw] max-h-[80vh] object-contain rounded-lg" onClick={(e) => e.stopPropagation()} />
+          <button onClick={handleDownload} className="mt-4 flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-gray-800 text-sm font-medium hover:bg-gray-100 transition-colors">
             <Download size={16} /> 下载图片
           </button>
         </div>

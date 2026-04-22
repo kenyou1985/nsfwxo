@@ -353,6 +353,46 @@ export function deleteCachedStoryboardPanelImages(historyId: string): void {
   }
 }
 
+// ─── Favorites ───────────────────────────────────────────────────────────────────
+
+export interface FavoriteItem {
+  id: string;
+  imageUrl: string; // data URL
+  prompt?: string;
+  source: 'expand' | 'random' | 'storyboard' | 'batch';
+  sourceId?: string; // history item id if applicable
+  tags?: Record<string, string[]>;
+  r18: boolean;
+  timestamp: number;
+}
+
+const FAVORITES_KEY = 'nsfwxo_favorites';
+
+export function getFavorites(): FavoriteItem[] {
+  return loadHistory<FavoriteItem>(FAVORITES_KEY);
+}
+
+export function addFavorite(item: Omit<FavoriteItem, 'id' | 'timestamp'>): void {
+  const favorites = getFavorites();
+  // Avoid duplicates by image URL
+  if (favorites.some((f) => f.imageUrl === item.imageUrl)) return;
+  favorites.unshift({ ...item, id: genId(), timestamp: Date.now() });
+  saveHistory(FAVORITES_KEY, favorites);
+}
+
+export function removeFavorite(id: string): void {
+  const favorites = getFavorites().filter((f) => f.id !== id);
+  saveHistory(FAVORITES_KEY, favorites);
+}
+
+export function isFavorited(imageUrl: string): boolean {
+  return getFavorites().some((f) => f.imageUrl === imageUrl);
+}
+
+export function clearFavorites(): void {
+  try { localStorage.removeItem(FAVORITES_KEY); } catch {}
+}
+
 // ─── Active Session Storage (persists current expand/random/storyboard state across page switches) ───
 
 export interface ExpandSession {
