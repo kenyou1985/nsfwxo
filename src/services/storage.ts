@@ -228,6 +228,7 @@ export interface ExpandSession {
   outputPrompts: string[];
   selectedOutputIdx: number;
   outputText: string;
+  genState: Record<string, { loading: boolean; images: string[]; taskId: string | null }>;
 }
 
 export interface RandomSession {
@@ -241,6 +242,20 @@ export interface RandomSession {
     prompt: string;
   }[];
   expandedIdx: number | null;
+  genState: Record<string, { loading: boolean; images: string[]; taskId: string | null }>;
+}
+
+export interface GeneratedCard {
+  id: string; // unique key for this card
+  themeId: number;
+  themeTitle: string;
+  themeR18Level: string;
+  outlineArc: string;
+  outlineScenes: string[];
+  panels: { panel_number: number; scene_description: string; image_prompt: string }[];
+  expandedPanel: number | null;
+  generatingOutline: boolean;
+  error: string | null;
 }
 
 export interface StoryboardSession {

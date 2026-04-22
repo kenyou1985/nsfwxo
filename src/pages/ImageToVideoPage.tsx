@@ -806,7 +806,136 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
   const [selectedGirlfriend, setSelectedGirlfriend] = useState<GirlfriendPreset | null>(null);
   const [girlfriendUploading, setGirlfriendUploading] = useState(false);
 
+  // Check for storyboard image2video data on mount
+  useEffect(() => {
+    // Try new direct format first (auto-generate)
+    const directData = sessionStorage.getItem('storyboard_img2vid_direct');
+    // Try old format (navigate only)
+    const oldData = sessionStorage.getItem('storyboard_img2vid');
+
+    // Clear storage BEFORE processing to prevent duplicate submissions
+    if (directData) {
+      sessionStorage.removeItem('storyboard_img2vid_direct');
+    }
+    if (oldData) {
+      sessionStorage.removeItem('storyboard_img2vid');
+    }
+
+    const processData = async (data: string, autoGenerate: boolean) => {
+      try {
+        const { imageUrl, imagePath: uploadedPath, prompt: videoPrompt } = JSON.parse(data);
+        let finalImagePath = uploadedPath || '';
+        let finalImagePreview = imageUrl;
+
+        // Upload image if it's a data URL or blob
+        if (imageUrl && (imageUrl.startsWith('data:') || imageUrl.startsWith('blob:'))) {
+          try {
+            const res = await fetch(imageUrl);
+            const blob = await res.blob();
+            const file = new File([blob], `storyboard_${Date.now()}.jpg`, { type: 'image/jpeg' });
+            const uploadResult = await uploadImage(apiKey, file);
+            finalImagePath = uploadResult.imagePath;
+            finalImagePreview = imageUrl;
+          } catch {
+            // If upload fails, we'll show error below
+          }
+        } else if (imageUrl) {
+          finalImagePath = imageUrl;
+          finalImagePreview = imageUrl;
+        }
+
+        if (!finalImagePath) {
+          onError?.('图片上传失败，请重试');
+          return;
+        }
+
+        setImagePreview(finalImagePreview);
+        setImagePath(finalImagePath);
+
+        if (videoPrompt) {
+          setPrompt(videoPrompt);
+        }
+
+        if (autoGenerate) {
+          // Auto-generate video after a short delay to let the UI update
+          setTimeout(() => {
+            if (finalImagePath && videoPrompt) {
+              // Use ref to get current function
+              const nodeList = buildNodeListWithParamsRef.current(
+                finalImagePath,
+                videoPrompt,
+                resolution,
+                duration,
+                interpolation,
+                loraHigh,
+                loraHighWeight,
+                loraLow,
+                loraLowWeight
+              );
+              taskListRef.current?.submitTask(videoPrompt, finalImagePath, finalImagePreview, nodeList);
+            }
+          }, 500);
+        }
+        
+        if (autoGenerate) {
+          onSuccess?.('正在从分镜生成视频...');
+        } else {
+          onSuccess?.('已从分镜导入图片和提示词');
+        }
+      } catch {
+        // Ignore parse errors
+      }
+    };
+
+    if (directData) {
+      processData(directData, true);
+    } else if (oldData) {
+      processData(oldData, false);
+    }
+  }, [apiKey, onError, onSuccess, resolution, duration, interpolation, loraHigh, loraHighWeight, loraLow, loraLowWeight]);
+
   const taskListRef = useRef<{ submitTask: (prompt: string, imagePath: string, imagePreview: string, nodeInfoList: NodeInfo[]) => void } | null>(null);
+
+  // Build node list with custom parameters (for storyboard video generation)
+  const buildNodeListWithParams = (
+    imgPath: string,
+    vidPrompt: string,
+    res: string,
+    dur: string,
+    interp: boolean,
+    loraH: string,
+    loraHWeight: number,
+    loraL: string,
+    loraLWeight: number
+  ): NodeInfo[] => {
+    const nodeList: NodeInfo[] = [
+      { nodeId: '28', fieldName: 'value', fieldValue: res, description: '最长边' },
+      { nodeId: '20', fieldName: 'value', fieldValue: dur, description: '时长（秒）' },
+      { nodeId: '77', fieldName: 'value', fieldValue: String(interp), description: '补帧（默认关）' },
+      { nodeId: '21', fieldName: 'image', fieldValue: imgPath, description: '图片上传' },
+      { nodeId: '38', fieldName: 'value', fieldValue: vidPrompt, description: '提示词' },
+    ];
+    if (loraH) {
+      nodeList.push(
+        { nodeId: '42', fieldName: 'lora_name', fieldValue: loraH, description: 'lora（high）' },
+        { nodeId: '42', fieldName: 'strength_model', fieldValue: String(loraHWeight), description: 'lora权重' }
+      );
+    }
+    if (loraL) {
+      nodeList.push(
+        { nodeId: '43', fieldName: 'lora_name', fieldValue: loraL, description: 'lora（low）' },
+        { nodeId: '43', fieldName: 'strength_model', fieldValue: String(loraLWeight), description: 'lora权重' }
+      );
+    }
+    return nodeList;
+  };
+
+  const buildNodeListWithParamsRef = useRef(buildNodeListWithParams);
+
+  // Update ref when function changes
+  useEffect(() => {
+    buildNodeListWithParamsRef.current = buildNodeListWithParams;
+  });
 
   const handleGirlfriendSelect = useCallback(
     async (gf: GirlfriendPreset) => {
@@ -883,26 +1012,7 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
   );
 
   const buildNodeList = (): NodeInfo[] => {
-    const nodeList: NodeInfo[] = [
-      { nodeId: '28', fieldName: 'value', fieldValue: resolution, description: '最长边' },
-      { nodeId: '20', fieldName: 'value', fieldValue: duration, description: '时长（秒）' },
-      { nodeId: '77', fieldName: 'value', fieldValue: String(interpolation), description: '补帧（默认关）' },
-      { nodeId: '21', fieldName: 'image', fieldValue: imagePath, description: '图片上传' },
-      { nodeId: '38', fieldName: 'value', fieldValue: prompt, description: '提示词' },
-    ];
-    if (loraHigh) {
-      nodeList.push(
-        { nodeId: '42', fieldName: 'lora_name', fieldValue: loraHigh, description: 'lora（high）' },
-        { nodeId: '42', fieldName: 'strength_model', fieldValue: String(loraHighWeight), description: 'lora权重' }
-      );
-    }
-    if (loraLow) {
-      nodeList.push(
-        { nodeId: '43', fieldName: 'lora_name', fieldValue: loraLow, description: 'lora（low）' },
-        { nodeId: '43', fieldName: 'strength_model', fieldValue: String(loraLowWeight), description: 'lora权重' }
-      );
-    }
-    return nodeList;
+    return buildNodeListWithParams(imagePath, prompt, resolution, duration, interpolation, loraHigh, loraHighWeight, loraLow, loraLowWeight);
   };
 
   const handleSubmit = () => {

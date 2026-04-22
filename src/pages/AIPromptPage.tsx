@@ -4,6 +4,7 @@ import {
   ChevronDown, ChevronUp, Sparkles, RotateCcw, Send,
   AlertCircle, Settings, Eye, Tag, History, Trash2, Plus, Clock,
   Image, Zap, X, Download, User, Heart, Star, Clapperboard,
+  ChevronLeft, ChevronRight, Video, ZoomIn,
 } from 'lucide-react';
 import {
   expandPrompt,
@@ -1370,12 +1371,16 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   const [history, setHistory] = useState<StoryboardHistoryItem[]>(() => getStoryboardHistory());
   const [genStates, setGenStates] = useState<Record<number, { loading: boolean; images: string[] }>>({});
   const [batchLoading, setBatchLoading] = useState(false);
+  const [batchVideoLoading, setBatchVideoLoading] = useState(false);
 
   // 2-step storyboard state
   const [storyStep, setStoryStep] = useState<'themes' | 'outline' | 'panels'>(
     savedStoryboard?.themeId ? 'panels' : 'themes'
   );
   const [themeOptions, setThemeOptions] = useState<{
+    id: number; title: string; description: string; tags: string[]; r18_level: string;
+  }[]>([]);
+  const [selectedThemes, setSelectedThemes] = useState<{
     id: number; title: string; description: string; tags: string[]; r18_level: string;
   }[]>([]);
   const [selectedTheme, setSelectedTheme] = useState<{
@@ -1385,13 +1390,28 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   const [outlineScenes, setOutlineScenes] = useState<string[]>(savedStoryboard?.outlineScenes || []);
   const [generatingOutline, setGeneratingOutline] = useState(false);
 
-  // Video script state
+  // Track generation state per theme (for multi-select)
+  const [themeOutlineStates, setThemeOutlineStates] = useState<Record<number, {
+    generating: boolean;
+    outlineArc: string;
+    outlineScenes: string[];
+    panels: { panel_number: number; scene_description: string; image_prompt: string }[];
+  }>>({});
+
+  // Video prompt state
   const [videoScript, setVideoScript] = useState<{
     script_title: string; duration: string; panels: {
       panel: number; heading: string; action: string; dialogue: string; sound_cue: string; camera: string;
     }[];
   } | null>(null);
   const [generatingScript, setGeneratingScript] = useState(false);
+
+  // Image selection and video generation state
+  const [selectedPanelImages, setSelectedPanelImages] = useState<Record<string, { index: number; url: string }>>({});
+  const [videoGenLoading, setVideoGenLoading] = useState<Record<string, boolean>>({});
+  const [previewImages, setPreviewImages] = useState<string[]>([]);
+  const [previewIndex, setPreviewIndex] = useState(0);
+  const [showPreview, setShowPreview] = useState(false);
 
   // Persist storyboard state
   useEffect(() => {
@@ -1446,6 +1466,68 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     } finally {
       setGeneratingOutline(false);
     }
+  };
+
+  // Generate outline for a specific theme (multi-select mode)
+  const handleGenerateOutlineForTheme = async (theme: { id: number; title: string; description: string; tags: string[]; r18_level: string }) => {
+    setGeneratingOutline(true);
+    try {
+      const res = await generateStoryboardOutline(theme.id, theme.title, panelCount, r18Mode);
+      setThemeOutlineStates((prev) => ({
+        ...prev,
+        [theme.id]: {
+          generating: false,
+          outlineArc: res.outline.arc,
+          outlineScenes: res.outline.scenes,
+          panels: res.storyboard,
+        },
+      }));
+      onSuccess(`「${theme.title}」的大纲已生成`);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : `「${theme.title}」分镜生成失败`);
+    } finally {
+      setGeneratingOutline(false);
+    }
+  };
+
+  // Generate outlines for all selected themes in parallel
+  const handleGenerateMultipleOutlines = async () => {
+    if (selectedThemes.length === 0) return;
+    setGeneratingOutline(true);
+    try {
+      await Promise.all(selectedThemes.map((theme) => handleGenerateOutlineForTheme(theme)));
+      onSuccess(`已为 ${selectedThemes.length} 个主题生成大纲`);
+    } finally {
+      setGeneratingOutline(false);
+    }
+  };
+
+  // View panels for a specific theme in multi-select mode
+  const handleViewThemePanels = (themeId: number) => {
+    const state = themeOutlineStates[themeId];
+    if (!state) return;
+    // Set panels to show in the main panel area
+    setPanels(state.panels);
+    setOutlineArc(state.outlineArc);
+    setOutlineScenes(state.outlineScenes);
+    setStoryStep('panels');
+    onSuccess(`已加载「${themeOptions.find((t) => t.id === themeId)?.title}」的分镜`);
+  };
+
+  // Load a specific theme's panels to the main panel area
+  const handleLoadThemeToPanels = (themeId: number) => {
+    const state = themeOutlineStates[themeId];
+    if (!state) return;
+    const theme = themeOptions.find((t) => t.id === themeId);
+    setPanels(state.panels);
+    setOutlineArc(state.outlineArc);
+    setOutlineScenes(state.outlineScenes);
+    setStoryStep('panels');
+    if (theme) {
+      addStoryboardHistory({ plot: theme.title, panel_count: panelCount, r18: r18Mode, panels: state.panels });
+      setHistory(getStoryboardHistory());
+    }
+    onSuccess(`已加载「${theme?.title}」到分镜区`);
   };
 
   // Reset everything
@@ -1510,8 +1592,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       ];
       try {
         await taskManager.addTask('img2img', nodes, prompt, WORKFLOW.QWEN_IMG2IMG);
-        onSuccess('任务已提交，请到图生图查看生成结果');
-        if (onNavigate) onNavigate('img2img');
+        onSuccess('任务已提交');
       } catch (err) {
         onError(err instanceof Error ? err.message : '提交失败');
         setGenStates((prev) => { const next = { ...prev }; delete next[panelIdx]; return next; });
@@ -1526,14 +1607,176 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       ];
       try {
         await taskManager.addTask('txt2img', nodes, prompt);
-        onSuccess('任务已提交，请到文生图查看生成结果');
-        if (onNavigate) onNavigate('txt2img');
+        onSuccess('任务已提交');
       } catch (err) {
         onError(err instanceof Error ? err.message : '提交失败');
         setGenStates((prev) => { const next = { ...prev }; delete next[panelIdx]; return next; });
       }
     }
-  }, [taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, onNavigate]);
+  }, [taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey]);
+
+  // Generate video prompt for a panel based on image prompt
+  const generateVideoPromptForPanel = useCallback((imagePrompt: string): string => {
+    const parts = imagePrompt.split(/[,，.。;；\n]/).map((p) => p.trim()).filter(Boolean);
+    const motion: string[] = [];
+    const camera: string[] = [];
+    const lighting: string[] = [];
+    const style: string[] = [];
+    const environment: string[] = [];
+    const other: string[] = [];
+    const motionWords = ['walk', 'turn', 'move', 'dance', 'run', 'jump', 'sit', 'stand', 'slow', 'fast', 'gentle', 'smooth', 'natural', 'flow', 'breathing', 'smile', 'blink', 'head', 'turning', 'looking', 'reach', 'raise', 'touch', 'hold', 'cross', 'lean', 'bend', 'twist', 'rolling', 'moving', 'step', 'foot'];
+    const cameraWords = ['close-up', 'close up', 'medium shot', 'long shot', 'pan', 'zoom', 'tilt', 'dolly', 'tracking', 'steady', 'cinematic', 'camera', 'angle', 'shot', 'wide', 'lens', 'depth of field', 'bokeh', 'pov', 'background blur'];
+    const lightingWords = ['light', 'sunlight', 'natural light', 'backlit', 'soft light', 'hard light', 'warm', 'cool', 'dim', 'bright', 'glow', 'shadow', 'rim light', 'golden hour', 'dusk', 'dawn', 'fog', 'neon', 'candlelight', 'moonlight'];
+    const styleWords = ['realistic', 'cinematic', '8k', '4k', 'high quality', 'aesthetic', 'soft tone', 'vintage', 'film grain', 'portrait', 'photo', 'no distortion', 'hyperrealistic', 'photorealistic', 'masterpiece'];
+    const envWords = ['indoor', 'outdoor', 'beach', 'forest', 'park', 'street', 'studio', 'garden', 'room', 'bedroom', 'bathroom', 'balcony', 'rooftop', 'background', 'setting', 'hotel', 'office', 'classroom', 'shower', 'pool', 'car', 'gym'];
+    parts.forEach((part) => {
+      const lower = part.toLowerCase();
+      if (motionWords.some((w) => lower.includes(w))) motion.push(part);
+      else if (cameraWords.some((w) => lower.includes(w))) camera.push(part);
+      else if (lightingWords.some((w) => lower.includes(w))) lighting.push(part);
+      else if (styleWords.some((w) => lower.includes(w))) style.push(part);
+      else if (envWords.some((w) => lower.includes(w))) environment.push(part);
+      else other.push(part);
+    });
+    const sections: string[] = [];
+    if (environment.length > 0) sections.push(environment.slice(0, 2).join(', '));
+    if (motion.length > 0) sections.push(motion.slice(0, 3).join(', '));
+    if (camera.length > 0) sections.push(camera.slice(0, 2).join(', '));
+    if (lighting.length > 0) sections.push(lighting.slice(0, 1).join(', '));
+    if (style.length > 0) sections.push(style.slice(0, 1).join(', '));
+    else sections.push('realistic cinematic quality');
+    if (r18Mode) sections.push('intimate atmosphere, smooth natural motion');
+    const remaining = other.filter((p) => p.length > 3 && p.length < 100);
+    if (remaining.length > 0) sections.push(remaining.slice(0, 3).join(', '));
+    return sections.filter(Boolean).join(', ');
+  }, [r18Mode]);
+
+  // Handle image selection for a panel
+  const handleSelectPanelImage = useCallback((panelKey: string, imageIndex: number, imageUrl: string) => {
+    setSelectedPanelImages(prev => ({
+      ...prev,
+      [panelKey]: { index: imageIndex, url: imageUrl }
+    }));
+  }, []);
+
+  // Handle preview images
+  const handlePreviewImage = useCallback((images: string[], index: number) => {
+    setPreviewImages(images);
+    setPreviewIndex(index);
+    setShowPreview(true);
+  }, []);
+
+  // Handle direct video generation from storyboard panel
+  const handleDirectGenerateVideo = useCallback(async (panelKey: string, imageUrl: string, prompt: string) => {
+    setVideoGenLoading(prev => ({ ...prev, [panelKey]: true }));
+    try {
+      let imagePath = imageUrl;
+      if (imageUrl.startsWith('data:') || imageUrl.startsWith('blob:')) {
+        try {
+          const res = await fetch(imageUrl);
+          const blob = await res.blob();
+          const file = new File([blob], `storyboard_${Date.now()}.jpg`, { type: 'image/jpeg' });
+          const { imagePath: uploadedPath } = await uploadImage(apiKey, file);
+          imagePath = uploadedPath;
+        } catch {
+          onError('图片上传失败，请重试');
+          setVideoGenLoading(prev => { const next = { ...prev }; delete next[panelKey]; return next; });
+          return;
+        }
+      }
+
+      // Generate video prompt
+      const videoPrompt = generateVideoPromptForPanel(prompt);
+
+      // Build node list for video generation (matching ImageToVideoPage format)
+      const nodes = [
+        { nodeId: '28', fieldName: 'value', fieldValue: '720', description: '最长边' },
+        { nodeId: '20', fieldName: 'value', fieldValue: '5', description: '时长（秒）' },
+        { nodeId: '77', fieldName: 'value', fieldValue: 'false', description: '补帧（默认关）' },
+        { nodeId: '21', fieldName: 'image', fieldValue: imagePath, description: '图片上传' },
+        { nodeId: '38', fieldName: 'value', fieldValue: videoPrompt, description: '提示词' },
+        { nodeId: '42', fieldName: 'lora_name', fieldValue: 'SmoothMixAnimationStyle_High.safetensors', description: 'lora（high）' },
+        { nodeId: '42', fieldName: 'strength_model', fieldValue: '1.0', description: 'lora权重' },
+      ];
+
+      await taskManager.addTask('img2vid', nodes, videoPrompt, WORKFLOW.IMAGE_TO_VIDEO);
+      onSuccess('视频生成任务已提交');
+    } catch (err) {
+      onError(err instanceof Error ? err.message : '视频生成失败');
+    } finally {
+      setVideoGenLoading(prev => { const next = { ...prev }; delete next[panelKey]; return next; });
+    }
+  }, [apiKey, taskManager, onError, onSuccess, generateVideoPromptForPanel]);
+
+  // Handle batch video generation from storyboard panels
+  const handleBatchGenerateVideo = useCallback(async () => {
+    if (panels.length === 0) { onError('没有可用的分镜'); return; }
+    setBatchVideoLoading(true);
+    let submitted = 0;
+    try {
+      for (let i = 0; i < panels.length; i++) {
+        const panel = panels[i];
+        // Get the first generated image for this panel
+        const panelGenState = genStates[i];
+        const panelTasks = taskManager.tasks.filter((t) => t.prompt === panel.image_prompt && t.images.length > 0);
+        let imageUrl = '';
+
+        // Try local state first
+        if (panelGenState?.images && panelGenState.images.length > 0) {
+          imageUrl = panelGenState.images[0];
+        }
+        // Then try task manager tasks
+        else if (panelTasks.length > 0) {
+          imageUrl = panelTasks[0].images[0];
+        }
+
+        if (!imageUrl) continue;
+
+        // Upload image if needed (only local data URLs need upload)
+        let imagePath = imageUrl;
+        if (imageUrl.startsWith('data:') || imageUrl.startsWith('blob:')) {
+          try {
+            const res = await fetch(imageUrl);
+            const blob = await res.blob();
+            const file = new File([blob], `storyboard_video_${Date.now()}_${i}.jpg`, { type: 'image/jpeg' });
+            const uploadResult = await uploadImage(apiKey, file);
+            imagePath = uploadResult.imagePath;
+          } catch {
+            onError(`分镜 ${i + 1} 图片上传失败`);
+            continue;
+          }
+        }
+
+        // Generate video prompt
+        const videoPrompt = generateVideoPromptForPanel(panel.image_prompt);
+
+        // Build node list for video generation (matching ImageToVideoPage format)
+        const nodes = [
+          { nodeId: '28', fieldName: 'value', fieldValue: '720', description: '最长边' },
+          { nodeId: '20', fieldName: 'value', fieldValue: '5', description: '时长（秒）' },
+          { nodeId: '77', fieldName: 'value', fieldValue: 'false', description: '补帧（默认关）' },
+          { nodeId: '21', fieldName: 'image', fieldValue: imagePath, description: '图片上传' },
+          { nodeId: '38', fieldName: 'value', fieldValue: videoPrompt, description: '提示词' },
+          { nodeId: '42', fieldName: 'lora_name', fieldValue: 'SmoothMixAnimationStyle_High.safetensors', description: 'lora（high）' },
+          { nodeId: '42', fieldName: 'strength_model', fieldValue: '1.0', description: 'lora权重' },
+        ];
+
+        try {
+          await taskManager.addTask('img2vid', nodes, videoPrompt, WORKFLOW.IMAGE_TO_VIDEO);
+          submitted++;
+        } catch (err) {
+          onError(`提交分镜 ${i + 1} 视频任务失败: ${err instanceof Error ? err.message : '未知错误'}`);
+        }
+      }
+      if (submitted > 0) {
+        onSuccess(`已提交 ${submitted} 个视频生成任务`);
+      } else {
+        onError('没有找到已生成的图片，请先生成分镜图片');
+      }
+    } finally {
+      setBatchVideoLoading(false);
+    }
+  }, [panels, genStates, taskManager, apiKey, generateVideoPromptForPanel, onError, onSuccess]);
 
   const handleBatchGenerate = useCallback(async () => {
     if (panels.length === 0) return;
@@ -1587,10 +1830,9 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     setBatchLoading(false);
     if (submitted > 0) {
       onSuccess(`已提交 ${submitted} 个生图任务`);
-      if (digitalHumanMode && selectedGirlfriend) { if (onNavigate) onNavigate('img2img'); }
-      else { if (onNavigate) onNavigate('txt2img'); }
+      // Don't auto-navigate, stay on current page
     }
-  }, [panels, taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, onNavigate]);
+  }, [panels, taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey]);
 
   const hasContent = storyStep === 'panels' && panels.length > 0;
 
@@ -1631,7 +1873,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         <div className="flex items-center gap-3 mb-3">
           <span className="text-xs text-text-tertiary">分镜数量:</span>
           <div className="flex gap-1">
-            {[2, 3, 4, 5, 6].map((n) => (
+            {[5, 6, 7, 8, 9, 10].map((n) => (
               <button key={n} onClick={() => setPanelCount(n)} className={`w-8 h-7 rounded-lg text-xs font-medium transition-all ${panelCount === n ? 'bg-primary text-white' : 'bg-bg-elevated text-text-tertiary hover:bg-bg-hover'}`}>{n}</button>
             ))}
           </div>
@@ -1696,6 +1938,105 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
               >
                 {generatingOutline ? <><Loader2 size={16} className="animate-spin" /> 生成大纲和分镜中...</> : <><Wand2 size={16} />生成「{selectedTheme.title}」的大纲和分镜</>}
               </button>
+            )}
+            {/* Multi-select mode: select multiple themes for parallel generation */}
+            {themeOptions.length > 1 && (
+              <div className="mt-2 pt-2 border-t border-border">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs text-text-tertiary">
+                    {selectedThemes.length > 0 ? `已选 ${selectedThemes.length} 个主题（并行生成）` : '多选模式：点击序号多选'}
+                  </p>
+                  {selectedThemes.length > 0 && (
+                    <button
+                      onClick={handleGenerateMultipleOutlines}
+                      disabled={generatingOutline}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                        generatingOutline
+                          ? 'bg-bg-elevated text-text-secondary cursor-not-allowed'
+                          : r18Mode
+                            ? 'bg-gradient-to-r from-red-500 to-red-600 text-white hover:opacity-90'
+                            : 'bg-gradient-to-r from-primary to-primary/80 text-white hover:opacity-90'
+                      }`}
+                    >
+                      {generatingOutline ? (
+                        <><Loader2 size={12} className="animate-spin" /> 生成中...</>
+                      ) : (
+                        <><Wand2 size={12} />一键生成 {selectedThemes.length} 个</>
+                      )}
+                    </button>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {themeOptions.map((theme) => {
+                    const isSelected = selectedThemes.some((t) => t.id === theme.id);
+                    const state = themeOutlineStates[theme.id];
+                    const isGenerating = generatingOutline && !state?.outlineArc;
+                    return (
+                      <div
+                        key={theme.id}
+                        className={`relative flex-1 min-w-[180px] p-2 rounded-xl border transition-all cursor-pointer ${
+                          isSelected
+                            ? r18Mode ? 'border-red-400 bg-red-50/60' : 'border-primary bg-primary/5'
+                            : 'border-border bg-bg-elevated hover:bg-bg-hover'
+                        }`}
+                        onClick={() => {
+                          if (isSelected) {
+                            setSelectedThemes((prev) => prev.filter((t) => t.id !== theme.id));
+                          } else {
+                            setSelectedThemes((prev) => [...prev, theme]);
+                          }
+                        }}
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                            isSelected
+                              ? r18Mode ? 'bg-red-500 text-white' : 'bg-primary text-white'
+                              : 'bg-bg-elevated text-text-tertiary'
+                          }`}>
+                            {theme.id}
+                          </span>
+                          <p className={`text-xs font-medium truncate ${r18Mode ? 'text-red-700' : 'text-text-primary'}`}>{theme.title}</p>
+                          {isSelected && <Check size={12} className={r18Mode ? 'text-red-500' : 'text-primary'} />}
+                        </div>
+                        {/* Show loading state */}
+                        {isGenerating && isSelected && (
+                          <div className="mt-1 flex items-center gap-1 text-[10px] text-text-tertiary">
+                            <Loader2 size={8} className="animate-spin" />
+                            生成中...
+                          </div>
+                        )}
+                        {/* Show generated outline preview */}
+                        {state?.outlineArc && (
+                          <div className={`mt-1 p-1.5 rounded-lg text-[10px] leading-tight ${r18Mode ? 'bg-red-100/50' : 'bg-white/50'}`}>
+                            <p className="font-medium text-text-primary truncate">{state.outlineArc}</p>
+                            {state.panels.length > 0 && (
+                              <p className="text-text-tertiary">{state.panels.length} 个分镜</p>
+                            )}
+                            <div className="flex gap-1 mt-1">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleViewThemePanels(theme.id); }}
+                                className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+                                  r18Mode ? 'bg-red-200 text-red-700 hover:bg-red-300' : 'bg-primary/20 text-primary hover:bg-primary/30'
+                                }`}
+                              >
+                                查看
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleLoadThemeToPanels(theme.id); }}
+                                className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+                                  r18Mode ? 'bg-orange-100 text-orange-600 hover:bg-orange-200' : 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200'
+                                }`}
+                              >
+                                加载
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             )}
           </div>
         )}
@@ -1797,35 +2138,116 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
               {selectedTheme && <span className="mr-1">{selectedTheme.title} · </span>}
               {panels.length} 个分镜
             </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleBatchGenerateVideo}
+                disabled={batchVideoLoading || panels.length === 0}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  batchVideoLoading || panels.length === 0
+                    ? 'bg-purple-100 text-purple-400 cursor-not-allowed'
+                    : 'bg-purple-500 text-white hover:bg-purple-600'
+                }`}
+              >
+                {batchVideoLoading ? <><Loader2 size={12} className="animate-spin" /> 提交中...</> : <><Video size={12} />一键批量视频</>}
+              </button>
+              <button
+                onClick={handleBatchGenerate}
+                disabled={batchLoading || taskManager.isFull || (digitalHumanMode && !selectedGirlfriend)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  batchLoading || taskManager.isFull || (digitalHumanMode && !selectedGirlfriend)
+                    ? 'bg-bg-elevated text-text-secondary cursor-not-allowed'
+                    : 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:opacity-90 active:scale-[0.98]'
+                }`}
+              >
+                {batchLoading ? <><Loader2 size={12} className="animate-spin" /> 提交中...</> : <><Zap size={12} />一键批量生图</>}
+              </button>
+            </div>
+          </div>
+          {panels.map((panel, idx) => {
+            const panelKey = `panel-${idx}`;
+            const selectedImage = selectedPanelImages[panelKey];
+            const videoPrompt = generateVideoPromptForPanel(panel.image_prompt);
+            const hasGenerated = (genStates[idx]?.images?.length ?? 0) > 0 || taskManager.tasks.some((t) => t.prompt === panel.image_prompt && t.images.length > 0);
+            return (
+              <StoryboardPanelCard
+                key={idx}
+                panel={panel}
+                idx={idx}
+                isExpanded={expandedPanel === idx}
+                r18Mode={r18Mode}
+                copiedPanel={copiedPanel}
+                onToggle={() => setExpandedPanel(expandedPanel === idx ? null : idx)}
+                onCopyPanel={() => handleCopyPanel(panel, idx)}
+                genState={genStates[idx]}
+                onGenerateImage={() => handleGenerateImage(idx, panel.image_prompt)}
+                taskManager={taskManager}
+                digitalHumanMode={digitalHumanMode}
+                selectedGirlfriend={selectedGirlfriend}
+                selectedImageIndex={selectedImage?.index}
+                onSelectImage={(imageIdx, imageUrl) => handleSelectPanelImage(panelKey, imageIdx, imageUrl)}
+                videoPrompt={videoPrompt}
+                hasGeneratedImages={hasGenerated}
+                onPreviewImage={handlePreviewImage}
+                videoGenLoading={videoGenLoading[panelKey]}
+                onDirectGenerateVideo={(imageUrl, prompt) => handleDirectGenerateVideo(panelKey, imageUrl, prompt)}
+              />
+            );
+          })}
+        </div>
+      )}
+
+      {/* Image Preview Overlay */}
+      {showPreview && previewImages.length > 0 && (
+        <div
+          className="fixed inset-0 z-[9999] bg-black/95 flex flex-col animate-fade-in"
+          onClick={() => setShowPreview(false)}
+        >
+          <div className="flex items-center justify-between px-6 py-4" onClick={(e) => e.stopPropagation()}>
+            <span className="text-sm text-white/60">{previewIndex + 1} / {previewImages.length}</span>
             <button
-              onClick={handleBatchGenerate}
-              disabled={batchLoading || taskManager.isFull || (digitalHumanMode && !selectedGirlfriend)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                batchLoading || taskManager.isFull || (digitalHumanMode && !selectedGirlfriend)
-                  ? 'bg-bg-elevated text-text-secondary cursor-not-allowed'
-                  : 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:opacity-90 active:scale-[0.98]'
-              }`}
+              onClick={() => setShowPreview(false)}
+              className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
             >
-              {batchLoading ? <><Loader2 size={12} className="animate-spin" /> 提交中...</> : <><Zap size={12} />一键批量生图</>}
+              <X size={20} />
             </button>
           </div>
-          {panels.map((panel, idx) => (
-            <StoryboardPanelCard
-              key={idx}
-              panel={panel}
-              idx={idx}
-              isExpanded={expandedPanel === idx}
-              r18Mode={r18Mode}
-              copiedPanel={copiedPanel}
-              onToggle={() => setExpandedPanel(expandedPanel === idx ? null : idx)}
-              onCopyPanel={() => handleCopyPanel(panel, idx)}
-              genState={genStates[idx]}
-              onGenerateImage={() => handleGenerateImage(idx, panel.image_prompt)}
-              taskManager={taskManager}
-              digitalHumanMode={digitalHumanMode}
-              selectedGirlfriend={selectedGirlfriend}
+          <div className="flex-1 flex items-center justify-center relative" onClick={(e) => e.stopPropagation()}>
+            {previewImages.length > 1 && (
+              <button
+                onClick={() => setPreviewIndex((i) => (i - 1 + previewImages.length) % previewImages.length)}
+                className="absolute left-4 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors z-10"
+              >
+                <ChevronLeft size={24} />
+              </button>
+            )}
+            <img
+              src={previewImages[previewIndex]}
+              alt=""
+              className="max-w-full max-h-full object-contain select-none"
+              style={{ maxHeight: 'calc(100vh - 120px)' }}
             />
-          ))}
+            {previewImages.length > 1 && (
+              <button
+                onClick={() => setPreviewIndex((i) => (i + 1) % previewImages.length)}
+                className="absolute right-4 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors z-10"
+              >
+                <ChevronRight size={24} />
+              </button>
+            )}
+          </div>
+          {previewImages.length > 1 && (
+            <div className="flex items-center justify-center gap-2 py-4 px-6 overflow-x-auto">
+              {previewImages.map((img, i) => (
+                <button
+                  key={i}
+                  onClick={(e) => { e.stopPropagation(); setPreviewIndex(i); }}
+                  className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all ${i === previewIndex ? 'border-white opacity-100' : 'border-transparent opacity-50 hover:opacity-80'}`}
+                >
+                  <img src={img} alt="" className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -1872,7 +2294,7 @@ function StoryboardHistoryPanel({ history, r18Mode, onLoad, onDelete, onClear }:
   );
 }
 
-function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onToggle, onCopyPanel, genState, onGenerateImage, taskManager, digitalHumanMode, selectedGirlfriend }: {
+function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onToggle, onCopyPanel, genState, onGenerateImage, taskManager, digitalHumanMode, selectedGirlfriend, selectedImageIndex, onSelectImage, onGenerateVideo, videoPrompt, hasGeneratedImages, onPreviewImage, videoGenLoading, onDirectGenerateVideo }: {
   panel: { panel_number: number; scene_description: string; image_prompt: string };
   idx: number; isExpanded: boolean; r18Mode: boolean; copiedPanel: number | null;
   onToggle: () => void; onCopyPanel: () => void;
@@ -1880,6 +2302,14 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
   onGenerateImage: () => void;
   taskManager: TaskManagerReturn;
   digitalHumanMode?: boolean; selectedGirlfriend?: GirlfriendPreset | null;
+  selectedImageIndex?: number;
+  onSelectImage?: (index: number, imageUrl: string) => void;
+  onGenerateVideo?: (imageUrl: string, prompt: string) => void;
+  videoPrompt?: string;
+  hasGeneratedImages?: boolean;
+  onPreviewImage?: (images: string[], currentIndex: number) => void;
+  videoGenLoading?: boolean;
+  onDirectGenerateVideo?: (imageUrl: string, prompt: string) => void;
 }) {
   const isGenLoading = genState?.loading;
   const displayImages = genState?.images ?? [];
@@ -1889,6 +2319,7 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
   ).filter((t: QueuedTask) => t.prompt === panel.image_prompt);
 
   const allDisplayImages = displayImages.length > 0 ? displayImages : relatedTasks.flatMap((t: QueuedTask) => t.images);
+  const hasImages = allDisplayImages.length > 0;
 
   return (
     <div className={`rounded-2xl overflow-hidden shadow-card ${r18Mode ? 'border border-red-200 bg-white' : 'bg-white border border-border'}`}>
@@ -1897,6 +2328,7 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
         <div className="flex items-center gap-3">
           <span className={`w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0 ${r18Mode ? 'bg-gradient-to-br from-red-500 to-red-700 text-white' : 'bg-gradient-to-br from-primary to-primary/60 text-white'}`}>{panel.panel_number}</span>
           <span className="text-sm text-text-primary font-medium line-clamp-1">{panel.scene_description}</span>
+          {hasImages && <span className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center flex-shrink-0 bg-green-500 text-white`}>{allDisplayImages.length}</span>}
         </div>
         {isExpanded ? <ChevronUp size={14} className="text-text-tertiary" /> : <ChevronDown size={14} className="text-text-tertiary" />}
       </button>
@@ -1924,16 +2356,37 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
             </div>
             <div className={`rounded-xl px-4 py-3 text-xs leading-relaxed whitespace-pre-wrap font-mono ${r18Mode ? 'bg-red-50 text-red-700' : 'bg-bg-elevated text-text-secondary'}`}>{panel.image_prompt}</div>
 
-            {/* Generated images preview */}
-            {allDisplayImages.length > 0 && (
+            {/* Generated images preview with selection and preview */}
+            {hasImages && (
               <div className="mt-3">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-text-tertiary font-medium">生成结果</span>
+                  <span className="text-xs text-text-tertiary font-medium">生成结果（点击选中/预览）</span>
                   <span className="text-[10px] text-text-tertiary">{allDisplayImages.length} 张</span>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   {allDisplayImages.slice(0, 6).map((img, i) => (
-                    <AIGeneratedImagePreview key={i} src={img} />
+                    <div
+                      key={i}
+                      className={`relative group cursor-pointer rounded-lg overflow-hidden transition-all ${
+                        selectedImageIndex === i ? 'ring-2 ring-purple-500 ring-offset-2' : ''
+                      }`}
+                      onClick={() => {
+                        onSelectImage?.(i, img);
+                        onPreviewImage?.(allDisplayImages, i);
+                      }}
+                    >
+                      <img src={img} alt="" className="w-full aspect-square object-cover" loading="lazy" />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                        <div className="w-8 h-8 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <ZoomIn size={16} className="text-white" />
+                        </div>
+                      </div>
+                      {selectedImageIndex === i && (
+                        <div className="absolute top-1 left-1 bg-purple-500 text-white text-[9px] px-1.5 py-0.5 rounded font-medium flex items-center gap-0.5">
+                          <Check size={10} /> 已选
+                        </div>
+                      )}
+                    </div>
                   ))}
                   {allDisplayImages.length > 6 && (
                     <div className="aspect-square rounded-lg bg-bg-elevated flex items-center justify-center text-xs text-text-tertiary">
@@ -1943,6 +2396,39 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
                 </div>
               </div>
             )}
+
+            {/* Video Prompt Section */}
+            <div className={`rounded-xl border ${videoPrompt ? 'border-purple-200 bg-purple-50/30' : 'border-border bg-bg-elevated/50'} p-3 mt-3`}>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-1.5">
+                  <Video size={12} className={videoPrompt ? 'text-purple-500' : 'text-text-tertiary'} />
+                  <span className={`text-xs font-medium ${videoPrompt ? 'text-purple-600' : 'text-text-tertiary'}`}>视频提示词</span>
+                </div>
+                {hasImages && (
+                  <button
+                    onClick={() => {
+                      const imageToUse = selectedImageIndex !== undefined && allDisplayImages[selectedImageIndex]
+                        ? allDisplayImages[selectedImageIndex]
+                        : allDisplayImages[0];
+                      onDirectGenerateVideo?.(imageToUse, videoPrompt || panel.image_prompt);
+                    }}
+                    disabled={videoGenLoading || !videoPrompt}
+                    className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      !videoPrompt || videoGenLoading
+                        ? 'bg-purple-100 text-purple-400 cursor-not-allowed'
+                        : 'bg-purple-500 text-white hover:bg-purple-600'
+                    }`}
+                  >
+                    {videoGenLoading ? <><Loader2 size={11} className="animate-spin" /> 生成中</> : <><Video size={11} />图生视频</>}
+                  </button>
+                )}
+              </div>
+              {videoPrompt ? (
+                <div className="text-xs leading-relaxed text-text-secondary whitespace-pre-wrap font-mono">{videoPrompt}</div>
+              ) : (
+                <div className="text-xs text-text-tertiary">生成图片后将自动生成视频提示词</div>
+              )}
+            </div>
 
             {/* Running status */}
             {relatedTasks.filter((t: QueuedTask) => t.status === 'RUNNING' || t.status === 'QUEUEING').length > 0 && allDisplayImages.length === 0 && (

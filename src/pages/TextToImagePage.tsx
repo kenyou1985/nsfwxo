@@ -116,12 +116,10 @@ export function TextToImagePage({
     if (exists) return;
 
     setTagCounter((c) => c + 1);
-    if (isR18Enabled) {
-      setNegativeTags((prev) => [...prev, { tag, weight: 'none', order: tagCounter }]);
-    } else {
-      setPositiveTags((prev) => [...prev, { tag, weight: 'none', order: tagCounter }]);
-    }
-  }, [positiveTags, negativeTags, isR18Enabled, tagCounter]);
+    // Tags should always go to positiveTags regardless of R18 mode
+    // so that expand can properly use them for prompt generation
+    setPositiveTags((prev) => [...prev, { tag, weight: 'none', order: tagCounter }]);
+  }, [positiveTags, negativeTags, tagCounter]);
 
   const handleRemoveTag = useCallback((tag: string) => {
     setPositiveTags((prev) => prev.filter((t) => t.tag !== tag));

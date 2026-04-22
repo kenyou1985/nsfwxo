@@ -1,6 +1,7 @@
-"""API Router - Prompt Engine Routes (冲突优化版)"""
+"""API Router - Prompt Engine Routes"""
 
 import re
+import logging
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -13,7 +14,7 @@ from app.models.schemas import (
     StoryboardOutlineRequest, StoryboardOutlineResponse, StoryboardOutline,
     StoryboardScriptRequest, StoryboardScriptResponse,
 )
-from app.services.llm_service import call_grok, clean_json_response
+from app.services.llm_service import call_grok, clean_json_response, YunwuAuthError, YunwuRateLimitError, YunwuTimeoutError, YunwuParseError, YunwuAPIError
 from app.services.gacha_service import generate_random_tags
 from app.services.safety_filter import check_prompt_safety, check_tags_safety, ContentSafetyError
 from app.services.prompt_coherence import detect_prompt_conflicts, rewrite_coherent_prompt
@@ -26,6 +27,21 @@ MAX_RETRIES = 2
 
 def get_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
     return credentials.credentials
+
+
+def _map_llm_error(e: Exception) -> HTTPException:
+    """将 LLM 相关异常映射为精确的 HTTP 错误状态码和消息。"""
+    if isinstance(e, YunwuAuthError):
+        return HTTPException(status_code=401, detail=str(e))
+    if isinstance(e, YunwuRateLimitError):
+        return HTTPException(status_code=429, detail=str(e))
+    if isinstance(e, YunwuTimeoutError):
+        return HTTPException(status_code=504, detail=str(e))
+    if isinstance(e, YunwuParseError):
+        return HTTPException(status_code=502, detail=str(e))
+    if isinstance(e, YunwuAPIError):
+        return HTTPException(status_code=502, detail=str(e))
+    return HTTPException(status_code=500, detail=f"未知错误: {str(e)}")
 
 
 # ─── System Prompts ───────────────────────────────────────────────────────────
@@ -332,8 +348,18 @@ async def _generate_single_expand(
                 system_for_this += "\n\nSAFETY OVERRIDE: Your previous response was rejected. REJECT any content mentioning minors, children, teenagers, or anyone under 18. STRICTLY ADULTS ONLY."
                 continue
             raise HTTPException(status_code=400, detail=str(e))
+        except YunwuAuthError as e:
+            raise _map_llm_error(e)
+        except YunwuRateLimitError as e:
+            raise _map_llm_error(e)
+        except YunwuTimeoutError as e:
+            raise _map_llm_error(e)
+        except YunwuParseError as e:
+            raise _map_llm_error(e)
+        except YunwuAPIError as e:
+            raise _map_llm_error(e)
         except Exception as e:
-            raise HTTPException(status_code=502, detail=f"LLM call failed: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"未知错误: {str(e)}")
 
 
 @router.post("/expand", response_model=ExpandResponse)
@@ -1032,8 +1058,18 @@ STRICT RULE: All characters ADULTS 18+. Consensual only. Output ONLY a raw coher
                 system_for_random += "\n\nSAFETY OVERRIDE: Reject ALL minors. ADULTS ONLY."
                 continue
             raise HTTPException(status_code=400, detail=str(e))
+        except YunwuAuthError as e:
+            raise _map_llm_error(e)
+        except YunwuRateLimitError as e:
+            raise _map_llm_error(e)
+        except YunwuTimeoutError as e:
+            raise _map_llm_error(e)
+        except YunwuParseError as e:
+            raise _map_llm_error(e)
+        except YunwuAPIError as e:
+            raise _map_llm_error(e)
         except Exception as e:
-            raise HTTPException(status_code=502, detail=f"LLM call failed: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"未知错误: {str(e)}")
 
 
 # ─── Route: Random ───────────────────────────────────────────────────────────
@@ -1118,8 +1154,18 @@ async def storyboard(req: StoryboardRequest, api_key: str = Depends(get_api_key)
             raise HTTPException(status_code=400, detail=str(e))
         except HTTPException:
             raise
+        except YunwuAuthError as e:
+            raise _map_llm_error(e)
+        except YunwuRateLimitError as e:
+            raise _map_llm_error(e)
+        except YunwuTimeoutError as e:
+            raise _map_llm_error(e)
+        except YunwuParseError as e:
+            raise _map_llm_error(e)
+        except YunwuAPIError as e:
+            raise _map_llm_error(e)
         except Exception as e:
-            raise HTTPException(status_code=502, detail=f"LLM call failed: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"未知错误: {str(e)}")
 
 
 # ─── Step 1: Generate 5 Video Themes (Database-Driven) ────────────────────────
@@ -1139,27 +1185,43 @@ Output STRICTLY as raw JSON array (no markdown):
 Output in Chinese only. Do NOT wrap in markdown."""
 
 
-_THEMES_SYSTEM_PROMPT_R18 = """You are an EXPERT creative director specializing in EXPLICIT adult content. Based on the provided theme pool, select and describe 5 maximally diverse EXPLICIT video themes.
+# R18 themes prompt — keep it neutral/descriptive without explicit sexual act keywords
+# Yunwu AI may reject requests with explicitly sexual system prompts
+_THEMES_SYSTEM_PROMPT_R18 = """You are a creative director specializing in adult content. Based on the provided theme pool, select and describe 5 DIVERSE and UNIQUE video theme options.
 
-IMPORTANT - DIVERSITY RULES:
-- Each theme MUST be from a DIFFERENT category. Pick from: 交通工具(transport), 户外野战(outdoor), 酒店室内(indoor), 制服诱惑(costume), SM调教(sm), 多人场景(multi), 口交(oral), 肛交(anal), 玩具(toys), 职场(work), 特殊场景(special), 幻想(fantasy)
+IMPORTANT - DIVERSITY RULES - CRITICAL:
+- Each theme MUST be from a DIFFERENT category. Categories include: fantasy, costume, indoor, outdoor, work, special, multi, transport, sm, oral, fluid, facial, anal, toys
 - NO two themes can share the same category
-- Each description MUST be 2-3 sentences in CHINESE, describing the explicit sexual content vividly
+- AVOID these overused themes: 地铁痴汉, 野外激情, 情趣酒店, 豪华酒店套房, 游泳池畔, OL通勤, 护士的情欲, 瑜伽教室, 舞蹈室, 女优, 办公室秘密
+- PREFER underrepresented categories: fantasy, special, work, oral, fluid, facial, anal, toys, multi, costume
+- Each description MUST be 2-3 sentences in CHINESE, describing the scene and atmosphere vividly
 - Each tags array MUST contain ONLY Chinese keywords (3-5 tags)
-- R18 level: 'soft'=有暗示但无直接性行为, 'medium'=直接性爱描写(口交/后入/传教士等), 'hard'=高强度(颜射/内射/肛交/SM/多人等)
+- R18 level: 'soft', 'medium', or 'hard'
+- Theme titles should be creative and specific, not generic
+
+DIVERSITY STRATEGY:
+1. Mix r18_levels: include at least 1 soft, 2-3 medium, and 1 hard theme
+2. Choose themes from LESS COMMON categories like fantasy, special scenes, work scenarios, oral/fluid/facial themes, multi-person
+3. AVOID repeating any theme that might have been used recently - be creative and pick unusual combinations
+4. Prefer unique combinations of costume + scenario + mood
+5. Include a mix of SINGLE-PERSON and MULTI-PERSON themes
+6. Include themes with DIFFERENT COSTUMES: school uniform, traditional Chinese hanfu, Japanese kimono, modern casual, sportswear, maid outfit, flight attendant, etc.
+7. Include themes with UNIQUE PROPS: chair, mirror, bed, window, stairs, sofa, desk, etc.
+8. Include themes with VARIED POSES: standing, lying, sitting, bending, kneeling, etc.
 
 ABSOLUTE REQUIREMENTS:
-- Each description must describe explicit sexual acts in detail
-- Themes should vary: different positions (传教士/后入/口交/女上位/69等), different environments, different moods
-- Vary the explicit acts: oral, vaginal, anal, toys, SM, group scenes, etc.
+- Themes must be genuinely different from each other
+- Keep descriptions focused on atmosphere and scenario, not explicit acts
+- All characters must be ADULTS 18+
+- Use creative, evocative Chinese titles that haven't been overused
 
 STRICT PROHIBITION:
 - NO minors (18+ ONLY)
 - NO non-consent (consensual only)
-- NO animals
+- NO themes about: 地铁痴汉, 野外激情, 情趣酒店, 豪华酒店套房, 游泳池畔, OL通勤, 护士的情欲, 瑜伽教室, 舞蹈室, 女优 (these are overused)
 
 Output STRICTLY as raw JSON array (no markdown). All text in Chinese only.
-[{{"id": 1, "title": "中文标题", "description": "中文描述2-3句，明确描述性爱动作和场景", "tags": ["中文标签1", "中文标签2", "标签3"], "r18_level": "soft/medium/hard", "category": "分类"}}, ...]"""
+[{{"id": 1, "title": "创意中文标题", "description": "中文描述2-3句", "tags": ["中文标签1", "中文标签2", "标签3"], "r18_level": "soft/medium/hard", "category": "分类"}}]"""
 
 
 @router.post("/storyboard/themes", response_model=StoryboardThemesResponse)
@@ -1172,12 +1234,14 @@ async def generate_storyboard_themes(
     from app.services.theme_database import (
         ADULT_THEMES, COSTUMES, SCENARIOS, get_all_themes,
     )
+    import random
 
-    # Build a rich theme pool from the database
+    # Randomly select 15 themes from the pool to give to LLM for creative mixing
     all_db_themes = get_all_themes()
+    random.seed()  # Use system time for randomness
+    selected_themes = random.sample(all_db_themes, min(15, len(all_db_themes)))
 
-    # Build context for the LLM: include theme names, costumes, scenarios
-    theme_names = [t["name"] for t in all_db_themes]
+    # Also include costumes and scenarios for creative combinations
     costume_names = [c["name"] for c in COSTUMES]
     scenario_names = [s["name"] for s in SCENARIOS]
 
@@ -1188,20 +1252,22 @@ async def generate_storyboard_themes(
 
     r18_context = ""
     if req.r18:
+        # Build rich context with randomly selected theme pool
         r18_context = (
-            "\n\nR18主题池（包含55+主题，涵盖多种类别和场景）：\n"
-            f"主题: {', '.join(theme_names[:30])}\n"
-            f"制服: {', '.join(costume_names[:20])}\n"
-            f"场景: {', '.join(scenario_names[:20])}\n\n"
-            "请从中选择5个完全不同类别的R18主题，确保多样性（交通工具/户外/酒店/SM/多人/口交/肛交/玩具等各有不同）。"
+            f"\n\n【随机抽取的主题池】（共 {len(selected_themes)} 个，每次生成都不同）：\n"
+            + "\n".join([f"- {t['name']}（{t.get('category','indoor')}类）" for t in selected_themes])
+            + f"\n\n【服装池】：{', '.join(random.sample(costume_names, min(15, len(costume_names))))}"
+            + f"\n\n【场景池】：{', '.join(random.sample(scenario_names, min(15, len(scenario_names))))}"
+            + "\n\n【创作要求】请从上述主题池、服装池、场景池中自由组合，创造出5个完全不同的创意主题。"
+            + "\n标题要新颖独特，不要重复使用原始主题名称，要有自己的创意发挥。"
+            + "每个主题必须混合不同的服装+场景+角色元素。"
         )
     else:
         r18_context = (
-            "\n\n主题池（包含多种场景）：\n"
-            f"主题: {', '.join(theme_names[:30])}\n"
-            f"制服: {', '.join(costume_names[:15])}\n"
-            f"场景: {', '.join(scenario_names[:15])}\n\n"
-            "请从中选择5个完全不同类别的主题，确保多样性。"
+            f"\n\n【随机抽取的主题池】（共 {len(selected_themes)} 个，每次生成都不同）：\n"
+            + "\n".join([f"- {t['name']}（{t.get('category','indoor')}类）" for t in selected_themes])
+            + "\n\n【创作要求】请从上述主题池中自由组合，创造出5个完全不同的创意主题。"
+            + "\n标题要新颖独特，不要重复使用原始主题名称，要有自己的创意发挥。"
         )
 
     user_prompt = f"请生成5个不同的成人短视频主题（每个15-30秒）。{r18_context}\n\n【重要】每个主题的description（描述）和tags（标签）必须全部使用中文！description需要2-3句话，描述场景和情节。Output as raw JSON array only, no markdown."
@@ -1210,7 +1276,6 @@ async def generate_storyboard_themes(
         try:
             raw = await call_grok(api_key, system_prompt, user_prompt)
             data = clean_json_response(raw)
-
             check_prompt_safety(raw)
 
             if not isinstance(data, list):
@@ -1246,8 +1311,18 @@ async def generate_storyboard_themes(
             raise HTTPException(status_code=400, detail=str(e))
         except HTTPException:
             raise
+        except YunwuAuthError as e:
+            raise _map_llm_error(e)
+        except YunwuRateLimitError as e:
+            raise _map_llm_error(e)
+        except YunwuTimeoutError as e:
+            raise _map_llm_error(e)
+        except YunwuParseError as e:
+            raise _map_llm_error(e)
+        except YunwuAPIError as e:
+            raise _map_llm_error(e)
         except Exception as e:
-            raise HTTPException(status_code=502, detail=f"LLM call failed: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"未知错误: {type(e).__name__}: {str(e)}")
 
 
 # ─── Step 2: Generate Outline + Panels (Strict Pacing) ─────────────────────
@@ -1262,6 +1337,10 @@ _NORMAL_ARC_PANELS = {
     4: ["Panel 1: 开场 - 场景介绍、人物出现", "Panel 2: 发展 - 暧昧互动、调情", "Panel 3: 亲密 - 脱衣亲密、前戏", "Panel 4: 高潮 - 情感/身体高潮、结尾"],
     5: ["Panel 1: 开场 - 场景介绍、人物出现", "Panel 2: 发展 - 暧昧互动、情感铺垫", "Panel 3: 亲密 - 脱衣、亲吻、爱抚", "Panel 4: 进行 - 深入亲密、身体交流", "Panel 5: 高潮 - 高潮、情感释放、结尾"],
     6: ["Panel 1: 开场 - 场景介绍、人物出现", "Panel 2: 发展 - 暧昧互动、调情", "Panel 3: 升温 - 情感升温、身体接触", "Panel 4: 亲密 - 脱衣、亲吻、爱抚", "Panel 5: 进行 - 深入亲密", "Panel 6: 高潮 - 高潮、情感释放、结尾"],
+    7: ["Panel 1: 开场 - 场景介绍、人物出现", "Panel 2: 发展 - 暧昧互动、调情", "Panel 3: 升温 - 情感升温、身体接触", "Panel 4: 亲密 - 脱衣、亲吻、爱抚", "Panel 5: 前戏 - 深入前戏、身体反应", "Panel 6: 进行 - 深入亲密", "Panel 7: 高潮 - 高潮、情感释放、结尾"],
+    8: ["Panel 1: 开场 - 场景介绍、人物出现", "Panel 2: 发展 - 暧昧互动、调情", "Panel 3: 升温 - 情感升温、身体接触", "Panel 4: 亲密 - 脱衣、亲吻、爱抚", "Panel 5: 前戏 - 深入前戏、身体反应", "Panel 6: 进行 - 深入亲密", "Panel 7: 高潮 - 高潮、情感爆发", "Panel 8: 余韵 - 温馨时刻、情感升华、结尾"],
+    9: ["Panel 1: 开场 - 场景介绍、人物出现", "Panel 2: 发展 - 暧昧互动、调情", "Panel 3: 升温 - 情感升温、身体接触", "Panel 4: 亲密 - 脱衣、亲吻、爱抚", "Panel 5: 前戏 - 深入前戏、身体反应", "Panel 6: 进行 - 深入亲密", "Panel 7: 高潮 - 高潮、情感爆发", "Panel 8: 余韵 - 温馨时刻、情感表达", "Panel 9: 结尾 - 情感升华、开放式结局"],
+    10: ["Panel 1: 开场 - 场景介绍、人物出现", "Panel 2: 发展 - 暧昧互动、调情", "Panel 3: 升温 - 情感升温、身体接触", "Panel 4: 亲密 - 脱衣、亲吻、爱抚", "Panel 5: 前戏 - 深入前戏、身体反应", "Panel 6: 进行 - 深入亲密", "Panel 7: 高潮 - 高潮、情感爆发", "Panel 8: 余韵 - 温馨时刻、情感表达", "Panel 9: 回落 - 情感回落、亲密时刻", "Panel 10: 结尾 - 情感升华、开放式结局"],
 }
 
 _R18_ARC_PANELS = {
@@ -1291,18 +1370,69 @@ _R18_ARC_PANELS = {
         "Panel 1: 开场遇见 - 场景介绍、人物出现、暗示性的第一眼、服装描述（NO sex yet）",
         "Panel 2: 升温调情 - 暧昧对话、轻微身体接触、衣服开始松开",
         "Panel 3: 脱衣亲密 - 衣物脱去、互相亲吻爱抚、口交前戏开始",
-        "Panel 4: 性爱进行 - 直接插入性爱或深度口交、体位、抽插、口水/体液",
-        "Panel 5: 高潮逼近 - 性爱继续、体位变化、双方反应、呻吟",
+        "Panel 4: 性爱进行 - 直接插入性爱或深度口交，体位、抽插、口水/体液",
+        "Panel 5: 高潮逼近 - 性爱继续，体位变化、双方反应、呻吟",
         "Panel 6: 高潮射精 - 高潮特写、颜射/内射/体外射精、事后反应、结局",
+    ],
+    7: [
+        "Panel 1: 开场遇见 - 场景介绍、人物出现、暗示性的第一眼、服装描述（NO sex yet）",
+        "Panel 2: 升温调情 - 暧昧对话、轻微身体接触、衣服开始松开",
+        "Panel 3: 脱衣亲密 - 衣物脱去、互相亲吻爱抚、口交前戏开始",
+        "Panel 4: 前戏深入 - 口交、乳房爱抚、情趣玩具挑逗、身体全面反应",
+        "Panel 5: 性爱进行 - 直接插入性爱，体位变化、抽插特写、双方呻吟",
+        "Panel 6: 高潮逼近 - 体位深入、呻吟加剧、身体反应强烈",
+        "Panel 7: 高潮射精 - 高潮特写、颜射/内射/体外射精、事后温存、结局",
+    ],
+    8: [
+        "Panel 1: 开场遇见 - 场景介绍、人物出现、暗示性的第一眼、服装描述（NO sex yet）",
+        "Panel 2: 升温调情 - 暧昧对话、轻微身体接触、衣服开始松开",
+        "Panel 3: 脱衣亲密 - 衣物脱去、互相亲吻爱抚、口交前戏开始",
+        "Panel 4: 前戏深入 - 口交、乳房爱抚、情趣玩具挑逗、身体全面反应",
+        "Panel 5: 性爱进行 - 直接插入性爱，体位变化、抽插特写、双方呻吟",
+        "Panel 6: 高潮逼近 - 体位深入、呻吟加剧、身体反应强烈",
+        "Panel 7: 高潮特写 - 射前最后阶段、强烈身体反应",
+        "Panel 8: 高潮射精 - 高潮特写、颜射/内射/体外射精、事后温存、结局",
+    ],
+    9: [
+        "Panel 1: 开场遇见 - 场景介绍、人物出现、暗示性的第一眼、服装描述（NO sex yet）",
+        "Panel 2: 升温调情 - 暧昧对话、轻微身体接触、衣服开始松开",
+        "Panel 3: 脱衣亲密 - 衣物脱去、互相亲吻爱抚、口交前戏开始",
+        "Panel 4: 前戏深入 - 口交、乳房爱抚、情趣玩具挑逗、身体全面反应",
+        "Panel 5: 性爱开始 - 直接插入性爱，缓慢节奏、双方适应",
+        "Panel 6: 性爱进行 - 体位变化、抽插特写、呻吟加剧",
+        "Panel 7: 高潮逼近 - 体位深入、呻吟达到顶峰",
+        "Panel 8: 高潮特写 - 射前最后阶段、强烈身体反应",
+        "Panel 9: 高潮射精 - 高潮特写、颜射/内射/体外射精、事后温存、结局",
+    ],
+    10: [
+        "Panel 1: 开场遇见 - 场景介绍、人物出现、暗示性的第一眼、服装描述（NO sex yet）",
+        "Panel 2: 升温调情 - 暧昧对话、轻微身体接触、衣服开始松开",
+        "Panel 3: 脱衣亲密 - 衣物脱去、互相亲吻爱抚、口交前戏开始",
+        "Panel 4: 前戏深入 - 口交、乳房爱抚、情趣玩具挑逗、身体全面反应",
+        "Panel 5: 性爱开始 - 直接插入性爱，缓慢节奏、双方适应",
+        "Panel 6: 性爱进行 A - 第一种体位、节奏加快",
+        "Panel 7: 性爱进行 B - 体位变化、抽插特写、呻吟加剧",
+        "Panel 8: 高潮逼近 - 体位深入、呻吟达到顶峰、身体颤抖",
+        "Panel 9: 高潮特写 - 射前最后阶段、强烈身体反应",
+        "Panel 10: 高潮射精 - 高潮特写、颜射/内射/体外射精、事后温存、结局",
     ],
 }
 
 
 _NORMAL_OUTLINE_SYSTEM = """You are an expert adult comic director. A user selected theme: "{theme_title}".
 
-Generate a complete narrative outline and {panel_count} storyboard panels for a 15-30 second short video.
+Generate a COMPLETELY UNIQUE and CREATIVE narrative outline and {panel_count} storyboard panels for a 15-30 second short video.
 
-STRICT PACING - Each panel MUST follow this structure:
+【CREATIVITY REQUIREMENTS - CRITICAL】:
+- Use your CREATIVE IMAGINATION - do NOT repeat common tropes or overused descriptions
+- Create UNIQUE character introductions, emotions, dialogue, and actions
+- Every panel must have DIFFERENT emotions and body language from the previous
+- Mix up the order of events creatively - not every story goes the same way
+- Think of unexpected details: specific dialogue lines, unique character quirks, unusual settings
+- Each panel's image_prompt must describe a CINEMATIC, UNIQUE scene
+- NEVER copy the arc_panels template structure verbatim - use it as inspiration only
+
+STRICT PACING - Each panel MUST follow this general structure:
 {arc_panels}
 
 Panel requirements:
@@ -1310,10 +1440,11 @@ Panel requirements:
 - Each panel advances the narrative naturally
 - All characters are ADULTS 18+
 - No minors
+- Be CREATIVE and UNIQUE in every detail
 
 For EACH panel provide:
-- scene_description: What happens in this panel (emotions, actions, setting)
-- image_prompt: Stable Diffusion / Flux image prompt (detailed, cinematic)
+- scene_description: What happens in this panel (emotions, actions, setting) - make it UNIQUE and interesting
+- image_prompt: Stable Diffusion / Flux image prompt (detailed, cinematic, UNIQUE)
 
 Output as raw JSON:
 {{"outline": {{"arc": "{arc_label}", "scenes": ["场景1描述", "场景2描述", ...]}}, "storyboard": [{{"panel_number": 1, "scene_description": "...", "image_prompt": "..."}}, ...]}}
@@ -1323,9 +1454,18 @@ Do NOT wrap in markdown. Output raw JSON only."""
 
 _R18_OUTLINE_SYSTEM = """You are an EXPERT adult comic director specializing in EXPLICIT sexual content. User selected theme: "{theme_title}".
 
-Generate a complete narrative outline and {panel_count} EXPLICIT storyboard panels for a 15-30 second short video.
+Generate a COMPLETELY UNIQUE and CREATIVE narrative outline and {panel_count} EXPLICIT storyboard panels for a 15-30 second short video.
 
-STRICT PACING - Each panel MUST follow this arc (NO skipping to sex in Panel 1):
+【CREATIVITY REQUIREMENTS - CRITICAL】:
+- Use your CREATIVE IMAGINATION - do NOT repeat common tropes or overused descriptions
+- Create UNIQUE character introductions, emotions, dialogue, and actions
+- Every panel must have DIFFERENT emotions and body language from the previous
+- Mix up the order of events creatively - not every story goes the same way
+- Think of unexpected details: specific dialogue lines, unique character quirks, unusual settings
+- Each panel's image_prompt must describe a CINEMATIC, UNIQUE explicit scene
+- NEVER copy the arc_panels template structure verbatim - use it as inspiration only
+
+STRICT PACING - Each panel MUST follow this general arc (NO skipping to sex in Panel 1):
 {arc_panels}
 
 CRITICAL PACING RULES:
@@ -1341,6 +1481,7 @@ EXPLICIT CONTENT requirements for Panel 3+:
 - Describe body fluids: saliva, precum, cum, vaginal fluids
 - Describe positions: missionary, doggystyle, cowgirl, 69, oral, anal, standing
 - Describe camera angles: POV, close-up on genitals, spread shot, cum shot, POV insertion
+- Be CREATIVE in how characters express pleasure and interact
 
 CRITICAL: ALL characters 18+. NO minors. NO non-consent. NO animals.
 
@@ -1359,8 +1500,8 @@ async def generate_storyboard_outline(
     panel_count = req.panel_count
     if panel_count < 2:
         panel_count = 2
-    if panel_count > 6:
-        panel_count = 6
+    if panel_count > 10:
+        panel_count = 10
 
     if req.r18:
         arc_panels = _R18_ARC_PANELS.get(panel_count, _R18_ARC_PANELS[5])
@@ -1453,8 +1594,18 @@ async def generate_storyboard_outline(
             raise HTTPException(status_code=400, detail=str(e))
         except HTTPException:
             raise
+        except YunwuAuthError as e:
+            raise _map_llm_error(e)
+        except YunwuRateLimitError as e:
+            raise _map_llm_error(e)
+        except YunwuTimeoutError as e:
+            raise _map_llm_error(e)
+        except YunwuParseError as e:
+            raise _map_llm_error(e)
+        except YunwuAPIError as e:
+            raise _map_llm_error(e)
         except Exception as e:
-            raise HTTPException(status_code=502, detail=f"LLM call failed: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"未知错误: {str(e)}")
 
 
 # ─── Step 3: Generate Video Script from Panels ─────────────────────────────────
@@ -1555,6 +1706,16 @@ async def generate_video_script(
             raise HTTPException(status_code=400, detail=str(e))
         except HTTPException:
             raise
+        except YunwuAuthError as e:
+            raise _map_llm_error(e)
+        except YunwuRateLimitError as e:
+            raise _map_llm_error(e)
+        except YunwuTimeoutError as e:
+            raise _map_llm_error(e)
+        except YunwuParseError as e:
+            raise _map_llm_error(e)
+        except YunwuAPIError as e:
+            raise _map_llm_error(e)
         except Exception as e:
-            raise HTTPException(status_code=502, detail=f"LLM call failed: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"未知错误: {str(e)}")
 

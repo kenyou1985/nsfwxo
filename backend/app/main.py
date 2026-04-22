@@ -1,7 +1,9 @@
 """FastAPI Application - 主入口"""
 
 import os
-from fastapi import FastAPI
+import traceback
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.routes.prompt import router as prompt_router
@@ -11,6 +13,16 @@ app = FastAPI(
     description="超能 NSFW 多模态提示词智能引擎 (Image/Video/Storyboard)",
     version="1.0.0",
 )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """捕获所有未处理的异常，避免 502 Bad Gateway"""
+    traceback.print_exc()
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"服务器内部错误: {type(exc).__name__}: {str(exc)}"},
+    )
 
 # CORS 配置
 # 环境变量 ALLOWED_ORIGINS 逗号分隔，如: http://localhost:5173,https://yourdomain.com

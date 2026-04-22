@@ -96,7 +96,7 @@ class StoryboardOutlineRequest(BaseModel):
     """Request to generate outline and panels after user selects a theme (step 2 of 2-step storyboard)"""
     theme_id: int = Field(..., description="Selected theme ID (1-5)")
     theme_title: str = Field(..., description="Selected theme title")
-    panel_count: int = Field(default=5, ge=2, le=8, description="分镜数量 2-8")
+    panel_count: int = Field(default=5, ge=2, le=10, description="分镜数量 2-10")
     r18: bool = Field(default=False, description="是否启用 R18 模式")
 
 
