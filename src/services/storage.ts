@@ -1,3 +1,6 @@
+import { ensureDataUrl } from './runninghub';
+import type { NodeInfo } from '../types';
+
 const STORAGE_KEY = 'rh_api_key';
 const YUNWU_KEY = 'yunwu_api_key';
 const BACKEND_URL_KEY = 'prompt_backend_url';
@@ -294,16 +297,19 @@ function evictPanelCache(targetBytes: number): void {
   }
 }
 
-export function cacheStoryboardPanelImages(historyId: string, panelIdx: number, images: string[]): void {
+export async function cacheStoryboardPanelImages(historyId: string, panelIdx: number, images: string[]): Promise<void> {
   if (images.length === 0) return;
+
+  const dataUrlImages = await Promise.all(images.map((img) => ensureDataUrl(img)));
+
   const cacheKey = getPanelCacheKey(historyId, panelIdx);
-  const totalBytes = images.reduce((s, img) => s + img.length * 2, 0);
+  const totalBytes = dataUrlImages.reduce((s, img) => s + img.length * 2, 0);
   const maxBytes = STORYBOARD_MAX_CACHE_SIZE_MB * 1024 * 1024;
   const currentSize = getTotalPanelCacheSize();
   if (currentSize + totalBytes > maxBytes) {
     evictPanelCache(maxBytes - totalBytes);
   }
-  const entry: PanelImageCacheEntry = { images, cachedAt: Date.now() };
+  const entry: PanelImageCacheEntry = { images: dataUrlImages, cachedAt: Date.now() };
   try {
     localStorage.setItem(cacheKey, JSON.stringify(entry));
   } catch {
@@ -455,3 +461,4 @@ export function saveStoryboardSession(session: StoryboardSession): void {
 export function clearStoryboardSession(): void {
   clearSession(STORYBOARD_SESSION_KEY);
 }
+

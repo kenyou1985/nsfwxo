@@ -34,7 +34,7 @@ import { GirlfriendSelector } from '../components/GirlfriendSelector';
 import { buildTxt2ImgNodeList } from '../utils/txt2imgNodeBuilder';
 import type { QueuedTask, TabType, NodeInfo } from '../types';
 import { DEFAULT_TXT2IMG_PARAMS } from '../constants';
-import { WORKFLOW, getWorkflowFormat, uploadImage } from '../services/runninghub';
+import { WORKFLOW, getWorkflowFormat, uploadImage, ensureDataUrl } from '../services/runninghub';
 
 type PromptMode = 'expand' | 'random' | 'storyboard';
 
@@ -218,6 +218,24 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       clearExpandSession();
     }
   }, [input, type, count, results, outputPrompts, selectedOutputIdx, outputText]);
+
+  // Sync restored tasks from taskManager to UI state (survives page refresh)
+  useEffect(() => {
+    setGenState((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const result of results) {
+        const matchedTask = taskManager.tasks.find(
+          (t) => t.prompt === result.prompt && (t.status === 'RUNNING' || t.status === 'QUEUEING')
+        );
+        if (matchedTask && !prev[result.id]) {
+          next[result.id] = { loading: true, images: [], taskId: matchedTask.id };
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [taskManager.tasks, results]);
 
   const handleGenerate = async () => {
     if (!input.trim()) { onError('请输入描述内容'); return; }
@@ -838,6 +856,25 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     }
   }, [type, count, theme, results, expandedIdx]);
 
+  // Sync restored tasks from taskManager to UI state (survives page refresh)
+  useEffect(() => {
+    setGenStates((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (let i = 0; i < results.length; i++) {
+        const result = results[i];
+        const matchedTask = taskManager.tasks.find(
+          (t) => t.prompt === result.prompt && (t.status === 'RUNNING' || t.status === 'QUEUEING')
+        );
+        if (matchedTask && !prev[i]) {
+          next[i] = { loading: true, images: [] };
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [taskManager.tasks, results]);
+
   const THEMES = [
     { key: '', label: '完全随机' },
     { key: '暗示优雅', label: '暗示优雅' },
@@ -1399,7 +1436,6 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       for (let i = 0; i < panels.length; i++) {
         const panel = panels[i];
         const panelPromptNorm = panel.image_prompt.trim().replace(/\s+/g, ' ');
-        // Find any task whose prompt matches this panel (same robust matching as StoryboardPanelCard)
         const matchedTask = taskManager.tasks.find((t) => {
           if (t.images.length === 0) return false;
           const taskPromptNorm = t.prompt.trim().replace(/\s+/g, ' ');
@@ -1410,14 +1446,14 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         });
         if (matchedTask) {
           const currentImages = next[i]?.images ?? [];
-          // Always sync if we found a task with images (even if already synced, refresh with latest)
-          if (currentImages.length === 0 || currentImages[0] !== matchedTask.images[0]) {
+          // Only sync if we have no images, or if current images are blob URLs (can be overwritten with live blob URLs).
+          // Preserve data URLs from cache - they survive page refresh while blob URLs don't.
+          const currentIsDataUrl = currentImages.length > 0 && currentImages[0].startsWith('data:');
+          if (currentImages.length === 0 || (!currentIsDataUrl && currentImages[0] !== matchedTask.images[0])) {
             next[i] = { loading: false, images: matchedTask.images };
             changed = true;
           }
         } else if (next[i]?.loading === undefined) {
-          // Ensure panel index exists in genStates even before batch generate is clicked
-          // (no-op entry so panels appear in the state map)
         }
       }
       return changed ? next : prev;
@@ -1427,19 +1463,25 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   // Persist generated panel images to history record (both legacy cache and direct storage for consistency)
   useEffect(() => {
     if (!currentHistoryId) return;
-    const panelImages: Record<number, string[]> = {};
-    for (const [panelIdx, state] of Object.entries(genStates)) {
-      if (state.images && state.images.length > 0) {
-        panelImages[Number(panelIdx)] = state.images;
-        cacheStoryboardPanelImages(currentHistoryId, Number(panelIdx), state.images);
+
+    // Convert blob URLs to data URLs before caching (blob URLs become invalid after page refresh)
+    const convertAndCache = async () => {
+      const panelImages: Record<number, string[]> = {};
+      for (const [panelIdx, state] of Object.entries(genStates)) {
+        if (state.images && state.images.length > 0) {
+          const dataUrlImages = await Promise.all(state.images.map((img) => ensureDataUrl(img)));
+          panelImages[Number(panelIdx)] = dataUrlImages;
+          await cacheStoryboardPanelImages(currentHistoryId, Number(panelIdx), dataUrlImages);
+        }
       }
-    }
-    // Also save to history record directly (like image history page)
-    if (Object.keys(panelImages).length > 0) {
-      updateStoryboardHistoryImages(currentHistoryId, panelImages);
-      // Update local history state so StoryboardHistoryPanel can see the new images immediately
-      setHistory(getStoryboardHistory());
-    }
+      // Also save to history record directly (like image history page)
+      if (Object.keys(panelImages).length > 0) {
+        updateStoryboardHistoryImages(currentHistoryId, panelImages);
+        // Update local history state so StoryboardHistoryPanel can see the new images immediately
+        setHistory(getStoryboardHistory());
+      }
+    };
+    convertAndCache();
   }, [genStates, currentHistoryId]);
 
   // 2-step storyboard state
@@ -1482,7 +1524,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   const activePanels = activeThemeTab !== null ? (themeOutlineStates[activeThemeTab]?.panels || []) : panels;
   const activeOutlineArc = activeThemeTab !== null ? (themeOutlineStates[activeThemeTab]?.outlineArc || '') : outlineArc;
   const activeOutlineScenes = activeThemeTab !== null ? (themeOutlineStates[activeThemeTab]?.outlineScenes || []) : outlineScenes;
-  const activeThemeInfo = activeThemeTab !== null ? selectedThemes.find((t) => t.id === activeThemeTab) : selectedTheme;
+  const activeThemeInfo = activeThemeTab !== null ? selectedThemes.find((t) => t.id === activeThemeTab) : selectedThemes[0] || null;
 
   // Video prompt state
   const [videoScript, setVideoScript] = useState<{
@@ -1501,11 +1543,11 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
 
   // Persist storyboard state
   useEffect(() => {
-    if (plot || panels.length > 0 || selectedTheme) {
+    if (plot || panels.length > 0 || selectedThemes.length > 0) {
       saveStoryboardSession({
         plot, panelCount, panels, expandedPanel,
-        themeId: selectedTheme?.id,
-        themeTitle: selectedTheme?.title,
+        themeId: selectedThemes[0]?.id,
+        themeTitle: selectedThemes[0]?.title,
         outlineArc,
         outlineScenes,
         historyId: currentHistoryId || undefined,
@@ -1524,13 +1566,12 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       const res = await generateStoryboardThemes(r18Mode, cnt, desc || undefined);
       setThemeOptions(res.themes);
       setStoryStep('themes');
-      setSelectedTheme(null);
       setSelectedThemes([]);
       setPanels([]);
       setOutlineArc('');
       setOutlineScenes([]);
       setThemeOutlineStates({});
-      onSuccess(`生成了 ${res.themes.length} 个主题，请选择一个`);
+      onSuccess(`生成了 ${res.themes.length} 个主题，请选择`);
     } catch (err) {
       onError(err instanceof Error ? err.message : '主题生成失败');
     } finally {
@@ -1546,7 +1587,6 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       const res = await listStoryboardThemes();
       setThemeOptions(res.themes);
       setStoryStep('themes');
-      setSelectedTheme(null);
       setSelectedThemes([]);
       setPanels([]);
       setOutlineArc('');
@@ -1740,6 +1780,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     setExpandedPanel(null);
     setThemeOptions([]);
     setSelectedTheme(null);
+    setSelectedThemes([]);
     setOutlineArc('');
     setOutlineScenes([]);
     setVideoScript(null);
@@ -1774,9 +1815,12 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     setVideoScript(null);
     setOutlineArc('');
     setOutlineScenes([]);
+    setSelectedThemes([]);
+    setThemeOutlineStates({});
     setShowHistory(false);
-    // Restore images for this history entry (like image history page)
-    // First try direct images field, then fallback to cached panel images
+    // Set currentHistoryId so cached panel images are properly restored
+    setCurrentHistoryId(item.id);
+    // Restore images for this history entry
     let initial: Record<number, { loading: boolean; images: string[] }> = {};
 
     // First check if history item has direct images field (new method)
@@ -2397,6 +2441,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                               } else {
                                 setSelectedThemes([...selectedThemes, theme]);
                               }
+                              // Stay in modal — no auto-navigation
                             }}
                             className={`relative p-3 rounded-xl border cursor-pointer transition-all ${
                               isAlreadySelected
@@ -2473,17 +2518,29 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                     onClick={() => setThemeLibraryOpen(false)}
                     className="px-4 py-2 rounded-lg text-xs text-text-tertiary hover:bg-bg-hover transition-all"
                   >
-                    关闭
+                    取消
                   </button>
-                  {selectedThemes.length > 0 && (
+                  <button
+                    onClick={() => {
+                      // Keep modal open, user can continue adjusting selections
+                      // Only close if they click "确定" or manually close
+                    }}
+                    className={`px-4 py-2 rounded-lg text-xs font-medium transition-all ${
+                      selectedThemes.length > 0
+                        ? 'bg-green-500 text-white hover:bg-green-600'
+                        : 'bg-primary text-white hover:bg-primary/90'
+                    }`}
+                  >
+                    {selectedThemes.length > 0
+                      ? `已选 ${selectedThemes.length} 个，确定`
+                      : '全选全部主题'}
+                  </button>
+                  {selectedThemes.length === themeOptions.length && (
                     <button
-                      onClick={() => {
-                        setThemeLibraryOpen(false);
-                        setStoryStep('themes');
-                      }}
-                      className="px-4 py-2 rounded-lg text-xs bg-primary text-white hover:bg-primary/90 transition-all"
+                      onClick={() => setSelectedThemes([])}
+                      className="px-4 py-2 rounded-lg text-xs text-text-tertiary hover:bg-bg-hover transition-all"
                     >
-                      查看已选主题 ({selectedThemes.length})
+                      取消全选
                     </button>
                   )}
                 </div>
@@ -2492,131 +2549,76 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
           </div>
         )}
 
-        {/* ── Selected Themes: Independent Cards with Live Progress ── */}
+        {/* ── Selected themes panel (always visible when themes are selected) ── */}
         {storyStep === 'themes' && selectedThemes.length > 0 && (
-          <div className="space-y-3 mt-3">
+          <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-medium text-text-primary">已选主题</span>
                 <span className="px-1.5 py-0.5 rounded-full text-[11px] bg-primary/10 text-primary font-medium">{selectedThemes.length}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleGenerateSelectedThemes}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                    r18Mode
-                      ? 'bg-gradient-to-r from-red-500 to-red-600 text-white hover:opacity-90'
-                      : 'bg-gradient-to-r from-primary to-primary/80 text-white hover:opacity-90'
-                  }`}
-                >
-                  <Wand2 size={12} />
-                  为 {selectedThemes.length} 个主题生成大纲
-                </button>
-              </div>
+              <button
+                onClick={handleGenerateSelectedThemes}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  r18Mode
+                    ? 'bg-gradient-to-r from-red-500 to-red-600 text-white hover:opacity-90'
+                    : 'bg-gradient-to-r from-primary to-primary/80 text-white hover:opacity-90'
+                }`}
+              >
+                <Wand2 size={12} />
+                为 {selectedThemes.length} 个主题生成大纲
+              </button>
             </div>
-
-            {/* Independent theme cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2">
               {selectedThemes.map((theme) => {
                 const state = themeOutlineStates[theme.id];
                 const isGenerating = !!state?.generating;
                 const isDone = !!state?.outlineArc;
-
                 return (
                   <div
                     key={theme.id}
-                    className={`rounded-xl border overflow-hidden transition-all ${
+                    className={`flex items-start gap-3 p-3 rounded-xl border transition-all ${
                       isDone
                         ? 'border-green-300 bg-green-50/30'
                         : isGenerating
-                          ? 'border-yellow-300 bg-yellow-50/30 animate-pulse-subtle'
-                          : 'border-border bg-bg-elevated hover:border-primary/30'
+                          ? 'border-yellow-300 bg-yellow-50/30'
+                          : 'border-border bg-bg-elevated'
                     }`}
                   >
-                    {/* Card header */}
-                    <div className="flex items-center gap-2 px-3 py-2 border-b border-border/50">
-                      <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
-                        isDone ? 'bg-green-500 text-white' : isGenerating ? 'bg-yellow-500 text-white' : r18Mode ? 'bg-red-100 text-red-600' : 'bg-primary/10 text-primary'
-                      }`}>
-                        {isGenerating ? <Loader2 size={10} className="animate-spin" /> : theme.id}
-                      </span>
-                      <p className="flex-1 text-xs font-semibold text-text-primary truncate">{theme.title}</p>
-                      {theme.category && (
-                        <span className="text-[9px] px-1 py-0.5 rounded-full bg-bg-elevated text-text-tertiary">{theme.category}</span>
-                      )}
-                      <button
-                        onClick={() => handleRemoveThemeFromSelected(theme.id)}
-                        className="p-0.5 rounded text-text-tertiary hover:text-red-500 transition-colors"
-                        title="移除"
-                      >
-                        <X size={12} />
-                      </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleRemoveThemeFromSelected(theme.id); }}
+                      className="flex-shrink-0 p-0.5 rounded text-text-tertiary hover:text-red-500 transition-colors mt-0.5"
+                      title="移除"
+                    >
+                      <X size={14} />
+                    </button>
+                    <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 mt-0.5 bg-green-500 border-green-500`}>
+                      <Check size={10} className="text-white" />
                     </div>
-
-                    {/* Card body */}
-                    <div className="px-3 py-2">
-                      {isGenerating && (
-                        <div className="flex items-center gap-1.5 text-[11px] text-yellow-600">
-                          <Loader2 size={10} className="animate-spin" />
-                          正在生成大纲...
-                        </div>
-                      )}
-                      {isDone && state && (
-                        <div className="space-y-1.5">
-                          <p className="text-[11px] text-text-secondary leading-relaxed">{state.outlineArc}</p>
-                          <div className="flex items-center gap-1">
-                            <span className="text-[10px] text-text-tertiary">{state.panels.length} 个分镜</span>
-                            <div className="flex-1" />
-                            <button
-                              onClick={() => {
-                                const st = themeOutlineStates[theme.id];
-                                if (st) {
-                                  setPanels(st.panels);
-                                  setOutlineArc(st.outlineArc);
-                                  setOutlineScenes(st.outlineScenes);
-                                  setStoryStep('panels');
-                                  const hid = st.historyId;
-                                  if (hid) {
-                                    setCurrentHistoryId(hid);
-                                    const cached = getAllCachedPanelImages(hid, st.panels.length);
-                                    if (Object.keys(cached).length > 0) {
-                                      const initial: Record<number, { loading: boolean; images: string[] }> = {};
-                                      for (const [idx, imgs] of Object.entries(cached)) {
-                                        initial[Number(idx)] = { loading: false, images: imgs };
-                                      }
-                                      setGenStates(initial);
-                                    }
-                                  }
-                                }
-                              }}
-                              className="px-2 py-0.5 rounded text-[10px] font-medium bg-primary text-white hover:bg-primary/90 transition-all"
-                            >
-                              加载分镜
-                            </button>
-                            <button
-                              onClick={() => handleGenerateOutlineSingle(theme)}
-                              className="px-2 py-0.5 rounded text-[10px] font-medium bg-bg-elevated text-text-secondary hover:bg-bg-hover transition-all"
-                            >
-                              重新生成
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                      {!isGenerating && !isDone && (
-                        <div className="flex items-center gap-2">
-                          <p className="text-[10px] text-text-tertiary line-clamp-2 flex-1">{theme.description}</p>
-                          <button
-                            onClick={() => handleGenerateOutlineSingle(theme)}
-                            className={`flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium transition-all ${
-                              r18Mode
-                                ? 'bg-red-500 text-white hover:bg-red-600'
-                                : 'bg-primary text-white hover:bg-primary/90'
-                            }`}
-                          >
-                            <Wand2 size={10} />
-                            生成大纲
-                          </button>
-                        </div>
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0 ${
+                      isDone ? 'bg-green-500 text-white' : isGenerating ? 'bg-yellow-500 text-white' : r18Mode ? 'bg-red-100 text-red-600' : 'bg-primary/10 text-primary'
+                    }`}>
+                      {isGenerating ? <Loader2 size={10} className="animate-spin" /> : theme.id}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                        <p className="text-sm font-semibold text-text-primary">{theme.title}</p>
+                        {theme.category && (
+                          <span className="text-[9px] px-1 py-0.5 rounded-full bg-bg-elevated text-text-tertiary">{theme.category}</span>
+                        )}
+                        <span className={`text-[9px] px-1 py-0.5 rounded-full font-medium ${
+                          theme.r18_level === 'hard' ? 'bg-red-100 text-red-600' : theme.r18_level === 'medium' ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'
+                        }`}>
+                          {theme.r18_level === 'hard' ? '高强度' : theme.r18_level === 'medium' ? '中等' : '柔和'}
+                        </span>
+                        {isDone && <span className="text-[9px] text-green-600 font-medium">已生成</span>}
+                        {isGenerating && <span className="text-[9px] text-yellow-600 font-medium animate-pulse">生成中...</span>}
+                      </div>
+                      <p className="text-[11px] text-text-tertiary leading-relaxed line-clamp-1">
+                        {isDone && state ? state.outlineArc : theme.description}
+                      </p>
+                      {isDone && (
+                        <p className="text-[10px] text-text-tertiary mt-0.5">{state.panels.length} 个分镜</p>
                       )}
                     </div>
                   </div>
@@ -2626,59 +2628,72 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
           </div>
         )}
 
-        {/* ── Single theme selection (non-multi) ── */}
-        {storyStep === 'themes' && selectedThemes.length === 0 && themeOptions.length > 0 && (
+        {/* ── Theme grid for selection (always visible when there are themes to choose from) ── */}
+        {storyStep === 'themes' && themeOptions.length > 0 && (
           <div className="space-y-2 mt-3">
-            <p className="text-xs text-text-tertiary font-medium">请选择一个主题（{themeOptions.length} 个可选）</p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-text-tertiary font-medium">请选择主题（{themeOptions.length} 个可选）</p>
+              <button
+                onClick={() => setSelectedThemes([...themeOptions])}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-primary hover:bg-primary/5 transition-all"
+              >
+                <Check size={10} />
+                全选
+              </button>
+            </div>
             <div className="grid grid-cols-1 gap-2">
-              {themeOptions.map((theme) => (
-                <button
-                  key={theme.id}
-                  onClick={() => setSelectedTheme(theme)}
-                  className={`w-full text-left p-3 rounded-xl border transition-all ${selectedTheme?.id === theme.id
-                    ? r18Mode ? 'border-red-400 bg-red-50/60' : 'border-primary bg-primary/5'
-                    : 'border-border bg-bg-elevated hover:bg-bg-hover'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${selectedTheme?.id === theme.id ? (r18Mode ? 'bg-red-500 text-white' : 'bg-primary text-white') : 'bg-bg-elevated text-text-tertiary'}`}>
-                      {theme.id}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <p className={`text-sm font-semibold ${r18Mode ? 'text-red-700' : 'text-text-primary'}`}>{theme.title}</p>
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${theme.r18_level === 'hard' ? 'bg-red-100 text-red-600' : theme.r18_level === 'medium' ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}`}>
-                          {theme.r18_level === 'hard' ? '高强度' : theme.r18_level === 'medium' ? '中等' : '柔和'}
-                        </span>
-                        {theme.category && (
-                          <span className="text-[9px] px-1 py-0.5 rounded-full bg-bg-elevated text-text-tertiary">{theme.category}</span>
+              {themeOptions.map((theme) => {
+                const isSelected = selectedThemes.some((t) => t.id === theme.id);
+                return (
+                  <button
+                    type="button"
+                    key={theme.id}
+                    onClick={() => {
+                      if (isSelected) {
+                        setSelectedThemes(selectedThemes.filter((t) => t.id !== theme.id));
+                      } else {
+                        setSelectedThemes((prev) => [...prev, theme]);
+                      }
+                    }}
+                    className={`w-full text-left p-3 rounded-xl border transition-all ${
+                      isSelected
+                        ? 'border-green-400 bg-green-50/30'
+                        : 'border-border bg-bg-elevated hover:bg-bg-hover'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-all ${
+                        isSelected ? 'bg-green-500 border-green-500' : 'border-border bg-white'
+                      }`}>
+                        {isSelected && <Check size={10} className="text-white" />}
+                      </div>
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${isSelected ? 'bg-green-500 text-white' : r18Mode ? 'bg-red-100 text-red-600' : 'bg-primary/10 text-primary'}`}>
+                        {theme.id}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className={`text-sm font-semibold ${r18Mode ? 'text-red-700' : 'text-text-primary'}`}>{theme.title}</p>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${theme.r18_level === 'hard' ? 'bg-red-100 text-red-600' : theme.r18_level === 'medium' ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}`}>
+                            {theme.r18_level === 'hard' ? '高强度' : theme.r18_level === 'medium' ? '中等' : '柔和'}
+                          </span>
+                          {theme.category && (
+                            <span className="text-[9px] px-1 py-0.5 rounded-full bg-bg-elevated text-text-tertiary">{theme.category}</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-text-tertiary leading-relaxed">{theme.description}</p>
+                        {theme.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {theme.tags.map((tag, i) => (
+                              <span key={i} className="text-[10px] px-1.5 py-0.5 rounded-full bg-bg-elevated text-text-secondary">{tag}</span>
+                            ))}
+                          </div>
                         )}
                       </div>
-                      <p className="text-xs text-text-tertiary leading-relaxed">{theme.description}</p>
-                      {theme.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-1.5">
-                          {theme.tags.map((tag, i) => (
-                            <span key={i} className="text-[10px] px-1.5 py-0.5 rounded-full bg-bg-elevated text-text-secondary">{tag}</span>
-                          ))}
-                        </div>
-                      )}
                     </div>
-                    {selectedTheme?.id === theme.id && (
-                      <Check size={16} className={r18Mode ? 'text-red-500' : 'text-primary'} />
-                    )}
-                  </div>
-                </button>
-              ))}
+                  </button>
+                );
+              })}
             </div>
-            {selectedTheme && (
-              <button
-                onClick={handleGenerateOutline}
-                disabled={generatingOutline}
-                className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-medium text-sm transition-all ${generatingOutline ? 'bg-bg-elevated text-text-secondary cursor-not-allowed' : r18Mode ? 'bg-gradient-to-r from-orange-500 to-red-600 text-white hover:opacity-90 active:scale-[0.98]' : 'bg-gradient-to-r from-indigo-500 to-primary text-white hover:opacity-90 active:scale-[0.98]'}`}
-              >
-                {generatingOutline ? <><Loader2 size={16} className="animate-spin" /> 生成大纲和分镜中...</> : <><Wand2 size={16} />生成「{selectedTheme.title}」的大纲和分镜</>}
-              </button>
-            )}
           </div>
         )}
 

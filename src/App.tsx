@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Header } from './components/Header';
 import { TabNavigation } from './components/TabNavigation';
 import { Toast } from './components/Toast';
@@ -11,7 +11,7 @@ import { useApiKey } from './hooks/useApiKey';
 import { useYunwuKey } from './hooks/useYunwuKey';
 import { useBackendUrl } from './hooks/useBackendUrl';
 import { useToast } from './hooks/useToast';
-import { useTaskManager } from './hooks/useTaskManager';
+import { useTaskManager, loadPersistedTasks, clearPersistedTasks, type PersistedTaskEntry } from './hooks/useTaskManager';
 import { saveTaskToHistory, type HistoryRecord } from './services/historyService';
 import type { TabType, QueuedTask } from './types';
 import { Eye, EyeOff, Check, Trash2, X, Zap, Server, Image } from 'lucide-react';
@@ -45,6 +45,27 @@ function App() {
     onError: handleTaskError,
     onTaskComplete: handleTaskComplete,
   });
+
+  // Auto-restore in-progress tasks from localStorage on mount
+  useEffect(() => {
+    if (!apiKey) return;
+    const entries = loadPersistedTasks();
+    if (entries.length === 0) return;
+
+    // Filter to only tasks with a RunningHub taskId and younger than 24 hours
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    const validEntries = entries.filter((e) => e.taskId && e.timestamp > cutoff);
+    const staleEntries = entries.filter((e) => !e.taskId || e.timestamp <= cutoff);
+
+    if (staleEntries.length > 0) {
+      clearPersistedTasks();
+    }
+
+    if (validEntries.length > 0) {
+      taskManager.restoreTasks(validEntries);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiKey]);
 
   const handleRegenerateFromHistory = useCallback(
     (record: HistoryRecord) => {

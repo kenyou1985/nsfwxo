@@ -16,6 +16,53 @@ import type {
 
 const POLL_INTERVAL = 10000;
 const MAX_TASKS = 20;
+export const TASK_PERSIST_KEY = 'ai_task_persist';
+
+// Persisted task entry (without ephemeral fields)
+export interface PersistedTaskEntry {
+  id: string;
+  taskId: string | null;
+  prompt: string;
+  workflowType: 'txt2img' | 'img2img' | 'img2vid';
+  workflowIdOverride?: string;
+  nodeInfoList: NodeInfo[];
+  resultId?: string; // UI result identifier for matching restored tasks to UI state
+  timestamp: number;
+}
+
+export function loadPersistedTasks(): PersistedTaskEntry[] {
+  try {
+    const raw = localStorage.getItem(TASK_PERSIST_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw) as PersistedTaskEntry[];
+  } catch {
+    return [];
+  }
+}
+
+function savePersistedTasks(tasks: PersistedTaskEntry[]): void {
+  try {
+    localStorage.setItem(TASK_PERSIST_KEY, JSON.stringify(tasks));
+  } catch {}
+}
+
+function persistTask(entry: PersistedTaskEntry): void {
+  const tasks = loadPersistedTasks();
+  const idx = tasks.findIndex((t) => t.id === entry.id);
+  if (idx >= 0) tasks[idx] = entry;
+  else tasks.push(entry);
+  if (tasks.length > 100) tasks.splice(0, tasks.length - 100);
+  savePersistedTasks(tasks);
+}
+
+export function unpersistTask(id: string): void {
+  const tasks = loadPersistedTasks().filter((t) => t.id !== id);
+  savePersistedTasks(tasks);
+}
+
+export function clearPersistedTasks(): void {
+  try { localStorage.removeItem(TASK_PERSIST_KEY); } catch {}
+}
 
 interface TaskManagerOptions {
   apiKey: string | null;
@@ -31,17 +78,20 @@ export interface TaskManagerReturn {
     workflowType: 'txt2img' | 'img2img' | 'img2vid',
     nodeInfoList: NodeInfo[],
     prompt: string,
-    workflowIdOverride?: string
+    workflowIdOverride?: string,
+    resultId?: string
   ) => Promise<string>;
   addTaskWithNodeList: (
     workflowType: 'txt2img' | 'img2img' | 'img2vid',
     nodeInfoList: NodeInfo[],
     prompt: string,
-    workflowIdOverride?: string
+    workflowIdOverride?: string,
+    resultId?: string
   ) => Promise<string>;
   cancelTask: (id: string) => void;
   clearCompleted: () => void;
   regenerateTask: (id: string) => void;
+  restoreTasks: (entries: PersistedTaskEntry[]) => void;
 }
 
 function mapTaskStatus(status: string): TaskStatus {
@@ -253,7 +303,8 @@ export function useTaskManager({
       workflowType: 'txt2img' | 'img2img' | 'img2vid',
       nodeInfoList: NodeInfo[],
       prompt: string,
-      workflowIdOverride?: string
+      workflowIdOverride?: string,
+      resultId?: string
     ): Promise<string> => {
       const currentApiKey = apiKeyRef.current;
       if (!currentApiKey) throw new Error('API Key not configured');
@@ -278,6 +329,9 @@ export function useTaskManager({
         if (prev.length >= MAX_TASKS) return prev;
         return [...prev, newTask];
       });
+
+      // Persist task so it can be restored after page refresh
+      persistTask({ id, taskId: null, prompt, workflowType, workflowIdOverride, nodeInfoList, resultId, timestamp: Date.now() });
 
       try {
         const resolvedWorkflowId = workflowIdOverride
@@ -310,6 +364,8 @@ export function useTaskManager({
             t.id === id ? { ...t, taskId, zipUrl: initialZipUrl, status: initialStatus, coins: initialCoins, elapsedSeconds: initialElapsed, images: initialDirectImages } : t
           )
         );
+        // Update persisted entry with taskId so it can be restored after refresh
+        persistTask({ id, taskId, prompt, workflowType, workflowIdOverride, nodeInfoList, resultId, timestamp: Date.now() });
         onTaskStatusChangeRef.current?.(id, initialStatus);
 
         if (initialStatus === 'FINISHED' && initialZipUrl) {
@@ -353,6 +409,7 @@ export function useTaskManager({
 
   const cancelTask = useCallback((id: string) => {
     delete pollingRef.current[id];
+    unpersistTask(id);
     setTasks((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
@@ -450,6 +507,40 @@ export function useTaskManager({
     );
   }, []);
 
+  const restoreTasks = useCallback(
+    (entries: PersistedTaskEntry[]) => {
+      if (entries.length === 0) return;
+      const validEntries = entries.filter((e) => e.taskId);
+      if (validEntries.length === 0) return;
+      const restoredTasks: QueuedTask[] = validEntries.map((e) => ({
+        id: e.id,
+        taskId: e.taskId,
+        workflowType: e.workflowType,
+        status: 'RUNNING' as const,
+        prompt: e.prompt,
+        zipUrl: null,
+        images: [],
+        error: null,
+        startTime: Date.now(),
+        elapsedSeconds: 0,
+        coins: null,
+        nodeInfoList: e.nodeInfoList,
+        workflowIdOverride: e.workflowIdOverride,
+      }));
+      setTasks((prev) => {
+        const filtered = prev.filter((t) => !validEntries.some((e) => e.id === t.id));
+        return [...filtered, ...restoredTasks];
+      });
+      restoredTasks.forEach((t) => {
+        if (t.taskId) {
+          pollingRef.current[t.id] = true;
+          pollTask(t);
+        }
+      });
+    },
+    [pollTask]
+  );
+
   return {
     tasks,
     isFull: tasks.length >= MAX_TASKS,
@@ -458,5 +549,6 @@ export function useTaskManager({
     cancelTask,
     clearCompleted,
     regenerateTask,
+    restoreTasks,
   };
 }

@@ -541,6 +541,15 @@ export async function fetchImageAsDataUrl(url: string): Promise<string | null> {
   }
 }
 
+export async function ensureDataUrl(url: string): Promise<string> {
+  if (url.startsWith('data:')) return url;
+  if (url.startsWith('blob:') || url.startsWith('http://') || url.startsWith('https://')) {
+    const dataUrl = await fetchImageAsDataUrl(url);
+    return dataUrl || url;
+  }
+  return url;
+}
+
 export async function extractImagesFromZipAsDataUrls(zipUrl: string, retries = 3): Promise<string[]> {
   let lastError: Error | null = null;
 
