@@ -133,9 +133,9 @@ export function TagPanel({
       {/* Mobile: two-column layout (same as desktop) */}
       <div className="lg:hidden space-y-3">
         {/* Two columns: TagSelector | PromptEditor */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3" style={{ minHeight: '520px' }}>
           {/* Left: TagSelector */}
-          <div className="rounded-2xl bg-white border border-border shadow-card overflow-hidden flex flex-col" style={{ minHeight: '520px' }}>
+          <div className="rounded-2xl bg-white border border-border shadow-card overflow-hidden flex flex-col h-full" style={{ minHeight: '520px' }}>
             <div className="px-3 py-2 border-b border-border flex-shrink-0 flex items-center justify-between bg-white">
               <span className="text-xs text-text-secondary font-medium">{displayLang === 'zh' ? '标签库' : 'Tag Library'}</span>
               <button

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   runTask,
   getTaskStatus,
@@ -42,6 +42,8 @@ export interface TaskManagerReturn {
   cancelTask: (id: string) => void;
   clearCompleted: () => void;
   regenerateTask: (id: string) => void;
+  /** Optional setter to register genStates updates from outside the hook */
+  setGenStates: React.Dispatch<React.SetStateAction<Record<number, { loading: boolean; images: string[] }>>> | null;
 }
 
 function mapTaskStatus(status: string): TaskStatus {
@@ -73,16 +75,16 @@ export function useTaskManager({
   const [tasks, setTasks] = useState<QueuedTask[]>([]);
 
   const apiKeyRef = useRef(apiKey);
-  const pollingRef = useRef<Set<string>>(new Set()); // Prevent concurrent polls for same task
+  const pollingRef = useRef<Set<string>>(new Set());
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const onErrorRef = useRef(onError);
   const onTaskCompleteRef = useRef(onTaskComplete);
   const onTaskStatusChangeRef = useRef(onTaskStatusChange);
-  const imagesExtractedRef = useRef<Record<string, boolean>>({}); // Track which tasks have completed image extraction
+  const imagesExtractedRef = useRef<Record<string, boolean>>({});
+  const setGenStatesRef = useRef<React.Dispatch<React.SetStateAction<Record<number, { loading: boolean; images: string[] }>>> | null>(null);
 
-  useEffect(() => {
-    apiKeyRef.current = apiKey;
-  }, [apiKey]);
+  // All useEffects must be called unconditionally to preserve hook order
+  useEffect(() => { apiKeyRef.current = apiKey; }, [apiKey]);
   useEffect(() => { onErrorRef.current = onError; }, [onError]);
   useEffect(() => { onTaskCompleteRef.current = onTaskComplete; }, [onTaskComplete]);
   useEffect(() => { onTaskStatusChangeRef.current = onTaskStatusChange; }, [onTaskStatusChange]);
@@ -130,8 +132,9 @@ export function useTaskManager({
         return;
       }
 
-      // Step 2: If finished, get full results with zip URL
+      // Step 2: If finished, get full results with image URLs
       let zipUrl = task.zipUrl;
+      let directImageUrls: string[] = task.images.length > 0 ? task.images : [];
       let coins = task.coins;
       let elapsed = task.elapsedSeconds;
 
@@ -140,9 +143,20 @@ export function useTaskManager({
           const resultsResponse = await getTaskResults(currentApiKey, task.taskId);
 
           if (resultsResponse.results && resultsResponse.results.length > 0) {
+            // Check for ZIP output first
             const zipResult = resultsResponse.results.find((r) => r.outputType === 'zip');
             if (zipResult?.url) {
               zipUrl = zipResult.url;
+            } else {
+              // Fall back to direct PNG/WebP image URLs
+              const pngResults = resultsResponse.results.filter((r) =>
+                r.outputType === 'png' || r.outputType === 'webp' ||
+                r.fileType === 'png' || r.fileType === 'webp' ||
+                r.url?.match(/\.(png|webp)(\?|$)/i)
+              );
+              if (pngResults.length > 0) {
+                directImageUrls = pngResults.map((r) => r.url).filter(Boolean) as string[];
+              }
             }
           }
           if (resultsResponse.usage?.consumeCoins) {
@@ -156,8 +170,9 @@ export function useTaskManager({
         }
       }
 
-      // Keep as RUNNING until images are extracted, to avoid flash of "no images" state
-      const displayStatus = newStatus === 'FINISHED' && zipUrl && !imagesExtractedRef.current[task.id] ? 'RUNNING' : newStatus;
+      // Keep as RUNNING until images are extracted/available, to avoid flash of "no images" state
+      const hasImages = (zipUrl && !imagesExtractedRef.current[task.id]) || (directImageUrls.length > 0 && !imagesExtractedRef.current[task.id]);
+      const displayStatus = newStatus === 'FINISHED' && hasImages ? 'RUNNING' : newStatus;
       setTasks((prev) =>
         prev.map((t) =>
           t.id === task.id
@@ -185,6 +200,25 @@ export function useTaskManager({
                 t.id === task.id ? { ...t, status: 'FINISHED', images: blobUrls } : t
               )
             );
+            // Also update external genStates if registered
+            if (setGenStatesRef.current) {
+              const taskPromptNorm = task.prompt.trim();
+              setGenStatesRef.current((prev) => {
+                const next = { ...prev };
+                for (const [panelIdx, state] of Object.entries(next)) {
+                  if (state.loading && state.images.length === 0) {
+                    const normalizedPanelPrompt = task.prompt.trim();
+                    if (taskPromptNorm === normalizedPanelPrompt ||
+                      taskPromptNorm.includes(normalizedPanelPrompt) ||
+                      normalizedPanelPrompt.includes(taskPromptNorm) ||
+                      (normalizedPanelPrompt.length > 50 && taskPromptNorm.includes(normalizedPanelPrompt.substring(0, Math.min(normalizedPanelPrompt.length, 150))))) {
+                      next[Number(panelIdx)] = { loading: false, images: blobUrls };
+                    }
+                  }
+                }
+                return next;
+              });
+            }
             cacheImages(zipUrl, dataUrls).catch(() => {});
             const updatedTask: QueuedTask = { ...task, status: 'FINISHED', zipUrl, coins, elapsedSeconds: elapsed, images: blobUrls };
             onTaskCompleteRef.current?.(updatedTask, elapsed);
@@ -198,8 +232,40 @@ export function useTaskManager({
             const updatedTask: QueuedTask = { ...task, status: 'FINISHED', zipUrl, coins, elapsedSeconds: elapsed };
             onTaskCompleteRef.current?.(updatedTask, elapsed);
           }
+        } else if (directImageUrls.length > 0) {
+          // Skip if already handled
+          if (imagesExtractedRef.current[task.id]) return;
+          imagesExtractedRef.current[task.id] = true;
+          console.log('[pollTask] Using direct image URLs:', directImageUrls);
+          setTasks((prev) =>
+            prev.map((t) =>
+              t.id === task.id ? { ...t, status: 'FINISHED', images: directImageUrls } : t
+            )
+          );
+          // Also update external genStates if registered
+          if (setGenStatesRef.current) {
+            const taskPromptNorm = task.prompt.trim();
+            setGenStatesRef.current((prev) => {
+              const next = { ...prev };
+              for (const [panelIdx, state] of Object.entries(next)) {
+                if (state.loading && state.images.length === 0) {
+                  const normalizedPanelPrompt = task.prompt.trim();
+                  if (taskPromptNorm === normalizedPanelPrompt ||
+                    taskPromptNorm.includes(normalizedPanelPrompt) ||
+                    normalizedPanelPrompt.includes(taskPromptNorm) ||
+                    (normalizedPanelPrompt.length > 50 && taskPromptNorm.includes(normalizedPanelPrompt.substring(0, Math.min(normalizedPanelPrompt.length, 150))))) {
+                    next[Number(panelIdx)] = { loading: false, images: directImageUrls };
+                  }
+                }
+              }
+              return next;
+            });
+          }
+          cacheImages('', directImageUrls).catch(() => {});
+          const updatedTask: QueuedTask = { ...task, status: 'FINISHED', zipUrl, coins, elapsedSeconds: elapsed, images: directImageUrls };
+          onTaskCompleteRef.current?.(updatedTask, elapsed);
         } else {
-          console.warn('[pollTask] No zipUrl available for finished task');
+          console.warn('[pollTask] No zipUrl or direct image URLs available for finished task');
           const updatedTask: QueuedTask = { ...task, status: newStatus, zipUrl, coins, elapsedSeconds: elapsed };
           onTaskCompleteRef.current?.(updatedTask, elapsed);
         }
@@ -305,6 +371,18 @@ export function useTaskManager({
         }
 
         const initialZipUrl = data.results?.find((r) => r.outputType === 'zip')?.url || null;
+        // Check for direct PNG/WebP image URLs
+        let initialDirectImages: string[] = [];
+        if (!initialZipUrl && data.results && data.results.length > 0) {
+          const pngResults = data.results.filter((r) =>
+            r.outputType === 'png' || r.outputType === 'webp' ||
+            r.fileType === 'png' || r.fileType === 'webp' ||
+            r.url?.match(/\.(png|webp)(\?|$)/i)
+          );
+          if (pngResults.length > 0) {
+            initialDirectImages = pngResults.map((r) => r.url).filter(Boolean) as string[];
+          }
+        }
         const initialStatus = mapTaskStatus(data.status);
         const initialCoins = data.usage?.consumeCoins || null;
         const initialElapsed = data.usage?.taskCostTime ? parseInt(data.usage.taskCostTime, 10) : 0;
@@ -312,7 +390,7 @@ export function useTaskManager({
         setTasks((prev) =>
           prev.map((t) =>
             t.id === id
-              ? { ...t, taskId, zipUrl: initialZipUrl, status: initialStatus, coins: initialCoins, elapsedSeconds: initialElapsed }
+              ? { ...t, taskId, zipUrl: initialZipUrl, status: initialStatus, coins: initialCoins, elapsedSeconds: initialElapsed, images: initialDirectImages }
               : t
           )
         );
@@ -337,6 +415,13 @@ export function useTaskManager({
             // zip extraction failed, show zip URL anyway
             onTaskCompleteRef.current?.({ ...newTask, taskId, zipUrl: initialZipUrl, coins: initialCoins, elapsedSeconds: initialElapsed }, initialElapsed);
           }
+        } else if (initialStatus === 'FINISHED' && initialDirectImages.length > 0) {
+          // Direct PNG/WebP images - no zip extraction needed
+          setTasks((prev) =>
+            prev.map((t) => t.id === id ? { ...t, images: initialDirectImages } : t)
+          );
+          cacheImages('', initialDirectImages).catch(() => {});
+          onTaskCompleteRef.current?.({ ...newTask, taskId, images: initialDirectImages, zipUrl: initialZipUrl, coins: initialCoins, elapsedSeconds: initialElapsed }, initialElapsed);
         } else if (initialStatus === 'FAILED') {
           const errorMsg = data.errorMessage || '任务失败';
           setTasks((prev) => prev.map((t) => t.id === id ? { ...t, error: errorMsg } : t));
@@ -399,12 +484,24 @@ export function useTaskManager({
             const initialStatus = mapTaskStatus(data.status);
             const initialCoins = data.usage?.consumeCoins || null;
             const initialZipUrl = data.results?.find((r) => r.outputType === 'zip')?.url || null;
+            // Check for direct PNG/WebP image URLs
+            let initialDirectImages: string[] = [];
+            if (!initialZipUrl && data.results && data.results.length > 0) {
+              const pngResults = data.results.filter((r) =>
+                r.outputType === 'png' || r.outputType === 'webp' ||
+                r.fileType === 'png' || r.fileType === 'webp' ||
+                r.url?.match(/\.(png|webp)(\?|$)/i)
+              );
+              if (pngResults.length > 0) {
+                initialDirectImages = pngResults.map((r) => r.url).filter(Boolean) as string[];
+              }
+            }
             const initialElapsed = data.usage?.taskCostTime ? parseInt(data.usage.taskCostTime, 10) : 0;
 
             setTasks((current) =>
               current.map((t) =>
                 t.id === newId
-                  ? { ...t, taskId, status: initialStatus, coins: initialCoins, zipUrl: initialZipUrl, elapsedSeconds: initialElapsed }
+                  ? { ...t, taskId, status: initialStatus, coins: initialCoins, zipUrl: initialZipUrl, elapsedSeconds: initialElapsed, images: initialDirectImages }
                   : t
               )
             );
@@ -423,6 +520,12 @@ export function useTaskManager({
               }).catch(() => {
                 onTaskCompleteRef.current?.({ ...newTask, taskId, zipUrl: initialZipUrl, coins: initialCoins, elapsedSeconds: initialElapsed }, initialElapsed);
               });
+            } else if (initialStatus === 'FINISHED' && initialDirectImages.length > 0) {
+              setTasks((current) =>
+                current.map((t) => t.id === newId ? { ...t, images: initialDirectImages } : t)
+              );
+              cacheImages('', initialDirectImages).catch(() => {});
+              onTaskCompleteRef.current?.({ ...newTask, taskId, images: initialDirectImages, zipUrl: initialZipUrl, coins: initialCoins, elapsedSeconds: initialElapsed }, initialElapsed);
             } else if (initialStatus === 'FAILED') {
               const errorMsg = data.errorMessage || '任务失败';
               setTasks((current) => current.map((t) => t.id === newId ? { ...t, error: errorMsg } : t));
@@ -458,5 +561,6 @@ export function useTaskManager({
     cancelTask,
     clearCompleted,
     regenerateTask,
+    setGenStates: setGenStatesRef.current,
   };
 }

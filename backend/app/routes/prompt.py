@@ -348,15 +348,11 @@ async def _generate_single_expand(
                 system_for_this += "\n\nSAFETY OVERRIDE: Your previous response was rejected. REJECT any content mentioning minors, children, teenagers, or anyone under 18. STRICTLY ADULTS ONLY."
                 continue
             raise HTTPException(status_code=400, detail=str(e))
+        except (YunwuTimeoutError, YunwuRateLimitError, YunwuParseError, YunwuAPIError) as e:
+            if attempt < MAX_RETRIES - 1:
+                continue
+            raise _map_llm_error(e)
         except YunwuAuthError as e:
-            raise _map_llm_error(e)
-        except YunwuRateLimitError as e:
-            raise _map_llm_error(e)
-        except YunwuTimeoutError as e:
-            raise _map_llm_error(e)
-        except YunwuParseError as e:
-            raise _map_llm_error(e)
-        except YunwuAPIError as e:
             raise _map_llm_error(e)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"未知错误: {str(e)}")
@@ -1058,15 +1054,11 @@ STRICT RULE: All characters ADULTS 18+. Consensual only. Output ONLY a raw coher
                 system_for_random += "\n\nSAFETY OVERRIDE: Reject ALL minors. ADULTS ONLY."
                 continue
             raise HTTPException(status_code=400, detail=str(e))
+        except (YunwuTimeoutError, YunwuRateLimitError, YunwuParseError, YunwuAPIError) as e:
+            if attempt < MAX_RETRIES - 1:
+                continue
+            raise _map_llm_error(e)
         except YunwuAuthError as e:
-            raise _map_llm_error(e)
-        except YunwuRateLimitError as e:
-            raise _map_llm_error(e)
-        except YunwuTimeoutError as e:
-            raise _map_llm_error(e)
-        except YunwuParseError as e:
-            raise _map_llm_error(e)
-        except YunwuAPIError as e:
             raise _map_llm_error(e)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"未知错误: {str(e)}")
@@ -1152,18 +1144,14 @@ async def storyboard(req: StoryboardRequest, api_key: str = Depends(get_api_key)
                 system_prompt += "\n\nSAFETY OVERRIDE: Your response was rejected. ALL characters must be ADULTS 18+. REJECT any panel mentioning minors."
                 continue
             raise HTTPException(status_code=400, detail=str(e))
-        except HTTPException:
-            raise
+        except (YunwuTimeoutError, YunwuRateLimitError, YunwuParseError, YunwuAPIError) as e:
+            if attempt < MAX_RETRIES - 1:
+                continue
+            raise _map_llm_error(e)
         except YunwuAuthError as e:
             raise _map_llm_error(e)
-        except YunwuRateLimitError as e:
-            raise _map_llm_error(e)
-        except YunwuTimeoutError as e:
-            raise _map_llm_error(e)
-        except YunwuParseError as e:
-            raise _map_llm_error(e)
-        except YunwuAPIError as e:
-            raise _map_llm_error(e)
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"未知错误: {str(e)}")
 
@@ -1187,38 +1175,41 @@ Output in Chinese only. Do NOT wrap in markdown."""
 
 # R18 themes prompt — keep it neutral/descriptive without explicit sexual act keywords
 # Yunwu AI may reject requests with explicitly sexual system prompts
-_THEMES_SYSTEM_PROMPT_R18 = """You are a creative director specializing in adult content. Based on the provided theme pool, select and describe 5 DIVERSE and UNIQUE video theme options.
+_THEMES_SYSTEM_PROMPT_R18 = """You are a creative director specializing in adult content. Based on the provided theme pool, select and describe {count} DIVERSE and UNIQUE video theme options.
 
 IMPORTANT - DIVERSITY RULES - CRITICAL:
 - Each theme MUST be from a DIFFERENT category. Categories include: fantasy, costume, indoor, outdoor, work, special, multi, transport, sm, oral, fluid, facial, anal, toys
 - NO two themes can share the same category
-- AVOID these overused themes: 地铁痴汉, 野外激情, 情趣酒店, 豪华酒店套房, 游泳池畔, OL通勤, 护士的情欲, 瑜伽教室, 舞蹈室, 女优, 办公室秘密
+- AVOID these overused themes: 地铁痴汉, 野外激情, 情趣酒店, 豪华酒店套房, 游泳池畔, OL通勤, 护士的情欲, 瑜伽教室, 舞蹈室, 女优, 教室, 办公室
 - PREFER underrepresented categories: fantasy, special, work, oral, fluid, facial, anal, toys, multi, costume
 - Each description MUST be 2-3 sentences in CHINESE, describing the scene and atmosphere vividly
 - Each tags array MUST contain ONLY Chinese keywords (3-5 tags)
 - R18 level: 'soft', 'medium', or 'hard'
 - Theme titles should be creative and specific, not generic
 
-DIVERSITY STRATEGY:
-1. Mix r18_levels: include at least 1 soft, 2-3 medium, and 1 hard theme
-2. Choose themes from LESS COMMON categories like fantasy, special scenes, work scenarios, oral/fluid/facial themes, multi-person
-3. AVOID repeating any theme that might have been used recently - be creative and pick unusual combinations
-4. Prefer unique combinations of costume + scenario + mood
+DIVERSITY STRATEGY - generate {count} themes with MAXIMUM variety:
+1. AVOID repetitive patterns - each title must have a unique hook
+2. Include UNEXPECTED category combinations: fantasy+costume, ancient+modern, medical+roleplay, etc.
+3. Choose themes from LESS COMMON categories: fantasy, special scenes, work scenarios, oral/fluid/facial themes, multi-person, sm, toys
+4. Mix r18_levels: at least 1 soft, 2+ medium, 1-2 hard themes
 5. Include a mix of SINGLE-PERSON and MULTI-PERSON themes
-6. Include themes with DIFFERENT COSTUMES: school uniform, traditional Chinese hanfu, Japanese kimono, modern casual, sportswear, maid outfit, flight attendant, etc.
-7. Include themes with UNIQUE PROPS: chair, mirror, bed, window, stairs, sofa, desk, etc.
-8. Include themes with VARIED POSES: standing, lying, sitting, bending, kneeling, etc.
+6. Include themes with DIFFERENT COSTUMES: traditional Chinese, Japanese kimono, modern casual, sportswear, maid, flight attendant, nurse, police, school, etc.
+7. Include themes with UNIQUE PROPS: chair, mirror, bed, window, stairs, sofa, desk, car, elevator, shower, balcony, etc.
+8. Include themes with VARIED POSES: standing, lying, sitting, bending, kneeling, crawling, suspended, etc.
+9. Include themes with VARIED SETTINGS: daytime, nighttime, indoor, outdoor, public, private, exotic locations
+10. Include themes with VARIED EMOTIONS: romantic, dominant, submissive, playful, tense, mysterious
 
 ABSOLUTE REQUIREMENTS:
-- Themes must be genuinely different from each other
+- Themes must be genuinely different from each other - NO similar titles
 - Keep descriptions focused on atmosphere and scenario, not explicit acts
 - All characters must be ADULTS 18+
-- Use creative, evocative Chinese titles that haven't been overused
+- Use creative, evocative Chinese titles that are UNIQUE and haven't been overused
+- Each title should make someone want to click - be intriguing and specific
 
 STRICT PROHIBITION:
 - NO minors (18+ ONLY)
 - NO non-consent (consensual only)
-- NO themes about: 地铁痴汉, 野外激情, 情趣酒店, 豪华酒店套房, 游泳池畔, OL通勤, 护士的情欲, 瑜伽教室, 舞蹈室, 女优 (these are overused)
+- NO themes similar to: 地铁痴汉, 野外激情, 情趣酒店, 豪华酒店套房, 游泳池畔, OL通勤, 护士的情欲, 瑜伽教室, 舞蹈室, 女优 (these are overused)
 
 Output STRICTLY as raw JSON array (no markdown). All text in Chinese only.
 [{{"id": 1, "title": "创意中文标题", "description": "中文描述2-3句", "tags": ["中文标签1", "中文标签2", "标签3"], "r18_level": "soft/medium/hard", "category": "分类"}}]"""
@@ -1229,19 +1220,22 @@ async def generate_storyboard_themes(
     req: StoryboardThemesRequest,
     api_key: str = Depends(get_api_key),
 ):
-    """Step 1 of 2-step storyboard: Generate 5 diverse video theme options from theme database."""
+    """Step 1 of 2-step storyboard: Generate diverse video theme options.
+    Supports custom description mode (user provides description) and random mode (system picks themes).
+    """
     # Import here to avoid circular deps
     from app.services.theme_database import (
         ADULT_THEMES, COSTUMES, SCENARIOS, get_all_themes,
     )
     import random
 
-    # Randomly select 15 themes from the pool to give to LLM for creative mixing
+    count = min(max(req.count, 5), 20)  # Clamp between 5-20
     all_db_themes = get_all_themes()
-    random.seed()  # Use system time for randomness
-    selected_themes = random.sample(all_db_themes, min(15, len(all_db_themes)))
 
-    # Also include costumes and scenarios for creative combinations
+    random.seed()  # Use system time for true randomness
+    pool_size = min(15, len(all_db_themes))
+    selected_themes = random.sample(all_db_themes, pool_size)
+
     costume_names = [c["name"] for c in COSTUMES]
     scenario_names = [s["name"] for s in SCENARIOS]
 
@@ -1250,27 +1244,35 @@ async def generate_storyboard_themes(
         else _THEMES_SYSTEM_PROMPT_NORMAL
     )
 
-    r18_context = ""
-    if req.r18:
-        # Build rich context with randomly selected theme pool
+    if req.custom_description:
+        # Custom description mode: generate themes from user's description
         r18_context = (
-            f"\n\n【随机抽取的主题池】（共 {len(selected_themes)} 个，每次生成都不同）：\n"
-            + "\n".join([f"- {t['name']}（{t.get('category','indoor')}类）" for t in selected_themes])
-            + f"\n\n【服装池】：{', '.join(random.sample(costume_names, min(15, len(costume_names))))}"
-            + f"\n\n【场景池】：{', '.join(random.sample(scenario_names, min(15, len(scenario_names))))}"
-            + "\n\n【创作要求】请从上述主题池、服装池、场景池中自由组合，创造出5个完全不同的创意主题。"
-            + "\n标题要新颖独特，不要重复使用原始主题名称，要有自己的创意发挥。"
-            + "每个主题必须混合不同的服装+场景+角色元素。"
+            f"\n\n【用户描述】{req.custom_description}\n\n"
+            f"请根据以上描述创作 {count} 个独特视频主题。\n"
+            "标题新颖，description 2-3句描述场景情节，tags用中文。\n"
+            "参考灵感：\n"
+            + "\n".join([f"- {t['name']}" for t in random.sample(all_db_themes, min(15, len(all_db_themes)))])
         )
+        user_prompt = f"生成 {count} 个成人短视频主题（每个15-30秒）。{r18_context}\n\ndescription和tags必须全部使用中文！Output as raw JSON array only, no markdown."
     else:
-        r18_context = (
-            f"\n\n【随机抽取的主题池】（共 {len(selected_themes)} 个，每次生成都不同）：\n"
-            + "\n".join([f"- {t['name']}（{t.get('category','indoor')}类）" for t in selected_themes])
-            + "\n\n【创作要求】请从上述主题池中自由组合，创造出5个完全不同的创意主题。"
-            + "\n标题要新颖独特，不要重复使用原始主题名称，要有自己的创意发挥。"
-        )
-
-    user_prompt = f"请生成5个不同的成人短视频主题（每个15-30秒）。{r18_context}\n\n【重要】每个主题的description（描述）和tags（标签）必须全部使用中文！description需要2-3句话，描述场景和情节。Output as raw JSON array only, no markdown."
+        # Random/system mode: generate themes from random selection
+        if req.r18:
+            r18_context = (
+                f"\n\n【主题池】：\n"
+                + "\n".join([f"- {t['name']}" for t in selected_themes])
+                + f"\n\n【服装池】：{', '.join(random.sample(costume_names, min(10, len(costume_names))))}"
+                + f"\n\n【场景池】：{', '.join(random.sample(scenario_names, min(10, len(scenario_names))))}"
+                + f"\n\n从上述池中自由组合，创造 {count} 个不同主题，混合服装+场景+角色元素。"
+                + "\n标题新颖，避免重复。"
+            )
+        else:
+            r18_context = (
+                f"\n\n【主题池】：\n"
+                + "\n".join([f"- {t['name']}" for t in selected_themes])
+                + f"\n\n从上述主题池中自由组合，创造 {count} 个不同主题。"
+                + "\n标题新颖，有创意发挥。"
+            )
+        user_prompt = f"生成 {count} 个成人短视频主题（每个15-30秒）。{r18_context}\n\ndescription和tags必须全部使用中文！Output as raw JSON array only, no markdown."
 
     for attempt in range(MAX_RETRIES):
         try:
@@ -1299,28 +1301,28 @@ async def generate_storyboard_themes(
             if len(themes) < 2:
                 raise HTTPException(status_code=500, detail="Not enough themes generated")
 
-            # Ensure IDs are 1-5
-            for j, t in enumerate(themes[:5]):
+            # Ensure unique IDs
+            for j, t in enumerate(themes[:count]):
                 t.id = j + 1
 
-            return StoryboardThemesResponse(themes=themes[:5])
+            return StoryboardThemesResponse(themes=themes[:count])
         except ContentSafetyError as e:
             if attempt < MAX_RETRIES - 1:
                 system_prompt += "\n\nSAFETY OVERRIDE: Reject ALL minors. ADULTS ONLY."
                 continue
             raise HTTPException(status_code=400, detail=str(e))
-        except HTTPException:
-            raise
-        except YunwuAuthError as e:
-            raise _map_llm_error(e)
-        except YunwuRateLimitError as e:
-            raise _map_llm_error(e)
-        except YunwuTimeoutError as e:
-            raise _map_llm_error(e)
-        except YunwuParseError as e:
+        except (YunwuTimeoutError, YunwuRateLimitError) as e:
+            # Retry on timeout and rate limit
+            if attempt < MAX_RETRIES - 1:
+                continue
             raise _map_llm_error(e)
         except YunwuAPIError as e:
+            # Retry on Yunwu API errors (502 from upstream)
+            if attempt < MAX_RETRIES - 1:
+                continue
             raise _map_llm_error(e)
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"未知错误: {type(e).__name__}: {str(e)}")
 
@@ -1592,18 +1594,23 @@ async def generate_storyboard_outline(
                 system_prompt += "\n\nSAFETY OVERRIDE: All characters ADULTS 18+. REJECT minors. Panel 1 must be foreplay, not sex."
                 continue
             raise HTTPException(status_code=400, detail=str(e))
-        except HTTPException:
-            raise
-        except YunwuAuthError as e:
-            raise _map_llm_error(e)
-        except YunwuRateLimitError as e:
-            raise _map_llm_error(e)
-        except YunwuTimeoutError as e:
-            raise _map_llm_error(e)
-        except YunwuParseError as e:
+        except (YunwuTimeoutError, YunwuRateLimitError) as e:
+            # Retry on timeout and rate limit
+            if attempt < MAX_RETRIES - 1:
+                continue
             raise _map_llm_error(e)
         except YunwuAPIError as e:
+            # Retry on Yunwu API errors (502 from upstream)
+            if attempt < MAX_RETRIES - 1:
+                continue
             raise _map_llm_error(e)
+        except YunwuParseError as e:
+            # Retry on JSON parse errors
+            if attempt < MAX_RETRIES - 1:
+                continue
+            raise _map_llm_error(e)
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"未知错误: {str(e)}")
 
@@ -1704,18 +1711,14 @@ async def generate_video_script(
             if attempt < MAX_RETRIES - 1:
                 continue
             raise HTTPException(status_code=400, detail=str(e))
-        except HTTPException:
-            raise
+        except (YunwuTimeoutError, YunwuRateLimitError, YunwuParseError, YunwuAPIError) as e:
+            if attempt < MAX_RETRIES - 1:
+                continue
+            raise _map_llm_error(e)
         except YunwuAuthError as e:
             raise _map_llm_error(e)
-        except YunwuRateLimitError as e:
-            raise _map_llm_error(e)
-        except YunwuTimeoutError as e:
-            raise _map_llm_error(e)
-        except YunwuParseError as e:
-            raise _map_llm_error(e)
-        except YunwuAPIError as e:
-            raise _map_llm_error(e)
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"未知错误: {str(e)}")
 

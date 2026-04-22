@@ -72,21 +72,23 @@ class StoryboardResponse(BaseModel):
 # ─── Storyboard Themes ───────────────────────────────────────────────────
 
 class StoryboardThemesRequest(BaseModel):
-    """Request to generate 5 video theme options (step 1 of 2-step storyboard)"""
+    """Request to generate video theme options (step 1 of 2-step storyboard)"""
     r18: bool = Field(default=False, description="是否启用 R18 模式")
+    count: int = Field(default=10, ge=5, le=20, description="生成主题数量 5-20，默认 10")
+    custom_description: Optional[str] = Field(default=None, description="用户自定义描述，根据此描述生成主题，优先于随机生成")
 
 
 class StoryboardThemeOption(BaseModel):
     """A single video theme option"""
-    id: int = Field(..., description="Theme option number (1-5)")
-    title: str = Field(..., description="Theme title in Chinese (e.g. '野外激情', '公车痴汉')")
+    id: int = Field(..., description="Theme option number")
+    title: str = Field(..., description="Theme title in Chinese")
     description: str = Field(..., description="Brief description of the theme (1-2 sentences)")
     tags: List[str] = Field(..., description="List of theme keywords/tags")
     r18_level: str = Field(..., description="R18 level: 'soft' / 'medium' / 'hard'")
 
 
 class StoryboardThemesResponse(BaseModel):
-    """Response containing 5 theme options for user to select"""
+    """Response containing theme options for user to select"""
     themes: List[StoryboardThemeOption]
 
 

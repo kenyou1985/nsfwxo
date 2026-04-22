@@ -206,13 +206,21 @@ export async function generateStoryboard(
   return response;
 }
 
-export async function generateStoryboardThemes(r18: boolean = false): Promise<StoryboardThemesResponse> {
+export async function generateStoryboardThemes(
+  r18: boolean = false,
+  count: number = 10,
+  customDescription?: string
+): Promise<StoryboardThemesResponse> {
   const base = getBackendUrl();
   const response = await apiRequest<StoryboardThemesResponse>(
     `${base}/api/prompt/storyboard/themes`,
     {
       method: 'POST',
-      body: JSON.stringify({ r18 }),
+      body: JSON.stringify({
+        r18,
+        count,
+        ...(customDescription ? { custom_description: customDescription } : {}),
+      }),
     },
   );
   return response;

@@ -18,12 +18,23 @@ import { Eye, EyeOff, Check, Trash2, X, Zap, Server, Image } from 'lucide-react'
 import { useRef } from 'react';
 
 function App() {
-  const [activeTab, setActiveTab] = useState<TabType>('txt2img');
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const { apiKey, maskedKey, hasApiKey, isLoaded, saveApiKey, removeApiKey } = useApiKey();
   const { yunwuKey, maskedYunwuKey, hasYunwuKey, saveYunwuKey, removeYunwuKey } = useYunwuKey();
   const { backendUrl, saveBackendUrl, resetBackendUrl, defaultUrl } = useBackendUrl();
   const toast = useToast();
+
+  // Loading state: return loading spinner BEFORE any other hooks
+  // to keep hook order consistent across renders
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen bg-bg-base flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  const [activeTab, setActiveTab] = useState<TabType>('txt2img');
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const handleTaskError = useCallback(
     (taskId: string, message: string) => {
@@ -66,14 +77,6 @@ function App() {
   const handleTabChange = useCallback((tab: TabType) => {
     setActiveTab(tab);
   }, []);
-
-  if (!isLoaded) {
-    return (
-      <div className="min-h-screen bg-bg-base flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
 
   const renderPage = () => {
     if (!apiKey) {
@@ -225,17 +228,14 @@ function InlineApiKeySetup({ onClose }: { onClose: () => void }) {
 }
 
 interface InlineApiKeyEditorProps {
-  // RunningHub
   apiKey: string | null;
   maskedKey: string;
   onSaveApiKey: (key: string) => void;
   onClearApiKey: () => void;
-  // Yunwu
   yunwuKey: string | null;
   maskedYunwuKey: string;
   onSaveYunwuKey: (key: string) => void;
   onClearYunwuKey: () => void;
-  // Backend URL
   backendUrl: string;
   onSaveBackendUrl: (url: string) => void;
   onResetBackendUrl: () => void;
@@ -258,20 +258,14 @@ function InlineApiKeyEditor({
   defaultBackendUrl,
   onClose,
 }: InlineApiKeyEditorProps) {
-  // RunningHub state
   const [rhInput, setRhInput] = useState('');
   const [rhShow, setRhShow] = useState(false);
   const [rhSaved, setRhSaved] = useState(false);
-
-  // Yunwu state
   const [yunwuInput, setYunwuInput] = useState('');
   const [yunwuShow, setYunwuShow] = useState(false);
   const [yunwuSaved, setYunwuSaved] = useState(false);
-
-  // Backend URL state
   const [urlInput, setUrlInput] = useState(backendUrl);
   const [urlSaved, setUrlSaved] = useState(false);
-
   const rhRef = useRef<HTMLInputElement>(null);
   const yunwuRef = useRef<HTMLInputElement>(null);
 
@@ -320,7 +314,7 @@ function InlineApiKeyEditor({
         </button>
       </div>
 
-      {/* ── Section 1: RunningHub ─────────────────────────────────────── */}
+      {/* RunningHub */}
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-lg bg-blue-500/10 flex items-center justify-center">
@@ -328,15 +322,13 @@ function InlineApiKeyEditor({
           </div>
           <h3 className="text-sm font-semibold text-text-primary">RunningHub API Key</h3>
         </div>
-        <p className="text-[11px] text-text-tertiary -mt-1">用于文生图、图生图、图生视频（生图/生视频调用）</p>
-
+        <p className="text-[11px] text-text-tertiary -mt-1">用于文生图、图生图、图生视频</p>
         {apiKey && (
           <div className="flex items-center gap-2 text-xs text-green-400 bg-green-400/10 px-3 py-2 rounded-lg">
             <span className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
             <span className="truncate">已保存: {maskedKey}</span>
           </div>
         )}
-
         <div className="relative">
           <input
             ref={rhRef}
@@ -356,22 +348,12 @@ function InlineApiKeyEditor({
             {rhShow ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
         </div>
-
-        <p className="text-[11px] text-text-secondary">
-          获取: RunningHub → 右上角头像 → API 控制台
-        </p>
-
+        <p className="text-[11px] text-text-secondary">获取: RunningHub → 右上角头像 → API 控制台</p>
         <div className="flex gap-3">
           <button
             onClick={handleSaveRh}
             disabled={!rhInput.trim()}
-            className={`
-              flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-medium text-sm transition-all
-              ${rhInput.trim()
-                ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:opacity-90 active:scale-[0.98]'
-                : 'bg-bg-elevated text-text-secondary cursor-not-allowed'
-              }
-            `}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-medium text-sm transition-all ${rhInput.trim() ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:opacity-90 active:scale-[0.98]' : 'bg-bg-elevated text-text-secondary cursor-not-allowed'}`}
           >
             {rhSaved ? <><Check size={16} /> 已保存</> : '保存 Key'}
           </button>
@@ -380,17 +362,15 @@ function InlineApiKeyEditor({
               onClick={onClearApiKey}
               className="flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl font-medium text-sm bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
             >
-              <Trash2 size={15} />
-              清除
+              <Trash2 size={15} />清除
             </button>
           )}
         </div>
       </div>
 
-      {/* Divider */}
       <div className="border-t border-border" />
 
-      {/* ── Section 2: Yunwu AI ───────────────────────────────────────── */}
+      {/* Yunwu AI */}
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -399,14 +379,12 @@ function InlineApiKeyEditor({
           <h3 className="text-sm font-semibold text-text-primary">Yunwu AI API Key</h3>
         </div>
         <p className="text-[11px] text-text-tertiary -mt-1">用于 AI 提示词推理（智能扩写 / 随机抽卡 / 剧情分镜）</p>
-
         {yunwuKey && (
           <div className="flex items-center gap-2 text-xs text-green-400 bg-green-400/10 px-3 py-2 rounded-lg">
             <span className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
             <span className="truncate">已保存: {maskedYunwuKey}</span>
           </div>
         )}
-
         <div className="relative">
           <input
             ref={yunwuRef}
@@ -426,22 +404,14 @@ function InlineApiKeyEditor({
             {yunwuShow ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
         </div>
-
         <p className="text-[11px] text-text-secondary">
           获取: <a href="https://yunwu.ai" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">yunwu.ai</a> → API Keys 页面
         </p>
-
         <div className="flex gap-3">
           <button
             onClick={handleSaveYunwu}
             disabled={!yunwuInput.trim()}
-            className={`
-              flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-medium text-sm transition-all
-              ${yunwuInput.trim()
-                ? 'bg-gradient-to-r from-primary to-primary/80 text-white hover:opacity-90 active:scale-[0.98]'
-                : 'bg-bg-elevated text-text-secondary cursor-not-allowed'
-              }
-            `}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-medium text-sm transition-all ${yunwuInput.trim() ? 'bg-gradient-to-r from-primary to-primary/80 text-white hover:opacity-90 active:scale-[0.98]' : 'bg-bg-elevated text-text-secondary cursor-not-allowed'}`}
           >
             {yunwuSaved ? <><Check size={16} /> 已保存</> : '保存 Key'}
           </button>
@@ -450,17 +420,15 @@ function InlineApiKeyEditor({
               onClick={onClearYunwuKey}
               className="flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl font-medium text-sm bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
             >
-              <Trash2 size={15} />
-              清除
+              <Trash2 size={15} />清除
             </button>
           )}
         </div>
       </div>
 
-      {/* Divider */}
       <div className="border-t border-border" />
 
-      {/* ── Section 3: Backend URL ─────────────────────────────────────── */}
+      {/* Backend URL */}
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-lg bg-amber-500/10 flex items-center justify-center">
@@ -469,44 +437,29 @@ function InlineApiKeyEditor({
           <h3 className="text-sm font-semibold text-text-primary">后端服务地址</h3>
         </div>
         <p className="text-[11px] text-text-tertiary -mt-1">本地开发默认 localhost:8000，部署到 Railway 后填入其分配的域名</p>
-
         {isUrlModified && (
           <div className="flex items-center gap-2 text-xs text-amber-400 bg-amber-400/10 px-3 py-2 rounded-lg">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
             <span className="truncate">已修改: {backendUrl}</span>
           </div>
         )}
-
         <div className="relative">
           <input
             type="text"
             value={urlInput}
-            onChange={(e) => {
-              setUrlInput(e.target.value);
-              setUrlSaved(false);
-            }}
+            onChange={(e) => { setUrlInput(e.target.value); setUrlSaved(false); }}
             placeholder={defaultBackendUrl}
             className="w-full bg-bg-elevated border border-border rounded-xl px-4 py-3 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-primary transition-colors font-mono"
             autoComplete="off"
             spellCheck={false}
           />
         </div>
-
-        <p className="text-[11px] text-text-secondary">
-          示例: <span className="font-mono text-[10px]">https://nsfwxo-prompt-engine.up.railway.app</span>
-        </p>
-
+        <p className="text-[11px] text-text-secondary">示例: <span className="font-mono text-[10px]">https://nsfwxo-prompt-engine.up.railway.app</span></p>
         <div className="flex gap-3">
           <button
             onClick={handleSaveUrl}
             disabled={!urlInput.trim()}
-            className={`
-              flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-medium text-sm transition-all
-              ${urlInput.trim()
-                ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white hover:opacity-90 active:scale-[0.98]'
-                : 'bg-bg-elevated text-text-secondary cursor-not-allowed'
-              }
-            `}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-medium text-sm transition-all ${urlInput.trim() ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white hover:opacity-90 active:scale-[0.98]' : 'bg-bg-elevated text-text-secondary cursor-not-allowed'}`}
           >
             {urlSaved ? <><Check size={16} /> 已保存</> : '保存地址'}
           </button>
@@ -516,14 +469,12 @@ function InlineApiKeyEditor({
               className="flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl font-medium text-sm bg-bg-elevated text-text-tertiary hover:bg-bg-hover transition-colors"
               title="恢复默认地址"
             >
-              <Server size={15} />
-              重置
+              <Server size={15} />重置
             </button>
           )}
         </div>
       </div>
 
-      {/* Usage guide */}
       <div className="border-t border-border pt-4 space-y-1.5">
         <p className="text-xs font-medium text-text-secondary">使用说明</p>
         <ol className="space-y-1 text-[11px] text-text-secondary">

@@ -29,7 +29,7 @@ import type { TaskManagerReturn } from '../hooks/useTaskManager';
 import type { GirlfriendPreset } from '../data/girlfriendPresets';
 import { GirlfriendSelector } from '../components/GirlfriendSelector';
 import { buildTxt2ImgNodeList } from '../utils/txt2imgNodeBuilder';
-import type { QueuedTask, TabType } from '../types';
+import type { QueuedTask, TabType, NodeInfo } from '../types';
 import { DEFAULT_TXT2IMG_PARAMS } from '../constants';
 import { WORKFLOW, getWorkflowFormat, uploadImage } from '../services/runninghub';
 
@@ -1373,6 +1373,33 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   const [batchLoading, setBatchLoading] = useState(false);
   const [batchVideoLoading, setBatchVideoLoading] = useState(false);
 
+  // Sync genStates with taskManager.tasks so panel cards reflect live images
+  useEffect(() => {
+    setGenStates((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const task of taskManager.tasks) {
+        if (task.images.length === 0) continue;
+        // Find any panel index whose prompt matches the task prompt (normalized)
+        const taskPromptNorm = task.prompt.trim().replace(/\s+/g, ' ');
+        for (const [panelIdx, state] of Object.entries(next)) {
+          if (state.loading) {
+            const panelPromptNorm = panels[Number(panelIdx)]?.image_prompt?.trim().replace(/\s+/g, ' ') || '';
+            // Match on normalized prompts (handles anchor prompt + original prompt for img2img)
+            const matches = panelPromptNorm === taskPromptNorm ||
+              taskPromptNorm.includes(panelPromptNorm) ||
+              panelPromptNorm.includes(taskPromptNorm.substring(0, Math.min(taskPromptNorm.length, 200)));
+            if (matches || (taskPromptNorm.length > 20 && panelPromptNorm.includes(taskPromptNorm.substring(0, 100)))) {
+              next[Number(panelIdx)] = { loading: false, images: task.images };
+              changed = true;
+            }
+          }
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [taskManager.tasks, panels]);
+
   // 2-step storyboard state
   const [storyStep, setStoryStep] = useState<'themes' | 'outline' | 'panels'>(
     savedStoryboard?.themeId ? 'panels' : 'themes'
@@ -1386,6 +1413,9 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   const [selectedTheme, setSelectedTheme] = useState<{
     id: number; title: string; description: string; tags: string[]; r18_level: string;
   } | null>(null);
+  const [customThemeMode, setCustomThemeMode] = useState(false);
+  const [customThemeDescription, setCustomThemeDescription] = useState('');
+  const [customThemeCount, setCustomThemeCount] = useState(10);
   const [outlineArc, setOutlineArc] = useState(savedStoryboard?.outlineArc || '');
   const [outlineScenes, setOutlineScenes] = useState<string[]>(savedStoryboard?.outlineScenes || []);
   const [generatingOutline, setGeneratingOutline] = useState(false);
@@ -1428,17 +1458,21 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     }
   }, [plot, panelCount, panels, expandedPanel, selectedTheme, outlineArc, outlineScenes]);
 
-  // Step 1: Generate 5 theme options
-  const handleGenerateThemes = async () => {
+  // Step 1: Generate theme options (supports custom description)
+  const handleGenerateThemes = async (customDesc?: string, customCnt?: number) => {
     setLoading(true);
     try {
-      const res = await generateStoryboardThemes(r18Mode);
+      const desc = customDesc !== undefined ? customDesc : customThemeMode ? customThemeDescription : undefined;
+      const cnt = customCnt !== undefined ? customCnt : customThemeCount;
+      const res = await generateStoryboardThemes(r18Mode, cnt, desc || undefined);
       setThemeOptions(res.themes);
       setStoryStep('themes');
       setSelectedTheme(null);
+      setSelectedThemes([]);
       setPanels([]);
       setOutlineArc('');
       setOutlineScenes([]);
+      setThemeOutlineStates({});
       onSuccess(`生成了 ${res.themes.length} 个主题，请选择一个`);
     } catch (err) {
       onError(err instanceof Error ? err.message : '主题生成失败');
@@ -1566,6 +1600,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
 
   const handleGenerateImage = useCallback(async (panelIdx: number, prompt: string) => {
     if (taskManager.isFull) { onError('任务队列已满'); return; }
+    // Set loading state immediately
     setGenStates((prev) => ({ ...prev, [panelIdx]: { loading: true, images: [] } }));
     let imagePath = selectedGirlfriend?.portraitUrl || '';
     if (digitalHumanMode && selectedGirlfriend) {
@@ -1581,17 +1616,22 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       }
     }
     if (digitalHumanMode && selectedGirlfriend) {
+      // Format prompt with Qwen-2511 face-lock for character consistency
+      const charName = selectedGirlfriend.nameZh || selectedGirlfriend.name;
+      const charId = (selectedGirlfriend.id as string).toUpperCase().slice(0, 4);
+      const anchorPrompt = `【严格锁定】严格锁定图中22岁女性（ID:${charId}），完全保留原有面部特征，五官轮廓、脸型、眼睛、鼻子、嘴唇、发型、肤色、身材比例完全不变，不做任何面部修改，动作流畅不僵硬。超高清8K，写实细节，皮肤质感细腻，无畸变、无模糊、无穿模。`;
+      const finalPrompt = `${anchorPrompt}\n\n${prompt}`;
       const nodes = [
         { nodeId: '60', fieldName: 'image', fieldValue: imagePath, description: '选择图片' },
         { nodeId: '64', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: '图片数量' },
         { nodeId: '82', fieldName: 'value', fieldValue: 'false', description: 'tt/zip' },
-        { nodeId: '59', fieldName: 'text', fieldValue: prompt, description: '文字描述' },
+        { nodeId: '59', fieldName: 'text', fieldValue: finalPrompt, description: '文字描述' },
         { nodeId: '70', fieldName: 'ckpt_name', fieldValue: 'Qwen-Rapid-AIO-NSFW-v18.safetensors', description: '模型' },
         { nodeId: '80', fieldName: 'lora_name', fieldValue: 'any2realV2.safetensors', description: 'lora' },
         { nodeId: '80', fieldName: 'strength_model', fieldValue: '0', description: 'lora权重' },
       ];
       try {
-        await taskManager.addTask('img2img', nodes, prompt, WORKFLOW.QWEN_IMG2IMG);
+        await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.QWEN_IMG2IMG);
         onSuccess('任务已提交');
       } catch (err) {
         onError(err instanceof Error ? err.message : '提交失败');
@@ -1699,6 +1739,12 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         { nodeId: '42', fieldName: 'strength_model', fieldValue: '1.0', description: 'lora权重' },
       ];
 
+      // Notify VideoTaskList via localStorage so it shows the task
+      const taskId = `storyboard-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      const taskData = { id: taskId, prompt: videoPrompt, imagePreview: imageUrl, nodeInfoList: nodes, processed: false };
+      localStorage.setItem('nsfwxo_video_task_submit', JSON.stringify(taskData));
+      window.dispatchEvent(new StorageEvent('storage', { key: 'nsfwxo_video_task_submit', newValue: JSON.stringify(taskData) }));
+
       await taskManager.addTask('img2vid', nodes, videoPrompt, WORKFLOW.IMAGE_TO_VIDEO);
       onSuccess('视频生成任务已提交');
     } catch (err) {
@@ -1713,6 +1759,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     if (panels.length === 0) { onError('没有可用的分镜'); return; }
     setBatchVideoLoading(true);
     let submitted = 0;
+    const submittedTasks: Array<{ id: string; prompt: string; imagePreview: string; nodeInfoList: NodeInfo[] }> = [];
     try {
       for (let i = 0; i < panels.length; i++) {
         const panel = panels[i];
@@ -1762,11 +1809,19 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         ];
 
         try {
+          const taskId = `storyboard-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+          submittedTasks.push({ id: taskId, prompt: videoPrompt, imagePreview: imageUrl, nodeInfoList: nodes });
           await taskManager.addTask('img2vid', nodes, videoPrompt, WORKFLOW.IMAGE_TO_VIDEO);
           submitted++;
         } catch (err) {
           onError(`提交分镜 ${i + 1} 视频任务失败: ${err instanceof Error ? err.message : '未知错误'}`);
         }
+      }
+      // Notify VideoTaskList about all submitted tasks
+      if (submittedTasks.length > 0) {
+        const batchData = { tasks: submittedTasks, processed: false };
+        localStorage.setItem('nsfwxo_video_task_batch', JSON.stringify(batchData));
+        window.dispatchEvent(new StorageEvent('storage', { key: 'nsfwxo_video_task_batch', newValue: JSON.stringify(batchData) }));
       }
       if (submitted > 0) {
         onSuccess(`已提交 ${submitted} 个视频生成任务`);
@@ -1784,6 +1839,15 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     if (availableSlots <= 0) { onError('任务队列已满'); return; }
     setBatchLoading(true);
     let submitted = 0;
+
+    // Mark all panels as loading immediately
+    setGenStates((prev) => {
+      const next = { ...prev };
+      for (let i = 0; i < panels.length; i++) {
+        next[i] = { loading: true, images: [] };
+      }
+      return next;
+    });
     let imagePath = selectedGirlfriend?.portraitUrl || '';
     if (digitalHumanMode && selectedGirlfriend) {
       try {
@@ -1800,17 +1864,22 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     for (let i = 0; i < Math.min(panels.length, availableSlots); i++) {
       const panel = panels[i];
       if (digitalHumanMode && selectedGirlfriend) {
+        // Format prompt with Qwen-2511 face-lock for character consistency
+        const charName = selectedGirlfriend.nameZh || selectedGirlfriend.name;
+        const charId = (selectedGirlfriend.id as string).toUpperCase().slice(0, 4);
+        const anchorPrompt = `【严格锁定】严格锁定图中22岁女性（ID:${charId}），完全保留原有面部特征，五官轮廓、脸型、眼睛、鼻子、嘴唇、发型、肤色、身材比例完全不变，不做任何面部修改，动作流畅不僵硬。超高清8K，写实细节，皮肤质感细腻，无畸变、无模糊、无穿模。`;
+        const finalPrompt = `${anchorPrompt}\n\n${panel.image_prompt}`;
         const nodes = [
           { nodeId: '60', fieldName: 'image', fieldValue: imagePath, description: '选择图片' },
           { nodeId: '64', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: '图片数量' },
           { nodeId: '82', fieldName: 'value', fieldValue: 'false', description: 'tt/zip' },
-          { nodeId: '59', fieldName: 'text', fieldValue: panel.image_prompt, description: '文字描述' },
+          { nodeId: '59', fieldName: 'text', fieldValue: finalPrompt, description: '文字描述' },
           { nodeId: '70', fieldName: 'ckpt_name', fieldValue: 'Qwen-Rapid-AIO-NSFW-v18.safetensors', description: '模型' },
           { nodeId: '80', fieldName: 'lora_name', fieldValue: 'any2realV2.safetensors', description: 'lora' },
           { nodeId: '80', fieldName: 'strength_model', fieldValue: '0', description: 'lora权重' },
         ];
         try {
-          await taskManager.addTask('img2img', nodes, panel.image_prompt, WORKFLOW.QWEN_IMG2IMG);
+          await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.QWEN_IMG2IMG);
           submitted++;
         } catch (err) { onError(`提交第 ${i + 1} 个时失败: ${err instanceof Error ? err.message : '未知错误'}`); }
       } else {
@@ -1832,7 +1901,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       onSuccess(`已提交 ${submitted} 个生图任务`);
       // Don't auto-navigate, stay on current page
     }
-  }, [panels, taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey]);
+  }, [panels, taskManager, setGenStates, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey]);
 
   const hasContent = storyStep === 'panels' && panels.length > 0;
 
@@ -1881,11 +1950,67 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
 
         {/* Step 1: Generate themes */}
         {storyStep === 'themes' && (
-          <div className="flex gap-2">
-            <button onClick={handleGenerateThemes} disabled={loading}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-medium text-sm transition-all ${loading ? 'bg-bg-elevated text-text-secondary cursor-not-allowed' : r18Mode ? 'bg-gradient-to-r from-red-500 to-red-600 text-white hover:opacity-90 active:scale-[0.98]' : 'bg-gradient-to-r from-primary to-primary/80 text-white hover:opacity-90 active:scale-[0.98]'}`}>
-              {loading ? <><Loader2 size={16} className="animate-spin" /> 生成主题中...</> : <><Wand2 size={16} />{r18Mode ? '生成 R18 主题' : '生成视频主题'}</>}
-            </button>
+          <div className="space-y-3">
+            {/* Theme generation controls */}
+            <div className="flex gap-2">
+              <button onClick={() => handleGenerateThemes()} disabled={loading}
+                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-medium text-sm transition-all ${loading ? 'bg-bg-elevated text-text-secondary cursor-not-allowed' : r18Mode ? 'bg-gradient-to-r from-red-500 to-red-600 text-white hover:opacity-90 active:scale-[0.98]' : 'bg-gradient-to-r from-primary to-primary/80 text-white hover:opacity-90 active:scale-[0.98]'}`}>
+                {loading ? <><Loader2 size={16} className="animate-spin" /> 生成主题中...</> : <><Wand2 size={16} />{r18Mode ? '随机生成 R18 主题' : '随机生成视频主题'}</>}
+              </button>
+            </div>
+            {/* Custom description mode */}
+            <div className="p-3 rounded-xl border border-border bg-bg-elevated">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-text-primary">自定义选题</span>
+                  <span className="text-[10px] text-text-tertiary">输入描述生成主题</span>
+                </div>
+                <button
+                  onClick={() => setCustomThemeMode(!customThemeMode)}
+                  className={`relative w-10 h-5 rounded-full transition-all flex-shrink-0 ${customThemeMode ? 'bg-primary' : 'bg-gray-300'}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${customThemeMode ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
+              {customThemeMode && (
+                <div className="space-y-2">
+                  <textarea
+                    value={customThemeDescription}
+                    onChange={(e) => setCustomThemeDescription(e.target.value)}
+                    placeholder="例如：办公室暧昧、浴室激情、古风青楼、护士诱惑..."
+                    className="w-full px-3 py-2 rounded-lg bg-white border border-border text-sm text-text-primary placeholder:text-text-tertiary resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    rows={2}
+                  />
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-text-tertiary">生成数量:</span>
+                    <input
+                      type="number"
+                      value={customThemeCount}
+                      onChange={(e) => setCustomThemeCount(Math.max(5, Math.min(20, parseInt(e.target.value) || 5)))}
+                      min={5}
+                      max={20}
+                      className="w-14 px-2 py-1 rounded-lg bg-white border border-border text-xs text-text-primary text-center focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    />
+                    <span className="text-xs text-text-tertiary">个 (5-20)</span>
+                    <div className="flex-1" />
+                    <button
+                      onClick={() => handleGenerateThemes()}
+                      disabled={loading || !customThemeDescription.trim()}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                        loading || !customThemeDescription.trim()
+                          ? 'bg-bg-elevated text-text-secondary cursor-not-allowed'
+                          : r18Mode
+                            ? 'bg-red-500 text-white hover:bg-red-600'
+                            : 'bg-primary text-white hover:bg-primary/90'
+                      }`}
+                    >
+                      {loading ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
+                      根据描述生成
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -2314,9 +2439,17 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
   const isGenLoading = genState?.loading;
   const displayImages = genState?.images ?? [];
 
+  const normalizedPanelPrompt = panel.image_prompt.trim().replace(/\s+/g, ' ');
   const relatedTasks = taskManager.tasks.filter(
-    (t: QueuedTask) => t.status === 'RUNNING' || t.status === 'QUEUEING' || t.status === 'FINISHED'
-  ).filter((t: QueuedTask) => t.prompt === panel.image_prompt);
+    (t: QueuedTask) => (t.status === 'RUNNING' || t.status === 'QUEUEING' || t.status === 'FINISHED') && t.images.length > 0
+  ).filter((t: QueuedTask) => {
+    const taskPromptNorm = t.prompt.trim().replace(/\s+/g, ' ');
+    // Match on exact or partial (longer) prompt overlap
+    return taskPromptNorm === normalizedPanelPrompt ||
+      taskPromptNorm.includes(normalizedPanelPrompt) ||
+      normalizedPanelPrompt.includes(taskPromptNorm) ||
+      (normalizedPanelPrompt.length > 50 && taskPromptNorm.includes(normalizedPanelPrompt.substring(0, Math.min(normalizedPanelPrompt.length, 150))));
+  });
 
   const allDisplayImages = displayImages.length > 0 ? displayImages : relatedTasks.flatMap((t: QueuedTask) => t.images);
   const hasImages = allDisplayImages.length > 0;

@@ -466,6 +466,7 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
 
     setTasks((prev) => [newTask, ...prev].slice(0, maxTasks));
 
+    // Run task via VideoTaskList's own API (for normal img2vid page flow)
     try {
       const result = await runTask(apiKey, '2018678819216953345', nodeInfoList);
       const taskWithId = { ...newTask, taskId: result.taskId, status: 'RUNNING' as const };
@@ -496,9 +497,66 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
     },
   }), [handleSubmit]);
 
-  const hasCompleted = tasks.some((t) => t.status === 'FINISHED' || t.status === 'FAILED');
+  // Use ref to always call the latest handleSubmit
+  const handleSubmitWrapper = useCallback((...args: Parameters<typeof handleSubmit>) => {
+    handleSubmit(...args);
+  }, [handleSubmit]);
 
-  if (tasks.length === 0) return null;
+  // Poll for pending video tasks from other pages (same-tab via localStorage)
+  useEffect(() => {
+    const STORAGE_KEY = 'nsfwxo_video_task_submit';
+    const BATCH_KEY = 'nsfwxo_video_task_batch';
+
+    const processSubmitTask = () => {
+      const data = localStorage.getItem(STORAGE_KEY);
+      if (data) {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.processed) return;
+          if (parsed.nodeInfoList && parsed.prompt) {
+            const imagePath = parsed.nodeInfoList.find((n: NodeInfo) => n.fieldName === 'image')?.fieldValue || '';
+            handleSubmitWrapper(parsed.prompt, imagePath, parsed.imagePreview || '', parsed.nodeInfoList);
+          }
+          // Mark as processed
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...parsed, processed: true }));
+        } catch { /* ignore */ }
+      }
+    };
+
+    const processBatchTask = () => {
+      const data = localStorage.getItem(BATCH_KEY);
+      if (data) {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.processed) return;
+          if (parsed.tasks && Array.isArray(parsed.tasks)) {
+            parsed.tasks.forEach((task: { prompt: string; imagePreview: string; nodeInfoList: NodeInfo[] }) => {
+              if (task.nodeInfoList && task.prompt) {
+                const imagePath = task.nodeInfoList.find((n: NodeInfo) => n.fieldName === 'image')?.fieldValue || '';
+                handleSubmitWrapper(task.prompt, imagePath, task.imagePreview || '', task.nodeInfoList);
+              }
+            });
+          }
+          // Mark as processed
+          localStorage.setItem(BATCH_KEY, JSON.stringify({ ...parsed, processed: true }));
+        } catch { /* ignore */ }
+      }
+    };
+
+    // Initial check
+    processSubmitTask();
+    processBatchTask();
+
+    // Poll every 500ms for new tasks (same-tab compatible)
+    const pollInterval = setInterval(() => {
+      processSubmitTask();
+      processBatchTask();
+    }, 500);
+
+    return () => clearInterval(pollInterval);
+  }, [handleSubmitWrapper]);
+
+  const hasCompleted = tasks.some((t) => t.status === 'FINISHED' || t.status === 'FAILED');
 
   return (
     <div className="space-y-3">

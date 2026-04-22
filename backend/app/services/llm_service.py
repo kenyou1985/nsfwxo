@@ -7,7 +7,7 @@ from openai import AsyncOpenAI, APIError, AuthenticationError, RateLimitError
 
 YUNWU_BASE_URL = "https://api.yunwu.ai/v1"
 MODEL_NAME = "grok-4-20-reasoning"
-REQUEST_TIMEOUT = 60  # seconds
+REQUEST_TIMEOUT = 120  # seconds — increased for large context requests (theme generation)
 
 
 async def call_grok(api_key: str, system_prompt: str, user_prompt: str) -> str:
@@ -60,6 +60,11 @@ class YunwuTimeoutError(Exception):
 
 class YunwuAPIError(Exception):
     """通用 API 错误"""
+    pass
+
+
+class YunwuContentFilteredError(Exception):
+    """内容审核过滤（违禁词/敏感词触发）"""
     pass
 
 

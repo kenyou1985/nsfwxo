@@ -228,7 +228,6 @@ export interface ExpandSession {
   outputPrompts: string[];
   selectedOutputIdx: number;
   outputText: string;
-  genState: Record<string, { loading: boolean; images: string[]; taskId: string | null }>;
 }
 
 export interface RandomSession {
@@ -242,7 +241,6 @@ export interface RandomSession {
     prompt: string;
   }[];
   expandedIdx: number | null;
-  genState: Record<string, { loading: boolean; images: string[]; taskId: string | null }>;
 }
 
 export interface GeneratedCard {
