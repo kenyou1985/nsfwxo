@@ -20,6 +20,80 @@ _BLOCK_PATTERNS: List[re.Pattern] = [
     re.compile(r'\b(small breasts)\b', re.I),
 ]
 
+
+# ── Tag Cleaning ─────────────────────────────────────────────────────────────────
+
+def _is_clean_tag(tag: str) -> bool:
+    """检查标签是否为干净的关键词（而非冗长描述）。"""
+    if not tag or len(tag.strip()) < 2:
+        return False
+    t = tag.strip()
+    # 超过约4个词 = 描述性句子
+    if len(t.split()) > 4:
+        return False
+    # 多个逗号 = 描述，不是标签
+    if t.count(',') >= 2:
+        return False
+    # 剩余括号
+    if '(' in t or ')' in t or '（' in t or '）' in t:
+        return False
+    # 以 "a/an/the/with" 开头且后面有2+词 = 句子
+    if re.match(r'^(a|an|the|with)\s+\w+\s+\w', t, re.I):
+        return False
+    # 完整句子以句号结尾且有多个词
+    if re.match(r'^[A-Z].+\.$', t) and len(t.split()) > 3:
+        return False
+    return True
+
+
+def _clean_tag(tag: str) -> Optional[str]:
+    """清理单个标签：去除前缀、括号、尾部修饰词等。"""
+    t = tag.strip()
+    if not t:
+        return None
+
+    # 去除前缀
+    for prefix in [
+        "with ", "adorned with a ", "adorned with ", "as a ", "as an ",
+        "as (", "dressed as a ", "dressed as an ", "dressed as ",
+        "character from the ", "character from ",
+    ]:
+        if t.lower().startswith(prefix):
+            t = t[len(prefix):]
+            break
+
+    # 提取括号内容: "something (blue)" -> "something"
+    paren_match = re.match(r'^(.+?)\s*\([^)]+\)$', t)
+    if paren_match:
+        inner = paren_match.group(1).strip()
+        if inner:
+            t = inner
+
+    # 去除剩余括号和引号
+    t = re.sub(r'[\(\)\[\]【】（）"\'`『』]', '', t).strip()
+
+    # 去除冒号
+    t = re.sub(r'[:：]', ' ', t).strip()
+
+    # 去除尾部修饰词
+    for suffix in [' hair', ' body', ' skin']:
+        if t.lower().endswith(suffix):
+            t = t[:-len(suffix)].strip()
+
+    # 去除前后破折号
+    t = re.sub(r'^[-–—\s]+|[-–—\s]+$', '', t).strip()
+
+    # 折叠空格
+    t = re.sub(r'\s+', ' ', t).strip()
+
+    if len(t) < 2:
+        return None
+
+    if not _is_clean_tag(t):
+        return None
+
+    return t
+
 # ── 种族优先级权重 (East Asian 优先，其他降低) ──
 _ETHNICITY_WEIGHTS: Dict[str, float] = {
     "east asian": 8.0,
@@ -78,8 +152,11 @@ def _weighted_ethnicity_pick(items: List[str]) -> Optional[str]:
     for i, w in enumerate(weights):
         cumulative += w
         if rand <= cumulative:
-            return safe_items[i]
-    return safe_items[-1]
+            cleaned = _clean_tag(str(safe_items[i]))
+            return cleaned if cleaned else safe_items[i]
+    last = safe_items[-1]
+    cleaned = _clean_tag(str(last))
+    return cleaned if cleaned else last
 
 
 def _load_tags_db() -> Optional[dict]:
@@ -132,8 +209,9 @@ def generate_random_tags(
         safe_items = [i for i in items if _is_safe(str(i))]
         chosen = _pick(safe_items, count)
         for name in chosen:
-            if isinstance(name, str) and _is_safe(name):
-                result.append({"_category": cat_key, "_name": name})
+            cleaned = _clean_tag(str(name))
+            if cleaned and _is_safe(cleaned):
+                result.append({"_category": cat_key, "_name": cleaned})
 
     # ── 图生图模式：过滤所有外貌/体态/人物特征标签 ──
     _IMG2IMG_EXCLUDE_CATS = {
