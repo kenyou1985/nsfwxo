@@ -1440,18 +1440,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   const [historyTab, setHistoryTab] = useState<'history' | 'favorites'>('history');
   const [history, setHistory] = useState<StoryboardHistoryItem[]>(() => getStoryboardHistory());
   const [favorites, setFavorites] = useState<FavoriteItem[]>(() => getFavorites());
-  const [genStates, setGenStates] = useState<Record<number, { loading: boolean; images: string[] }>>(() => {
-    const saved = getStoryboardSession();
-    if (saved?.historyId) {
-      const cachedImages = getAllCachedPanelImages(saved.historyId, saved.panels.length);
-      const initial: Record<number, { loading: boolean; images: string[] }> = {};
-      for (const [idx, imgs] of Object.entries(cachedImages)) {
-        initial[Number(idx)] = { loading: false, images: imgs };
-      }
-      return initial;
-    }
-    return {};
-  });
+  const [genStates, setGenStates] = useState<Record<string, { loading: boolean; images: string[] }>>({});
   const [batchLoading, setBatchLoading] = useState(false);
   const [batchVideoLoading, setBatchVideoLoading] = useState(false);
   const [currentHistoryId, setCurrentHistoryId] = useState<string | null>(() => {
@@ -1459,8 +1448,15 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     return saved?.historyId || null;
   });
 
+  // Helper: get the effective historyId for multi-theme mode
+  const effectiveHistoryId = activeThemeTab !== null
+    ? (themeOutlineStates[activeThemeTab]?.historyId || currentHistoryId)
+    : currentHistoryId;
+
   // Sync genStates with taskManager.tasks so panel cards reflect live images
   useEffect(() => {
+    const hid = effectiveHistoryId;
+    if (!hid) return;
     setGenStates((prev) => {
       let changed = false;
       const next = { ...prev };
@@ -1475,45 +1471,49 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
             panelPromptNorm.includes(taskPromptNorm) ||
             (panelPromptNorm.length > 50 && taskPromptNorm.includes(panelPromptNorm.substring(0, Math.min(panelPromptNorm.length, 150))));
         });
+        const key = `${hid}_${i}`;
         if (matchedTask) {
-          const currentImages = next[i]?.images ?? [];
-          // Only sync if we have no images, or if current images are blob URLs (can be overwritten with live blob URLs).
-          // Preserve data URLs from cache - they survive page refresh while blob URLs don't.
+          const currentImages = next[key]?.images ?? [];
           const currentIsDataUrl = currentImages.length > 0 && currentImages[0].startsWith('data:');
           if (currentImages.length === 0 || (!currentIsDataUrl && currentImages[0] !== matchedTask.images[0])) {
-            next[i] = { loading: false, images: matchedTask.images };
+            next[key] = { loading: false, images: matchedTask.images };
             changed = true;
           }
-        } else if (next[i]?.loading === undefined) {
         }
       }
       return changed ? next : prev;
     });
-  }, [taskManager.tasks, panels]);
+  }, [taskManager.tasks, panels, effectiveHistoryId]);
 
   // Persist generated panel images to history record (both legacy cache and direct storage for consistency)
   useEffect(() => {
-    if (!currentHistoryId) return;
+    const hid = effectiveHistoryId;
+    if (!hid) return;
 
     // Convert blob URLs to data URLs before caching (blob URLs become invalid after page refresh)
     const convertAndCache = async () => {
       const panelImages: Record<number, string[]> = {};
-      for (const [panelIdx, state] of Object.entries(genStates)) {
+      for (const [key, state] of Object.entries(genStates)) {
+        // Keys are in format "${historyId}_${panelIdx}"
+        const parts = key.split('_');
+        const historyIdFromKey = parts.slice(0, -1).join('_');
+        const panelIdx = parts[parts.length - 1];
+        if (historyIdFromKey !== hid) continue;
         if (state.images && state.images.length > 0) {
           const dataUrlImages = await Promise.all(state.images.map((img) => ensureDataUrl(img)));
           panelImages[Number(panelIdx)] = dataUrlImages;
-          await cacheStoryboardPanelImages(currentHistoryId, Number(panelIdx), dataUrlImages);
+          await cacheStoryboardPanelImages(hid, Number(panelIdx), dataUrlImages);
         }
       }
       // Also save to history record directly (like image history page)
       if (Object.keys(panelImages).length > 0) {
-        updateStoryboardHistoryImages(currentHistoryId, panelImages);
+        updateStoryboardHistoryImages(hid, panelImages);
         // Update local history state so the history list can see the new images immediately
         setHistory(getStoryboardHistory());
       }
     };
     convertAndCache();
-  }, [genStates, currentHistoryId]);
+  }, [genStates, effectiveHistoryId]);
 
   // 2-step storyboard state
   const [storyStep, setStoryStep] = useState<'themes' | 'outline' | 'panels'>(
@@ -1766,9 +1766,19 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   const handleViewThemePanels = (themeId: number) => {
     const state = themeOutlineStates[themeId];
     if (!state) return;
-    // Set active tab to this theme
     setActiveThemeTab(themeId);
     setStoryStep('panels');
+    if (state.historyId) {
+      setCurrentHistoryId(state.historyId);
+      const cachedImages = getAllCachedPanelImages(state.historyId, state.panels.length);
+      const initial: Record<string, { loading: boolean; images: string[] }> = {};
+      for (const [idx, imgs] of Object.entries(cachedImages)) {
+        initial[`${state.historyId}_${idx}`] = { loading: false, images: imgs };
+      }
+      setGenStates(initial);
+    } else {
+      setGenStates({});
+    }
     onSuccess(`已加载「${themeOptions.find((t) => t.id === themeId)?.title}」的分镜`);
   };
 
@@ -1786,15 +1796,11 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       setCurrentHistoryId(historyId);
       // Restore cached images for this history entry
       const cachedImages = getAllCachedPanelImages(historyId, state.panels.length);
-      if (Object.keys(cachedImages).length > 0) {
-        const initial: Record<number, { loading: boolean; images: string[] }> = {};
-        for (const [idx, imgs] of Object.entries(cachedImages)) {
-          initial[Number(idx)] = { loading: false, images: imgs };
-        }
-        setGenStates(initial);
-      } else {
-        setGenStates({});
+      const initial: Record<string, { loading: boolean; images: string[] }> = {};
+      for (const [idx, imgs] of Object.entries(cachedImages)) {
+        initial[`${historyId}_${idx}`] = { loading: false, images: imgs };
       }
+      setGenStates(initial);
       saveStoryboardSession({
         plot: theme.title, panelCount, panels: state.panels, expandedPanel: null,
         themeId: theme.id, themeTitle: theme.title, outlineArc: state.outlineArc,
@@ -1850,25 +1856,23 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     setSelectedThemes([]);
     setThemeOutlineStates({});
     setShowHistory(false);
-    // Set currentHistoryId so cached panel images are properly restored
     setCurrentHistoryId(item.id);
     // Restore images for this history entry
-    let initial: Record<number, { loading: boolean; images: string[] }> = {};
+    const initial: Record<string, { loading: boolean; images: string[] }> = {};
 
     // First check if history item has direct images field (new method)
     if (item.panelImages) {
       for (const [idx, imgs] of Object.entries(item.panelImages)) {
-        initial[Number(idx)] = { loading: false, images: imgs };
+        initial[`${item.id}_${idx}`] = { loading: false, images: imgs };
       }
     } else {
       // Fallback to legacy cached panel images
       const cachedImages = getAllCachedPanelImages(item.id, item.panels.length);
       for (const [idx, imgs] of Object.entries(cachedImages)) {
-        initial[Number(idx)] = { loading: false, images: imgs };
+        initial[`${item.id}_${idx}`] = { loading: false, images: imgs };
       }
     }
     setGenStates(initial);
-    setCurrentHistoryId(item.id);
     saveStoryboardSession({
       plot: item.plot, panelCount: item.panel_count, panels: item.panels, expandedPanel: null,
       themeTitle: item.plot, historyId: item.id,
@@ -1888,8 +1892,10 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
 
   const handleGenerateImage = useCallback(async (panelIdx: number, prompt: string) => {
     if (taskManager.isFull) { onError('任务队列已满'); return; }
+    const hid = effectiveHistoryId || `temp_${Date.now()}`;
+    const key = `${hid}_${panelIdx}`;
     // Set loading state immediately
-    setGenStates((prev) => ({ ...prev, [panelIdx]: { loading: true, images: [] } }));
+    setGenStates((prev) => ({ ...prev, [key]: { loading: true, images: [] } }));
     let imagePath = selectedGirlfriend?.portraitUrl || '';
     if (digitalHumanMode && selectedGirlfriend) {
       try {
@@ -1899,7 +1905,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         const uploadResult = await uploadImage(apiKey, file);
         imagePath = uploadResult.imagePath;
       } catch {
-        setGenStates((prev) => { const next = { ...prev }; delete next[panelIdx]; return next; });
+        setGenStates((prev) => { const next = { ...prev }; delete next[key]; return next; });
         onError('AI 女友图片上传失败'); return;
       }
     }
@@ -1923,7 +1929,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         onSuccess('任务已提交');
       } catch (err) {
         onError(err instanceof Error ? err.message : '提交失败');
-        setGenStates((prev) => { const next = { ...prev }; delete next[panelIdx]; return next; });
+        setGenStates((prev) => { const next = { ...prev }; delete next[key]; return next; });
       }
     } else {
       const nodes = [
@@ -1938,10 +1944,10 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         onSuccess('任务已提交');
       } catch (err) {
         onError(err instanceof Error ? err.message : '提交失败');
-        setGenStates((prev) => { const next = { ...prev }; delete next[panelIdx]; return next; });
+        setGenStates((prev) => { const next = { ...prev }; delete next[key]; return next; });
       }
     }
-  }, [taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey]);
+  }, [taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, effectiveHistoryId]);
 
   // Generate video prompt for a panel based on image prompt
   const generateVideoPromptForPanel = useCallback((imagePrompt: string): string => {
@@ -2053,7 +2059,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       for (let i = 0; i < activePanels.length; i++) {
         const panel = activePanels[i];
         const panelKey = `panel-${i}`;
-        const panelGenState = genStates[i];
+        const panelGenState = genStates[`${effectiveHistoryId}_${i}`];
         const panelTasks = taskManager.tasks.filter((t) => t.prompt === panel.image_prompt && t.images.length > 0);
         let imageUrl = '';
 
@@ -2134,11 +2140,12 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     setBatchLoading(true);
     let submitted = 0;
 
-    // Mark all panels as loading immediately
+    // Mark all panels as loading immediately (use string keys for multi-theme support)
+    const hid = effectiveHistoryId || `temp_${Date.now()}`;
     setGenStates((prev) => {
       const next = { ...prev };
       for (let i = 0; i < activePanels.length; i++) {
-        next[i] = { loading: true, images: [] };
+        next[`${hid}_${i}`] = { loading: true, images: [] };
       }
       return next;
     });
@@ -2195,7 +2202,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       onSuccess(`已提交 ${submitted} 个生图任务`);
       // Don't auto-navigate, stay on current page
     }
-  }, [panels, taskManager, setGenStates, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey]);
+  }, [panels, taskManager, setGenStates, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, effectiveHistoryId]);
 
   const hasContent = storyStep === 'panels' && panels.length > 0;
 
@@ -2983,7 +2990,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                 normalizedPanelPrompt.includes(taskPromptNorm) ||
                 (normalizedPanelPrompt.length > 50 && taskPromptNorm.includes(normalizedPanelPrompt.substring(0, Math.min(normalizedPanelPrompt.length, 150))));
             });
-            const hasGenerated = (genStates[idx]?.images?.length ?? 0) > 0;
+            const genStateKey = `${effectiveHistoryId}_${idx}`;
+            const hasGenerated = (genStates[genStateKey]?.images?.length ?? 0) > 0;
             return (
               <StoryboardPanelCard
                 key={panelKey}
@@ -2994,7 +3002,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                 copiedPanel={copiedPanel}
                 onToggle={() => setExpandedPanel(expandedPanel === idx ? null : idx)}
                 onCopyPanel={() => handleCopyPanel(panel, idx)}
-                genState={genStates[idx]}
+                genState={genStates[genStateKey]}
                 onGenerateImage={() => handleGenerateImage(idx, panel.image_prompt)}
                 onFavorited={(url) => handleToggleFavorite(url, panel.image_prompt)}
                 taskManager={taskManager}

@@ -346,6 +346,24 @@ export async function getTaskResults(
     };
   }
 
+  // code=0 but no data or non-array data — task finished but has no downloadable output yet (edge case)
+  if (code === 0) {
+    console.log('[getTaskResults] code=0 but no data array for task:', taskId, 'data:', outputsData.data);
+    return {
+      taskId,
+      status: 'SUCCESS',
+      errorCode: '',
+      errorMessage: '',
+      results: [],
+      clientId: '',
+      promptTips: '',
+      failedReason: {},
+      usage: null,
+      parentTaskId: null,
+      taskUsageList: null,
+    };
+  }
+
   // code=805: FAILED with failedReason
   if (code === 805) {
     const data = outputsData.data as Record<string, unknown> | null;

@@ -6,41 +6,65 @@ from typing import List, Union, Any
 from openai import AsyncOpenAI, APIError, AuthenticationError, RateLimitError
 
 YUNWU_BASE_URL = "https://api.yunwu.ai/v1"
-MODEL_NAME = "grok-4-20-reasoning"
+MODEL_NAME = "grok-4-20-non-reasoning"
+MODEL_FALLBACK = "grok-4-1-fast-non-reasoning"
 REQUEST_TIMEOUT = 120  # seconds — increased for large context requests (theme generation)
+MAX_RETRIES = 3
 
 
 async def call_grok(api_key: str, system_prompt: str, user_prompt: str) -> str:
     """
     动态实例化 AsyncOpenAI 客户端，每次请求使用前端传来的 API Key。
+    主模型失败时自动切换备用模型重试，最多 MAX_RETRIES 次。
     """
-    client = AsyncOpenAI(
-        api_key=api_key,
-        base_url=YUNWU_BASE_URL,
-        timeout=REQUEST_TIMEOUT,
-    )
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_prompt},
-    ]
-    try:
-        response = await client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=messages,
-            temperature=0.7,
+    models_to_try = [MODEL_NAME, MODEL_FALLBACK]
+
+    for attempt_idx, model_name in enumerate(models_to_try):
+        client = AsyncOpenAI(
+            api_key=api_key,
+            base_url=YUNWU_BASE_URL,
+            timeout=REQUEST_TIMEOUT,
         )
-        return response.choices[0].message.content
-    except AuthenticationError as e:
-        raise YunwuAuthError(f"无效的 Yunwu AI API Key (401): {str(e)}")
-    except RateLimitError as e:
-        raise YunwuRateLimitError(f"Yunwu AI 请求频率超限 (429): {str(e)}")
-    except APIError as e:
-        raise YunwuAPIError(f"Yunwu AI API 错误 ({getattr(e, 'status_code', '?')}): {str(e)}")
-    except Exception as e:
-        # 超时或其他网络错误
-        if "timeout" in str(e).lower() or "timed out" in str(e).lower():
-            raise YunwuTimeoutError(f"Yunwu AI 请求超时（{REQUEST_TIMEOUT}秒）: {str(e)}")
-        raise YunwuAPIError(f"LLM 调用失败: {str(e)}")
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+        for retry in range(MAX_RETRIES):
+            try:
+                response = await client.chat.completions.create(
+                    model=model_name,
+                    messages=messages,
+                    temperature=0.7,
+                )
+                return response.choices[0].message.content
+            except AuthenticationError as e:
+                raise YunwuAuthError(f"无效的 Yunwu AI API Key (401): {str(e)}")
+            except RateLimitError as e:
+                if retry < MAX_RETRIES - 1:
+                    continue
+                raise YunwuRateLimitError(f"Yunwu AI 请求频率超限 (429): {str(e)}")
+            except APIError as e:
+                if retry < MAX_RETRIES - 1:
+                    continue
+                # If primary model fails, try fallback model (only for first model in the list)
+                if attempt_idx == 0 and model_name == MODEL_NAME:
+                    break  # break retry loop, try next model
+                raise YunwuAPIError(f"Yunwu AI API 错误 ({getattr(e, 'status_code', '?')}): {str(e)}")
+            except Exception as e:
+                if retry < MAX_RETRIES - 1:
+                    continue
+                if "timeout" in str(e).lower() or "timed out" in str(e).lower():
+                    if attempt_idx == 0 and model_name == MODEL_NAME:
+                        break  # try fallback
+                    raise YunwuTimeoutError(f"Yunwu AI 请求超时（{REQUEST_TIMEOUT}秒）: {str(e)}")
+                if attempt_idx == 0 and model_name == MODEL_NAME:
+                    break  # try fallback
+                raise YunwuAPIError(f"LLM 调用失败: {str(e)}")
+        # If primary model exhausted all retries, try next model
+        if attempt_idx == 0 and model_name == MODEL_NAME:
+            continue
+        # Exhausted all models and retries
+        raise YunwuAPIError(f"所有模型均不可用（主模型和备用模型都已重试 {MAX_RETRIES} 次）")
 
 
 class YunwuAuthError(Exception):

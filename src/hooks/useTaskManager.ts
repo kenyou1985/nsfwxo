@@ -28,6 +28,7 @@ export interface PersistedTaskEntry {
   nodeInfoList: NodeInfo[];
   resultId?: string; // UI result identifier for matching restored tasks to UI state
   timestamp: number;
+  zipUrl?: string | null; // Persisted for recovery after page refresh
 }
 
 export function loadPersistedTasks(): PersistedTaskEntry[] {
@@ -49,8 +50,17 @@ function savePersistedTasks(tasks: PersistedTaskEntry[]): void {
 function persistTask(entry: PersistedTaskEntry): void {
   const tasks = loadPersistedTasks();
   const idx = tasks.findIndex((t) => t.id === entry.id);
-  if (idx >= 0) tasks[idx] = entry;
-  else tasks.push(entry);
+  if (idx >= 0) {
+    // Merge: keep existing zipUrl if not provided in new entry
+    const existing = tasks[idx];
+    tasks[idx] = {
+      ...existing,
+      ...entry,
+      zipUrl: entry.zipUrl !== undefined ? entry.zipUrl : existing.zipUrl,
+    };
+  } else {
+    tasks.push(entry);
+  }
   if (tasks.length > 100) tasks.splice(0, tasks.length - 100);
   savePersistedTasks(tasks);
 }
@@ -130,6 +140,7 @@ export function useTaskManager({
   const onTaskCompleteRef = useRef(onTaskComplete);
   const onTaskStatusChangeRef = useRef(onTaskStatusChange);
   const imagesExtractedRef = useRef<Record<string, boolean>>({});
+  const restoringRef = useRef<Record<string, boolean>>({});
 
   // All effects are always called (no conditional hooks)
   useEffect(() => { apiKeyRef.current = apiKey; }, [apiKey]);
@@ -137,7 +148,7 @@ export function useTaskManager({
   useEffect(() => { onTaskCompleteRef.current = onTaskComplete; }, [onTaskComplete]);
   useEffect(() => { onTaskStatusChangeRef.current = onTaskStatusChange; }, [onTaskStatusChange]);
 
-  // Timer effect - update elapsed time every second
+  // 1. Timer effect - update elapsed time every second
   useEffect(() => {
     const timer = setInterval(() => {
       setTasks((prev) =>
@@ -152,6 +163,95 @@ export function useTaskManager({
     return () => clearInterval(timer);
   }, []);
 
+  // 2. Helper: extract images for a finished task, update state, and call callbacks
+  const extractFinishedTaskImages = useCallback(async (
+    task: QueuedTask,
+    currentApiKey: string,
+    taskId: string
+  ): Promise<{ updatedTask: QueuedTask }> => {
+    let zipUrl: string | null = task.zipUrl;
+    let directImageUrls: string[] = task.images.length > 0 ? task.images : [];
+    let coins = task.coins;
+    let elapsed = task.elapsedSeconds;
+
+    try {
+      const resultsResponse = await getTaskResults(currentApiKey, taskId);
+      if (resultsResponse.results && resultsResponse.results.length > 0) {
+        const zipResult = resultsResponse.results.find((r) => r.outputType === 'zip');
+        if (zipResult?.url) {
+          zipUrl = zipResult.url;
+        } else {
+          const pngResults = resultsResponse.results.filter((r) =>
+            r.outputType === 'png' || r.outputType === 'webp' ||
+            r.fileType === 'png' || r.fileType === 'webp' ||
+            r.url?.match(/\.(png|webp)(\?|$)/i)
+          );
+          if (pngResults.length > 0) {
+            directImageUrls = pngResults.map((r) => r.url).filter(Boolean) as string[];
+          }
+        }
+      }
+      if (resultsResponse.usage?.consumeCoins) {
+        coins = resultsResponse.usage.consumeCoins;
+      }
+      if (resultsResponse.usage?.taskCostTime) {
+        elapsed = parseInt(resultsResponse.usage.taskCostTime, 10);
+      }
+    } catch {
+      // Use defaults if results fetch fails
+    }
+
+    if (zipUrl) {
+      try {
+        const [blobUrls, dataUrls] = await Promise.all([
+          extractImagesFromZip(zipUrl),
+          extractImagesFromZipAsDataUrls(zipUrl),
+        ]);
+        cacheImages(zipUrl, dataUrls).catch(() => {});
+        const finalImages = blobUrls;
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === task.id ? { ...t, status: 'FINISHED', images: finalImages, zipUrl, coins, elapsedSeconds: elapsed } : t
+          )
+        );
+        const updatedTask: QueuedTask = { ...task, status: 'FINISHED', zipUrl, coins, elapsedSeconds: elapsed, images: finalImages };
+        onTaskCompleteRef.current?.(updatedTask, elapsed);
+        return { updatedTask };
+      } catch (err) {
+        console.error('[extractFinishedTaskImages] Failed to extract images:', err);
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === task.id ? { ...t, status: 'FINISHED', zipUrl, coins, elapsedSeconds: elapsed } : t
+          )
+        );
+        const updatedTask: QueuedTask = { ...task, status: 'FINISHED', zipUrl, coins, elapsedSeconds: elapsed };
+        onTaskCompleteRef.current?.(updatedTask, elapsed);
+        return { updatedTask };
+      }
+    } else if (directImageUrls.length > 0) {
+      cacheImages('', directImageUrls).catch(() => {});
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === task.id ? { ...t, status: 'FINISHED', images: directImageUrls, zipUrl, coins, elapsedSeconds: elapsed } : t
+        )
+      );
+      const updatedTask: QueuedTask = { ...task, status: 'FINISHED', zipUrl, coins, elapsedSeconds: elapsed, images: directImageUrls };
+      onTaskCompleteRef.current?.(updatedTask, elapsed);
+      return { updatedTask };
+    } else {
+      console.warn('[extractFinishedTaskImages] No zipUrl or direct image URLs for finished task');
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === task.id ? { ...t, status: 'FINISHED', zipUrl, coins, elapsedSeconds: elapsed } : t
+        )
+      );
+      const updatedTask: QueuedTask = { ...task, status: 'FINISHED', zipUrl, coins, elapsedSeconds: elapsed };
+      onTaskCompleteRef.current?.(updatedTask, elapsed);
+      return { updatedTask };
+    }
+  }, []);
+
+  // 3. Poll a single task
   const pollTask = useCallback(async (task: QueuedTask) => {
     const currentApiKey = apiKeyRef.current;
     if (!currentApiKey || !task.taskId) return;
@@ -208,61 +308,7 @@ export function useTaskManager({
         }
       }
 
-      const hasImages = (zipUrl && !imagesExtractedRef.current[task.id]) || (directImageUrls.length > 0 && !imagesExtractedRef.current[task.id]);
-      const displayStatus = newStatus === 'FINISHED' && hasImages ? 'RUNNING' : newStatus;
-      setTasks((prev) =>
-        prev.map((t) =>
-          t.id === task.id ? { ...t, status: displayStatus, zipUrl, coins, elapsedSeconds: elapsed } : t
-        )
-      );
-      onTaskStatusChangeRef.current?.(task.id, displayStatus);
-
-      if (newStatus === 'FINISHED') {
-        unpersistTask(task.id);
-        if (zipUrl) {
-          if (imagesExtractedRef.current[task.id]) { delete pollingRef.current[task.id]; return; }
-          imagesExtractedRef.current[task.id] = true;
-
-          try {
-            const [blobUrls, dataUrls] = await Promise.all([
-              extractImagesFromZip(zipUrl),
-              extractImagesFromZipAsDataUrls(zipUrl),
-            ]);
-            setTasks((prev) =>
-              prev.map((t) =>
-                t.id === task.id ? { ...t, status: 'FINISHED', images: blobUrls } : t
-              )
-            );
-            cacheImages(zipUrl, dataUrls).catch(() => {});
-            const updatedTask: QueuedTask = { ...task, status: 'FINISHED', zipUrl, coins, elapsedSeconds: elapsed, images: blobUrls };
-            onTaskCompleteRef.current?.(updatedTask, elapsed);
-          } catch (err) {
-            console.error('[pollTask] Failed to extract images:', err);
-            setTasks((prev) =>
-              prev.map((t) =>
-                t.id === task.id ? { ...t, status: 'FINISHED' } : t
-              )
-            );
-            const updatedTask: QueuedTask = { ...task, status: 'FINISHED', zipUrl, coins, elapsedSeconds: elapsed };
-            onTaskCompleteRef.current?.(updatedTask, elapsed);
-          }
-        } else if (directImageUrls.length > 0) {
-          if (imagesExtractedRef.current[task.id]) { delete pollingRef.current[task.id]; return; }
-          imagesExtractedRef.current[task.id] = true;
-          setTasks((prev) =>
-            prev.map((t) =>
-              t.id === task.id ? { ...t, status: 'FINISHED', images: directImageUrls } : t
-            )
-          );
-          cacheImages('', directImageUrls).catch(() => {});
-          const updatedTask: QueuedTask = { ...task, status: 'FINISHED', zipUrl, coins, elapsedSeconds: elapsed, images: directImageUrls };
-          onTaskCompleteRef.current?.(updatedTask, elapsed);
-        } else {
-          console.warn('[pollTask] No zipUrl or direct image URLs for finished task');
-          const updatedTask: QueuedTask = { ...task, status: newStatus, zipUrl, coins, elapsedSeconds: elapsed };
-          onTaskCompleteRef.current?.(updatedTask, elapsed);
-        }
-      } else if (newStatus === 'FAILED') {
+      if (newStatus === 'FAILED') {
         unpersistTask(task.id);
         let errorMsg = '任务失败';
         try {
@@ -277,15 +323,41 @@ export function useTaskManager({
           )
         );
         onErrorRef.current?.(task.id, errorMsg);
+        delete pollingRef.current[task.id];
+        return;
       }
+
+      // newStatus === 'FINISHED'
+      unpersistTask(task.id);
+
+      // Skip extraction if restoreTasks is already handling this task
+      if (restoringRef.current[task.id]) {
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === task.id ? { ...t, status: 'FINISHED' as TaskStatus, zipUrl, coins, elapsedSeconds: elapsed } : t
+          )
+        );
+        delete pollingRef.current[task.id];
+        return;
+      }
+
+      pollingRef.current[task.id] = true; // Re-set lock so extractFinishedTaskImages doesn't conflict with next poll cycle
+      imagesExtractedRef.current[task.id] = true;
+
+      extractFinishedTaskImages(
+        { ...task, zipUrl, coins, elapsedSeconds: elapsed, images: directImageUrls },
+        currentApiKey,
+        task.taskId
+      ).finally(() => {
+        delete pollingRef.current[task.id];
+      });
     } catch (err) {
       console.warn('Poll error for task', task.id, err);
-    } finally {
       delete pollingRef.current[task.id];
     }
-  }, []);
+  }, [extractFinishedTaskImages]);
 
-  // Polling loop
+  // 4. Polling interval effect — depends on pollTask
   useEffect(() => {
     if (intervalRef.current) clearInterval(intervalRef.current);
     intervalRef.current = setInterval(() => {
@@ -361,37 +433,27 @@ export function useTaskManager({
         const initialCoins = data.usage?.consumeCoins || null;
         const initialElapsed = data.usage?.taskCostTime ? parseInt(data.usage.taskCostTime, 10) : 0;
 
+        // Set QUEUEING initially so polling skips it while we extract images
         setTasks((prev) =>
           prev.map((t) =>
-            t.id === id ? { ...t, taskId, zipUrl: initialZipUrl, status: initialStatus, coins: initialCoins, elapsedSeconds: initialElapsed, images: initialDirectImages } : t
+            t.id === id ? { ...t, taskId, zipUrl: initialZipUrl, status: 'QUEUEING', coins: initialCoins, elapsedSeconds: initialElapsed, images: initialDirectImages } : t
           )
         );
-        // Update persisted entry with taskId so it can be restored after refresh
-        persistTask({ id, taskId, prompt, workflowType, workflowIdOverride, nodeInfoList, resultId, timestamp: Date.now() });
+        // Update persisted entry with taskId and zipUrl so it can be restored after refresh
+        persistTask({ id, taskId, prompt, workflowType, workflowIdOverride, nodeInfoList, resultId, timestamp: Date.now(), zipUrl: initialZipUrl });
         onTaskStatusChangeRef.current?.(id, initialStatus);
 
-        if (initialStatus === 'FINISHED' && initialZipUrl) {
-          unpersistTask(id);
-          try {
-            const [blobUrls, dataUrls] = await Promise.all([
-              extractImagesFromZip(initialZipUrl),
-              extractImagesFromZipAsDataUrls(initialZipUrl),
-            ]);
-            setTasks((prev) =>
-              prev.map((t) => t.id === id ? { ...t, images: blobUrls } : t)
-            );
-            cacheImages(initialZipUrl, dataUrls).catch(() => {});
-            onTaskCompleteRef.current?.({ ...newTask, taskId, images: blobUrls, zipUrl: initialZipUrl, coins: initialCoins, elapsedSeconds: initialElapsed }, initialElapsed);
-          } catch {
-            onTaskCompleteRef.current?.({ ...newTask, taskId, zipUrl: initialZipUrl, coins: initialCoins, elapsedSeconds: initialElapsed }, initialElapsed);
-          }
-        } else if (initialStatus === 'FINISHED' && initialDirectImages.length > 0) {
-          unpersistTask(id);
-          setTasks((prev) =>
-            prev.map((t) => t.id === id ? { ...t, images: initialDirectImages } : t)
-          );
-          cacheImages('', initialDirectImages).catch(() => {});
-          onTaskCompleteRef.current?.({ ...newTask, taskId, images: initialDirectImages, zipUrl: initialZipUrl, coins: initialCoins, elapsedSeconds: initialElapsed }, initialElapsed);
+        if (initialStatus === 'FINISHED') {
+          pollingRef.current[id] = true;
+          const taskToExtract: QueuedTask = { ...newTask, taskId, zipUrl: initialZipUrl, coins: initialCoins, elapsedSeconds: initialElapsed, images: initialDirectImages };
+          extractFinishedTaskImages(taskToExtract, currentApiKey, taskId)
+            .then(({ updatedTask }) => {
+              unpersistTask(updatedTask.id);
+              delete pollingRef.current[updatedTask.id];
+            })
+            .catch(() => {
+              delete pollingRef.current[id];
+            });
         } else if (initialStatus === 'FAILED') {
           unpersistTask(id);
           const errorMsg = data.errorMessage || '任务失败';
@@ -415,6 +477,7 @@ export function useTaskManager({
 
   const cancelTask = useCallback((id: string) => {
     delete pollingRef.current[id];
+    delete restoringRef.current[id];
     unpersistTask(id);
     setTasks((prev) => prev.filter((t) => t.id !== id));
   }, []);
@@ -464,30 +527,25 @@ export function useTaskManager({
             }
             const initialElapsed = data.usage?.taskCostTime ? parseInt(data.usage.taskCostTime, 10) : 0;
 
+            // Set QUEUEING initially so polling skips it while we extract images
             setTasks((current) =>
               current.map((t) =>
-                t.id === newId ? { ...t, taskId, status: initialStatus, coins: initialCoins, zipUrl: initialZipUrl, elapsedSeconds: initialElapsed, images: initialDirectImages } : t
+                t.id === newId ? { ...t, taskId, status: 'QUEUEING', coins: initialCoins, zipUrl: initialZipUrl, elapsedSeconds: initialElapsed, images: initialDirectImages } : t
               )
             );
             onTaskStatusChangeRef.current?.(newId, initialStatus);
 
-            if (initialStatus === 'FINISHED' && initialZipUrl) {
-              Promise.all([extractImagesFromZip(initialZipUrl), extractImagesFromZipAsDataUrls(initialZipUrl)])
-                .then(([blobUrls, dataUrls]) => {
-                  setTasks((current) =>
-                    current.map((t) => t.id === newId ? { ...t, images: blobUrls } : t)
-                  );
-                  cacheImages(initialZipUrl, dataUrls).catch(() => {});
-                  onTaskCompleteRef.current?.({ ...newTask, taskId, images: blobUrls, zipUrl: initialZipUrl, coins: initialCoins, elapsedSeconds: initialElapsed }, initialElapsed);
-                }).catch(() => {
-                  onTaskCompleteRef.current?.({ ...newTask, taskId, zipUrl: initialZipUrl, coins: initialCoins, elapsedSeconds: initialElapsed }, initialElapsed);
+            if (initialStatus === 'FINISHED') {
+              pollingRef.current[newId] = true;
+              const taskToExtract: QueuedTask = { ...newTask, taskId, zipUrl: initialZipUrl, coins: initialCoins, elapsedSeconds: initialElapsed, images: initialDirectImages };
+              extractFinishedTaskImages(taskToExtract, currentApiKey, taskId)
+                .then(({ updatedTask }) => {
+                  unpersistTask(updatedTask.id);
+                  delete pollingRef.current[updatedTask.id];
+                })
+                .catch(() => {
+                  delete pollingRef.current[newId];
                 });
-            } else if (initialStatus === 'FINISHED' && initialDirectImages.length > 0) {
-              setTasks((current) =>
-                current.map((t) => t.id === newId ? { ...t, images: initialDirectImages } : t)
-              );
-              cacheImages('', initialDirectImages).catch(() => {});
-              onTaskCompleteRef.current?.({ ...newTask, taskId, images: initialDirectImages, zipUrl: initialZipUrl, coins: initialCoins, elapsedSeconds: initialElapsed }, initialElapsed);
             } else if (initialStatus === 'FAILED') {
               const errorMsg = data.errorMessage || '任务失败';
               setTasks((current) => current.map((t) => t.id === newId ? { ...t, error: errorMsg } : t));
@@ -505,7 +563,7 @@ export function useTaskManager({
 
       return [...prev, newTask];
     });
-  }, []);
+  }, [extractFinishedTaskImages]);
 
   const clearCompleted = useCallback(() => {
     setTasks((prev) =>
@@ -518,33 +576,99 @@ export function useTaskManager({
       if (entries.length === 0) return;
       const validEntries = entries.filter((e) => e.taskId);
       if (validEntries.length === 0) return;
-      const restoredTasks: QueuedTask[] = validEntries.map((e) => ({
-        id: e.id,
-        taskId: e.taskId,
-        workflowType: e.workflowType,
-        status: 'RUNNING' as const,
-        prompt: e.prompt,
-        zipUrl: null,
-        images: [],
-        error: null,
-        startTime: Date.now(),
-        elapsedSeconds: 0,
-        coins: null,
-        nodeInfoList: e.nodeInfoList,
-        workflowIdOverride: e.workflowIdOverride,
-      }));
-      setTasks((prev) => {
-        const filtered = prev.filter((t) => !validEntries.some((e) => e.id === t.id));
-        return [...filtered, ...restoredTasks];
+
+      // Pre-fetch status for all tasks in parallel to determine which are already finished
+      const currentApiKey = apiKeyRef.current;
+      const statusPromises = validEntries.map(async (e) => {
+        try {
+          const statusResponse = await getTaskStatus(currentApiKey, e.taskId!);
+          return { entry: e, status: statusResponse.status, results: null as Awaited<ReturnType<typeof getTaskResults>> | null };
+        } catch {
+          return { entry: e, status: 'UNKNOWN', results: null };
+        }
       });
-      restoredTasks.forEach((t) => {
-        if (t.taskId) {
+
+      Promise.all(statusPromises).then(async (statusResults) => {
+        console.log('[restoreTasks] Status results:', statusResults.map(r => ({ id: r.entry.id, status: r.status })));
+        const restoredTasks: QueuedTask[] = [];
+        const immediatePollTasks: QueuedTask[] = [];
+
+        for (const { entry, status } of statusResults) {
+          const task: QueuedTask = {
+            id: entry.id,
+            taskId: entry.taskId!,
+            workflowType: entry.workflowType,
+            status: 'RUNNING' as const,
+            prompt: entry.prompt,
+            zipUrl: entry.zipUrl !== undefined ? entry.zipUrl : null, // Restore persisted zipUrl
+            images: [],
+            error: null,
+            startTime: Date.now(),
+            elapsedSeconds: 0,
+            coins: null,
+            nodeInfoList: entry.nodeInfoList,
+            workflowIdOverride: entry.workflowIdOverride,
+          };
+
+          const mappedStatus = mapTaskStatus(status);
+          console.log('[restoreTasks] Processing task:', task.id, 'status from API:', status, 'mapped:', mappedStatus, 'zipUrl:', task.zipUrl);
+
+          if (mappedStatus === 'FINISHED') {
+            // Set QUEUEING initially — polling interval will skip it while we extract images
+            task.status = 'QUEUEING';
+            restoredTasks.push(task);
+
+            // Block pollTask from running during our async extraction (double safety)
+            pollingRef.current[task.id] = true;
+            restoringRef.current[task.id] = true;
+
+            // Extract images without waiting for the polling loop
+            if (!imagesExtractedRef.current[task.id]) {
+              imagesExtractedRef.current[task.id] = true;
+              extractFinishedTaskImages(task, currentApiKey, entry.taskId!)
+                .then(({ updatedTask }) => {
+                  unpersistTask(updatedTask.id);
+                  delete pollingRef.current[updatedTask.id];
+                  delete restoringRef.current[updatedTask.id];
+                })
+                .catch(() => {
+                  delete pollingRef.current[task.id];
+                  delete restoringRef.current[task.id];
+                });
+            } else {
+              delete pollingRef.current[task.id];
+              delete restoringRef.current[task.id];
+            }
+          } else if (mappedStatus === 'FAILED') {
+            // Task failed - mark as failed
+            task.status = 'FAILED';
+            restoredTasks.push(task);
+            unpersistTask(task.id);
+          } else {
+            // Task is still running/queuing - add to active polling
+            task.status = mappedStatus;
+            restoredTasks.push(task);
+            immediatePollTasks.push(task);
+          }
+        }
+
+        if (restoredTasks.length === 0) return;
+
+        setTasks((prev) => {
+          const filtered = prev.filter((t) => !validEntries.some((e) => e.id === t.id));
+          return [...filtered, ...restoredTasks];
+        });
+
+        // For tasks that are still running, poll immediately and then let the polling loop handle them
+        for (const t of immediatePollTasks) {
           pollingRef.current[t.id] = true;
-          pollTask(t);
+          pollTask(t).finally(() => {
+            // Don't delete pollingRef.current[t.id] here - let the polling loop manage it
+          });
         }
       });
     },
-    [pollTask]
+    [pollTask, extractFinishedTaskImages]
   );
 
   return {

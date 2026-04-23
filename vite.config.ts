@@ -7,6 +7,11 @@ export default defineConfig({
     host: true,
     port: 5173,
     proxy: {
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false,
+      },
       '/api/proxy': {
         target: 'https://rh-images.xiaoyaoyou.com',
         changeOrigin: true,

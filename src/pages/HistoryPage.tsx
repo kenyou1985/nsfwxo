@@ -30,6 +30,7 @@ export function HistoryPage({ onRegenerate }: HistoryPageProps) {
   const [videoRecords, setVideoRecords] = useState<VideoHistoryRecord[]>([]);
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
   const [loadedImages, setLoadedImages] = useState<Record<string, string[]>>({});
+  const [loadingKeys, setLoadingKeys] = useState<Set<string>>(new Set());
   const loadingKeysRef = useRef<Set<string>>(new Set());
 
   const [lightboxRecordIndex, setLightboxRecordIndex] = useState<number | null>(null);
@@ -42,6 +43,7 @@ export function HistoryPage({ onRegenerate }: HistoryPageProps) {
     if (loadingKeysRef.current.has(record.id)) return;
 
     loadingKeysRef.current.add(record.id);
+    setLoadingKeys((prev) => new Set(prev).add(record.id));
     setLoadedImages((prev) => ({ ...prev, [record.id]: [] }));
 
     try {
@@ -57,6 +59,11 @@ export function HistoryPage({ onRegenerate }: HistoryPageProps) {
       setLoadedImages((prev) => ({ ...prev, [record.id]: [] }));
     } finally {
       loadingKeysRef.current.delete(record.id);
+      setLoadingKeys((prev) => {
+        const next = new Set(prev);
+        next.delete(record.id);
+        return next;
+      });
     }
   }, [loadedImages]);
 
@@ -110,6 +117,7 @@ export function HistoryPage({ onRegenerate }: HistoryPageProps) {
       clearAllHistory();
       setRecords([]);
       setLoadedImages({});
+      setLoadingKeys(new Set());
       loadingKeysRef.current.clear();
       localStorage.removeItem('nsfwxo_video_history');
       setVideoRecords([]);
@@ -244,7 +252,7 @@ export function HistoryPage({ onRegenerate }: HistoryPageProps) {
         <div className="space-y-3">
           {records.map((record, recordIndex) => {
             const images = getRecordImages(record);
-            const isLoading = loadedImages[record.id] === undefined && !!record.zipUrl;
+            const isLoading = loadingKeys.has(record.id) && loadedImages[record.id] === undefined;
             return (
               <div
                 key={record.id}
