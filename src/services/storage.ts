@@ -359,7 +359,7 @@ export interface FavoriteItem {
   id: string;
   imageUrl: string; // data URL
   prompt?: string;
-  source: 'expand' | 'random' | 'storyboard' | 'batch';
+  source: 'expand' | 'random' | 'storyboard' | 'batch' | 'history';
   sourceId?: string; // history item id if applicable
   tags?: Record<string, string[]>;
   r18: boolean;

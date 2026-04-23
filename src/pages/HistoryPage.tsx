@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Trash2, Image as ImageIcon, Clock, X, RotateCcw, Loader2, Video } from 'lucide-react';
+import { Trash2, Image as ImageIcon, Clock, X, RotateCcw, Loader2, Video, Heart, Download } from 'lucide-react';
 import { getRecords, deleteRecord, clearAllHistory, type HistoryRecord } from '../services/historyService';
 import { getCachedImages } from '../services/imageCacheService';
 import { extractImagesFromZipAsDataUrls } from '../services/runninghub';
+import { getFavorites, addFavorite, removeFavorite, clearFavorites, type FavoriteItem } from '../services/storage';
 
 function formatDate(ts: number): string {
   const d = new Date(ts);
@@ -24,14 +25,16 @@ interface HistoryPageProps {
 }
 
 export function HistoryPage({ onRegenerate }: HistoryPageProps) {
-  const [activeTab, setActiveTab] = useState<'image' | 'video'>('image');
+  const [activeTab, setActiveTab] = useState<'image' | 'video' | 'favorites'>('image');
   const [records, setRecords] = useState<HistoryRecord[]>([]);
   const [videoRecords, setVideoRecords] = useState<VideoHistoryRecord[]>([]);
+  const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
   const [loadedImages, setLoadedImages] = useState<Record<string, string[]>>({});
   const loadingKeysRef = useRef<Set<string>>(new Set());
 
   const [lightboxRecordIndex, setLightboxRecordIndex] = useState<number | null>(null);
   const [lightboxImageIndex, setLightboxImageIndex] = useState<number>(0);
+  const [lightboxFavoriteIndex, setLightboxFavoriteIndex] = useState<number | null>(null);
 
   const loadImagesForRecord = useCallback(async (record: HistoryRecord) => {
     if (!record.zipUrl) return;
@@ -73,6 +76,7 @@ export function HistoryPage({ onRegenerate }: HistoryPageProps) {
       loadImagesForRecord(record);
     });
     loadVideoHistory();
+    setFavorites(getFavorites());
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -120,6 +124,7 @@ export function HistoryPage({ onRegenerate }: HistoryPageProps) {
   const closeLightbox = () => {
     setLightboxRecordIndex(null);
     setLightboxImageIndex(0);
+    setLightboxFavoriteIndex(null);
   };
 
   const getRecordImages = (record: HistoryRecord): string[] => {
@@ -138,6 +143,26 @@ export function HistoryPage({ onRegenerate }: HistoryPageProps) {
   const handleRegenerate = (record: HistoryRecord) => {
     onRegenerate?.(record);
   };
+
+  const handleToggleFavorite = (imageUrl: string, prompt?: string) => {
+    const existing = favorites.find((f) => f.imageUrl === imageUrl);
+    if (existing) {
+      removeFavorite(existing.id);
+      setFavorites(getFavorites());
+    } else {
+      addFavorite({ imageUrl, prompt, source: 'history', r18: false });
+      setFavorites(getFavorites());
+    }
+  };
+
+  const handleClearFavorites = () => {
+    if (confirm('确定清除所有收藏？')) {
+      clearFavorites();
+      setFavorites([]);
+    }
+  };
+
+  const isFav = (url: string) => favorites.some((f) => f.imageUrl === url);
 
   // Image history
   const currentImages = lightboxRecordIndex !== null && activeTab === 'image'
@@ -183,6 +208,17 @@ export function HistoryPage({ onRegenerate }: HistoryPageProps) {
           >
             <Video size={14} />
             视频历史 ({videoRecords.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('favorites')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              activeTab === 'favorites'
+                ? 'bg-primary text-white'
+                : 'text-text-secondary hover:text-text-primary'
+            }`}
+          >
+            <Heart size={14} />
+            收藏 ({favorites.length})
           </button>
         </div>
         {hasAnyRecords && (
@@ -267,6 +303,13 @@ export function HistoryPage({ onRegenerate }: HistoryPageProps) {
                           alt={`图片 ${imgIndex + 1}`}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                         />
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleToggleFavorite(url, record.prompt); }}
+                          className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/50 flex items-center justify-center transition-opacity hover:bg-black/70"
+                          style={{ opacity: isFav(url) ? 1 : undefined }}
+                        >
+                          <Heart size={11} className={isFav(url) ? 'fill-red-500 text-red-500' : 'text-white opacity-0 group-hover:opacity-100 transition-opacity'} />
+                        </button>
                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
                           <ImageIcon size={14} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                         </div>
@@ -373,6 +416,59 @@ export function HistoryPage({ onRegenerate }: HistoryPageProps) {
         </div>
       )}
 
+      {/* Favorites tab */}
+      {activeTab === 'favorites' && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-text-secondary">{favorites.length} 张收藏</span>
+            {favorites.length > 0 && (
+              <button
+                onClick={handleClearFavorites}
+                className="text-xs text-red-400 hover:text-red-300 transition-colors flex items-center gap-1"
+              >
+                <Trash2 size={12} />
+                清空全部
+              </button>
+            )}
+          </div>
+
+          {favorites.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-text-secondary">
+              <Heart size={48} className="mb-4 opacity-30" />
+              <p className="text-sm">暂无收藏</p>
+              <p className="text-xs text-text-tertiary mt-1">在图片历史中点击红心按钮添加收藏</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-2">
+              {favorites.map((item) => (
+                <div
+                  key={item.id}
+                  className="relative aspect-square rounded-lg overflow-hidden bg-bg-elevated group cursor-pointer"
+                  onClick={() => setLightboxFavoriteIndex(item.id === favorites[0]?.id ? 0 : favorites.findIndex((f) => f.id === item.id))}
+                >
+                  <img
+                    src={item.imageUrl}
+                    alt="收藏"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                  />
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleToggleFavorite(item.imageUrl); }}
+                    className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 transition-colors"
+                  >
+                    <Heart size={14} className="fill-red-500 text-red-500" />
+                  </button>
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2">
+                    {item.prompt && (
+                      <p className="text-[10px] text-white/80 line-clamp-1">{item.prompt}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Lightbox for images */}
       {activeTab === 'image' && lightboxRecordIndex !== null && currentUrl && (
         <div
@@ -385,10 +481,16 @@ export function HistoryPage({ onRegenerate }: HistoryPageProps) {
             </span>
             <div className="flex items-center gap-2">
               <button
+                onClick={(e) => { e.stopPropagation(); handleToggleFavorite(currentUrl, records[lightboxRecordIndex]?.prompt); }}
+                className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
+              >
+                <Heart size={18} className={isFav(currentUrl) ? 'fill-red-500 text-red-500' : 'text-white'} />
+              </button>
+              <button
                 onClick={(e) => { e.stopPropagation(); handleDownload(currentUrl); }}
                 className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
               >
-                <ImageIcon size={18} />
+                <Download size={18} />
               </button>
               <button
                 onClick={closeLightbox}
@@ -435,6 +537,64 @@ export function HistoryPage({ onRegenerate }: HistoryPageProps) {
                   setLightboxImageIndex(0);
                 }
               }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition-colors text-2xl z-10"
+            >
+              ›
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Lightbox for favorites */}
+      {activeTab === 'favorites' && lightboxFavoriteIndex !== null && favorites[lightboxFavoriteIndex] && (
+        <div
+          className="fixed inset-0 z-50 bg-black/95"
+          onClick={closeLightbox}
+        >
+          <div className="absolute top-0 left-0 right-0 flex items-center justify-between p-4 z-10" onClick={(e) => e.stopPropagation()}>
+            <span className="text-sm text-text-secondary">
+              {lightboxFavoriteIndex + 1} / {favorites.length}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={(e) => { e.stopPropagation(); handleToggleFavorite(favorites[lightboxFavoriteIndex].imageUrl); }}
+                className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
+              >
+                <Heart size={18} className={isFav(favorites[lightboxFavoriteIndex].imageUrl) ? 'fill-red-500 text-red-500' : 'text-white'} />
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); handleDownload(favorites[lightboxFavoriteIndex].imageUrl); }}
+                className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+              >
+                <Download size={18} />
+              </button>
+              <button
+                onClick={closeLightbox}
+                className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          </div>
+
+          <img
+            src={favorites[lightboxFavoriteIndex].imageUrl}
+            alt="Preview"
+            className="absolute inset-0 w-full h-full object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+
+          {lightboxFavoriteIndex > 0 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setLightboxFavoriteIndex(lightboxFavoriteIndex - 1); }}
+              className="absolute left-2 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition-colors text-2xl z-10"
+            >
+              ‹
+            </button>
+          )}
+          {lightboxFavoriteIndex < favorites.length - 1 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setLightboxFavoriteIndex(lightboxFavoriteIndex + 1); }}
               className="absolute right-2 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition-colors text-2xl z-10"
             >
               ›
