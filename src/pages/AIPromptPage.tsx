@@ -26,7 +26,7 @@ import {
   getRandomSession, saveRandomSession, clearRandomSession,
   getStoryboardSession, saveStoryboardSession, clearStoryboardSession,
   cacheStoryboardPanelImages, getAllCachedPanelImages,
-  addFavorite, removeFavorite, getFavorites,
+  addFavorite, removeFavorite, getFavorites, clearFavorites,
   type ExpandHistoryItem, type RandomHistoryItem, type StoryboardHistoryItem, type FavoriteItem,
 } from '../services/storage';
 import type { TaskManagerReturn } from '../hooks/useTaskManager';
@@ -210,6 +210,18 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   const [outputText, setOutputText] = useState(savedExpand?.outputText || '');
   const [generatingMain, setGeneratingMain] = useState(false);
   const [girlfriendUploading, setGirlfriendUploading] = useState(false);
+  const [favorites, setFavorites] = useState<FavoriteItem[]>(() => getFavorites());
+
+  const handleToggleFavorite = (imageUrl: string, prompt?: string) => {
+    const existing = favorites.find((f) => f.imageUrl === imageUrl);
+    if (existing) {
+      removeFavorite(existing.id);
+      setFavorites(getFavorites());
+    } else {
+      addFavorite({ imageUrl, prompt, source: 'expand', r18: r18Mode });
+      setFavorites(getFavorites());
+    }
+  };
 
   // Persist expand state to sessionStorage so it survives page switches
   useEffect(() => {
@@ -849,6 +861,18 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   const [history, setHistory] = useState<RandomHistoryItem[]>(() => getRandomHistory());
   const [genStates, setGenStates] = useState<Record<number, { loading: boolean; images: string[] }>>({});
   const [batchLoading, setBatchLoading] = useState(false);
+  const [favorites, setFavorites] = useState<FavoriteItem[]>(() => getFavorites());
+
+  const handleToggleFavorite = (imageUrl: string, prompt?: string) => {
+    const existing = favorites.find((f) => f.imageUrl === imageUrl);
+    if (existing) {
+      removeFavorite(existing.id);
+      setFavorites(getFavorites());
+    } else {
+      addFavorite({ imageUrl, prompt, source: 'random', r18: r18Mode });
+      setFavorites(getFavorites());
+    }
+  };
 
   // Persist random state to sessionStorage
   useEffect(() => {
@@ -2869,10 +2893,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
             {historyTab === 'history' ? (
               <StoryboardHistoryList
                 history={history}
-                r18Mode={r18Mode}
                 onLoad={handleHistoryLoad}
                 onDelete={handleDeleteHistory}
-                onClear={() => { clearStoryboardHistory(); setHistory([]); }}
               />
             ) : (
               <FavoritesList
