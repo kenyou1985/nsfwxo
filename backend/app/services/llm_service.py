@@ -42,12 +42,17 @@ def _is_refusal(text: str) -> bool:
     return False
 
 
-async def call_grok(api_key: str, system_prompt: str, user_prompt: str) -> str:
+async def call_grok(
+    api_key: str,
+    system_prompt: str,
+    user_prompt: str,
+    model_order: list[str] | None = None,
+) -> str:
     """
     动态实例化 AsyncOpenAI 客户端，每次请求使用前端传来的 API Key。
-    主模型失败时自动切换备用模型重试，最多 MAX_RETRIES 次。
+    默认先尝试主模型，若遇到 502/上游错误则自动切换备用模型重试，最多 MAX_RETRIES 次。
     """
-    models_to_try = [MODEL_NAME, MODEL_FALLBACK]
+    models_to_try = model_order or [MODEL_NAME, MODEL_FALLBACK]
 
     for attempt_idx, model_name in enumerate(models_to_try):
         logger.info(f"[LLM] calling model={model_name}")
@@ -86,18 +91,22 @@ async def call_grok(api_key: str, system_prompt: str, user_prompt: str) -> str:
             except APIError as e:
                 if retry < MAX_RETRIES - 1:
                     continue
+                status_code = getattr(e, 'status_code', None)
                 if attempt_idx == 0 and model_name == MODEL_NAME:
-                    break
-                raise YunwuAPIError(f"Yunwu AI API 错误 ({getattr(e, 'status_code', '?')}): {str(e)}")
+                    if status_code == 502 or status_code is None:
+                        break
+                raise YunwuAPIError(f"Yunwu AI API 错误 ({status_code or '?'}): {str(e)}")
             except Exception as e:
                 if retry < MAX_RETRIES - 1:
                     continue
-                if "timeout" in str(e).lower() or "timed out" in str(e).lower():
+                error_text = str(e).lower()
+                if "timeout" in error_text or "timed out" in error_text:
                     if attempt_idx == 0 and model_name == MODEL_NAME:
                         break
                     raise YunwuTimeoutError(f"Yunwu AI 请求超时（{REQUEST_TIMEOUT}秒）: {str(e)}")
                 if attempt_idx == 0 and model_name == MODEL_NAME:
-                    break
+                    if "502" in error_text or "bad gateway" in error_text or "gateway" in error_text:
+                        break
                 raise YunwuAPIError(f"LLM 调用失败: {str(e)}")
         if attempt_idx == 0 and model_name == MODEL_NAME:
             continue
