@@ -846,7 +846,7 @@ export const LORA_PRESETS: LORAPreset[] = [
   {
     name: 'hhh-000008.safetensors',
     label: 'HHH-000008 (真实写实)',
-    defaultWeight: 0.75,
+    defaultWeight: 0.35,
     description: '增强写实感和皮肤质感',
   },
 ];
