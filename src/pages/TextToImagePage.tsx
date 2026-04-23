@@ -7,7 +7,7 @@ import { ImageGrid } from '../components/ImageGrid';
 import { TaskList } from '../components/TaskList';
 import type { TextToImageParams, QueuedTask } from '../types';
 import type { TaskManagerReturn } from '../hooks/useTaskManager';
-import { DEFAULT_TXT2IMG_PARAMS } from '../constants';
+import { DEFAULT_TXT2IMG_PARAMS, LORA_PRESETS } from '../constants';
 import type { WeightMode } from '../components/PromptEditor';
 import { buildTxt2ImgNodeList } from '../utils/txt2imgNodeBuilder';
 import { expandPrompt } from '../services/promptApi';
@@ -429,14 +429,34 @@ export function TextToImagePage({
             <div className="space-y-2">
               <div className="text-xs text-text-tertiary font-medium">LoRA 1</div>
               <div className="flex gap-3">
-                <div className="flex-1">
+                <div className="flex-1 flex gap-2">
+                  <select
+                    value={LORA_PRESETS.find((p) => p.name === params.lora1Name) ? params.lora1Name : '__custom__'}
+                    onChange={(e) => {
+                      if (e.target.value === '__custom__') {
+                        updateParam('lora1Name', '');
+                      } else {
+                        updateParam('lora1Name', e.target.value);
+                        const preset = LORA_PRESETS.find((p) => p.name === e.target.value);
+                        if (preset) updateParam('lora1Weight', preset.defaultWeight);
+                      }
+                    }}
+                    disabled={taskManager.isFull}
+                    className="flex-1 bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-primary transition-colors cursor-pointer"
+                  >
+                    <option value="">不使用</option>
+                    {LORA_PRESETS.map((p) => (
+                      <option key={p.name} value={p.name}>{p.label}</option>
+                    ))}
+                    <option value="__custom__">自定义...</option>
+                  </select>
                   <input
                     type="text"
                     value={params.lora1Name}
                     onChange={(e) => updateParam('lora1Name', e.target.value)}
-                    placeholder="LoRA 文件名.safetensors"
-                    disabled={taskManager.isFull}
-                    className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-primary transition-colors"
+                    placeholder="自定义 LoRA 文件名"
+                    disabled={taskManager.isFull || !!LORA_PRESETS.find((p) => p.name === params.lora1Name)}
+                    className="flex-1 bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-primary transition-colors disabled:opacity-40"
                   />
                 </div>
                 <div className="w-28">
@@ -457,14 +477,34 @@ export function TextToImagePage({
             <div className="space-y-2">
               <div className="text-xs text-text-tertiary font-medium">LoRA 2</div>
               <div className="flex gap-3">
-                <div className="flex-1">
+                <div className="flex-1 flex gap-2">
+                  <select
+                    value={LORA_PRESETS.find((p) => p.name === params.lora2Name) ? params.lora2Name : '__custom__'}
+                    onChange={(e) => {
+                      if (e.target.value === '__custom__') {
+                        updateParam('lora2Name', '');
+                      } else {
+                        updateParam('lora2Name', e.target.value);
+                        const preset = LORA_PRESETS.find((p) => p.name === e.target.value);
+                        if (preset) updateParam('lora2Weight', preset.defaultWeight);
+                      }
+                    }}
+                    disabled={taskManager.isFull}
+                    className="flex-1 bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-primary transition-colors cursor-pointer"
+                  >
+                    <option value="">不使用</option>
+                    {LORA_PRESETS.map((p) => (
+                      <option key={p.name} value={p.name}>{p.label}</option>
+                    ))}
+                    <option value="__custom__">自定义...</option>
+                  </select>
                   <input
                     type="text"
                     value={params.lora2Name}
                     onChange={(e) => updateParam('lora2Name', e.target.value)}
-                    placeholder="LoRA 文件名.safetensors"
-                    disabled={taskManager.isFull}
-                    className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-primary transition-colors"
+                    placeholder="自定义 LoRA 文件名"
+                    disabled={taskManager.isFull || !!LORA_PRESETS.find((p) => p.name === params.lora2Name)}
+                    className="flex-1 bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-primary transition-colors disabled:opacity-40"
                   />
                 </div>
                 <div className="w-28">
@@ -485,14 +525,34 @@ export function TextToImagePage({
             <div className="space-y-2">
               <div className="text-xs text-text-tertiary font-medium">LoRA 3</div>
               <div className="flex gap-3">
-                <div className="flex-1">
+                <div className="flex-1 flex gap-2">
+                  <select
+                    value={LORA_PRESETS.find((p) => p.name === params.lora3Name) ? params.lora3Name : '__custom__'}
+                    onChange={(e) => {
+                      if (e.target.value === '__custom__') {
+                        updateParam('lora3Name', '');
+                      } else {
+                        updateParam('lora3Name', e.target.value);
+                        const preset = LORA_PRESETS.find((p) => p.name === e.target.value);
+                        if (preset) updateParam('lora3Weight', preset.defaultWeight);
+                      }
+                    }}
+                    disabled={taskManager.isFull}
+                    className="flex-1 bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-primary transition-colors cursor-pointer"
+                  >
+                    <option value="">不使用</option>
+                    {LORA_PRESETS.map((p) => (
+                      <option key={p.name} value={p.name}>{p.label}</option>
+                    ))}
+                    <option value="__custom__">自定义...</option>
+                  </select>
                   <input
                     type="text"
                     value={params.lora3Name}
                     onChange={(e) => updateParam('lora3Name', e.target.value)}
-                    placeholder="LoRA 文件名.safetensors"
-                    disabled={taskManager.isFull}
-                    className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-primary transition-colors"
+                    placeholder="自定义 LoRA 文件名"
+                    disabled={taskManager.isFull || !!LORA_PRESETS.find((p) => p.name === params.lora3Name)}
+                    className="flex-1 bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-primary transition-colors disabled:opacity-40"
                   />
                 </div>
                 <div className="w-28">
@@ -614,41 +674,109 @@ export function TextToImagePage({
           icon={<Settings2 size={14} className="text-text-tertiary" />}
         >
           <div className="space-y-4">
-            {/* LoRA inputs */}
-            <div className="space-y-3">
+            {/* LoRA 1 */}
+            <div className="space-y-2">
               <div className="text-xs text-text-tertiary font-medium">LoRA 1</div>
-              <input
-                type="text"
-                value={params.lora1Name}
-                onChange={(e) => updateParam('lora1Name', e.target.value)}
-                placeholder="LoRA 文件名.safetensors"
+              <select
+                value={LORA_PRESETS.find((p) => p.name === params.lora1Name) ? params.lora1Name : '__custom__'}
+                onChange={(e) => {
+                  if (e.target.value === '__custom__') {
+                    updateParam('lora1Name', '');
+                  } else {
+                    updateParam('lora1Name', e.target.value);
+                    const preset = LORA_PRESETS.find((p) => p.name === e.target.value);
+                    if (preset) updateParam('lora1Weight', preset.defaultWeight);
+                  }
+                }}
                 disabled={taskManager.isFull}
-                className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-primary transition-colors"
-              />
+                className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-primary transition-colors cursor-pointer"
+              >
+                <option value="">不使用</option>
+                {LORA_PRESETS.map((p) => (
+                  <option key={p.name} value={p.name}>{p.label}</option>
+                ))}
+                <option value="__custom__">自定义...</option>
+              </select>
+              {(!LORA_PRESETS.find((p) => p.name === params.lora1Name) || params.lora1Name) && (
+                <input
+                  type="text"
+                  value={params.lora1Name}
+                  onChange={(e) => updateParam('lora1Name', e.target.value)}
+                  placeholder="自定义 LoRA 文件名"
+                  disabled={taskManager.isFull}
+                  className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-primary transition-colors"
+                />
+              )}
               <ParameterSlider label="权重" value={params.lora1Weight} min={0} max={2} step={0.05} onChange={(v) => updateParam('lora1Weight', v)} disabled={taskManager.isFull} />
             </div>
-            <div className="border-t border-border/50 pt-3 space-y-3">
+            {/* LoRA 2 */}
+            <div className="border-t border-border/50 pt-3 space-y-2">
               <div className="text-xs text-text-tertiary font-medium">LoRA 2</div>
-              <input
-                type="text"
-                value={params.lora2Name}
-                onChange={(e) => updateParam('lora2Name', e.target.value)}
-                placeholder="LoRA 文件名.safetensors"
+              <select
+                value={LORA_PRESETS.find((p) => p.name === params.lora2Name) ? params.lora2Name : '__custom__'}
+                onChange={(e) => {
+                  if (e.target.value === '__custom__') {
+                    updateParam('lora2Name', '');
+                  } else {
+                    updateParam('lora2Name', e.target.value);
+                    const preset = LORA_PRESETS.find((p) => p.name === e.target.value);
+                    if (preset) updateParam('lora2Weight', preset.defaultWeight);
+                  }
+                }}
                 disabled={taskManager.isFull}
-                className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-primary transition-colors"
-              />
+                className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-primary transition-colors cursor-pointer"
+              >
+                <option value="">不使用</option>
+                {LORA_PRESETS.map((p) => (
+                  <option key={p.name} value={p.name}>{p.label}</option>
+                ))}
+                <option value="__custom__">自定义...</option>
+              </select>
+              {(!LORA_PRESETS.find((p) => p.name === params.lora2Name) || params.lora2Name) && (
+                <input
+                  type="text"
+                  value={params.lora2Name}
+                  onChange={(e) => updateParam('lora2Name', e.target.value)}
+                  placeholder="自定义 LoRA 文件名"
+                  disabled={taskManager.isFull}
+                  className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-primary transition-colors"
+                />
+              )}
               <ParameterSlider label="权重" value={params.lora2Weight} min={0} max={2} step={0.05} onChange={(v) => updateParam('lora2Weight', v)} disabled={taskManager.isFull} />
             </div>
-            <div className="border-t border-border/50 pt-3 space-y-3">
+            {/* LoRA 3 */}
+            <div className="border-t border-border/50 pt-3 space-y-2">
               <div className="text-xs text-text-tertiary font-medium">LoRA 3</div>
-              <input
-                type="text"
-                value={params.lora3Name}
-                onChange={(e) => updateParam('lora3Name', e.target.value)}
-                placeholder="LoRA 文件名.safetensors"
+              <select
+                value={LORA_PRESETS.find((p) => p.name === params.lora3Name) ? params.lora3Name : '__custom__'}
+                onChange={(e) => {
+                  if (e.target.value === '__custom__') {
+                    updateParam('lora3Name', '');
+                  } else {
+                    updateParam('lora3Name', e.target.value);
+                    const preset = LORA_PRESETS.find((p) => p.name === e.target.value);
+                    if (preset) updateParam('lora3Weight', preset.defaultWeight);
+                  }
+                }}
                 disabled={taskManager.isFull}
-                className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-primary transition-colors"
-              />
+                className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-primary transition-colors cursor-pointer"
+              >
+                <option value="">不使用</option>
+                {LORA_PRESETS.map((p) => (
+                  <option key={p.name} value={p.name}>{p.label}</option>
+                ))}
+                <option value="__custom__">自定义...</option>
+              </select>
+              {(!LORA_PRESETS.find((p) => p.name === params.lora3Name) || params.lora3Name) && (
+                <input
+                  type="text"
+                  value={params.lora3Name}
+                  onChange={(e) => updateParam('lora3Name', e.target.value)}
+                  placeholder="自定义 LoRA 文件名"
+                  disabled={taskManager.isFull}
+                  className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-primary transition-colors"
+                />
+              )}
               <ParameterSlider label="权重" value={params.lora3Weight} min={0} max={2} step={0.05} onChange={(v) => updateParam('lora3Weight', v)} disabled={taskManager.isFull} />
             </div>
             <div className="border-t border-border/50 pt-3">

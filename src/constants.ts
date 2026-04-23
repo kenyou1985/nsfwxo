@@ -829,6 +829,28 @@ export const CAMERA_ANGLE_OPTIONS = [
   { value: 'random 🎲', label: '随机' },
 ];
 
+export interface LORAPreset {
+  name: string;
+  label: string;
+  defaultWeight: number;
+  description: string;
+}
+
+export const LORA_PRESETS: LORAPreset[] = [
+  {
+    name: 'Natural_Thick_Body_v2-_Body_Style_-_Illustrious.safetensors',
+    label: 'Natural Thick Body v2 (丰满体型)',
+    defaultWeight: 0.3,
+    description: '用于生成丰满/厚实体型的角色',
+  },
+  {
+    name: 'hhh-000008.safetensors',
+    label: 'HHH-000008 (真实写实)',
+    defaultWeight: 0.75,
+    description: '增强写实感和皮肤质感',
+  },
+];
+
 export const DEFAULT_TXT2IMG_PARAMS = {
   width: 1024,
   height: 1536,
