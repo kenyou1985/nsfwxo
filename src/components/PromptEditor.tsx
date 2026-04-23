@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { X, Copy, Wand2, Trash2, ChevronUp, ChevronDown, Check, Plus, Sparkles, Shuffle } from 'lucide-react';
 import { getTagDisplayName, type DisplayLang } from '../data/tags';
+import { QUALITY_BOOST_PROMPT } from '../constants';
 
 export type WeightMode = 'none' | 'positive' | 'negative';
 
@@ -124,7 +125,7 @@ export function PromptEditor({
       }
     });
     if (enableRandomPrompt) {
-      parts.push('masterpiece, ultra-HD, high detail, best quality, 8k, ergonomic, sharp focus, realistic, real skin');
+      parts.push(QUALITY_BOOST_PROMPT);
     }
     return parts.join(', ');
   }, [positiveTags, enableRandomPrompt]);
@@ -150,7 +151,7 @@ export function PromptEditor({
     }
 
     if (enableRandomPrompt) {
-      parts.push('masterpiece, ultra-HD, high detail, best quality, 8k, ergonomic, sharp focus, realistic, real skin');
+      parts.push(QUALITY_BOOST_PROMPT);
     }
 
     return parts.join(', ');

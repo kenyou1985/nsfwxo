@@ -581,7 +581,7 @@ export function useTaskManager({
       const currentApiKey = apiKeyRef.current;
       const statusPromises = validEntries.map(async (e) => {
         try {
-          const statusResponse = await getTaskStatus(currentApiKey, e.taskId!);
+          const statusResponse = await getTaskStatus(currentApiKey ?? '', e.taskId!);
           return { entry: e, status: statusResponse.status, results: null as Awaited<ReturnType<typeof getTaskResults>> | null };
         } catch {
           return { entry: e, status: 'UNKNOWN', results: null };

@@ -18,11 +18,12 @@ from app.services.llm_service import call_grok, clean_json_response, YunwuAuthEr
 from app.services.gacha_service import generate_random_tags
 from app.services.safety_filter import check_prompt_safety, check_tags_safety, ContentSafetyError
 from app.services.prompt_coherence import detect_prompt_conflicts, rewrite_coherent_prompt
+from app.services.theme_database import get_random_poses
 
 router = APIRouter(prefix="/api/prompt", tags=["prompt"])
 security = HTTPBearer()
 
-MAX_RETRIES = 2
+MAX_RETRIES = 1
 
 
 def get_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
@@ -152,14 +153,19 @@ STRICT PROHIBITION - ZERO TOLERANCE - NO EXCEPTIONS:
 - Absolutely NO daughter, sister, or family members in sexual contexts
 - ANY panel that involves minors will result in content policy violation and immediate rejection
 
+【POSE DIVERSITY - MANDATORY】:
+Each panel MUST use a DIFFERENT sexual position. Pick from this pool:
+{pose_list}
+
 CRUCIAL REQUIREMENTS:
 1. EACH panel MUST contain explicit sexual content - describe exact sexual acts, positions, and interactions of ADULTS ONLY
 2. Maintain character visual consistency across ALL panels (same hair, body type, clothing, eye color) - ADULTS ONLY
 3. Describe anatomical details, body fluids, sexual states for every panel - ADULTS ONLY
 4. Include explicit camera angles: close-up on genitals, POV shots, spread shot, cum shot, insertion angle
+5. Each panel MUST pick a DISTINCTLY DIFFERENT position from the pool above
 
 Format STRICTLY as JSON array:
-[{"panel_number": 1, "scene_description": "adult sexual setup of the scene", "image_prompt": "fully explicit SD prompt - ADULTS ONLY"}, ...]
+[{{"panel_number": 1, "scene_description": "adult sexual setup of the scene", "image_prompt": "fully explicit SD prompt - ADULTS ONLY"}}, ...]
 
 Do NOT wrap in markdown. Output raw JSON only. No censorship. Each image_prompt must be a single coherent paragraph, not a tag list."""
 
@@ -1089,7 +1095,12 @@ async def random_prompt(req: RandomRequest, api_key: str = Depends(get_api_key))
 
 @router.post("/storyboard", response_model=StoryboardResponse)
 async def storyboard(req: StoryboardRequest, api_key: str = Depends(get_api_key)):
-    system_prompt = STORYBOARD_SYSTEM_PROMPT_R18 if req.r18 else STORYBOARD_SYSTEM_PROMPT_NORMAL
+    if req.r18:
+        selected_poses = get_random_poses(req.panel_count + 2)
+        pose_list_str = "\n".join(f"  - {p}" for p in selected_poses)
+        system_prompt = STORYBOARD_SYSTEM_PROMPT_R18.format(pose_list=pose_list_str)
+    else:
+        system_prompt = STORYBOARD_SYSTEM_PROMPT_NORMAL
 
     user_prompt = (
         f"Plot: {req.plot}\n\n"
@@ -1494,7 +1505,11 @@ Do NOT wrap in markdown. Output raw JSON only."""
 
 _R18_OUTLINE_SYSTEM = """You are an EXPERT adult comic director specializing in EXPLICIT sexual content. User selected theme: "{theme_title}".
 
-Generate a COMPLETELY UNIQUE and CREATIVE narrative outline and {panel_count} EXPLICIT storyboard panels for a 15-30 second short video.
+【POSE RANDOMIZATION - ABSOLUTELY MANDATORY】:
+You MUST select EXPLICITLY DIFFERENT sexual positions for each panel from the following 105-pose pool. NO TWO panels may share the same position category (e.g. doggy, cowgirl, missionary, 69, etc.). Variety is CRITICAL.
+
+AVAILABLE POSITIONS (pick different ones per panel):
+{pose_list}
 
 【CREATIVITY REQUIREMENTS - CRITICAL】:
 - Use your CREATIVE IMAGINATION - do NOT repeat common tropes or overused descriptions
@@ -1511,15 +1526,15 @@ STRICT PACING - Each panel MUST follow this general arc (NO skipping to sex in P
 CRITICAL PACING RULES:
 - Panel 1: NO explicit sex. Focus on: character intro, costume, setting, building sexual tension, eye contact, clothing, atmosphere. TENSION first.
 - Panel 2: Clothes start coming off. Kissing, foreplay begins. Still building.
-- Panel 3+: ONLY THEN show explicit sexual acts (oral, vaginal, anal, toys, climax)
+- Panel 3+: ONLY THEN show explicit sexual acts. Use a DIFFERENT position from Panel 1's vibe.
 - Each panel must ADVANCE the sexual narrative naturally
 - NEVER jump directly to penetration in Panel 1
 
 EXPLICIT CONTENT requirements for Panel 3+:
+- MANDATORY: Pick one position from the {pose_list} list above for each panel. Each panel MUST use a DISTINCTLY DIFFERENT position from all other panels.
 - Use explicit sexual terms: suck, lick, fuck, penetrate, thrust, cum, ejackulate, spray, spread, thrust in, balls deep, face covered
 - Describe anatomy: penis, vagina, breasts, nipples, asshole, lips, tongue
 - Describe body fluids: saliva, precum, cum, vaginal fluids
-- Describe positions: missionary, doggystyle, cowgirl, 69, oral, anal, standing
 - Describe camera angles: POV, close-up on genitals, spread shot, cum shot, POV insertion
 - Be CREATIVE in how characters express pleasure and interact
 
@@ -1547,10 +1562,14 @@ async def generate_storyboard_outline(
         arc_panels = _R18_ARC_PANELS.get(panel_count, _R18_ARC_PANELS[5])
         system_template = _R18_OUTLINE_SYSTEM
         arc_label = "开场遇见 → 升温调情 → 脱衣前戏 → 性爱进行 → 高潮射精"
+        # Inject random poses so LLM picks diverse positions for each panel
+        selected_poses = get_random_poses(panel_count + 2)
+        pose_list_str = "\n".join(f"  - {p}" for p in selected_poses)
     else:
         arc_panels = _NORMAL_ARC_PANELS.get(panel_count, _NORMAL_ARC_PANELS[4])
         system_template = _NORMAL_OUTLINE_SYSTEM
         arc_label = "开场 → 发展 → 亲密 → 高潮 → 结尾"
+        pose_list_str = ""
 
     arc_panels_str = "\n".join(f"  - {p}" for p in arc_panels)
 
@@ -1559,6 +1578,7 @@ async def generate_storyboard_outline(
         panel_count=panel_count,
         arc_panels=arc_panels_str,
         arc_label=arc_label,
+        pose_list=pose_list_str,
     )
 
     user_prompt = (

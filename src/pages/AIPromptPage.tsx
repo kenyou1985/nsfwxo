@@ -34,7 +34,7 @@ import type { GirlfriendPreset } from '../data/girlfriendPresets';
 import { GirlfriendSelector } from '../components/GirlfriendSelector';
 import { buildTxt2ImgNodeList } from '../utils/txt2imgNodeBuilder';
 import type { QueuedTask, TabType, NodeInfo } from '../types';
-import { DEFAULT_TXT2IMG_PARAMS } from '../constants';
+import { DEFAULT_TXT2IMG_PARAMS, QUALITY_BOOST_PROMPT } from '../constants';
 import { WORKFLOW, getWorkflowFormat, uploadImage, ensureDataUrl } from '../services/runninghub';
 
 type PromptMode = 'expand' | 'random' | 'storyboard';
@@ -203,6 +203,8 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<ExpandHistoryItem[]>(() => getExpandHistory());
+  // Safety net: reload history on mount (covers cases where init state missed localStorage)
+  useEffect(() => { setHistory(getExpandHistory()); }, []);
   const [genState, setGenState] = useState<GenerateState>({});
   const [batchLoading, setBatchLoading] = useState(false);
   const [outputPrompts, setOutputPrompts] = useState<string[]>(savedExpand?.outputPrompts || []);
@@ -353,13 +355,16 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         onSuccess('任务已提交，请到图生图查看生成结果');
         if (onNavigate) onNavigate('img2img');
       } else {
-        const nodes = [
-          { nodeId: '5', fieldName: 'width', fieldValue: '1024', description: '宽度' },
-          { nodeId: '5', fieldName: 'height', fieldValue: '1024', description: '高度' },
-          { nodeId: '5', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: '数量' },
-          { nodeId: '6', fieldName: 'text', fieldValue: outputText, description: '提示词' },
-          { nodeId: '7', fieldName: 'text', fieldValue: 'nsfw, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry', description: '负面提示词' },
-        ];
+        const nodes = buildTxt2ImgNodeList({
+          width: DEFAULT_TXT2IMG_PARAMS.width,
+          height: DEFAULT_TXT2IMG_PARAMS.height,
+          imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
+          prompt: `${QUALITY_BOOST_PROMPT}, ${outputText}`,
+          lora1Name: DEFAULT_TXT2IMG_PARAMS.lora1Name,
+          lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
+          lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
+          lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
+        });
         await taskManager.addTask('txt2img', nodes, outputText);
         onSuccess('任务已提交，请到文生图查看生成结果');
         if (onNavigate) onNavigate('txt2img');
@@ -418,13 +423,16 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         });
       }
     } else {
-      const nodes = [
-        { nodeId: '5', fieldName: 'width', fieldValue: '1024', description: '宽度' },
-        { nodeId: '5', fieldName: 'height', fieldValue: '1024', description: '高度' },
-        { nodeId: '5', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: '数量' },
-        { nodeId: '6', fieldName: 'text', fieldValue: result.prompt, description: '提示词' },
-        { nodeId: '7', fieldName: 'text', fieldValue: 'nsfw, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry', description: '负面提示词' },
-      ];
+      const nodes = buildTxt2ImgNodeList({
+        width: DEFAULT_TXT2IMG_PARAMS.width,
+        height: DEFAULT_TXT2IMG_PARAMS.height,
+        imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
+        prompt: `${QUALITY_BOOST_PROMPT}, ${result.prompt}`,
+        lora1Name: DEFAULT_TXT2IMG_PARAMS.lora1Name,
+        lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
+        lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
+        lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
+      });
       try {
         await taskManager.addTask('txt2img', nodes, result.prompt);
         onSuccess('任务已提交，请到文生图查看生成结果');
@@ -463,8 +471,8 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         return;
       }
     }
-    for (let i = 0; i < Math.min(results.length, availableSlots); i++) {
-      const result = results[i];
+    const toSubmit = results.slice(0, availableSlots);
+    const tasks = toSubmit.map(async (result) => {
       if (digitalHumanMode && selectedGirlfriend) {
         const nodes = [
           { nodeId: '60', fieldName: 'image', fieldValue: imagePath, description: '选择图片' },
@@ -475,28 +483,28 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           { nodeId: '80', fieldName: 'lora_name', fieldValue: 'any2realV2.safetensors', description: 'lora(qwen-2511)' },
           { nodeId: '80', fieldName: 'strength_model', fieldValue: '0', description: 'lora权重' },
         ];
-        try {
-          await taskManager.addTask('img2img', nodes, result.prompt, WORKFLOW.QWEN_IMG2IMG);
-          submitted++;
-        } catch (err) {
-          onError(`提交第 ${i + 1} 个时失败: ${err instanceof Error ? err.message : '未知错误'}`);
-        }
+        await taskManager.addTask('img2img', nodes, result.prompt, WORKFLOW.QWEN_IMG2IMG);
       } else {
-        const nodes = [
-          { nodeId: '5', fieldName: 'width', fieldValue: '1024', description: '宽度' },
-          { nodeId: '5', fieldName: 'height', fieldValue: '1024', description: '高度' },
-          { nodeId: '5', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: '数量' },
-          { nodeId: '6', fieldName: 'text', fieldValue: result.prompt, description: '提示词' },
-          { nodeId: '7', fieldName: 'text', fieldValue: 'nsfw, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry', description: '负面提示词' },
-        ];
-        try {
-          await taskManager.addTask('txt2img', nodes, result.prompt);
-          submitted++;
-        } catch (err) {
-          onError(`提交第 ${i + 1} 个时失败: ${err instanceof Error ? err.message : '未知错误'}`);
-        }
+        const nodes = buildTxt2ImgNodeList({
+          width: DEFAULT_TXT2IMG_PARAMS.width,
+          height: DEFAULT_TXT2IMG_PARAMS.height,
+          imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
+          prompt: `${QUALITY_BOOST_PROMPT}, ${result.prompt}`,
+          lora1Name: DEFAULT_TXT2IMG_PARAMS.lora1Name,
+          lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
+          lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
+          lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
+        });
+        await taskManager.addTask('txt2img', nodes, result.prompt);
       }
-    }
+    });
+    const results_await = await Promise.allSettled(tasks);
+    submitted = results_await.filter((r) => r.status === 'fulfilled').length;
+    results_await.forEach((r, i) => {
+      if (r.status === 'rejected') {
+        onError(`提交第 ${i + 1} 个时失败: ${r.reason instanceof Error ? r.reason.message : '未知错误'}`);
+      }
+    });
     setBatchLoading(false);
     if (submitted > 0) {
       onSuccess(`已提交 ${submitted} 个生图任务`);
@@ -817,7 +825,7 @@ function ExpandResultCard({ result, r18Mode, isCopied, genState, onCopy, onDelet
             </div>
             <div className="grid grid-cols-3 gap-2">
               {displayImages.slice(0, 6).map((img, idx) => (
-                <AIGeneratedImagePreview key={idx} src={img} prompt={result.prompt} onFavorited={onFavorited} />
+                <AIGeneratedImagePreview key={idx} src={img} prompt={result.prompt} onFavorited={onFavorited} allImages={displayImages.slice(0, 6)} index={idx} />
               ))}
               {displayImages.length > 6 && (
                 <div className="aspect-square rounded-lg bg-bg-elevated flex items-center justify-center text-xs text-text-tertiary">
@@ -1021,13 +1029,16 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         });
       }
     } else {
-      const nodes = [
-        { nodeId: '5', fieldName: 'width', fieldValue: '1024', description: '宽度' },
-        { nodeId: '5', fieldName: 'height', fieldValue: '1024', description: '高度' },
-        { nodeId: '5', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: '数量' },
-        { nodeId: '6', fieldName: 'text', fieldValue: prompt, description: '提示词' },
-        { nodeId: '7', fieldName: 'text', fieldValue: 'nsfw, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry', description: '负面提示词' },
-      ];
+      const nodes = buildTxt2ImgNodeList({
+        width: DEFAULT_TXT2IMG_PARAMS.width,
+        height: DEFAULT_TXT2IMG_PARAMS.height,
+        imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
+        prompt: `${QUALITY_BOOST_PROMPT}, ${prompt}`,
+        lora1Name: DEFAULT_TXT2IMG_PARAMS.lora1Name,
+        lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
+        lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
+        lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
+      });
       try {
         await taskManager.addTask('txt2img', nodes, prompt);
         onSuccess('任务已提交，请到文生图查看生成结果');
@@ -1066,8 +1077,8 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         return;
       }
     }
-    for (let i = 0; i < Math.min(results.length, availableSlots); i++) {
-      const result = results[i];
+    const toSubmit = results.slice(0, availableSlots);
+    const tasks = toSubmit.map(async (result) => {
       if (digitalHumanMode && selectedGirlfriend) {
         const nodes = [
           { nodeId: '60', fieldName: 'image', fieldValue: imagePath, description: '选择图片' },
@@ -1078,28 +1089,28 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           { nodeId: '80', fieldName: 'lora_name', fieldValue: 'any2realV2.safetensors', description: 'lora(qwen-2511)' },
           { nodeId: '80', fieldName: 'strength_model', fieldValue: '0', description: 'lora权重' },
         ];
-        try {
-          await taskManager.addTask('img2img', nodes, result.prompt, WORKFLOW.QWEN_IMG2IMG);
-          submitted++;
-        } catch (err) {
-          onError(`提交第 ${i + 1} 个时失败: ${err instanceof Error ? err.message : '未知错误'}`);
-        }
+        await taskManager.addTask('img2img', nodes, result.prompt, WORKFLOW.QWEN_IMG2IMG);
       } else {
-        const nodes = [
-          { nodeId: '5', fieldName: 'width', fieldValue: '1024', description: '宽度' },
-          { nodeId: '5', fieldName: 'height', fieldValue: '1024', description: '高度' },
-          { nodeId: '5', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: '数量' },
-          { nodeId: '6', fieldName: 'text', fieldValue: result.prompt, description: '提示词' },
-          { nodeId: '7', fieldName: 'text', fieldValue: 'nsfw, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry', description: '负面提示词' },
-        ];
-        try {
-          await taskManager.addTask('txt2img', nodes, result.prompt);
-          submitted++;
-        } catch (err) {
-          onError(`提交第 ${i + 1} 个时失败: ${err instanceof Error ? err.message : '未知错误'}`);
-        }
+        const nodes = buildTxt2ImgNodeList({
+          width: DEFAULT_TXT2IMG_PARAMS.width,
+          height: DEFAULT_TXT2IMG_PARAMS.height,
+          imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
+          prompt: `${QUALITY_BOOST_PROMPT}, ${result.prompt}`,
+          lora1Name: DEFAULT_TXT2IMG_PARAMS.lora1Name,
+          lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
+          lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
+          lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
+        });
+        await taskManager.addTask('txt2img', nodes, result.prompt);
       }
-    }
+    });
+    const settled = await Promise.allSettled(tasks);
+    submitted = settled.filter((r) => r.status === 'fulfilled').length;
+    settled.forEach((r, i) => {
+      if (r.status === 'rejected') {
+        onError(`提交第 ${i + 1} 个时失败: ${r.reason instanceof Error ? r.reason.message : '未知错误'}`);
+      }
+    });
     setBatchLoading(false);
     if (submitted > 0) {
       onSuccess(`已提交 ${submitted} 个生图任务`);
@@ -1448,10 +1459,52 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     return saved?.historyId || null;
   });
 
+  // 2-step storyboard state
+  const [storyStep, setStoryStep] = useState<'themes' | 'outline' | 'panels'>(
+    savedStoryboard?.themeId ? 'panels' : 'themes'
+  );
+  const [themeOptions, setThemeOptions] = useState<{
+    id: number; title: string; description: string; tags: string[]; r18_level: string; category?: string; scenario_count?: number; costume_count?: number;
+  }[]>([]);
+  const [selectedThemes, setSelectedThemes] = useState<{
+    id: number; title: string; description: string; tags: string[]; r18_level: string; category?: string; scenario_count?: number; costume_count?: number;
+  }[]>([]);
+  const [selectedTheme, setSelectedTheme] = useState<{
+    id: number; title: string; description: string; tags: string[]; r18_level: string; category?: string; scenario_count?: number; costume_count?: number;
+  } | null>(null);
+  const [customThemeMode, setCustomThemeMode] = useState(false);
+  const [customThemeDescription, setCustomThemeDescription] = useState('');
+  const [customThemeCount, setCustomThemeCount] = useState(10);
+  const [themeLibraryOpen, setThemeLibraryOpen] = useState(false);
+  const [loadingThemeLibrary, setLoadingThemeLibrary] = useState(false);
+  const [themeSearchQuery, setThemeSearchQuery] = useState('');
+  const [themeCategoryFilter, setThemeCategoryFilter] = useState('');
+  const [outlineArc, setOutlineArc] = useState(savedStoryboard?.outlineArc || '');
+  const [outlineScenes, setOutlineScenes] = useState<string[]>(savedStoryboard?.outlineScenes || []);
+  const [generatingOutline, setGeneratingOutline] = useState(false);
+
+  // Track generation state per theme (for multi-select)
+  const [themeOutlineStates, setThemeOutlineStates] = useState<Record<number, {
+    generating: boolean;
+    outlineArc: string;
+    outlineScenes: string[];
+    panels: { panel_number: number; scene_description: string; image_prompt: string }[];
+    historyId?: string;
+  }>>({});
+
+  // Active theme tab (for tab switching between themes) — MUST be declared before effectiveHistoryId
+  const [activeThemeTab, setActiveThemeTab] = useState<number | null>(null);
+
   // Helper: get the effective historyId for multi-theme mode
   const effectiveHistoryId = activeThemeTab !== null
     ? (themeOutlineStates[activeThemeTab]?.historyId || currentHistoryId)
     : currentHistoryId;
+
+  // Derived: panels from active theme tab
+  const activePanels = activeThemeTab !== null ? (themeOutlineStates[activeThemeTab]?.panels || []) : panels;
+  const activeOutlineArc = activeThemeTab !== null ? (themeOutlineStates[activeThemeTab]?.outlineArc || '') : outlineArc;
+  const activeOutlineScenes = activeThemeTab !== null ? (themeOutlineStates[activeThemeTab]?.outlineScenes || []) : outlineScenes;
+  const activeThemeInfo = activeThemeTab !== null ? selectedThemes.find((t) => t.id === activeThemeTab) : selectedThemes[0] || null;
 
   // Sync genStates with taskManager.tasks so panel cards reflect live images
   useEffect(() => {
@@ -1514,48 +1567,6 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     };
     convertAndCache();
   }, [genStates, effectiveHistoryId]);
-
-  // 2-step storyboard state
-  const [storyStep, setStoryStep] = useState<'themes' | 'outline' | 'panels'>(
-    savedStoryboard?.themeId ? 'panels' : 'themes'
-  );
-  const [themeOptions, setThemeOptions] = useState<{
-    id: number; title: string; description: string; tags: string[]; r18_level: string; category?: string; scenario_count?: number; costume_count?: number;
-  }[]>([]);
-  const [selectedThemes, setSelectedThemes] = useState<{
-    id: number; title: string; description: string; tags: string[]; r18_level: string; category?: string; scenario_count?: number; costume_count?: number;
-  }[]>([]);
-  const [selectedTheme, setSelectedTheme] = useState<{
-    id: number; title: string; description: string; tags: string[]; r18_level: string; category?: string; scenario_count?: number; costume_count?: number;
-  } | null>(null);
-  const [customThemeMode, setCustomThemeMode] = useState(false);
-  const [customThemeDescription, setCustomThemeDescription] = useState('');
-  const [customThemeCount, setCustomThemeCount] = useState(10);
-  const [themeLibraryOpen, setThemeLibraryOpen] = useState(false);
-  const [loadingThemeLibrary, setLoadingThemeLibrary] = useState(false);
-  const [themeSearchQuery, setThemeSearchQuery] = useState('');
-  const [themeCategoryFilter, setThemeCategoryFilter] = useState('');
-  const [outlineArc, setOutlineArc] = useState(savedStoryboard?.outlineArc || '');
-  const [outlineScenes, setOutlineScenes] = useState<string[]>(savedStoryboard?.outlineScenes || []);
-  const [generatingOutline, setGeneratingOutline] = useState(false);
-
-  // Track generation state per theme (for multi-select)
-  const [themeOutlineStates, setThemeOutlineStates] = useState<Record<number, {
-    generating: boolean;
-    outlineArc: string;
-    outlineScenes: string[];
-    panels: { panel_number: number; scene_description: string; image_prompt: string }[];
-    historyId?: string;
-  }>>({});
-
-  // Active theme tab (for tab switching between themes)
-  const [activeThemeTab, setActiveThemeTab] = useState<number | null>(null);
-
-  // Derived: panels from active theme tab
-  const activePanels = activeThemeTab !== null ? (themeOutlineStates[activeThemeTab]?.panels || []) : panels;
-  const activeOutlineArc = activeThemeTab !== null ? (themeOutlineStates[activeThemeTab]?.outlineArc || '') : outlineArc;
-  const activeOutlineScenes = activeThemeTab !== null ? (themeOutlineStates[activeThemeTab]?.outlineScenes || []) : outlineScenes;
-  const activeThemeInfo = activeThemeTab !== null ? selectedThemes.find((t) => t.id === activeThemeTab) : selectedThemes[0] || null;
 
   // Video prompt state
   const [videoScript, setVideoScript] = useState<{
@@ -1657,9 +1668,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     }));
     try {
       const res = await generateStoryboardOutline(theme.id, theme.title, panelCount, r18Mode);
-      addStoryboardHistory({ plot: theme.title, panel_count: panelCount, r18: r18Mode, panels: res.storyboard });
-      const updatedHistory = getStoryboardHistory();
-      const historyId = updatedHistory[0]?.id;
+      const historyId = addStoryboardHistory({ plot: theme.title, panel_count: panelCount, r18: r18Mode, panels: res.storyboard });
       setThemeOutlineStates((prev) => ({
         ...prev,
         [theme.id]: {
@@ -1696,23 +1705,19 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     setGeneratingOutline(true);
     try {
       const res = await generateStoryboardOutline(selectedTheme.id, selectedTheme.title, panelCount, r18Mode);
+      const historyId = addStoryboardHistory({ plot: selectedTheme.title, panel_count: panelCount, r18: r18Mode, panels: res.storyboard });
       setOutlineArc(res.outline.arc);
       setOutlineScenes(res.outline.scenes);
       setPanels(res.storyboard);
       setExpandedPanel(null);
       setStoryStep('panels');
-      addStoryboardHistory({ plot: selectedTheme.title, panel_count: panelCount, r18: r18Mode, panels: res.storyboard });
-      const updatedHistory = getStoryboardHistory();
-      const newEntry = updatedHistory[0];
-      if (newEntry) {
-        setCurrentHistoryId(newEntry.id);
-        saveStoryboardSession({
-          plot: selectedTheme.title, panelCount, panels: res.storyboard, expandedPanel: null,
-          themeId: selectedTheme.id, themeTitle: selectedTheme.title,
-          outlineArc: res.outline.arc, outlineScenes: res.outline.scenes, historyId: newEntry.id,
-        });
-      }
-      setHistory(updatedHistory);
+      setCurrentHistoryId(historyId);
+      saveStoryboardSession({
+        plot: selectedTheme.title, panelCount, panels: res.storyboard, expandedPanel: null,
+        themeId: selectedTheme.id, themeTitle: selectedTheme.title,
+        outlineArc: res.outline.arc, outlineScenes: res.outline.scenes, historyId,
+      });
+      setHistory(getStoryboardHistory());
       onSuccess(`剧情大纲已生成，${res.storyboard.length} 个分镜就绪`);
     } catch (err) {
       onError(err instanceof Error ? err.message : '分镜生成失败');
@@ -1730,9 +1735,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     }));
     try {
       const res = await generateStoryboardOutline(theme.id, theme.title, panelCount, r18Mode);
-      addStoryboardHistory({ plot: theme.title, panel_count: panelCount, r18: r18Mode, panels: res.storyboard });
-      const updatedHistory = getStoryboardHistory();
-      const historyId = updatedHistory[0]?.id;
+      const historyId = addStoryboardHistory({ plot: theme.title, panel_count: panelCount, r18: r18Mode, panels: res.storyboard });
       setThemeOutlineStates((prev) => ({
         ...prev,
         [theme.id]: {
@@ -1932,13 +1935,16 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         setGenStates((prev) => { const next = { ...prev }; delete next[key]; return next; });
       }
     } else {
-      const nodes = [
-        { nodeId: '5', fieldName: 'width', fieldValue: '1024', description: '宽度' },
-        { nodeId: '5', fieldName: 'height', fieldValue: '1024', description: '高度' },
-        { nodeId: '5', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: '数量' },
-        { nodeId: '6', fieldName: 'text', fieldValue: prompt, description: '提示词' },
-        { nodeId: '7', fieldName: 'text', fieldValue: 'nsfw, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry', description: '负面提示词' },
-      ];
+      const nodes = buildTxt2ImgNodeList({
+        width: DEFAULT_TXT2IMG_PARAMS.width,
+        height: DEFAULT_TXT2IMG_PARAMS.height,
+        imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
+        prompt: `${QUALITY_BOOST_PROMPT}, ${prompt}`,
+        lora1Name: DEFAULT_TXT2IMG_PARAMS.lora1Name,
+        lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
+        lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
+        lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
+      });
       try {
         await taskManager.addTask('txt2img', nodes, prompt);
         onSuccess('任务已提交');
@@ -2162,10 +2168,9 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         onError('AI 女友图片上传失败'); return;
       }
     }
-    for (let i = 0; i < Math.min(activePanels.length, availableSlots); i++) {
-      const panel = activePanels[i];
+    const toSubmit = activePanels.slice(0, availableSlots);
+    const tasks = toSubmit.map((panel, i) => async () => {
       if (digitalHumanMode && selectedGirlfriend) {
-        // Format prompt with Qwen-2511 face-lock for character consistency
         const charName = selectedGirlfriend.nameZh || selectedGirlfriend.name;
         const charId = (selectedGirlfriend.id as string).toUpperCase().slice(0, 4);
         const anchorPrompt = `【严格锁定】严格锁定图中22岁女性（ID:${charId}），完全保留原有面部特征，五官轮廓、脸型、眼睛、鼻子、嘴唇、发型、肤色、身材比例完全不变，不做任何面部修改，动作流畅不僵硬。超高清8K，写实细节，皮肤质感细腻，无畸变、无模糊、无穿模。`;
@@ -2179,30 +2184,33 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
           { nodeId: '80', fieldName: 'lora_name', fieldValue: 'any2realV2.safetensors', description: 'lora' },
           { nodeId: '80', fieldName: 'strength_model', fieldValue: '0', description: 'lora权重' },
         ];
-        try {
-          await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.QWEN_IMG2IMG);
-          submitted++;
-        } catch (err) { onError(`提交第 ${i + 1} 个时失败: ${err instanceof Error ? err.message : '未知错误'}`); }
+        await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.QWEN_IMG2IMG);
       } else {
-        const nodes = [
-          { nodeId: '5', fieldName: 'width', fieldValue: '1024', description: '宽度' },
-          { nodeId: '5', fieldName: 'height', fieldValue: '1024', description: '高度' },
-          { nodeId: '5', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: '数量' },
-          { nodeId: '6', fieldName: 'text', fieldValue: panel.image_prompt, description: '提示词' },
-          { nodeId: '7', fieldName: 'text', fieldValue: 'nsfw, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry', description: '负面提示词' },
-        ];
-        try {
-          await taskManager.addTask('txt2img', nodes, panel.image_prompt);
-          submitted++;
-        } catch (err) { onError(`提交第 ${i + 1} 个时失败: ${err instanceof Error ? err.message : '未知错误'}`); }
+        const nodes = buildTxt2ImgNodeList({
+          width: DEFAULT_TXT2IMG_PARAMS.width,
+          height: DEFAULT_TXT2IMG_PARAMS.height,
+          imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
+          prompt: `${QUALITY_BOOST_PROMPT}, ${panel.image_prompt}`,
+          lora1Name: DEFAULT_TXT2IMG_PARAMS.lora1Name,
+          lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
+          lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
+          lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
+        });
+        await taskManager.addTask('txt2img', nodes, panel.image_prompt);
       }
-    }
+    });
+    const settled = await Promise.allSettled(tasks.map((t) => t()));
+    submitted = settled.filter((r) => r.status === 'fulfilled').length;
+    settled.forEach((r, i) => {
+      if (r.status === 'rejected') {
+        onError(`提交第 ${i + 1} 个时失败: ${r.reason instanceof Error ? r.reason.message : '未知错误'}`);
+      }
+    });
     setBatchLoading(false);
     if (submitted > 0) {
       onSuccess(`已提交 ${submitted} 个生图任务`);
-      // Don't auto-navigate, stay on current page
     }
-  }, [panels, taskManager, setGenStates, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, effectiveHistoryId]);
+  }, [activePanels, taskManager, setGenStates, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, effectiveHistoryId]);
 
   const hasContent = storyStep === 'panels' && panels.length > 0;
 
@@ -3375,14 +3383,40 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
 
 // ─── Shared Image Preview Component ─────────────────────────────────────────
 
-function AIGeneratedImagePreview({ src, prompt, onFavorited }: { src: string; prompt?: string; onFavorited?: (url: string) => void }) {
+function AIGeneratedImagePreview({ src, prompt, onFavorited, allImages, index }: { src: string; prompt?: string; onFavorited?: (url: string) => void; allImages?: string[]; index?: number }) {
   const [lightbox, setLightbox] = useState(false);
+  const [currentIdx, setCurrentIdx] = useState(index ?? 0);
+
+  // Sync currentIdx when index prop changes (e.g., when parent re-renders with different allImages)
+  useEffect(() => {
+    if (index !== undefined) {
+      setCurrentIdx(index);
+    }
+  }, [index]);
+
+  const images = allImages && allImages.length > 0 ? allImages : [src];
+  const activeIdx = index !== undefined ? index : currentIdx;
+  const displaySrc = images[activeIdx] || src;
+
+  const handlePrev = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (index !== undefined) {
+      setCurrentIdx((i) => (i - 1 + images.length) % images.length);
+    } else {
+      setCurrentIdx((i) => (i - 1 + images.length) % images.length);
+    }
+  };
+
+  const handleNext = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCurrentIdx((i) => (i + 1) % images.length);
+  };
 
   const handleDownload = (e: React.MouseEvent) => {
     e.stopPropagation();
     const a = document.createElement('a');
-    a.href = src;
-    a.download = src.split('/').pop() || `generated_${Date.now()}.png`;
+    a.href = displaySrc;
+    a.download = displaySrc.split('/').pop() || `generated_${Date.now()}.png`;
     a.target = '_blank';
     a.rel = 'noopener noreferrer';
     a.click();
@@ -3390,21 +3424,26 @@ function AIGeneratedImagePreview({ src, prompt, onFavorited }: { src: string; pr
 
   const handleFavorite = (e: React.MouseEvent) => {
     e.stopPropagation();
-    onFavorited?.(src);
+    onFavorited?.(displaySrc);
   };
 
   return (
     <>
-      <div className="relative group aspect-square rounded-lg overflow-hidden bg-bg-elevated cursor-pointer" onClick={() => setLightbox(true)}>
-        <img src={src} alt="" className="w-full h-full object-cover" loading="lazy" />
+      <div className="relative group aspect-square rounded-lg overflow-hidden bg-bg-elevated cursor-pointer" onClick={() => { setCurrentIdx(index ?? 0); setLightbox(true); }}>
+        <img src={displaySrc} alt="" className="w-full h-full object-cover" loading="lazy" />
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button onClick={handleDownload} className="w-7 h-7 rounded-full bg-white/90 flex items-center justify-center text-gray-700 hover:bg-white transition-colors">
             <Download size={12} />
           </button>
           {onFavorited && (
-            <button onClick={handleFavorite} className={`w-7 h-7 rounded-full bg-white/90 flex items-center justify-center transition-colors ${isFavorited(src) ? 'text-red-500' : 'text-gray-700 hover:bg-white'}`}>
-              <Heart size={12} className={isFavorited(src) ? 'fill-red-500' : ''} />
+            <button onClick={handleFavorite} className={`w-7 h-7 rounded-full bg-white/90 flex items-center justify-center transition-colors ${isFavorited(displaySrc) ? 'text-red-500' : 'text-gray-700 hover:bg-white'}`}>
+              <Heart size={12} className={isFavorited(displaySrc) ? 'fill-red-500' : ''} />
             </button>
+          )}
+          {images.length > 1 && (
+            <div className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/60 text-white text-[10px] font-medium">
+              {activeIdx + 1}/{images.length}
+            </div>
           )}
         </div>
       </div>
@@ -3420,13 +3459,28 @@ function AIGeneratedImagePreview({ src, prompt, onFavorited }: { src: string; pr
               <Download size={16} />
             </button>
             <button onClick={handleFavorite} className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
-              <Heart size={16} className={isFavorited(src) ? 'fill-red-500 text-red-500' : 'text-white'} />
+              <Heart size={16} className={isFavorited(displaySrc) ? 'fill-red-500 text-red-500' : 'text-white'} />
             </button>
             <button onClick={setLightbox.bind(null, false)} className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors">
               <X size={20} />
             </button>
           </div>
-          <img src={src} alt="" className="max-w-[90vw] max-h-[80vh] object-contain rounded-lg" onClick={(e) => e.stopPropagation()} />
+          {images.length > 1 && (
+            <button onClick={handlePrev} className="absolute left-4 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors z-10">
+              <ChevronLeft size={24} />
+            </button>
+          )}
+          <img src={displaySrc} alt="" className="max-w-[90vw] max-h-[80vh] object-contain rounded-lg" onClick={(e) => e.stopPropagation()} />
+          {images.length > 1 && (
+            <button onClick={handleNext} className="absolute right-4 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors z-10">
+              <ChevronRight size={24} />
+            </button>
+          )}
+          {images.length > 1 && (
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full bg-black/60 text-white text-sm font-medium">
+              {activeIdx + 1} / {images.length}
+            </div>
+          )}
           <button onClick={handleDownload} className="mt-4 flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-gray-800 text-sm font-medium hover:bg-gray-100 transition-colors">
             <Download size={16} /> 下载图片
           </button>

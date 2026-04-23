@@ -8,6 +8,7 @@ export interface HistoryRecord {
   prompt: string;
   params: Record<string, unknown>;
   nodeInfoList?: NodeInfo[];
+  workflowIdOverride?: string;
   images: string[];
   zipUrl: string | null;
   coins: string | null;
@@ -112,6 +113,7 @@ export function saveTaskToHistory(task: QueuedTask): void {
     prompt: task.prompt,
     params: {},
     nodeInfoList: task.nodeInfoList,
+    workflowIdOverride: task.workflowIdOverride,
     images,
     zipUrl: task.zipUrl,
     coins: task.coins,

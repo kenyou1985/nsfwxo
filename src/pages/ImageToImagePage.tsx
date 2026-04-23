@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { ImagePlus, Sparkles } from 'lucide-react';
 import { ImageUploader } from '../components/ImageUploader';
 import { GirlfriendSelector } from '../components/GirlfriendSelector';
@@ -11,8 +11,9 @@ import { expandPrompt, randomPrompt } from '../services/promptApi';
 import type { ImageToImageParams, QueuedTask } from '../types';
 import type { TaskManagerReturn } from '../hooks/useTaskManager';
 import type { WeightMode } from '../components/PromptEditor';
-import type { GirlfriendPreset } from '../data/girlfriendPresets';
+import { DEFAULT_GIRLFRIEND_PRESETS, type GirlfriendPreset } from '../data/girlfriendPresets';
 import { PosePresetSelector } from '../components/PosePresetSelector';
+import { QUALITY_BOOST_PROMPT } from '../constants';
 
 function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -34,6 +35,10 @@ interface ImageToImagePageProps {
   onError: (msg: string) => void;
   onSuccess: (msg: string) => void;
   taskManager: TaskManagerReturn;
+  initialPrompt?: string;
+  onPromptConsumed?: () => void;
+  regenerateWithGirlfriendId?: string;
+  onRegenerateConsumed?: () => void;
 }
 
 export function ImageToImagePage({
@@ -41,6 +46,10 @@ export function ImageToImagePage({
   onError,
   onSuccess,
   taskManager,
+  initialPrompt,
+  onPromptConsumed,
+  regenerateWithGirlfriendId,
+  onRegenerateConsumed,
 }: ImageToImagePageProps) {
   const [params, setParams] = useState<ImageToImageParams>({
     prompt: '',
@@ -67,6 +76,85 @@ export function ImageToImagePage({
   const [expandedPrompt, setExpandedPrompt] = useState('');
   const [isGachaLoading, setIsGachaLoading] = useState(false);
   const [gachaPrompt, setGachaPrompt] = useState('');
+
+  // Pre-fill customPrompt when navigating from history regenerate
+  useEffect(() => {
+    if (initialPrompt && initialPrompt.trim()) {
+      setCustomPrompt(initialPrompt.trim());
+      onPromptConsumed?.();
+    }
+  }, [initialPrompt]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-select girlfriend and trigger generation when navigating from history with anchor
+  useEffect(() => {
+    if (!regenerateWithGirlfriendId) return;
+
+    const gf = DEFAULT_GIRLFRIEND_PRESETS.find((g) => g.id === regenerateWithGirlfriendId);
+    if (!gf) {
+      onRegenerateConsumed?.();
+      return;
+    }
+
+    let cancelled = false;
+
+    const doUpload = async () => {
+      setSelectedGirlfriend(gf);
+      setUploadError(null);
+      setGirlfriendUploading(true);
+      try {
+        const res = await fetch(gf.portraitUrl);
+        const blob = await res.blob();
+        const file = new File([blob], `${gf.id}.jpg`, { type: 'image/jpeg' });
+        const objectUrl = URL.createObjectURL(file);
+        setPreviewUrl(objectUrl);
+        const { imagePath } = await uploadImage(apiKey, file);
+        if (cancelled) return;
+
+        // Update state for UI
+        updateParam('uploadedImagePath', imagePath);
+
+        if (cancelled) return;
+
+        // Build prompt: character prompt (from gf) + history prompt (initialPrompt) + quality boost
+        const parts: string[] = [];
+        if (gf.characterPrompt) parts.push(gf.characterPrompt);
+        if (initialPrompt?.trim()) parts.push(initialPrompt.trim());
+        if (enableRandomPrompt) parts.push(QUALITY_BOOST_PROMPT);
+        const promptText = parts.join(', ');
+        if (!promptText.trim()) {
+          onError('提示词为空');
+          return;
+        }
+        if (taskManager.isFull) {
+          onError('任务队列已满（最多 20 个任务），请等待当前任务完成');
+          return;
+        }
+        const nodeList = [
+          { nodeId: '60', fieldName: 'image', fieldValue: imagePath, description: '选择图片' },
+          { nodeId: '64', fieldName: 'batch_size', fieldValue: String(params.batchSize), description: '图片数量' },
+          { nodeId: '82', fieldName: 'value', fieldValue: 'false', description: 'tt/zip（默认zip）' },
+          { nodeId: '59', fieldName: 'text', fieldValue: promptText, description: '文字描述' },
+          { nodeId: '70', fieldName: 'ckpt_name', fieldValue: 'Qwen-Rapid-AIO-NSFW-v18.safetensors', description: '模型选择（qwen-2511-edit）' },
+          { nodeId: '80', fieldName: 'lora_name', fieldValue: 'any2realV2.safetensors', description: 'lora(qwen-2511)' },
+          { nodeId: '80', fieldName: 'strength_model', fieldValue: '0', description: 'lora权重' },
+        ];
+        await taskManager.addTask('img2img', nodeList, promptText, WORKFLOW.QWEN_IMG2IMG);
+        onSuccess('任务已提交');
+      } catch {
+        if (cancelled) return;
+        onError('数字人图片上传失败，请重试');
+        setSelectedGirlfriend(null);
+        setPreviewUrl('');
+      } finally {
+        if (!cancelled) setGirlfriendUploading(false);
+      }
+      onRegenerateConsumed?.();
+    };
+
+    doUpload();
+
+    return () => { cancelled = true; };
+  }, [regenerateWithGirlfriendId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateParam = <K extends keyof ImageToImageParams>(
     key: K,
@@ -152,7 +240,7 @@ export function ImageToImagePage({
       }
     });
     if (enableRandomPrompt) {
-      parts.push('masterpiece, ultra-HD, high detail, best quality, 8k, ergonomic, sharp focus, realistic, real skin');
+      parts.push(QUALITY_BOOST_PROMPT);
     }
     return parts.join(', ');
   }, [positiveTags, enableRandomPrompt, selectedGirlfriend]);
@@ -180,7 +268,7 @@ export function ImageToImagePage({
     }
 
     if (enableRandomPrompt) {
-      parts.push('masterpiece, ultra-HD, high detail, best quality, 8k, ergonomic, sharp focus, realistic, real skin');
+      parts.push(QUALITY_BOOST_PROMPT);
     }
 
     return parts.join(', ');

@@ -7,7 +7,7 @@ import { ImageGrid } from '../components/ImageGrid';
 import { TaskList } from '../components/TaskList';
 import type { TextToImageParams, QueuedTask } from '../types';
 import type { TaskManagerReturn } from '../hooks/useTaskManager';
-import { DEFAULT_TXT2IMG_PARAMS, LORA_PRESETS } from '../constants';
+import { DEFAULT_TXT2IMG_PARAMS, QUALITY_BOOST_PROMPT, LORA_PRESETS } from '../constants';
 import type { WeightMode } from '../components/PromptEditor';
 import { buildTxt2ImgNodeList } from '../utils/txt2imgNodeBuilder';
 import { expandPrompt } from '../services/promptApi';
@@ -75,7 +75,7 @@ export function TextToImagePage({
       }
     });
     if (enableRandomPrompt) {
-      parts.push('masterpiece, ultra-HD, high detail, best quality, 8k, ergonomic, sharp focus, realistic, real skin');
+      parts.push(QUALITY_BOOST_PROMPT);
     }
     return parts.join(', ');
   }, [positiveTags, enableRandomPrompt]);
@@ -99,7 +99,7 @@ export function TextToImagePage({
     }
 
     if (enableRandomPrompt) {
-      parts.push('masterpiece, ultra-HD, high detail, best quality, 8k, ergonomic, sharp focus, realistic, real skin');
+      parts.push(QUALITY_BOOST_PROMPT);
     }
 
     return parts.join(', ');
@@ -251,7 +251,7 @@ export function TextToImagePage({
     setIsGeneratingFromPrompt(true);
     try {
       const negPrompt = buildNegativePrompt();
-      const prompt = `${textToUse}, masterpiece, ultra-HD, high detail, best quality, 8k, ergonomic, sharp focus, realistic, real skin`;
+      const prompt = `${textToUse}, ${QUALITY_BOOST_PROMPT}`;
       const nodeList = buildTxt2ImgNodeList({
         width: params.width,
         height: params.height,

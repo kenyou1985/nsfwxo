@@ -208,10 +208,12 @@ export function getStoryboardHistory(): StoryboardHistoryItem[] {
   return loadHistory<StoryboardHistoryItem>(STORYBOARD_HISTORY_KEY);
 }
 
-export function addStoryboardHistory(item: Omit<StoryboardHistoryItem, 'id' | 'timestamp'>): void {
+export function addStoryboardHistory(item: Omit<StoryboardHistoryItem, 'id' | 'timestamp'>): string {
   const history = getStoryboardHistory();
-  history.unshift({ ...item, id: genId(), timestamp: Date.now() });
+  const id = genId();
+  history.unshift({ ...item, id, timestamp: Date.now() });
   saveHistory(STORYBOARD_HISTORY_KEY, history);
+  return id;
 }
 
 export function removeStoryboardHistory(id: string): void {

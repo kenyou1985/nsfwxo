@@ -851,6 +851,8 @@ export const LORA_PRESETS: LORAPreset[] = [
   },
 ];
 
+export const QUALITY_BOOST_PROMPT = 'masterpiece, best quality, photorealistic, 8k, hyper detailed, ultra-detailed, high resolution, soft lighting, cinematic lighting, realistic shadow, depth of field, bokeh, real skin texture, natural skin pores, soft portrait lighting, realistic eyes, delicate facial features, perfect anatomy, detailed background, clean composition, aesthetic, blur background, beautiful skin, subsurface scattering';
+
 export const DEFAULT_TXT2IMG_PARAMS = {
   width: 1024,
   height: 1536,

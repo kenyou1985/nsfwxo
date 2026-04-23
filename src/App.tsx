@@ -13,6 +13,10 @@ import { useBackendUrl } from './hooks/useBackendUrl';
 import { useToast } from './hooks/useToast';
 import { useTaskManager, loadPersistedTasks, clearPersistedTasks, type PersistedTaskEntry } from './hooks/useTaskManager';
 import { saveTaskToHistory, type HistoryRecord } from './services/historyService';
+import { DEFAULT_GIRLFRIEND_PRESETS } from './data/girlfriendPresets';
+import { buildTxt2ImgNodeList } from './utils/txt2imgNodeBuilder';
+import { WORKFLOW } from './services/runninghub';
+import { DEFAULT_TXT2IMG_PARAMS } from './constants';
 import type { TabType, QueuedTask } from './types';
 import { Eye, EyeOff, Check, Trash2, X, Zap, Server, Image } from 'lucide-react';
 import { useRef } from 'react';
@@ -24,6 +28,8 @@ function App() {
   const toast = useToast();
   const [activeTab, setActiveTab] = useState<TabType>('txt2img');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [img2imgPendingPrompt, setImg2imgPendingPrompt] = useState<string>('');
+  const [regenerateWithGirlfriendId, setRegenerateWithGirlfriendId] = useState<string>('');
 
   const handleTaskError = useCallback(
     (taskId: string, message: string) => {
@@ -69,17 +75,63 @@ function App() {
 
   const handleRegenerateFromHistory = useCallback(
     (record: HistoryRecord) => {
-      if (!record.nodeInfoList || record.nodeInfoList.length === 0) {
-        toast.error('该记录无法重新生成');
+      const prompt = record.prompt || '';
+
+      if (!prompt.trim()) {
+        toast.error('该记录没有提示词，无法重新生成');
         return;
       }
-      if (taskManager.isFull) {
-        toast.error('任务队列已满，请等待');
+
+      if (record.workflowType === 'txt2img') {
+        // 文生图：直接本地构建节点列表并提交任务
+        if (taskManager.isFull) {
+          toast.error('任务队列已满，请等待');
+          return;
+        }
+        const nodes = buildTxt2ImgNodeList({
+          width: DEFAULT_TXT2IMG_PARAMS.width,
+          height: DEFAULT_TXT2IMG_PARAMS.height,
+          imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
+          prompt,
+          lora1Name: DEFAULT_TXT2IMG_PARAMS.lora1Name,
+          lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
+          lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
+          lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
+        });
+        taskManager.addTaskWithNodeList('txt2img', nodes, prompt, WORKFLOW.TEXT_TO_IMAGE);
+        toast.success('任务已提交，请到文生图查看生成结果');
+        setActiveTab('txt2img');
         return;
       }
-      taskManager.addTaskWithNodeList(record.workflowType, record.nodeInfoList, record.prompt);
-      toast.success('已提交重新生成任务');
-      setActiveTab(record.workflowType === 'txt2img' ? 'txt2img' : 'img2img');
+
+      if (record.workflowType === 'img2img') {
+        // 检查数字人锚定
+        const anchorMatch = prompt.match(/ID:([A-Za-z0-9_]+)/);
+        const anchorId = anchorMatch ? anchorMatch[1].toUpperCase() : null;
+        let matchedGirlfriendId: string | undefined;
+        if (anchorId) {
+          const match = DEFAULT_GIRLFRIEND_PRESETS.find(
+            (gf) => gf.id.toUpperCase() === anchorId || gf.name.toUpperCase() === anchorId
+          );
+          if (match) matchedGirlfriendId = match.id;
+        }
+
+        if (matchedGirlfriendId) {
+          // 有锚定数字人：自动跳转 img2img 并自动生成
+          setImg2imgPendingPrompt(prompt);
+          setRegenerateWithGirlfriendId(matchedGirlfriendId);
+          setActiveTab('img2img');
+          toast.success('已检测到数字人锚定，正在自动重新生成');
+        } else {
+          // 无锚定：跳转 img2img 让用户上传参考图
+          setImg2imgPendingPrompt(prompt);
+          setRegenerateWithGirlfriendId('');
+          setActiveTab('img2img');
+        }
+        return;
+      }
+
+      toast.error('该记录类型不支持重新生成');
     },
     [taskManager, toast]
   );
@@ -110,6 +162,10 @@ function App() {
             onError={toast.error}
             onSuccess={toast.success}
             taskManager={taskManager}
+            initialPrompt={img2imgPendingPrompt}
+            onPromptConsumed={() => setImg2imgPendingPrompt('')}
+            regenerateWithGirlfriendId={regenerateWithGirlfriendId}
+            onRegenerateConsumed={() => setRegenerateWithGirlfriendId('')}
           />
         );
       case 'img2vid':
