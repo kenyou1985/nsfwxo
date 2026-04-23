@@ -161,6 +161,16 @@ export async function refreshCacheFromZip(zipUrl: string, blobUrls: string[]): P
   return dataUrls;
 }
 
+export async function loadCachedOrExtractedImages(zipUrl: string, extract: () => Promise<string[]>): Promise<string[]> {
+  const cached = await getCachedImages(zipUrl, 10);
+  const cachedImages = cached.filter(Boolean);
+  if (cachedImages.length > 0) return cachedImages;
+
+  const extracted = await extract();
+  await cacheImages(zipUrl, extracted);
+  return extracted;
+}
+
 export function clearImageCache(): void {
   const keys: string[] = [];
   for (let i = 0; i < localStorage.length; i++) {

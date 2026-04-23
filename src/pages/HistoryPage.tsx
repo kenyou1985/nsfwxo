@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Trash2, Image as ImageIcon, Clock, X, RotateCcw, Loader2, Video, Heart, Download } from 'lucide-react';
 import { getRecords, deleteRecord, clearAllHistory, type HistoryRecord } from '../services/historyService';
-import { getCachedImages } from '../services/imageCacheService';
+import { loadCachedOrExtractedImages } from '../services/imageCacheService';
 import { extractImagesFromZipAsDataUrls } from '../services/runninghub';
 import { getFavorites, addFavorite, removeFavorite, clearFavorites, type FavoriteItem } from '../services/storage';
 
@@ -47,14 +47,8 @@ export function HistoryPage({ onRegenerate }: HistoryPageProps) {
     setLoadedImages((prev) => ({ ...prev, [record.id]: [] }));
 
     try {
-      const cached = await getCachedImages(record.zipUrl, 10);
-      const cachedImages = cached.filter((url) => url);
-      if (cachedImages.length > 0) {
-        setLoadedImages((prev) => ({ ...prev, [record.id]: cachedImages }));
-      } else {
-        const dataUrls = await extractImagesFromZipAsDataUrls(record.zipUrl);
-        setLoadedImages((prev) => ({ ...prev, [record.id]: dataUrls }));
-      }
+      const dataUrls = await loadCachedOrExtractedImages(record.zipUrl, () => extractImagesFromZipAsDataUrls(record.zipUrl ?? ''));
+      setLoadedImages((prev) => ({ ...prev, [record.id]: dataUrls }));
     } catch {
       setLoadedImages((prev) => ({ ...prev, [record.id]: [] }));
     } finally {
