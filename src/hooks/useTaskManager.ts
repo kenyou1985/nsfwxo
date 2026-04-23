@@ -218,6 +218,7 @@ export function useTaskManager({
       onTaskStatusChangeRef.current?.(task.id, displayStatus);
 
       if (newStatus === 'FINISHED') {
+        unpersistTask(task.id);
         if (zipUrl) {
           if (imagesExtractedRef.current[task.id]) { delete pollingRef.current[task.id]; return; }
           imagesExtractedRef.current[task.id] = true;
@@ -262,6 +263,7 @@ export function useTaskManager({
           onTaskCompleteRef.current?.(updatedTask, elapsed);
         }
       } else if (newStatus === 'FAILED') {
+        unpersistTask(task.id);
         let errorMsg = '任务失败';
         try {
           const resultsResponse = await getTaskResults(currentApiKey, task.taskId);
@@ -369,6 +371,7 @@ export function useTaskManager({
         onTaskStatusChangeRef.current?.(id, initialStatus);
 
         if (initialStatus === 'FINISHED' && initialZipUrl) {
+          unpersistTask(id);
           try {
             const [blobUrls, dataUrls] = await Promise.all([
               extractImagesFromZip(initialZipUrl),
@@ -383,18 +386,21 @@ export function useTaskManager({
             onTaskCompleteRef.current?.({ ...newTask, taskId, zipUrl: initialZipUrl, coins: initialCoins, elapsedSeconds: initialElapsed }, initialElapsed);
           }
         } else if (initialStatus === 'FINISHED' && initialDirectImages.length > 0) {
+          unpersistTask(id);
           setTasks((prev) =>
             prev.map((t) => t.id === id ? { ...t, images: initialDirectImages } : t)
           );
           cacheImages('', initialDirectImages).catch(() => {});
           onTaskCompleteRef.current?.({ ...newTask, taskId, images: initialDirectImages, zipUrl: initialZipUrl, coins: initialCoins, elapsedSeconds: initialElapsed }, initialElapsed);
         } else if (initialStatus === 'FAILED') {
+          unpersistTask(id);
           const errorMsg = data.errorMessage || '任务失败';
           setTasks((prev) => prev.map((t) => t.id === id ? { ...t, error: errorMsg } : t));
           onErrorRef.current?.(id, errorMsg);
         }
         return id;
       } catch (err) {
+        unpersistTask(id);
         setTasks((prev) =>
           prev.map((t) =>
             t.id === id ? { ...t, status: 'FAILED' as TaskStatus, error: err instanceof Error ? err.message : '提交失败' } : t
