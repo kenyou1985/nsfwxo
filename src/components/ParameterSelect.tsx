@@ -46,9 +46,9 @@ export function ParameterSelect({
     if (!isOpen) return;
 
     const handleMouseDown = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (triggerRef.current?.contains(target)) return;
-      if (panelRef.current?.contains(target)) return;
+      // Guard: if mousedown fires on the trigger (before click), don't close
+      if (triggerRef.current?.contains(e.target as Node)) return;
+      if (panelRef.current?.contains(e.target as Node)) return;
       setIsOpen(false);
     };
 
@@ -192,9 +192,9 @@ export function ParameterMultiSelect({
     if (!isOpen) return;
 
     const handleMouseDown = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (triggerRef.current?.contains(target)) return;
-      if (panelRef.current?.contains(target)) return;
+      // Guard: if mousedown fires on the trigger (before click), don't close
+      if (triggerRef.current?.contains(e.target as Node)) return;
+      if (panelRef.current?.contains(e.target as Node)) return;
       setIsOpen(false);
     };
 

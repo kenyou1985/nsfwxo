@@ -26,7 +26,7 @@ import {
   getRandomSession, saveRandomSession, clearRandomSession,
   getStoryboardSession, saveStoryboardSession, clearStoryboardSession,
   cacheStoryboardPanelImages, getAllCachedPanelImages,
-  addFavorite, removeFavorite, getFavorites, clearFavorites,
+  addFavorite, removeFavorite, getFavorites, clearFavorites, isFavorited,
   type ExpandHistoryItem, type RandomHistoryItem, type StoryboardHistoryItem, type FavoriteItem,
 } from '../services/storage';
 import type { TaskManagerReturn } from '../hooks/useTaskManager';
@@ -3298,7 +3298,7 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
                             onClick={(e) => { e.stopPropagation(); onFavorited(img); }}
                             className="w-8 h-8 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
                           >
-                            <Heart size={14} className="text-white" />
+                            <Heart size={14} className={isFavorited(img) ? 'fill-red-500 text-red-500' : 'text-white'} />
                           </button>
                         )}
                       </div>
@@ -3394,8 +3394,8 @@ function AIGeneratedImagePreview({ src, prompt, onFavorited }: { src: string; pr
             <Download size={12} />
           </button>
           {onFavorited && (
-            <button onClick={handleFavorite} className="w-7 h-7 rounded-full bg-white/90 flex items-center justify-center text-gray-700 hover:bg-white transition-colors">
-              <Heart size={12} />
+            <button onClick={handleFavorite} className={`w-7 h-7 rounded-full bg-white/90 flex items-center justify-center transition-colors ${isFavorited(src) ? 'text-red-500' : 'text-gray-700 hover:bg-white'}`}>
+              <Heart size={12} className={isFavorited(src) ? 'fill-red-500' : ''} />
             </button>
           )}
         </div>
@@ -3410,6 +3410,9 @@ function AIGeneratedImagePreview({ src, prompt, onFavorited }: { src: string; pr
             )}
             <button onClick={handleDownload} className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors">
               <Download size={16} />
+            </button>
+            <button onClick={handleFavorite} className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
+              <Heart size={16} className={isFavorited(src) ? 'fill-red-500 text-red-500' : 'text-white'} />
             </button>
             <button onClick={setLightbox.bind(null, false)} className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors">
               <X size={20} />

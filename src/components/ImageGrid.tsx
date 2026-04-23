@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Download, X, ZoomIn } from 'lucide-react';
+import { Download, X, ZoomIn, Heart } from 'lucide-react';
 import { downloadImage } from '../services/runninghub';
+import { isFavorited as checkIsFavorited } from '../services/storage';
 
 interface ImageGridProps {
   images: string[];
   isLoading?: boolean;
+  onToggleFavorite?: (url: string) => void;
 }
 
-export function ImageGrid({ images, isLoading }: ImageGridProps) {
+export function ImageGrid({ images, isLoading, onToggleFavorite }: ImageGridProps) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const openLightbox = (index: number) => setLightboxIndex(index);
@@ -28,6 +30,12 @@ export function ImageGrid({ images, isLoading }: ImageGridProps) {
       setLightboxIndex((lightboxIndex - 1 + images.length) % images.length);
     }
   };
+
+  const handleToggleFavorite = (url: string) => {
+    onToggleFavorite?.(url);
+  };
+
+  const isFav = (url: string) => checkIsFavorited(url);
 
   // Keyboard navigation
   useEffect(() => {
@@ -65,6 +73,18 @@ export function ImageGrid({ images, isLoading }: ImageGridProps) {
                 alt={`Generated ${i + 1}`}
                 className="w-full h-full object-cover transition-transform group-hover:scale-105"
               />
+              {onToggleFavorite && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleToggleFavorite(url); }}
+                  className="absolute top-1.5 right-1.5 w-8 h-8 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 transition-colors"
+                  style={{ opacity: isFav(url) ? 1 : undefined }}
+                >
+                  <Heart
+                    size={14}
+                    className={isFav(url) ? 'fill-red-500 text-red-500' : 'text-white opacity-0 group-hover:opacity-100 transition-opacity'}
+                  />
+                </button>
+              )}
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
                 <div className="flex gap-2">
                   <button
@@ -97,6 +117,14 @@ export function ImageGrid({ images, isLoading }: ImageGridProps) {
               {lightboxIndex + 1} / {images.length}
             </span>
             <div className="flex items-center gap-2">
+              {onToggleFavorite && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleToggleFavorite(images[lightboxIndex]); }}
+                  className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
+                >
+                  <Heart size={18} className={isFav(images[lightboxIndex]) ? 'fill-red-500 text-red-500' : 'text-white'} />
+                </button>
+              )}
               <button
                 onClick={(e) => { e.stopPropagation(); handleDownload(images[lightboxIndex], lightboxIndex); }}
                 className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"

@@ -12,6 +12,7 @@ import type { WeightMode } from '../components/PromptEditor';
 import { buildTxt2ImgNodeList } from '../utils/txt2imgNodeBuilder';
 import { expandPrompt } from '../services/promptApi';
 import { PosePresetSelector } from '../components/PosePresetSelector';
+import { addFavorite, removeFavorite, getFavorites } from '../services/storage';
 
 interface SelectedTag {
   tag: string;
@@ -52,6 +53,7 @@ export function TextToImagePage({
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [isGeneratingFromPrompt, setIsGeneratingFromPrompt] = useState(false);
   const [expandedPrompt, setExpandedPrompt] = useState('');
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const updateParam = <K extends keyof TextToImageParams>(
     key: K,
@@ -197,6 +199,16 @@ export function TextToImagePage({
     setCustomPrompt(newPrompt);
     onSuccess(`已添加姿势: ${poseName}`);
   }, [customPrompt, onSuccess]);
+
+  const handleToggleFavorite = (imageUrl: string) => {
+    const existing = getFavorites().find((f) => f.imageUrl === imageUrl);
+    if (existing) {
+      removeFavorite(existing.id);
+    } else {
+      addFavorite({ imageUrl, source: 'history', r18: isR18Enabled });
+    }
+    setRefreshKey((k) => k + 1);
+  };
 
   const handleOptimizePrompt = useCallback(async () => {
     // Use tags-only for expand (avoid duplicating customPrompt which is shown in textarea separately)
@@ -733,7 +745,7 @@ export function TextToImagePage({
             <h3 className="text-sm font-medium text-text-primary">生成结果</h3>
             <span className="text-xs text-text-tertiary">{allImages.length} 张图片</span>
           </div>
-          <ImageGrid images={allImages} />
+          <ImageGrid key={refreshKey} images={allImages} onToggleFavorite={handleToggleFavorite} />
         </div>
       )}
     </div>
