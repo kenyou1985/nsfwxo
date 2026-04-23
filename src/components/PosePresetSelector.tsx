@@ -8,6 +8,7 @@ interface PosePresetSelectorProps {
   onSelect: (prompt: string, name: string) => void;
   disabled?: boolean;
   selectedGirlfriend?: GirlfriendPreset | null;
+  forceUnlock?: boolean;
 }
 
 /** 构建人物身份锚定前缀 */
@@ -16,7 +17,7 @@ function buildIdentityPrefix(gf: GirlfriendPreset | null): string {
   return `${gf.characterPrompt}, Strictly preserve the exact identity, character, and features of ${gf.nameZh} (ID:${gf.id.toUpperCase()}). Do not alter the character at all. `;
 }
 
-export function PosePresetSelector({ type, onSelect, disabled, selectedGirlfriend = null }: PosePresetSelectorProps) {
+export function PosePresetSelector({ type, onSelect, disabled, selectedGirlfriend = null, forceUnlock = false }: PosePresetSelectorProps) {
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState(false);
 
@@ -38,9 +39,9 @@ export function PosePresetSelector({ type, onSelect, disabled, selectedGirlfrien
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showLockedToast, setShowLockedToast] = useState(false);
 
-  // 图生图模式需要锁定，视频模式不锁定
+  // 图生图模式需要锁定，视频模式不锁定；forceUnlock 强制解锁（如文生图）
   const isImageMode = type === 'image';
-  const isLocked = isImageMode && !selectedGirlfriend && !disabled;
+  const isLocked = isImageMode && !forceUnlock && !selectedGirlfriend && !disabled;
 
   const handleSelect = (preset: ImagePosePreset | VideoPosePreset) => {
     if (disabled) return;
