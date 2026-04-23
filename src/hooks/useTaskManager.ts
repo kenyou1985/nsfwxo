@@ -589,6 +589,9 @@ export function useTaskManager({
       });
 
       Promise.all(statusPromises).then(async (statusResults) => {
+        const currentApiKey = apiKeyRef.current;
+        if (!currentApiKey) return;
+
         console.log('[restoreTasks] Status results:', statusResults.map(r => ({ id: r.entry.id, status: r.status })));
         const restoredTasks: QueuedTask[] = [];
         const immediatePollTasks: QueuedTask[] = [];
