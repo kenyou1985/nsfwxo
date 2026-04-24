@@ -59,7 +59,7 @@ export function HistoryPage({ onRegenerate }: HistoryPageProps) {
         return next;
       });
     }
-  }, [loadedImages]);
+  }, []); // Intentionally empty deps — loadedImages is read inside via ref, not via closure
 
   const loadVideoHistory = useCallback(() => {
     try {
@@ -81,14 +81,18 @@ export function HistoryPage({ onRegenerate }: HistoryPageProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Load images for any new records added after mount
+  useEffect(() => {
+    records.forEach((record) => {
+      loadImagesForRecord(record);
+    });
+  }, [records, loadImagesForRecord]);
+
   const refreshRecords = useCallback(() => {
     const recs = getRecords();
     setRecords(recs);
-    recs.forEach((record) => {
-      loadImagesForRecord(record);
-    });
     loadVideoHistory();
-  }, [loadImagesForRecord, loadVideoHistory]);
+  }, []);
 
   const handleDelete = useCallback((id: string) => {
     deleteRecord(id);
@@ -130,7 +134,10 @@ export function HistoryPage({ onRegenerate }: HistoryPageProps) {
   };
 
   const getRecordImages = (record: HistoryRecord): string[] => {
-    return loadedImages[record.id] || [];
+    const loaded = loadedImages[record.id];
+    if (loaded && loaded.length > 0) return loaded;
+    // Fallback to images stored directly in the record (data URLs already extracted)
+    return record.images || [];
   };
 
   const handleDownload = (url: string, isVideo = false) => {
@@ -246,7 +253,7 @@ export function HistoryPage({ onRegenerate }: HistoryPageProps) {
         <div className="space-y-3">
           {records.map((record, recordIndex) => {
             const images = getRecordImages(record);
-            const isLoading = loadingKeys.has(record.id) && loadedImages[record.id] === undefined;
+            const isLoading = loadingKeys.has(record.id);
             return (
               <div
                 key={record.id}

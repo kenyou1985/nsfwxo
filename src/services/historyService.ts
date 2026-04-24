@@ -1,4 +1,5 @@
 import type { QueuedTask, NodeInfo } from '../types';
+import { cacheImages } from './imageCacheService';
 
 export interface HistoryRecord {
   id: string;
@@ -9,14 +10,47 @@ export interface HistoryRecord {
   params: Record<string, unknown>;
   nodeInfoList?: NodeInfo[];
   workflowIdOverride?: string;
-  images: string[];
+  images: string[]; // Data URLs — kept empty to avoid localStorage quota overflow; images retrieved from zip URL via cache
   zipUrl: string | null;
   coins: string | null;
   createdAt: number;
 }
 
 const STORAGE_KEY = 'nsfwxo_history';
-const MAX_RECORDS = 100;
+const MAX_RECORDS = 200;
+
+let _migrationDone = false;
+
+/** Strip large data URLs from existing records to free up localStorage quota. */
+function migrateExistingRecords(): void {
+  if (_migrationDone) return;
+  _migrationDone = true;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const records: HistoryRecord[] = JSON.parse(raw);
+    let changed = false;
+    for (const r of records) {
+      // Clear any embedded data URLs — they should be fetched from zip URL via cache instead
+      if (Array.isArray(r.images) && r.images.length > 0) {
+        const first = r.images[0];
+        if (typeof first === 'string' && first.startsWith('data:')) {
+          r.images = [];
+          changed = true;
+        }
+      }
+    }
+    if (changed) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+      console.debug('[historyService] Migrated existing records — stripped embedded data URLs');
+    }
+  } catch {
+    // ignore
+  }
+}
+
+// Run migration once when the module is imported
+migrateExistingRecords();
 
 function formatDate(ts: number): string {
   const d = new Date(ts);
@@ -52,16 +86,51 @@ export function createRecord(
 }
 
 export function saveRecord(record: HistoryRecord): void {
+  // Strip data URLs from the record — they are retrieved from zip URL via cache on demand.
+  // This prevents localStorage QuotaExceededError.
+  const recordToSave: HistoryRecord = {
+    ...record,
+    images: [],
+  };
+
+  const saveWithRetry = (recordsToSave: HistoryRecord[]): boolean => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(recordsToSave));
+      return true;
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'QuotaExceededError') {
+        // Evict oldest records until it fits
+        if (recordsToSave.length > 1) {
+          recordsToSave.splice(1); // Keep the new record, evict all old ones first
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(recordsToSave));
+            return true;
+          } catch {
+            // Still too large even with only 1 record — record itself is the problem
+          }
+        }
+        console.warn('Failed to save history (quota exceeded even after eviction):', e);
+      } else {
+        console.warn('Failed to save history:', e);
+      }
+      return false;
+    }
+  };
+
   const records = getRecords();
-  records.unshift(record);
+  // If record already exists, update it (don't add duplicate)
+  const existingIdx = records.findIndex((r) => r.id === recordToSave.id);
+  if (existingIdx >= 0) {
+    records[existingIdx] = recordToSave;
+  } else {
+    records.unshift(recordToSave);
+  }
+
   if (records.length > MAX_RECORDS) {
     records.splice(MAX_RECORDS);
   }
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
-  } catch (e) {
-    console.warn('Failed to save history:', e);
-  }
+
+  saveWithRetry(records);
 }
 
 export function getRecords(): HistoryRecord[] {
@@ -95,14 +164,14 @@ export function saveTaskToHistory(task: QueuedTask): void {
   const records = getRecords();
   if (task.taskId && records.some((r) => r.taskId === task.taskId)) return;
 
-  let images = task.images || [];
+  const images = task.images || [];
 
-  // For img2vid, extract uploaded image path from nodeInfoList (nodeId '21' field 'image')
-  if (task.workflowType === 'img2vid' && task.nodeInfoList && images.length === 0) {
-    const imgNode = task.nodeInfoList.find((n) => n.nodeId === '21' && n.fieldName === 'image');
-    if (imgNode?.fieldValue && typeof imgNode.fieldValue === 'string' && imgNode.fieldValue.trim()) {
-      images = [imgNode.fieldValue.trim()];
-    }
+  // Cache images first so they're available even if the record is large.
+  // Do NOT store data URL images in the record itself — they are retrieved
+  // from the zip URL via cacheImages on demand. This prevents localStorage
+  // QuotaExceededError from large data URLs.
+  if (images.length > 0 && task.zipUrl) {
+    void cacheImages(task.zipUrl, images);
   }
 
   const record: HistoryRecord = {
@@ -114,7 +183,8 @@ export function saveTaskToHistory(task: QueuedTask): void {
     params: {},
     nodeInfoList: task.nodeInfoList,
     workflowIdOverride: task.workflowIdOverride,
-    images,
+    // images intentionally omitted — retrieved from zip URL cache on demand
+    images: [],
     zipUrl: task.zipUrl,
     coins: task.coins,
     createdAt: Date.now(),

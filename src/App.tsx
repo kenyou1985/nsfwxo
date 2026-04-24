@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Header } from './components/Header';
 import { TabNavigation } from './components/TabNavigation';
 import { Toast } from './components/Toast';
@@ -19,7 +19,7 @@ import { WORKFLOW } from './services/runninghub';
 import { DEFAULT_TXT2IMG_PARAMS } from './constants';
 import type { TabType, QueuedTask } from './types';
 import { Eye, EyeOff, Check, Trash2, X, Zap, Server, Image } from 'lucide-react';
-import { useRef } from 'react';
+import { FinishedTaskImagesContext } from './contexts/FinishedTaskImagesContext';
 
 function App() {
   const { apiKey, maskedKey, hasApiKey, isLoaded, saveApiKey, removeApiKey } = useApiKey();
@@ -30,6 +30,13 @@ function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [img2imgPendingPrompt, setImg2imgPendingPrompt] = useState<string>('');
   const [regenerateWithGirlfriendId, setRegenerateWithGirlfriendId] = useState<string>('');
+
+  // ── Finished task images registry ──
+  // Updated whenever any task completes, so pages can subscribe and cache images
+  const [finishedTaskImages, setFinishedTaskImages] = useState<Record<string, { images: string[]; storyboardInfo?: { historyId: string; panelIdx: number }; zipUrl?: string }>>({});
+  const registerTaskImages = useCallback((taskId: string, images: string[], storyboardInfo?: { historyId: string; panelIdx: number }, zipUrl?: string) => {
+    setFinishedTaskImages((prev) => ({ ...prev, [taskId]: { images, storyboardInfo, zipUrl } }));
+  }, []);
 
   const handleTaskError = useCallback(
     (taskId: string, message: string) => {
@@ -50,6 +57,7 @@ function App() {
     apiKey,
     onError: handleTaskError,
     onTaskComplete: handleTaskComplete,
+    onTaskImagesReady: registerTaskImages,
   });
 
   // Auto-restore in-progress tasks from localStorage on mount
@@ -195,20 +203,21 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-bg-base">
-      <Header onSettingsClick={() => setIsSettingsOpen(true)} hasApiKey={hasApiKey} />
-      <TabNavigation activeTab={activeTab} onTabChange={handleTabChange} />
+    <FinishedTaskImagesContext.Provider value={{ finishedTasks: finishedTaskImages, registerTaskImages }}>
+      <div className="min-h-screen bg-bg-base">
+        <Header onSettingsClick={() => setIsSettingsOpen(true)} hasApiKey={hasApiKey} />
+        <TabNavigation activeTab={activeTab} onTabChange={handleTabChange} />
 
-      {/* Responsive container: mobile=max-w-[480px], desktop=full */}
-      <main className="max-w-[480px] lg:max-w-none mx-auto px-4 lg:px-6 pt-24 lg:pt-20 pb-8">
-        {!isLoaded ? (
-          <div className="flex items-center justify-center min-h-[40vh]">
-            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : (
-          renderPage()
-        )}
-      </main>
+        {/* Responsive container: mobile=max-w-[480px], desktop=full */}
+        <main className="max-w-[480px] lg:max-w-none mx-auto px-4 lg:px-6 pt-24 lg:pt-20 pb-8">
+          {!isLoaded ? (
+            <div className="flex items-center justify-center min-h-[40vh]">
+              <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : (
+            renderPage()
+          )}
+        </main>
 
       {/* Mobile: Inline API Key editor panel */}
       {isSettingsOpen && isLoaded && (
@@ -270,7 +279,8 @@ function App() {
       )}
 
       <Toast toasts={toast.toasts} onRemove={toast.removeToast} />
-    </div>
+      </div>
+    </FinishedTaskImagesContext.Provider>
   );
 }
 

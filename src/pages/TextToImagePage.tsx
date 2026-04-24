@@ -336,9 +336,10 @@ export function TextToImagePage({
     count?: number;
   }) => (
     <div className="rounded-2xl bg-white border border-border shadow-card overflow-hidden">
-      <button
+      <div
+        className="flex items-center justify-between py-3 px-4 text-sm font-medium text-text-primary hover:bg-bg-hover transition-colors cursor-pointer select-none"
         onClick={onToggle}
-        className="w-full flex items-center justify-between py-3 px-4 text-sm font-medium text-text-primary hover:bg-bg-hover transition-colors"
+        role="presentation"
       >
         <div className="flex items-center gap-2">
           {icon}
@@ -348,7 +349,7 @@ export function TextToImagePage({
           )}
         </div>
         {isOpen ? <ChevronUp size={16} className="text-text-tertiary" /> : <ChevronDown size={16} className="text-text-tertiary" />}
-      </button>
+      </div>
       {isOpen && <div className="px-4 pb-4 space-y-4">{children}</div>}
     </div>
   );

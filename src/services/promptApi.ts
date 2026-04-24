@@ -117,6 +117,7 @@ export interface StoryboardScriptRequest {
 async function apiRequest<T>(
   url: string,
   options: RequestInit,
+  _retries = 2,
 ): Promise<T> {
   const yunwuKey = getYunwuKey();
   if (!yunwuKey) {
@@ -129,18 +130,48 @@ async function apiRequest<T>(
     ...(options.headers as Record<string, string>),
   };
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt <= _retries; attempt++) {
+    if (attempt > 0) {
+      await new Promise((r) => setTimeout(r, attempt * 2000));
+    }
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers,
+      });
 
-  if (!response.ok) {
-    const bodyText = await response.text().catch(() => '(no body)');
-    throw new Error(`HTTP ${response.status}: ${response.statusText} - ${bodyText}`);
+      if (response.ok) {
+        const data = await response.json() as T;
+        return data;
+      }
+
+      const bodyText = await response.text().catch(() => '(no body)');
+      const status = response.status;
+
+      // Retry on 429 (rate limit) and 502 (bad gateway)
+      const isRetryable = status === 429 || status === 502 || status === 503 || status === 504;
+      if (isRetryable && attempt < _retries) {
+        lastError = new Error(`HTTP ${status}: ${response.statusText} - ${bodyText}`);
+        continue;
+      }
+
+      throw new Error(`HTTP ${status}: ${response.statusText} - ${bodyText}`);
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      const isNetworkRetry =
+        lastError.message.includes('Failed to fetch') ||
+        lastError.message.includes('network') ||
+        lastError.message.includes('ERR_');
+      if (isNetworkRetry && attempt < _retries) {
+        continue;
+      }
+      if (attempt < _retries) {
+        continue;
+      }
+    }
   }
-
-  const data = await response.json() as T;
-  return data;
+  throw lastError ?? new Error('请求失败');
 }
 
 export async function expandPrompt(
@@ -154,23 +185,35 @@ export async function expandPrompt(
   characterPrompt?: string,
 ): Promise<ExpandResponse> {
   const base = getBackendUrl();
-  const response = await apiRequest<ExpandResponse>(
-    `${base}/api/prompt/expand`,
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        user_input: userInput,
-        type,
-        r18,
-        count,
-        variant_index: variantIndex,
-        reference_image_url: referenceImageUrl || undefined,
-        img2img_mode: img2imgMode || undefined,
-        character_prompt: characterPrompt || undefined,
-      } satisfies ExpandRequest),
-    },
-  );
-  return response;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 300000); // 5 min
+  try {
+    const response = await apiRequest<ExpandResponse>(
+      `${base}/api/prompt/expand`,
+      {
+        method: 'POST',
+        signal: controller.signal as RequestInit['signal'],
+        body: JSON.stringify({
+          user_input: userInput,
+          type,
+          r18,
+          count,
+          variant_index: variantIndex,
+          reference_image_url: referenceImageUrl || undefined,
+          img2img_mode: img2imgMode || undefined,
+          character_prompt: characterPrompt || undefined,
+        } satisfies ExpandRequest),
+      },
+    );
+    return response;
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error('提示词扩写超时（5分钟），请重试');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export async function randomPrompt(
@@ -183,14 +226,26 @@ export async function randomPrompt(
   characterPrompt?: string,
 ): Promise<RandomResponse> {
   const base = getBackendUrl();
-  const response = await apiRequest<RandomResponse>(
-    `${base}/api/prompt/random`,
-    {
-      method: 'POST',
-      body: JSON.stringify({ type, r18, count, theme, img2img, reference_image_url: reference_image_url || undefined, character_prompt: characterPrompt || undefined } satisfies RandomRequest),
-    },
-  );
-  return response;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 300000); // 5 min
+  try {
+    const response = await apiRequest<RandomResponse>(
+      `${base}/api/prompt/random`,
+      {
+        method: 'POST',
+        signal: controller.signal as RequestInit['signal'],
+        body: JSON.stringify({ type, r18, count, theme, img2img, reference_image_url: reference_image_url || undefined, character_prompt: characterPrompt || undefined } satisfies RandomRequest),
+      },
+    );
+    return response;
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error('随机提示词生成超时（5分钟），请重试');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export async function generateStoryboard(
@@ -199,14 +254,26 @@ export async function generateStoryboard(
   r18: boolean = false,
 ): Promise<StoryboardResponse> {
   const base = getBackendUrl();
-  const response = await apiRequest<StoryboardResponse>(
-    `${base}/api/prompt/storyboard`,
-    {
-      method: 'POST',
-      body: JSON.stringify({ plot, panel_count: panelCount, r18 } satisfies StoryboardRequest),
-    },
-  );
-  return response;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 300000); // 5 min
+  try {
+    const response = await apiRequest<StoryboardResponse>(
+      `${base}/api/prompt/storyboard`,
+      {
+        method: 'POST',
+        signal: controller.signal as RequestInit['signal'],
+        body: JSON.stringify({ plot, panel_count: panelCount, r18 } satisfies StoryboardRequest),
+      },
+    );
+    return response;
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error('剧情分镜生成超时（5分钟），请重试');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export async function generateStoryboardThemes(
@@ -215,18 +282,30 @@ export async function generateStoryboardThemes(
   customDescription?: string
 ): Promise<StoryboardThemesResponse> {
   const base = getBackendUrl();
-  const response = await apiRequest<StoryboardThemesResponse>(
-    `${base}/api/prompt/storyboard/themes`,
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        r18,
-        count,
-        ...(customDescription ? { custom_description: customDescription } : {}),
-      }),
-    },
-  );
-  return response;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 300000); // 5 min
+  try {
+    const response = await apiRequest<StoryboardThemesResponse>(
+      `${base}/api/prompt/storyboard/themes`,
+      {
+        method: 'POST',
+        signal: controller.signal as RequestInit['signal'],
+        body: JSON.stringify({
+          r18,
+          count,
+          ...(customDescription ? { custom_description: customDescription } : {}),
+        }),
+      },
+    );
+    return response;
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error('主题生成超时（5分钟），请重试');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export async function listStoryboardThemes(): Promise<StoryboardThemesResponse> {
@@ -245,14 +324,26 @@ export async function generateStoryboardOutline(
   r18: boolean = false,
 ): Promise<StoryboardOutlineResponse> {
   const base = getBackendUrl();
-  const response = await apiRequest<StoryboardOutlineResponse>(
-    `${base}/api/prompt/storyboard/outline`,
-    {
-      method: 'POST',
-      body: JSON.stringify({ theme_id: themeId, theme_title: themeTitle, panel_count: panelCount, r18 }),
-    },
-  );
-  return response;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 300000); // 5 min
+  try {
+    const response = await apiRequest<StoryboardOutlineResponse>(
+      `${base}/api/prompt/storyboard/outline`,
+      {
+        method: 'POST',
+        signal: controller.signal as RequestInit['signal'],
+        body: JSON.stringify({ theme_id: themeId, theme_title: themeTitle, panel_count: panelCount, r18 }),
+      },
+    );
+    return response;
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error('大纲生成超时（5分钟），请重试');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export async function generateVideoScript(
@@ -261,20 +352,32 @@ export async function generateVideoScript(
   panels: { panel_number: number; scene_description: string; image_prompt: string }[],
 ): Promise<StoryboardScriptResponse> {
   const base = getBackendUrl();
-  const response = await apiRequest<StoryboardScriptResponse>(
-    `${base}/api/prompt/storyboard/script`,
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        theme_title: themeTitle,
-        r18,
-        panels: panels.map(p => ({
-          panel_number: p.panel_number,
-          scene_description: p.scene_description,
-          image_prompt: p.image_prompt,
-        })),
-      }),
-    },
-  );
-  return response;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 300000); // 5 min
+  try {
+    const response = await apiRequest<StoryboardScriptResponse>(
+      `${base}/api/prompt/storyboard/script`,
+      {
+        method: 'POST',
+        signal: controller.signal as RequestInit['signal'],
+        body: JSON.stringify({
+          theme_title: themeTitle,
+          r18,
+          panels: panels.map(p => ({
+            panel_number: p.panel_number,
+            scene_description: p.scene_description,
+            image_prompt: p.image_prompt,
+          })),
+        }),
+      },
+    );
+    return response;
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error('视频脚本生成超时（5分钟），请重试');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
 }

@@ -103,6 +103,7 @@ class StoryboardOutlineRequest(BaseModel):
     theme_title: str = Field(..., description="Selected theme title")
     panel_count: int = Field(default=5, ge=2, le=10, description="分镜数量 2-10")
     r18: bool = Field(default=False, description="是否启用 R18 模式")
+    model_order: Optional[List[str]] = Field(default=None, description="模型顺序，优先用第一个，失败则尝试后续模型")
 
 
 class StoryboardOutline(BaseModel):

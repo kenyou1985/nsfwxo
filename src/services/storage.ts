@@ -1,5 +1,19 @@
-import { ensureDataUrl } from './runninghub';
-import type { NodeInfo } from '../types';
+import {
+  cacheStoryboardPanelImages,
+  getCachedStoryboardPanelImages,
+  getAllCachedPanelImages,
+  deleteCachedStoryboardPanelImages,
+  resolveImageRef,
+  clearUnifiedImageCache,
+} from './imageCacheService';
+
+// Re-export for backwards compatibility with code that imports from storage.ts
+export {
+  cacheStoryboardPanelImages,
+  getCachedStoryboardPanelImages,
+  getAllCachedPanelImages,
+  deleteCachedStoryboardPanelImages,
+};
 
 const STORAGE_KEY = 'rh_api_key';
 const YUNWU_KEY = 'yunwu_api_key';
@@ -71,6 +85,39 @@ export function maskYunwuKey(key: string): string {
   return `${key.slice(0, 4)}...${key.slice(-4)}`;
 }
 
+// ─── Default Male Character Setting ─────────────────────────────────────────────────
+
+export const MALE_CHARACTER_OPTIONS = [
+  { id: 'black', label: '强壮黑人男性', labelEn: 'Strong Black Male', prompt: 'tall muscular black male with dark skin, thick large black penis with prominent veins' },
+  { id: 'white', label: '强壮白人男性', labelEn: 'Strong White Male', prompt: 'tall muscular white male with fair skin, thick large penis with prominent veins' },
+  { id: 'asian', label: '强壮亚洲男性', labelEn: 'Strong Asian Male', prompt: 'tall muscular Asian male with tan skin, thick large penis with prominent veins' },
+  { id: 'latino', label: '强壮拉丁裔男性', labelEn: 'Strong Latino Male', prompt: 'tall muscular Latino male with olive skin, thick large penis with prominent veins' },
+  { id: 'none', label: '不指定男性角色', labelEn: 'No Male Specified', prompt: '' },
+] as const;
+
+export type MaleCharacterId = typeof MALE_CHARACTER_OPTIONS[number]['id'];
+
+export function getDefaultMaleCharacter(): MaleCharacterId {
+  try {
+    const stored = localStorage.getItem('default_male_character');
+    if (stored && MALE_CHARACTER_OPTIONS.some((o) => o.id === stored)) {
+      return stored as MaleCharacterId;
+    }
+  } catch {}
+  return 'black'; // Default to black male for backwards compatibility
+}
+
+export function setDefaultMaleCharacter(id: MaleCharacterId): void {
+  try {
+    localStorage.setItem('default_male_character', id);
+  } catch {}
+}
+
+export function getMaleCharacterPrompt(id: MaleCharacterId): string {
+  const option = MALE_CHARACTER_OPTIONS.find((o) => o.id === id);
+  return option?.prompt || '';
+}
+
 // ─── Backend URL ─────────────────────────────────────────────────────────────
 
 const DEFAULT_BACKEND_URL = 'http://localhost:8000';
@@ -136,9 +183,13 @@ export interface StoryboardHistoryItem {
   timestamp: number;
   panelImages?: Record<number, string[]>; // panelIdx -> cached data URL images (for direct storage)
   images?: string[]; // flat array of all images for easy display
+  /** zipUrl used to extract images — enables cache+zip fallback on restore. */
+  zipUrl?: string;
+  /** How many images were generated per panel — used to re-extract from zip on cache miss. */
+  panelImageCounts?: Record<number, number>;
 }
 
-const MAX_HISTORY = 50;
+const MAX_HISTORY = 200;
 
 function genId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -222,138 +273,43 @@ export function removeStoryboardHistory(id: string): void {
   deleteCachedStoryboardPanelImages(id);
 }
 
-export function updateStoryboardHistoryImages(id: string, panelImages: Record<number, string[]>): void {
+export function updateStoryboardHistoryImages(
+  id: string,
+  panelImages: Record<number, string[]>,
+  zipUrl?: string,
+  panelImageCounts?: Record<number, number>
+): void {
   const history = getStoryboardHistory();
   const index = history.findIndex((h) => h.id === id);
   if (index !== -1) {
-    // Flatten panel images for easy access
     const allImages: string[] = [];
-    for (const imgs of Object.values(panelImages)) {
-      allImages.push(...imgs);
+    const normalizedPanelImages: Record<number, string[]> = {};
+    for (const [panelIdx, imgs] of Object.entries(panelImages)) {
+      const resolved = imgs.map((img) => resolveImageRef(img));
+      normalizedPanelImages[Number(panelIdx)] = resolved;
+      allImages.push(...resolved);
     }
-    history[index] = { ...history[index], panelImages, images: allImages.slice(0, 12) };
+    history[index] = {
+      ...history[index],
+      panelImages: normalizedPanelImages,
+      images: allImages.slice(0, 12),
+      ...(zipUrl !== undefined ? { zipUrl } : {}),
+      ...(panelImageCounts !== undefined ? { panelImageCounts } : {}),
+    };
     saveHistory(STORYBOARD_HISTORY_KEY, history);
   }
 }
 
 export function clearStoryboardHistory(): void {
   try { localStorage.removeItem(STORYBOARD_HISTORY_KEY); } catch {}
-  // Clear all cached panel images
-  const keys: string[] = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key?.startsWith(STORYBOARD_IMAGE_CACHE_PREFIX)) keys.push(key);
-  }
-  keys.forEach((k) => localStorage.removeItem(k));
+  // Clear all cached panel images using the unified cache
+  clearUnifiedImageCache();
 }
 
-// ─── Storyboard Panel Image Cache ─────────────────────────────────────────────────
+// ─── Storyboard Panel Image Cache (re-exported from unified cache) ─────────────────
 
-const STORYBOARD_IMAGE_CACHE_PREFIX = 'sb_img_cache_';
-const STORYBOARD_MAX_CACHE_SIZE_MB = 200;
-
-interface PanelImageCacheEntry {
-  images: string[];
-  cachedAt: number;
-}
-
-function getPanelCacheKey(historyId: string, panelIdx: number): string {
-  return `${STORYBOARD_IMAGE_CACHE_PREFIX}${historyId}_${panelIdx}`;
-}
-
-function getAllPanelCacheEntries(): Map<string, PanelImageCacheEntry> {
-  const map = new Map<string, PanelImageCacheEntry>();
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key?.startsWith(STORYBOARD_IMAGE_CACHE_PREFIX)) {
-      try {
-        const entry = JSON.parse(localStorage.getItem(key) || '{}') as PanelImageCacheEntry;
-        if (entry.images && entry.images.length > 0) {
-          map.set(key, entry);
-        }
-      } catch {
-        localStorage.removeItem(key);
-      }
-    }
-  }
-  return map;
-}
-
-function getTotalPanelCacheSize(): number {
-  return Array.from(getAllPanelCacheEntries().values()).reduce((sum, e) => {
-    return sum + e.images.reduce((s, img) => s + img.length * 2, 0);
-  }, 0);
-}
-
-function evictPanelCache(targetBytes: number): void {
-  const entries = getAllPanelCacheEntries();
-  const sorted = Array.from(entries.entries()).sort((a, b) => a[1].cachedAt - b[1].cachedAt);
-  const currentSize = getTotalPanelCacheSize();
-  let freed = 0;
-  for (const [key, entry] of sorted) {
-    const remaining = currentSize - freed;
-    if (remaining <= targetBytes) break;
-    const size = entry.images.reduce((s, img) => s + img.length * 2, 0);
-    freed += size;
-    localStorage.removeItem(key);
-  }
-}
-
-export async function cacheStoryboardPanelImages(historyId: string, panelIdx: number, images: string[]): Promise<void> {
-  if (images.length === 0) return;
-
-  const dataUrlImages = await Promise.all(images.map((img) => ensureDataUrl(img)));
-
-  const cacheKey = getPanelCacheKey(historyId, panelIdx);
-  const totalBytes = dataUrlImages.reduce((s, img) => s + img.length * 2, 0);
-  const maxBytes = STORYBOARD_MAX_CACHE_SIZE_MB * 1024 * 1024;
-  const currentSize = getTotalPanelCacheSize();
-  if (currentSize + totalBytes > maxBytes) {
-    evictPanelCache(maxBytes - totalBytes);
-  }
-  const entry: PanelImageCacheEntry = { images: dataUrlImages, cachedAt: Date.now() };
-  try {
-    localStorage.setItem(cacheKey, JSON.stringify(entry));
-  } catch {
-    evictPanelCache(totalBytes);
-    try { localStorage.setItem(cacheKey, JSON.stringify(entry)); } catch {}
-  }
-}
-
-export function getCachedStoryboardPanelImages(historyId: string, panelIdx: number): string[] {
-  const cacheKey = getPanelCacheKey(historyId, panelIdx);
-  try {
-    const raw = localStorage.getItem(cacheKey);
-    if (raw) {
-      const entry = JSON.parse(raw) as PanelImageCacheEntry;
-      if (entry.images && entry.images.length > 0) {
-        // Touch accessed entry to mark it recently used
-        entry.cachedAt = Date.now();
-        localStorage.setItem(cacheKey, JSON.stringify(entry));
-        return entry.images;
-      }
-    }
-  } catch {}
-  return [];
-}
-
-export function getAllCachedPanelImages(historyId: string, panelCount: number): Record<number, string[]> {
-  const result: Record<number, string[]> = {};
-  for (let i = 0; i < panelCount; i++) {
-    const imgs = getCachedStoryboardPanelImages(historyId, i);
-    if (imgs.length > 0) result[i] = imgs;
-  }
-  return result;
-}
-
-export function deleteCachedStoryboardPanelImages(historyId: string): void {
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key?.startsWith(`${STORYBOARD_IMAGE_CACHE_PREFIX}${historyId}_`)) {
-      localStorage.removeItem(key);
-    }
-  }
-}
+// All storyboard panel image caching now uses the unified image cache in imageCacheService.ts.
+// This eliminates duplicate storage and ensures identical images share the same entry.
 
 // ─── Favorites ───────────────────────────────────────────────────────────────────
 

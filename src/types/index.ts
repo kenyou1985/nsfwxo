@@ -115,4 +115,6 @@ export interface QueuedTask {
   elapsedSeconds: number;
   coins: string | null;
   nodeInfoList: NodeInfo[];
+  /** Identifies which storyboard panel this task belongs to (if any). */
+  storyboardInfo?: { historyId: string; panelIdx: number };
 }

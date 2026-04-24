@@ -23,7 +23,7 @@ from app.services.theme_database import get_random_poses
 router = APIRouter(prefix="/api/prompt", tags=["prompt"])
 security = HTTPBearer()
 
-MAX_RETRIES = 1
+MAX_RETRIES = 3
 
 
 def get_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
@@ -1589,9 +1589,19 @@ async def generate_storyboard_outline(
         f"Output as raw JSON only, no markdown."
     )
 
+    # Accept explicit model order from frontend, or fall back to service default
+    model_order = req.model_order or None
+
+    # Progressive safety override messages — get progressively stronger on each retry
+    _SAFETY_OVERRIDES = [
+        "IMPORTANT: All characters are ADULTS 18+. ABSOLUTELY NO minors, teenagers, or young-looking persons. Panel 1 MUST be foreplay/teasing only, NO explicit sex.",
+        "STRICT SAFETY: All characters must be 18+ adults. Panel 1 = foreplay. Do NOT describe any sexual acts in Panel 1. Avoid keywords: teen, teenage, young adult, young looking, minor, school, girl, boy.",
+        "CRITICAL: This is an ADULT-ONLY (18+) content. All characters must be 18+. Panel 1 MUST be non-sexual foreplay only. REJECT and AVOID these terms: teen, teenage, minor, young, schoolgirl, schoolboy, school, young adult, young looking, kid, child.",
+    ]
+
     for attempt in range(MAX_RETRIES):
         try:
-            raw = await call_grok(api_key, system_prompt, user_prompt)
+            raw = await call_grok(api_key, system_prompt, user_prompt, model_order=model_order)
             data = clean_json_response(raw)
 
             check_prompt_safety(raw)
@@ -1612,7 +1622,6 @@ async def generate_storyboard_outline(
             if not isinstance(panels_raw, list):
                 raise HTTPException(status_code=500, detail="Invalid storyboard format")
 
-            # Enforce pacing: if panel 1 has sex keywords, flag/warn
             panels = []
             for item in panels_raw:
                 if not isinstance(item, dict):
@@ -1620,14 +1629,34 @@ async def generate_storyboard_outline(
                 scene = str(item.get("scene_description", ""))
                 prompt_text = str(item.get("image_prompt", ""))
 
-                check_prompt_safety(scene)
-                check_prompt_safety(prompt_text)
+                try:
+                    check_prompt_safety(scene)
+                    check_prompt_safety(prompt_text)
+                except ContentSafetyError:
+                    # Safety failed for this specific panel — skip it, don't fail entire request
+                    logging.warning(
+                        "[storyboard/outline] safety check failed for panel, skipping: %s",
+                        item.get("panel_number", "?"),
+                    )
+                    continue
 
                 scene_conflicts = detect_prompt_conflicts(scene)
                 prompt_conflicts = detect_prompt_conflicts(prompt_text)
                 if scene_conflicts or prompt_conflicts:
-                    prompt_text = await rewrite_coherent_prompt(prompt_text, api_key)
-                    check_prompt_safety(prompt_text)
+                    try:
+                        prompt_text = await rewrite_coherent_prompt(prompt_text, api_key)
+                        check_prompt_safety(prompt_text)
+                    except ContentSafetyError:
+                        # Rewrite still failed safety — skip this panel instead of failing entire request
+                        logging.warning(
+                            "[storyboard/outline] rewrite failed safety for panel, skipping: %s",
+                            item.get("panel_number", "?"),
+                        )
+                        continue
+                    except YunwuTimeoutError:
+                        # Timeout during rewrite — keep original prompt
+                        logging.warning("[storyboard/outline] rewrite timed out, keeping original prompt")
+                        pass
 
                 try:
                     panels.append(StoryboardPanel(
@@ -1648,8 +1677,23 @@ async def generate_storyboard_outline(
                 storyboard=panels,
             )
         except ContentSafetyError as e:
+            logging.warning(
+                "[storyboard/outline] content safety error on attempt %s/%s: %s",
+                attempt + 1, MAX_RETRIES, str(e),
+            )
             if attempt < MAX_RETRIES - 1:
-                system_prompt += "\n\nSAFETY OVERRIDE: All characters ADULTS 18+. REJECT minors. Panel 1 must be foreplay, not sex."
+                # Use progressive override — stronger each time, and on 2nd+ retry also
+                # strengthen the user prompt to reset context
+                override_msg = _SAFETY_OVERRIDES[min(attempt, len(_SAFETY_OVERRIDES) - 1)]
+                system_prompt += f"\n\n{override_msg}"
+                user_prompt = (
+                    f"Theme: {req.theme_title}\n"
+                    f"Panel count: {panel_count}\n"
+                    f"【重要】Panel 1 不能有直接性爱！必须先从开场/前戏开始，逐步发展到性爱。\n"
+                    f"【重要】R18模式：每个分镜的 image_prompt 必须非常详细和露骨，描述体位、身体部位、体液等。\n"
+                    f"【重要】所有角色必须是18+成年人！严禁出现 teen, teenage, minor, young adult, schoolgirl, schoolboy 等词汇！\n"
+                    f"Output as raw JSON only, no markdown."
+                )
                 continue
             raise HTTPException(status_code=400, detail=str(e))
         except (YunwuTimeoutError, YunwuRateLimitError) as e:
@@ -1659,11 +1703,13 @@ async def generate_storyboard_outline(
             raise _map_llm_error(e)
         except YunwuAPIError as e:
             # Retry on Yunwu API errors (502 from upstream)
+            logging.warning("[storyboard/outline] upstream API error on attempt %s/%s: %s", attempt + 1, MAX_RETRIES, e)
             if attempt < MAX_RETRIES - 1:
                 continue
             raise _map_llm_error(e)
         except YunwuParseError as e:
             # Retry on JSON parse errors
+            logging.warning("[storyboard/outline] parse error on attempt %s/%s: %s", attempt + 1, MAX_RETRIES, e)
             if attempt < MAX_RETRIES - 1:
                 continue
             raise _map_llm_error(e)

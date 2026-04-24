@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   Wand2, Shuffle, LayoutList, Copy, Check, Loader2,
   ChevronDown, ChevronUp, Sparkles, RotateCcw, Send,
@@ -29,6 +29,8 @@ import {
   addFavorite, removeFavorite, getFavorites, clearFavorites, isFavorited,
   type ExpandHistoryItem, type RandomHistoryItem, type StoryboardHistoryItem, type FavoriteItem,
 } from '../services/storage';
+import { loadCachedOrExtractPanelImages } from '../services/imageCacheService';
+import { useFinishedTaskImages } from '../contexts/FinishedTaskImagesContext';
 import type { TaskManagerReturn } from '../hooks/useTaskManager';
 import type { GirlfriendPreset } from '../data/girlfriendPresets';
 import { GirlfriendSelector } from '../components/GirlfriendSelector';
@@ -359,7 +361,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           width: DEFAULT_TXT2IMG_PARAMS.width,
           height: DEFAULT_TXT2IMG_PARAMS.height,
           imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
-          prompt: `${QUALITY_BOOST_PROMPT}, ${outputText}`,
+          prompt: outputText,
           lora1Name: DEFAULT_TXT2IMG_PARAMS.lora1Name,
           lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
           lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
@@ -427,7 +429,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         width: DEFAULT_TXT2IMG_PARAMS.width,
         height: DEFAULT_TXT2IMG_PARAMS.height,
         imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
-        prompt: `${QUALITY_BOOST_PROMPT}, ${result.prompt}`,
+        prompt: result.prompt,
         lora1Name: DEFAULT_TXT2IMG_PARAMS.lora1Name,
         lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
         lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
@@ -489,7 +491,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           width: DEFAULT_TXT2IMG_PARAMS.width,
           height: DEFAULT_TXT2IMG_PARAMS.height,
           imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
-          prompt: `${QUALITY_BOOST_PROMPT}, ${result.prompt}`,
+          prompt: result.prompt,
           lora1Name: DEFAULT_TXT2IMG_PARAMS.lora1Name,
           lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
           lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
@@ -1033,7 +1035,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         width: DEFAULT_TXT2IMG_PARAMS.width,
         height: DEFAULT_TXT2IMG_PARAMS.height,
         imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
-        prompt: `${QUALITY_BOOST_PROMPT}, ${prompt}`,
+        prompt: prompt,
         lora1Name: DEFAULT_TXT2IMG_PARAMS.lora1Name,
         lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
         lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
@@ -1095,7 +1097,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           width: DEFAULT_TXT2IMG_PARAMS.width,
           height: DEFAULT_TXT2IMG_PARAMS.height,
           imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
-          prompt: `${QUALITY_BOOST_PROMPT}, ${result.prompt}`,
+          prompt: result.prompt,
           lora1Name: DEFAULT_TXT2IMG_PARAMS.lora1Name,
           lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
           lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
@@ -1490,6 +1492,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     outlineScenes: string[];
     panels: { panel_number: number; scene_description: string; image_prompt: string }[];
     historyId?: string;
+    error?: string; // error message when generation failed
   }>>({});
 
   // Active theme tab (for tab switching between themes) — MUST be declared before effectiveHistoryId
@@ -1500,21 +1503,128 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     ? (themeOutlineStates[activeThemeTab]?.historyId || currentHistoryId)
     : currentHistoryId;
 
-  // Derived: panels from active theme tab
-  const activePanels = activeThemeTab !== null ? (themeOutlineStates[activeThemeTab]?.panels || []) : panels;
+  // Restore cached panel images on page load — critical for surviving page refresh.
+  // On initial mount genStates is empty, but panels + currentHistoryId are restored from
+  // sessionStorage via useState initializers. This effect bridges the gap by loading
+  // cached images into genStates so panel cards display them immediately.
+  useEffect(() => {
+    const saved = getStoryboardSession();
+    if (!saved?.historyId || !saved?.panels?.length) return;
+
+    const hid = saved.historyId;
+
+    const historyItems = getStoryboardHistory();
+    const historyItem = historyItems.find((h) => h.id === hid);
+    const initial: Record<string, { loading: boolean; images: string[] }> = {};
+
+    if (historyItem?.panelImages) {
+      for (const [idx, imgs] of Object.entries(historyItem.panelImages)) {
+        initial[`${hid}_${idx}`] = { loading: false, images: imgs };
+      }
+    }
+
+    const cached = getAllCachedPanelImages(hid, saved.panels.length);
+    for (const [idx, imgs] of Object.entries(cached)) {
+      const key = `${hid}_${idx}`;
+      if (!initial[key]) {
+        initial[key] = { loading: false, images: imgs };
+      }
+    }
+
+    if (Object.keys(initial).length > 0) {
+      setGenStates(initial);
+    }
+
+    // Background zip extraction for any panels still missing images
+    for (let i = 0; i < saved.panels.length; i++) {
+      const key = `${hid}_${i}`;
+      if (initial[key]?.images.length > 0) continue;
+
+      const count = historyItem?.panelImageCounts?.[i] || 4;
+      loadCachedOrExtractPanelImages(historyItem?.zipUrl, count, hid, i).then((images) => {
+        if (images.length > 0) {
+          setGenStates((prev) => {
+            const existing = prev[key];
+            if (existing?.images.length > 0 && existing.images[0]?.startsWith('data:')) return prev;
+            return { ...prev, [key]: { loading: false, images } };
+          });
+        }
+      });
+    }
+  }, []); // intentionally empty — only runs once on mount
+
+  // ── Derived active values (must be before useEffects that depend on them) ──
   const activeOutlineArc = activeThemeTab !== null ? (themeOutlineStates[activeThemeTab]?.outlineArc || '') : outlineArc;
   const activeOutlineScenes = activeThemeTab !== null ? (themeOutlineStates[activeThemeTab]?.outlineScenes || []) : outlineScenes;
-  const activeThemeInfo = activeThemeTab !== null ? selectedThemes.find((t) => t.id === activeThemeTab) : selectedThemes[0] || null;
+  const activePanels = activeThemeTab !== null ? (themeOutlineStates[activeThemeTab]?.panels || []) : panels;
+  const activeThemeInfo = activeThemeTab !== null ? selectedThemes.find((t) => t.id === activeThemeTab) : (selectedTheme || (selectedThemes[0] ?? null));
 
-  // Sync genStates with taskManager.tasks so panel cards reflect live images
+  // ── Subscribe to finished task images and cache them for the storyboard ──
+  // This is the primary path: when any task completes, its data URL images are
+  // immediately cached into the storyboard panel cache so they survive page refresh.
+  // We use the storyboardInfo from the task callback to know exactly which panel to update.
+  const { finishedTasks } = useFinishedTaskImages();
+  useEffect(() => {
+    const hid = effectiveHistoryId;
+    if (!hid) return;
+    for (const [taskId, info] of Object.entries(finishedTasks)) {
+      const { images, storyboardInfo, zipUrl } = info;
+      if (!images || images.length === 0) continue;
+      // If the task has explicit storyboardInfo, use it directly
+      if (storyboardInfo && storyboardInfo.historyId === hid) {
+        const { panelIdx } = storyboardInfo;
+        const key = `${hid}_${panelIdx}`;
+        // Only update if we don't already have valid data URLs
+        setGenStates((prev) => {
+          const current = prev[key];
+          if (current?.images.length > 0 && current.images[0]?.startsWith('data:')) return prev;
+          return { ...prev, [key]: { loading: false, images } };
+        });
+        // Persist to panel cache and history record (with zipUrl for re-extraction on cache miss)
+        cacheStoryboardPanelImages(hid, panelIdx, images).then(() => {
+          const panelImages: Record<number, string[]> = { [panelIdx]: images };
+          updateStoryboardHistoryImages(hid, panelImages, zipUrl, { [panelIdx]: images.length });
+        });
+        continue;
+      }
+      // Fallback: match by prompt text (for tasks without explicit storyboardInfo)
+      for (let i = 0; i < activePanels.length; i++) {
+        const panel = activePanels[i];
+        const panelPromptNorm = panel.image_prompt.trim().replace(/\s+/g, ' ');
+        const matchedTask = taskManager.tasks.find((t) => {
+          if (t.id !== taskId || t.images.length === 0) return false;
+          const taskPromptNorm = t.prompt.trim().replace(/\s+/g, ' ');
+          return taskPromptNorm === panelPromptNorm ||
+            taskPromptNorm.includes(panelPromptNorm) ||
+            panelPromptNorm.includes(taskPromptNorm) ||
+            (panelPromptNorm.length > 50 && taskPromptNorm.includes(panelPromptNorm.substring(0, Math.min(panelPromptNorm.length, 150))));
+        });
+        if (matchedTask) {
+          const key = `${hid}_${i}`;
+          setGenStates((prev) => {
+            const current = prev[key];
+            if (current?.images.length > 0 && current.images[0]?.startsWith('data:')) return prev;
+            return { ...prev, [key]: { loading: false, images } };
+          });
+          cacheStoryboardPanelImages(hid, i, images).then(() => {
+            const panelImages: Record<number, string[]> = { [i]: images };
+            updateStoryboardHistoryImages(hid, panelImages);
+          });
+        }
+      }
+    }
+  }, [finishedTasks, activePanels, effectiveHistoryId]);
+
+  // ── Sync genStates with taskManager.tasks so panel cards reflect live images ──
+  // Also converts blob URLs to data URLs immediately so they survive page refresh.
   useEffect(() => {
     const hid = effectiveHistoryId;
     if (!hid) return;
     setGenStates((prev) => {
       let changed = false;
       const next = { ...prev };
-      for (let i = 0; i < panels.length; i++) {
-        const panel = panels[i];
+      for (let i = 0; i < activePanels.length; i++) {
+        const panel = activePanels[i];
         const panelPromptNorm = panel.image_prompt.trim().replace(/\s+/g, ' ');
         const matchedTask = taskManager.tasks.find((t) => {
           if (t.images.length === 0) return false;
@@ -1526,45 +1636,100 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         });
         const key = `${hid}_${i}`;
         if (matchedTask) {
+          const taskImages = matchedTask.images;
           const currentImages = next[key]?.images ?? [];
-          const currentIsDataUrl = currentImages.length > 0 && currentImages[0].startsWith('data:');
-          if (currentImages.length === 0 || (!currentIsDataUrl && currentImages[0] !== matchedTask.images[0])) {
-            next[key] = { loading: false, images: matchedTask.images };
+          // Determine if current images are valid: have data URLs or non-stale blob URLs
+          const hasCurrent = currentImages.length > 0;
+          const currentIsDataUrl = hasCurrent && currentImages[0].startsWith('data:');
+          const taskHasDataUrl = taskImages.length > 0 && taskImages[0].startsWith('data:');
+          const shouldUpdate = !hasCurrent ||
+            (!currentIsDataUrl && taskHasDataUrl && currentImages[0] !== taskImages[0]) ||
+            (!currentIsDataUrl && !taskHasDataUrl && currentImages[0] !== taskImages[0]);
+
+          if (shouldUpdate) {
+            next[key] = { loading: false, images: taskImages };
             changed = true;
           }
         }
       }
       return changed ? next : prev;
     });
-  }, [taskManager.tasks, panels, effectiveHistoryId]);
+  }, [taskManager.tasks, activePanels, effectiveHistoryId]);
 
-  // Persist generated panel images to history record (both legacy cache and direct storage for consistency)
+  // Persist generated panel images: blob URLs are converted to data URLs immediately
+  // and cached so they survive page refresh. Also updates genStates so the UI uses
+  // data URLs instead of ephemeral blob URLs.
   useEffect(() => {
     const hid = effectiveHistoryId;
     if (!hid) return;
 
-    // Convert blob URLs to data URLs before caching (blob URLs become invalid after page refresh)
+    const genStateKeys = Object.keys(genStates).filter((k) => k.startsWith(`${hid}_`));
+    console.debug(`[Storyboard] convertAndCache effect triggered, hid=${hid}, genStateKeys=${JSON.stringify(genStateKeys)}`);
+
+    let hasNewImages = false;
+    for (const [key, state] of Object.entries(genStates)) {
+      const parts = key.split('_');
+      const historyIdFromKey = parts.slice(0, -1).join('_');
+      if (historyIdFromKey !== hid) continue;
+      // Only process entries that have actual images
+      if (state.images && state.images.length > 0 && state.images.some((img) => img.startsWith('blob:'))) {
+        hasNewImages = true;
+        break;
+      }
+    }
+    if (!hasNewImages) {
+      console.debug(`[Storyboard] convertAndCache: no blob images found in genStates for ${hid}`);
+      return;
+    }
+
+    // Convert blob URLs to data URLs and cache them immediately
     const convertAndCache = async () => {
+      // Read genStates fresh inside async function to avoid closure snapshot bug
+      const states = genStates;
       const panelImages: Record<number, string[]> = {};
-      for (const [key, state] of Object.entries(genStates)) {
-        // Keys are in format "${historyId}_${panelIdx}"
+      let needsGenStatesUpdate = false;
+      const updates: Record<string, { loading: boolean; images: string[] }> = {};
+
+      for (const [key, state] of Object.entries(states)) {
         const parts = key.split('_');
         const historyIdFromKey = parts.slice(0, -1).join('_');
         const panelIdx = parts[parts.length - 1];
         if (historyIdFromKey !== hid) continue;
-        if (state.images && state.images.length > 0) {
+        if (!state.images || state.images.length === 0) continue;
+
+        const hasBlob = state.images.some((img) => img.startsWith('blob:'));
+        if (hasBlob) {
           const dataUrlImages = await Promise.all(state.images.map((img) => ensureDataUrl(img)));
           panelImages[Number(panelIdx)] = dataUrlImages;
           await cacheStoryboardPanelImages(hid, Number(panelIdx), dataUrlImages);
+          updates[key] = { loading: false, images: dataUrlImages };
+          needsGenStatesUpdate = true;
+        } else if (!state.images.some((img) => img.startsWith('data:'))) {
+          // Has images but not data URLs — try to cache them too
+          const dataUrlImages = await Promise.all(state.images.map((img) => ensureDataUrl(img)));
+          panelImages[Number(panelIdx)] = dataUrlImages;
+          await cacheStoryboardPanelImages(hid, Number(panelIdx), dataUrlImages);
+          updates[key] = { loading: false, images: dataUrlImages };
+          needsGenStatesUpdate = true;
         }
       }
-      // Also save to history record directly (like image history page)
+
+      // Update genStates so UI uses persistent data URLs instead of blob URLs
+      if (needsGenStatesUpdate) {
+        setGenStates((prev) => {
+          const next = { ...prev, ...updates };
+          return Object.keys(next).length > 0 ? next : prev;
+        });
+      }
+
+      // Also save to history record for persistence
       if (Object.keys(panelImages).length > 0) {
         updateStoryboardHistoryImages(hid, panelImages);
-        // Update local history state so the history list can see the new images immediately
         setHistory(getStoryboardHistory());
       }
+      console.debug(`[Storyboard] convertAndCache complete: ${Object.keys(panelImages).length} panels cached, ${Object.keys(updates).length} genState keys updated`);
     };
+
     convertAndCache();
   }, [genStates, effectiveHistoryId]);
 
@@ -1661,10 +1826,10 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
 
   // Generate outline for ONE single selected theme (independent, not batch)
   const handleGenerateOutlineSingle = async (theme: { id: number; title: string; description: string; tags: string[]; r18_level: string; category?: string; scenario_count?: number; costume_count?: number }) => {
-    // Mark this theme as generating
+    // Mark this theme as generating, clear any previous error
     setThemeOutlineStates((prev) => ({
       ...prev,
-      [theme.id]: { generating: true, outlineArc: '', outlineScenes: [], panels: [], historyId: undefined },
+      [theme.id]: { generating: true, outlineArc: '', outlineScenes: [], panels: [], historyId: undefined, error: undefined },
     }));
     try {
       const res = await generateStoryboardOutline(theme.id, theme.title, panelCount, r18Mode);
@@ -1677,26 +1842,38 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
           outlineScenes: res.outline.scenes,
           panels: res.storyboard,
           historyId,
+          error: undefined,
         },
       }));
       onSuccess(`「${theme.title}」的大纲已生成`);
     } catch (err) {
-      setThemeOutlineStates((prev) => {
-        const next = { ...prev };
-        delete next[theme.id];
-        return next;
-      });
-      onError(err instanceof Error ? err.message : `「${theme.title}」分镜生成失败`);
+      const errMsg = err instanceof Error ? err.message : `「${theme.title}」分镜生成失败`;
+      // Show error on the card instead of deleting — user can retry
+      setThemeOutlineStates((prev) => ({
+        ...prev,
+        [theme.id]: {
+          ...prev[theme.id],
+          generating: false,
+          error: errMsg,
+        },
+      }));
+      onError(errMsg);
     }
   };
 
-  // Generate outlines for ALL selected themes independently (each runs on its own)
+  // Generate outlines for ALL selected themes in parallel — partial success is OK
   const handleGenerateSelectedThemes = async () => {
     if (selectedThemes.length === 0) return;
-    onSuccess(`开始为 ${selectedThemes.length} 个主题独立生成大纲...`);
-    // Kick off all of them concurrently — each updates its own card state independently
-    await Promise.all(selectedThemes.map((theme) => handleGenerateOutlineSingle(theme)));
-    onSuccess(`已完成 ${selectedThemes.length} 个主题的大纲生成`);
+    onSuccess(`开始为 ${selectedThemes.length} 个主题并行生成大纲...`);
+    // Promise.allSettled ensures all run even if one fails — no short-circuit
+    const results = await Promise.allSettled(selectedThemes.map((theme) => handleGenerateOutlineSingle(theme)));
+    const succeeded = results.filter((r) => r.status === 'fulfilled').length;
+    const failed = results.filter((r) => r.status === 'rejected').length;
+    if (failed > 0) {
+      onSuccess(`完成：${succeeded} 个成功，${failed} 个失败（点击失败卡片重试）`);
+    } else {
+      onSuccess(`全部 ${succeeded} 个主题大纲生成完成`);
+    }
   };
 
   // Step 2: Generate outline + panels from selected theme
@@ -1731,7 +1908,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     // Mark as generating immediately so UI reflects live progress
     setThemeOutlineStates((prev) => ({
       ...prev,
-      [theme.id]: { generating: true, outlineArc: '', outlineScenes: [], panels: [], historyId: prev[theme.id]?.historyId },
+      [theme.id]: { generating: true, outlineArc: '', outlineScenes: [], panels: [], historyId: prev[theme.id]?.historyId, error: undefined },
     }));
     try {
       const res = await generateStoryboardOutline(theme.id, theme.title, panelCount, r18Mode);
@@ -1744,16 +1921,21 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
           outlineScenes: res.outline.scenes,
           panels: res.storyboard,
           historyId,
+          error: undefined,
         },
       }));
       onSuccess(`「${theme.title}」的大纲已生成`);
     } catch (err) {
-      setThemeOutlineStates((prev) => {
-        const next = { ...prev };
-        delete next[theme.id];
-        return next;
-      });
-      onError(err instanceof Error ? err.message : `「${theme.title}」分镜生成失败`);
+      const errMsg = err instanceof Error ? err.message : `「${theme.title}」分镜生成失败`;
+      setThemeOutlineStates((prev) => ({
+        ...prev,
+        [theme.id]: {
+          ...prev[theme.id],
+          generating: false,
+          error: errMsg,
+        },
+      }));
+      onError(errMsg);
     }
   };
 
@@ -1849,7 +2031,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   const handleCopyPanel = (panel: { image_prompt: string }, idx: number) => { navigator.clipboard.writeText(panel.image_prompt).then(() => { setCopiedPanel(idx); setTimeout(() => setCopiedPanel(null), 2000); }); };
   const handleCopyAll = () => { navigator.clipboard.writeText(panels.map((p) => `[Panel ${p.panel_number}]\n${p.image_prompt}`).join('\n\n')).then(() => { setCopiedPanel(-1); setTimeout(() => setCopiedPanel(null), 2000); }); };
   const handleDeleteHistory = (id: string) => { removeStoryboardHistory(id); setHistory(getStoryboardHistory()); };
-  const handleHistoryLoad = (item: StoryboardHistoryItem) => {
+  const handleHistoryLoad = async (item: StoryboardHistoryItem) => {
     setPlot(item.plot);
     setPanels(item.panels);
     setStoryStep('panels');
@@ -1860,26 +2042,53 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     setThemeOutlineStates({});
     setShowHistory(false);
     setCurrentHistoryId(item.id);
-    // Restore images for this history entry
+
+    // Restore images for this history entry from three sources (same priority as HistoryPage):
+    // 1. direct panelImages field in history record (fastest, already in memory)
+    // 2. panel image cache (sb_panel_v2_ keys — survives page refresh)
+    // 3. zip extraction fallback (guarantees images show even when cache is empty)
     const initial: Record<string, { loading: boolean; images: string[] }> = {};
 
-    // First check if history item has direct images field (new method)
     if (item.panelImages) {
       for (const [idx, imgs] of Object.entries(item.panelImages)) {
         initial[`${item.id}_${idx}`] = { loading: false, images: imgs };
       }
-    } else {
-      // Fallback to legacy cached panel images
-      const cachedImages = getAllCachedPanelImages(item.id, item.panels.length);
-      for (const [idx, imgs] of Object.entries(cachedImages)) {
-        initial[`${item.id}_${idx}`] = { loading: false, images: imgs };
+    }
+
+    const cachedImages = getAllCachedPanelImages(item.id, item.panels.length);
+    for (const [idx, imgs] of Object.entries(cachedImages)) {
+      const key = `${item.id}_${idx}`;
+      if (!initial[key]) {
+        initial[key] = { loading: false, images: imgs };
       }
     }
+
     setGenStates(initial);
+
+    // Save theme title to session so handleBatchGenerate can use it even after selectedThemes is cleared
     saveStoryboardSession({
       plot: item.plot, panelCount: item.panel_count, panels: item.panels, expandedPanel: null,
       themeTitle: item.plot, historyId: item.id,
     });
+    // Also update selectedTheme so activeThemeInfo is populated for batch generate
+    setSelectedTheme({ id: 0, title: item.plot, description: '', tags: [], r18_level: '', category: undefined });
+
+    // Background: try zip extraction for any panels still missing images
+    for (let i = 0; i < item.panels.length; i++) {
+      const key = `${item.id}_${i}`;
+      const current = initial[key];
+      if (current?.images.length > 0 && current.images[0]?.startsWith('data:')) continue;
+
+      const count = item.panelImageCounts?.[i] || 4;
+      const images = await loadCachedOrExtractPanelImages(item.zipUrl, count, item.id, i);
+      if (images.length > 0) {
+        setGenStates((prev) => {
+          const existing = prev[key];
+          if (existing?.images.length > 0 && existing.images[0]?.startsWith('data:')) return prev;
+          return { ...prev, [key]: { loading: false, images } };
+        });
+      }
+    }
   };
 
   const handleToggleFavorite = (imageUrl: string, prompt?: string) => {
@@ -1897,6 +2106,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     if (taskManager.isFull) { onError('任务队列已满'); return; }
     const hid = effectiveHistoryId || `temp_${Date.now()}`;
     const key = `${hid}_${panelIdx}`;
+    // storyboardInfo ties this task to the specific panel so images can be cached correctly
+    const storyboardInfo = { historyId: hid, panelIdx };
     // Set loading state immediately
     setGenStates((prev) => ({ ...prev, [key]: { loading: true, images: [] } }));
     let imagePath = selectedGirlfriend?.portraitUrl || '';
@@ -1928,25 +2139,26 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         { nodeId: '80', fieldName: 'strength_model', fieldValue: '0', description: 'lora权重' },
       ];
       try {
-        await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.QWEN_IMG2IMG);
+        await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.QWEN_IMG2IMG, undefined, storyboardInfo);
         onSuccess('任务已提交');
       } catch (err) {
         onError(err instanceof Error ? err.message : '提交失败');
         setGenStates((prev) => { const next = { ...prev }; delete next[key]; return next; });
       }
     } else {
+      const finalPrompt = `${QUALITY_BOOST_PROMPT}, ${prompt}`;
       const nodes = buildTxt2ImgNodeList({
         width: DEFAULT_TXT2IMG_PARAMS.width,
         height: DEFAULT_TXT2IMG_PARAMS.height,
         imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
-        prompt: `${QUALITY_BOOST_PROMPT}, ${prompt}`,
+        prompt: finalPrompt,
         lora1Name: DEFAULT_TXT2IMG_PARAMS.lora1Name,
         lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
         lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
         lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
       });
       try {
-        await taskManager.addTask('txt2img', nodes, prompt);
+        await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, storyboardInfo);
         onSuccess('任务已提交');
       } catch (err) {
         onError(err instanceof Error ? err.message : '提交失败');
@@ -2146,8 +2358,17 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     setBatchLoading(true);
     let submitted = 0;
 
+    // Create a new history entry for the regenerated images — don't overwrite existing history
+    const newHistoryId = addStoryboardHistory({
+      plot: activeThemeInfo?.title || selectedThemes[0]?.title || '新生成',
+      panel_count: activePanels.length,
+      r18: r18Mode,
+      panels: activePanels,
+    });
+    setCurrentHistoryId(newHistoryId);
+    const hid = newHistoryId;
+
     // Mark all panels as loading immediately (use string keys for multi-theme support)
-    const hid = effectiveHistoryId || `temp_${Date.now()}`;
     setGenStates((prev) => {
       const next = { ...prev };
       for (let i = 0; i < activePanels.length; i++) {
@@ -2169,35 +2390,40 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       }
     }
     const toSubmit = activePanels.slice(0, availableSlots);
-    const tasks = toSubmit.map((panel, i) => async () => {
-      if (digitalHumanMode && selectedGirlfriend) {
-        const charName = selectedGirlfriend.nameZh || selectedGirlfriend.name;
-        const charId = (selectedGirlfriend.id as string).toUpperCase().slice(0, 4);
-        const anchorPrompt = `【严格锁定】严格锁定图中22岁女性（ID:${charId}），完全保留原有面部特征，五官轮廓、脸型、眼睛、鼻子、嘴唇、发型、肤色、身材比例完全不变，不做任何面部修改，动作流畅不僵硬。超高清8K，写实细节，皮肤质感细腻，无畸变、无模糊、无穿模。`;
-        const finalPrompt = `${anchorPrompt}\n\n${panel.image_prompt}`;
-        const nodes = [
-          { nodeId: '60', fieldName: 'image', fieldValue: imagePath, description: '选择图片' },
-          { nodeId: '64', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: '图片数量' },
-          { nodeId: '82', fieldName: 'value', fieldValue: 'false', description: 'tt/zip' },
-          { nodeId: '59', fieldName: 'text', fieldValue: finalPrompt, description: '文字描述' },
-          { nodeId: '70', fieldName: 'ckpt_name', fieldValue: 'Qwen-Rapid-AIO-NSFW-v18.safetensors', description: '模型' },
-          { nodeId: '80', fieldName: 'lora_name', fieldValue: 'any2realV2.safetensors', description: 'lora' },
-          { nodeId: '80', fieldName: 'strength_model', fieldValue: '0', description: 'lora权重' },
-        ];
-        await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.QWEN_IMG2IMG);
-      } else {
-        const nodes = buildTxt2ImgNodeList({
-          width: DEFAULT_TXT2IMG_PARAMS.width,
-          height: DEFAULT_TXT2IMG_PARAMS.height,
-          imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
-          prompt: `${QUALITY_BOOST_PROMPT}, ${panel.image_prompt}`,
-          lora1Name: DEFAULT_TXT2IMG_PARAMS.lora1Name,
-          lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
-          lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
-          lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
-        });
-        await taskManager.addTask('txt2img', nodes, panel.image_prompt);
-      }
+    const tasks: (() => Promise<void>)[] = toSubmit.map((panel) => {
+      const panelIdx = activePanels.indexOf(panel);
+      const panelStoryboardInfo = { historyId: hid, panelIdx };
+      return async () => {
+        if (digitalHumanMode && selectedGirlfriend) {
+          const charName = selectedGirlfriend.nameZh || selectedGirlfriend.name;
+          const charId = (selectedGirlfriend.id as string).toUpperCase().slice(0, 4);
+          const anchorPrompt = `【严格锁定】严格锁定图中22岁女性（ID:${charId}），完全保留原有面部特征，五官轮廓、脸型、眼睛、鼻子、嘴唇、发型、肤色、身材比例完全不变，不做任何面部修改，动作流畅不僵硬。超高清8K，写实细节，皮肤质感细腻，无畸变、无模糊、无穿模。`;
+          const finalPrompt = `${anchorPrompt}\n\n${panel.image_prompt}`;
+          const nodes = [
+            { nodeId: '60', fieldName: 'image', fieldValue: imagePath, description: '选择图片' },
+            { nodeId: '64', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: '图片数量' },
+            { nodeId: '82', fieldName: 'value', fieldValue: 'false', description: 'tt/zip' },
+            { nodeId: '59', fieldName: 'text', fieldValue: finalPrompt, description: '文字描述' },
+            { nodeId: '70', fieldName: 'ckpt_name', fieldValue: 'Qwen-Rapid-AIO-NSFW-v18.safetensors', description: '模型' },
+            { nodeId: '80', fieldName: 'lora_name', fieldValue: 'any2realV2.safetensors', description: 'lora' },
+            { nodeId: '80', fieldName: 'strength_model', fieldValue: '0', description: 'lora权重' },
+          ];
+          await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.QWEN_IMG2IMG, undefined, panelStoryboardInfo);
+        } else {
+          const finalPrompt = `${QUALITY_BOOST_PROMPT}, ${panel.image_prompt}`;
+          const nodes = buildTxt2ImgNodeList({
+            width: DEFAULT_TXT2IMG_PARAMS.width,
+            height: DEFAULT_TXT2IMG_PARAMS.height,
+            imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
+            prompt: finalPrompt,
+            lora1Name: DEFAULT_TXT2IMG_PARAMS.lora1Name,
+            lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
+            lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
+            lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
+          });
+          await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, panelStoryboardInfo);
+        }
+      };
     });
     const settled = await Promise.allSettled(tasks.map((t) => t()));
     submitted = settled.filter((r) => r.status === 'fulfilled').length;
@@ -2207,10 +2433,11 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       }
     });
     setBatchLoading(false);
+    setHistory(getStoryboardHistory());
     if (submitted > 0) {
       onSuccess(`已提交 ${submitted} 个生图任务`);
     }
-  }, [activePanels, taskManager, setGenStates, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, effectiveHistoryId]);
+  }, [activePanels, activeThemeInfo, selectedThemes, taskManager, setGenStates, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, r18Mode]);
 
   const hasContent = storyStep === 'panels' && panels.length > 0;
 
@@ -2633,6 +2860,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                 const state = themeOutlineStates[theme.id];
                 const isGenerating = !!state?.generating;
                 const isDone = !!state?.outlineArc;
+                const hasError = !!state?.error;
                 return (
                   <div
                     key={theme.id}
@@ -2641,7 +2869,9 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                         ? 'border-green-300 bg-green-50/30'
                         : isGenerating
                           ? 'border-yellow-300 bg-yellow-50/30'
-                          : 'border-border bg-bg-elevated'
+                          : hasError
+                            ? 'border-red-300 bg-red-50/30'
+                            : 'border-border bg-bg-elevated'
                     }`}
                   >
                     <button
@@ -2651,11 +2881,13 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                     >
                       <X size={14} />
                     </button>
-                    <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 mt-0.5 bg-green-500 border-green-500`}>
-                      <Check size={10} className="text-white" />
+                    <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                      isDone ? 'bg-green-500 border-green-500' : hasError ? 'bg-red-500 border-red-500' : 'border-border'
+                    }`}>
+                      {isDone ? <Check size={10} className="text-white" /> : hasError ? <AlertCircle size={10} className="text-white" /> : null}
                     </div>
                     <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0 ${
-                      isDone ? 'bg-green-500 text-white' : isGenerating ? 'bg-yellow-500 text-white' : r18Mode ? 'bg-red-100 text-red-600' : 'bg-primary/10 text-primary'
+                      isDone ? 'bg-green-500 text-white' : isGenerating ? 'bg-yellow-500 text-white' : hasError ? 'bg-red-500 text-white' : r18Mode ? 'bg-red-100 text-red-600' : 'bg-primary/10 text-primary'
                     }`}>
                       {isGenerating ? <Loader2 size={10} className="animate-spin" /> : theme.id}
                     </div>
@@ -2672,10 +2904,15 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                         </span>
                         {isDone && <span className="text-[9px] text-green-600 font-medium">已生成</span>}
                         {isGenerating && <span className="text-[9px] text-yellow-600 font-medium animate-pulse">生成中...</span>}
+                        {hasError && <span className="text-[9px] text-red-500 font-medium">失败</span>}
                       </div>
-                      <p className="text-[11px] text-text-tertiary leading-relaxed line-clamp-1">
-                        {isDone && state ? state.outlineArc : theme.description}
-                      </p>
+                      {hasError ? (
+                        <p className="text-[11px] text-red-400 leading-relaxed line-clamp-1">{state.error}</p>
+                      ) : (
+                        <p className="text-[11px] text-text-tertiary leading-relaxed line-clamp-1">
+                          {isDone && state ? state.outlineArc : theme.description}
+                        </p>
+                      )}
                       {isDone && (
                         <p className="text-[10px] text-text-tertiary mt-0.5">{state.panels.length} 个分镜</p>
                       )}
@@ -2695,9 +2932,9 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                                   setCurrentHistoryId(hid);
                                   const cached = getAllCachedPanelImages(hid, state.panels.length);
                                   if (Object.keys(cached).length > 0) {
-                                    const initial: Record<number, { loading: boolean; images: string[] }> = {};
+                                    const initial: Record<string, { loading: boolean; images: string[] }> = {};
                                     for (const [idx, imgs] of Object.entries(cached)) {
-                                      initial[Number(idx)] = { loading: false, images: imgs };
+                                      initial[`${hid}_${idx}`] = { loading: false, images: imgs };
                                     }
                                     setGenStates(initial);
                                   }
@@ -2719,10 +2956,26 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                           <button
                             onClick={() => handleGenerateOutlineSingle(theme)}
                             className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
-                              r18Mode ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-primary text-white hover:bg-primary/90'
+                              hasError
+                                ? 'bg-red-500 text-white hover:bg-red-600'
+                                : r18Mode ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-primary text-white hover:bg-primary/90'
                             }`}
                           >
-                            生成大纲
+                            {hasError ? '重试' : '生成大纲'}
+                          </button>
+                        )}
+                        {isGenerating && (
+                          <button
+                            onClick={() => {
+                              setThemeOutlineStates((prev) => {
+                                const next = { ...prev };
+                                delete next[theme.id];
+                                return next;
+                              });
+                            }}
+                            className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-bg-elevated text-text-secondary hover:bg-bg-hover transition-all"
+                          >
+                            取消
                           </button>
                         )}
                       </div>
@@ -3106,21 +3359,81 @@ function StoryboardHistoryList({ history, onLoad, onDelete }: {
   onDelete: (id: string) => void;
 }) {
   const [previewImages, setPreviewImages] = useState<Record<string, string[]>>({});
+  const previewImagesRef = useRef<Record<string, string[]>>({});
   const [refreshKey, setRefreshKey] = useState(0);
+  const [loadingPreviews, setLoadingPreviews] = useState<Set<string>>(new Set());
+  const loadingPreviewsRef = useRef<Set<string>>(new Set());
+  const inFlightRef = useRef(false);
 
   useEffect(() => {
-    const newPreviews: Record<string, string[]> = {};
-    for (const h of history) {
-      let allImages: string[] = h.images || [];
-      if (allImages.length === 0) {
+    let cancelled = false;
+
+    const syncCache = () => {
+      const newPreviews: Record<string, string[]> = {};
+      for (const h of history) {
         const cached = getAllCachedPanelImages(h.id, h.panel_count);
-        for (const imgs of Object.values(cached)) {
-          allImages.push(...imgs);
-        }
+        const seen = new Set<string>();
+        const allImages: string[] = [];
+        const addImages = (imgs: string[]) => {
+          for (const img of imgs) {
+            if (img && !seen.has(img)) { seen.add(img); allImages.push(img); }
+          }
+        };
+        for (const imgs of Object.values(cached)) addImages(imgs);
+        if (h.panelImages) { for (const imgs of Object.values(h.panelImages)) addImages(imgs); }
+        addImages(h.images || []);
+        if (allImages.length > 0) newPreviews[h.id] = allImages.slice(0, 6);
       }
-      if (allImages.length > 0) newPreviews[h.id] = allImages.slice(0, 6);
-    }
-    setPreviewImages(newPreviews);
+      if (!cancelled) {
+        previewImagesRef.current = newPreviews;
+        setPreviewImages(newPreviews);
+      }
+    };
+
+    const sync = () => {
+      const missing = history.filter((h) =>
+        !previewImagesRef.current[h.id] &&
+        !loadingPreviewsRef.current.has(h.id)
+      );
+      if (missing.length === 0) return;
+
+      if (inFlightRef.current) return;
+      inFlightRef.current = true;
+
+      missing.forEach((h) => {
+        loadingPreviewsRef.current.add(h.id);
+      });
+      if (!cancelled) setLoadingPreviews((prev) => new Set([...prev, ...missing.map((h) => h.id)]));
+
+      (async () => {
+        for (const h of missing) {
+          if (cancelled) break;
+          try {
+            const images = await loadCachedOrExtractPanelImages(h.zipUrl, 6, h.id, 0);
+            if (!cancelled && images.length > 0) {
+              const updated = { ...previewImagesRef.current, [h.id]: images.slice(0, 6) };
+              previewImagesRef.current = updated;
+              setPreviewImages(updated);
+            }
+          } catch (e) {
+            console.debug('[StoryboardHistoryList] zip extraction failed for', h.id, e);
+          } finally {
+            if (!cancelled) {
+              loadingPreviewsRef.current.delete(h.id);
+              setLoadingPreviews((prev) => {
+                const next = new Set(prev);
+                next.delete(h.id);
+                return next;
+              });
+            }
+          }
+        }
+        inFlightRef.current = false;
+      })();
+    };
+
+    syncCache();
+    sync();
   }, [history, refreshKey]);
 
   if (history.length === 0) {

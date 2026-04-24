@@ -1,7 +1,7 @@
 import type { GirlfriendPreset } from '../data/girlfriendPresets';
 
 const STORAGE_KEY = 'girlfriend_custom';
-const MAX_CUSTOM = 20;
+const MAX_CUSTOM = 50;
 
 export interface CustomGirlfriend {
   id: string;

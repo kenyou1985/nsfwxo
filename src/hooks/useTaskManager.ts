@@ -7,7 +7,7 @@ import {
   extractImagesFromZipAsDataUrls,
   WORKFLOW,
 } from '../services/runninghub';
-import { cacheImages } from '../services/imageCacheService';
+import { cacheImages, getOrFetchTaskImages } from '../services/imageCacheService';
 import type {
   QueuedTask,
   TaskStatus,
@@ -29,6 +29,7 @@ export interface PersistedTaskEntry {
   resultId?: string; // UI result identifier for matching restored tasks to UI state
   timestamp: number;
   zipUrl?: string | null; // Persisted for recovery after page refresh
+  storyboardInfo?: { historyId: string; panelIdx: number }; // Storyboard panel association
 }
 
 export function loadPersistedTasks(): PersistedTaskEntry[] {
@@ -79,6 +80,8 @@ interface TaskManagerOptions {
   onError?: (taskId: string, message: string) => void;
   onTaskComplete?: (task: QueuedTask, elapsed: number) => void;
   onTaskStatusChange?: (taskId: string, status: TaskStatus) => void;
+  /** Called when task images are fully extracted (data URLs available). */
+  onTaskImagesReady?: (taskId: string, images: string[], storyboardInfo?: { historyId: string; panelIdx: number }, zipUrl?: string) => void;
 }
 
 export interface TaskManagerReturn {
@@ -89,14 +92,16 @@ export interface TaskManagerReturn {
     nodeInfoList: NodeInfo[],
     prompt: string,
     workflowIdOverride?: string,
-    resultId?: string
+    resultId?: string,
+    storyboardInfo?: { historyId: string; panelIdx: number }
   ) => Promise<string>;
   addTaskWithNodeList: (
     workflowType: 'txt2img' | 'img2img' | 'img2vid',
     nodeInfoList: NodeInfo[],
     prompt: string,
     workflowIdOverride?: string,
-    resultId?: string
+    resultId?: string,
+    storyboardInfo?: { historyId: string; panelIdx: number }
   ) => Promise<string>;
   cancelTask: (id: string) => void;
   clearCompleted: () => void;
@@ -129,6 +134,7 @@ export function useTaskManager({
   onError,
   onTaskComplete,
   onTaskStatusChange,
+  onTaskImagesReady,
 }: TaskManagerOptions): TaskManagerReturn {
   const [tasks, setTasks] = useState<QueuedTask[]>([]);
 
@@ -139,6 +145,7 @@ export function useTaskManager({
   const onErrorRef = useRef(onError);
   const onTaskCompleteRef = useRef(onTaskComplete);
   const onTaskStatusChangeRef = useRef(onTaskStatusChange);
+  const onTaskImagesReadyRef = useRef(onTaskImagesReady);
   const imagesExtractedRef = useRef<Record<string, boolean>>({});
   const restoringRef = useRef<Record<string, boolean>>({});
 
@@ -147,6 +154,7 @@ export function useTaskManager({
   useEffect(() => { onErrorRef.current = onError; }, [onError]);
   useEffect(() => { onTaskCompleteRef.current = onTaskComplete; }, [onTaskComplete]);
   useEffect(() => { onTaskStatusChangeRef.current = onTaskStatusChange; }, [onTaskStatusChange]);
+  useEffect(() => { onTaskImagesReadyRef.current = onTaskImagesReady; }, [onTaskImagesReady]);
 
   // 1. Timer effect - update elapsed time every second
   useEffect(() => {
@@ -207,8 +215,9 @@ export function useTaskManager({
           extractImagesFromZip(zipUrl),
           extractImagesFromZipAsDataUrls(zipUrl),
         ]);
-        cacheImages(zipUrl, dataUrls).catch(() => {});
-        const finalImages = blobUrls;
+        // Use dataUrls as the source of truth — stored in cache and task.images
+        const finalImages = dataUrls;
+        await cacheImages(zipUrl, dataUrls);
         setTasks((prev) =>
           prev.map((t) =>
             t.id === task.id ? { ...t, status: 'FINISHED', images: finalImages, zipUrl, coins, elapsedSeconds: elapsed } : t
@@ -216,27 +225,33 @@ export function useTaskManager({
         );
         const updatedTask: QueuedTask = { ...task, status: 'FINISHED', zipUrl, coins, elapsedSeconds: elapsed, images: finalImages };
         onTaskCompleteRef.current?.(updatedTask, elapsed);
+        onTaskImagesReadyRef.current?.(task.id, finalImages, task.storyboardInfo, zipUrl);
         return { updatedTask };
       } catch (err) {
         console.error('[extractFinishedTaskImages] Failed to extract images:', err);
+        // Still try to recover blob URLs through cache
+        const blobUrls = await extractImagesFromZip(zipUrl).catch(() => []);
+        const finalImages = await getOrFetchTaskImages(zipUrl, blobUrls);
         setTasks((prev) =>
           prev.map((t) =>
-            t.id === task.id ? { ...t, status: 'FINISHED', zipUrl, coins, elapsedSeconds: elapsed } : t
+            t.id === task.id ? { ...t, status: 'FINISHED', images: finalImages, zipUrl, coins, elapsedSeconds: elapsed } : t
           )
         );
-        const updatedTask: QueuedTask = { ...task, status: 'FINISHED', zipUrl, coins, elapsedSeconds: elapsed };
+        const updatedTask: QueuedTask = { ...task, status: 'FINISHED', zipUrl, coins, elapsedSeconds: elapsed, images: finalImages };
         onTaskCompleteRef.current?.(updatedTask, elapsed);
+        onTaskImagesReadyRef.current?.(task.id, finalImages, task.storyboardInfo, zipUrl);
         return { updatedTask };
       }
     } else if (directImageUrls.length > 0) {
-      cacheImages('', directImageUrls).catch(() => {});
+      const finalImages = await getOrFetchTaskImages('', directImageUrls);
       setTasks((prev) =>
         prev.map((t) =>
-          t.id === task.id ? { ...t, status: 'FINISHED', images: directImageUrls, zipUrl, coins, elapsedSeconds: elapsed } : t
+          t.id === task.id ? { ...t, status: 'FINISHED', images: finalImages, zipUrl, coins, elapsedSeconds: elapsed } : t
         )
       );
-      const updatedTask: QueuedTask = { ...task, status: 'FINISHED', zipUrl, coins, elapsedSeconds: elapsed, images: directImageUrls };
+      const updatedTask: QueuedTask = { ...task, status: 'FINISHED', zipUrl, coins, elapsedSeconds: elapsed, images: finalImages };
       onTaskCompleteRef.current?.(updatedTask, elapsed);
+      onTaskImagesReadyRef.current?.(task.id, finalImages, task.storyboardInfo, zipUrl);
       return { updatedTask };
     } else {
       console.warn('[extractFinishedTaskImages] No zipUrl or direct image URLs for finished task');
@@ -378,7 +393,8 @@ export function useTaskManager({
       nodeInfoList: NodeInfo[],
       prompt: string,
       workflowIdOverride?: string,
-      resultId?: string
+      resultId?: string,
+      storyboardInfo?: { historyId: string; panelIdx: number }
     ): Promise<string> => {
       const currentApiKey = apiKeyRef.current;
       if (!currentApiKey) throw new Error('API Key not configured');
@@ -397,6 +413,7 @@ export function useTaskManager({
         elapsedSeconds: 0,
         coins: null,
         nodeInfoList,
+        storyboardInfo,
       };
 
       setTasks((prev) => {
@@ -405,7 +422,7 @@ export function useTaskManager({
       });
 
       // Persist task so it can be restored after page refresh
-      persistTask({ id, taskId: null, prompt, workflowType, workflowIdOverride, nodeInfoList, resultId, timestamp: Date.now() });
+      persistTask({ id, taskId: null, prompt, workflowType, workflowIdOverride, nodeInfoList, resultId, timestamp: Date.now(), storyboardInfo: newTask.storyboardInfo });
 
       try {
         const resolvedWorkflowId = workflowIdOverride
@@ -440,7 +457,7 @@ export function useTaskManager({
           )
         );
         // Update persisted entry with taskId and zipUrl so it can be restored after refresh
-        persistTask({ id, taskId, prompt, workflowType, workflowIdOverride, nodeInfoList, resultId, timestamp: Date.now(), zipUrl: initialZipUrl });
+        persistTask({ id, taskId, prompt, workflowType, workflowIdOverride, nodeInfoList, resultId, timestamp: Date.now(), zipUrl: initialZipUrl, storyboardInfo: newTask.storyboardInfo });
         onTaskStatusChangeRef.current?.(id, initialStatus);
 
         if (initialStatus === 'FINISHED') {
@@ -611,6 +628,7 @@ export function useTaskManager({
             coins: null,
             nodeInfoList: entry.nodeInfoList,
             workflowIdOverride: entry.workflowIdOverride,
+            storyboardInfo: entry.storyboardInfo,
           };
 
           const mappedStatus = mapTaskStatus(status);
