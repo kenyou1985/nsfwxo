@@ -225,7 +225,7 @@ export function useTaskManager({
         );
         const updatedTask: QueuedTask = { ...task, status: 'FINISHED', zipUrl, coins, elapsedSeconds: elapsed, images: finalImages };
         onTaskCompleteRef.current?.(updatedTask, elapsed);
-        onTaskImagesReadyRef.current?.(task.id, finalImages, task.storyboardInfo, zipUrl);
+        onTaskImagesReadyRef.current?.(task.id, finalImages, task.storyboardInfo ?? undefined, task.zipUrl ?? undefined);
         return { updatedTask };
       } catch (err) {
         console.error('[extractFinishedTaskImages] Failed to extract images:', err);
@@ -239,7 +239,7 @@ export function useTaskManager({
         );
         const updatedTask: QueuedTask = { ...task, status: 'FINISHED', zipUrl, coins, elapsedSeconds: elapsed, images: finalImages };
         onTaskCompleteRef.current?.(updatedTask, elapsed);
-        onTaskImagesReadyRef.current?.(task.id, finalImages, task.storyboardInfo, zipUrl);
+        onTaskImagesReadyRef.current?.(task.id, finalImages, task.storyboardInfo ?? undefined, task.zipUrl ?? undefined);
         return { updatedTask };
       }
     } else if (directImageUrls.length > 0) {
@@ -251,7 +251,7 @@ export function useTaskManager({
       );
       const updatedTask: QueuedTask = { ...task, status: 'FINISHED', zipUrl, coins, elapsedSeconds: elapsed, images: finalImages };
       onTaskCompleteRef.current?.(updatedTask, elapsed);
-      onTaskImagesReadyRef.current?.(task.id, finalImages, task.storyboardInfo, zipUrl);
+      onTaskImagesReadyRef.current?.(task.id, finalImages, task.storyboardInfo ?? undefined, task.zipUrl ?? undefined);
       return { updatedTask };
     } else {
       console.warn('[extractFinishedTaskImages] No zipUrl or direct image URLs for finished task');
