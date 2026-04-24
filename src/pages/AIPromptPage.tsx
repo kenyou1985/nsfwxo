@@ -349,7 +349,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           { nodeId: '64', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: '图片数量' },
           { nodeId: '82', fieldName: 'value', fieldValue: 'false', description: 'tt/zip（默认zip）' },
           { nodeId: '59', fieldName: 'text', fieldValue: outputText, description: '文字描述' },
-          { nodeId: '70', fieldName: 'ckpt_name', fieldValue: 'Qwen-Rapid-AIO-NSFW-v18.safetensors', description: '模型选择（qwen-2511-edit）' },
+          { nodeId: '70', fieldName: 'ckpt_name', fieldValue: 'Qwen-Rapid-AIO-NSFW-v23.0.safetensors', description: '模型选择（qwen-2511-edit）' },
           { nodeId: '80', fieldName: 'lora_name', fieldValue: 'any2realV2.safetensors', description: 'lora(qwen-2511)' },
           { nodeId: '80', fieldName: 'strength_model', fieldValue: '0', description: 'lora权重' },
         ];
@@ -408,7 +408,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         { nodeId: '64', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: '图片数量' },
         { nodeId: '82', fieldName: 'value', fieldValue: 'false', description: 'tt/zip（默认zip）' },
         { nodeId: '59', fieldName: 'text', fieldValue: result.prompt, description: '文字描述' },
-        { nodeId: '70', fieldName: 'ckpt_name', fieldValue: 'Qwen-Rapid-AIO-NSFW-v18.safetensors', description: '模型选择（qwen-2511-edit）' },
+        { nodeId: '70', fieldName: 'ckpt_name', fieldValue: 'Qwen-Rapid-AIO-NSFW-v23.0.safetensors', description: '模型选择（qwen-2511-edit）' },
         { nodeId: '80', fieldName: 'lora_name', fieldValue: 'any2realV2.safetensors', description: 'lora(qwen-2511)' },
         { nodeId: '80', fieldName: 'strength_model', fieldValue: '0', description: 'lora权重' },
       ];
@@ -481,7 +481,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           { nodeId: '64', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: '图片数量' },
           { nodeId: '82', fieldName: 'value', fieldValue: 'false', description: 'tt/zip（默认zip）' },
           { nodeId: '59', fieldName: 'text', fieldValue: result.prompt, description: '文字描述' },
-          { nodeId: '70', fieldName: 'ckpt_name', fieldValue: 'Qwen-Rapid-AIO-NSFW-v18.safetensors', description: '模型选择（qwen-2511-edit）' },
+          { nodeId: '70', fieldName: 'ckpt_name', fieldValue: 'Qwen-Rapid-AIO-NSFW-v23.0.safetensors', description: '模型选择（qwen-2511-edit）' },
           { nodeId: '80', fieldName: 'lora_name', fieldValue: 'any2realV2.safetensors', description: 'lora(qwen-2511)' },
           { nodeId: '80', fieldName: 'strength_model', fieldValue: '0', description: 'lora权重' },
         ];
@@ -1014,7 +1014,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         { nodeId: '64', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: '图片数量' },
         { nodeId: '82', fieldName: 'value', fieldValue: 'false', description: 'tt/zip（默认zip）' },
         { nodeId: '59', fieldName: 'text', fieldValue: prompt, description: '文字描述' },
-        { nodeId: '70', fieldName: 'ckpt_name', fieldValue: 'Qwen-Rapid-AIO-NSFW-v18.safetensors', description: '模型选择（qwen-2511-edit）' },
+        { nodeId: '70', fieldName: 'ckpt_name', fieldValue: 'Qwen-Rapid-AIO-NSFW-v23.0.safetensors', description: '模型选择（qwen-2511-edit）' },
         { nodeId: '80', fieldName: 'lora_name', fieldValue: 'any2realV2.safetensors', description: 'lora(qwen-2511)' },
         { nodeId: '80', fieldName: 'strength_model', fieldValue: '0', description: 'lora权重' },
       ];
@@ -1087,7 +1087,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           { nodeId: '64', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: '图片数量' },
           { nodeId: '82', fieldName: 'value', fieldValue: 'false', description: 'tt/zip（默认zip）' },
           { nodeId: '59', fieldName: 'text', fieldValue: result.prompt, description: '文字描述' },
-          { nodeId: '70', fieldName: 'ckpt_name', fieldValue: 'Qwen-Rapid-AIO-NSFW-v18.safetensors', description: '模型选择（qwen-2511-edit）' },
+          { nodeId: '70', fieldName: 'ckpt_name', fieldValue: 'Qwen-Rapid-AIO-NSFW-v23.0.safetensors', description: '模型选择（qwen-2511-edit）' },
           { nodeId: '80', fieldName: 'lora_name', fieldValue: 'any2realV2.safetensors', description: 'lora(qwen-2511)' },
           { nodeId: '80', fieldName: 'strength_model', fieldValue: '0', description: 'lora权重' },
         ];
@@ -2134,7 +2134,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         { nodeId: '64', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: '图片数量' },
         { nodeId: '82', fieldName: 'value', fieldValue: 'false', description: 'tt/zip' },
         { nodeId: '59', fieldName: 'text', fieldValue: finalPrompt, description: '文字描述' },
-        { nodeId: '70', fieldName: 'ckpt_name', fieldValue: 'Qwen-Rapid-AIO-NSFW-v18.safetensors', description: '模型' },
+        { nodeId: '70', fieldName: 'ckpt_name', fieldValue: 'Qwen-Rapid-AIO-NSFW-v23.0.safetensors', description: '模型' },
         { nodeId: '80', fieldName: 'lora_name', fieldValue: 'any2realV2.safetensors', description: 'lora' },
         { nodeId: '80', fieldName: 'strength_model', fieldValue: '0', description: 'lora权重' },
       ];
@@ -2404,7 +2404,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
             { nodeId: '64', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: '图片数量' },
             { nodeId: '82', fieldName: 'value', fieldValue: 'false', description: 'tt/zip' },
             { nodeId: '59', fieldName: 'text', fieldValue: finalPrompt, description: '文字描述' },
-            { nodeId: '70', fieldName: 'ckpt_name', fieldValue: 'Qwen-Rapid-AIO-NSFW-v18.safetensors', description: '模型' },
+            { nodeId: '70', fieldName: 'ckpt_name', fieldValue: 'Qwen-Rapid-AIO-NSFW-v23.0.safetensors', description: '模型' },
             { nodeId: '80', fieldName: 'lora_name', fieldValue: 'any2realV2.safetensors', description: 'lora' },
             { nodeId: '80', fieldName: 'strength_model', fieldValue: '0', description: 'lora权重' },
           ];
