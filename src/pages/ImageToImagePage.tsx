@@ -6,7 +6,8 @@ import { ParameterSlider } from '../components/ParameterSlider';
 import { GenerateButton } from '../components/GenerateButton';
 import { TaskList } from '../components/TaskList';
 import { TagPanel } from '../components/TagPanel';
-import { getWorkflowFormat, uploadImage, WORKFLOW } from '../services/runninghub';
+import { StoryboardSection } from '../components/StoryboardSection';
+import { uploadImage, WORKFLOW } from '../services/runninghub';
 import { expandPrompt, randomPrompt } from '../services/promptApi';
 import type { ImageToImageParams, QueuedTask } from '../types';
 import type { TaskManagerReturn } from '../hooks/useTaskManager';
@@ -14,6 +15,7 @@ import type { WeightMode } from '../components/PromptEditor';
 import { DEFAULT_GIRLFRIEND_PRESETS, type GirlfriendPreset } from '../data/girlfriendPresets';
 import { PosePresetSelector } from '../components/PosePresetSelector';
 import { QUALITY_BOOST_PROMPT } from '../constants';
+import type { StoryboardPanel } from '../services/storyboardGenerator';
 
 function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -130,15 +132,11 @@ export function ImageToImagePage({
           return;
         }
         const nodeList = [
-          { nodeId: '60', fieldName: 'image', fieldValue: imagePath, description: '选择图片' },
-          { nodeId: '64', fieldName: 'batch_size', fieldValue: String(params.batchSize), description: '图片数量' },
-          { nodeId: '82', fieldName: 'value', fieldValue: 'false', description: 'tt/zip（默认zip）' },
-          { nodeId: '59', fieldName: 'text', fieldValue: promptText, description: '文字描述' },
-          { nodeId: '70', fieldName: 'ckpt_name', fieldValue: 'Qwen-Rapid-AIO-NSFW-v23.0.safetensors', description: '模型选择（qwen-2511-edit）' },
-          { nodeId: '80', fieldName: 'lora_name', fieldValue: 'any2realV2.safetensors', description: 'lora(qwen-2511)' },
-          { nodeId: '80', fieldName: 'strength_model', fieldValue: '0', description: 'lora权重' },
+          { nodeId: '7', fieldName: 'image', fieldValue: imagePath, description: 'image' },
+          { nodeId: '9', fieldName: 'batch_size', fieldValue: String(params.batchSize), description: 'batch_size' },
+          { nodeId: '33', fieldName: 'text', fieldValue: promptText, description: 'text' },
         ];
-        await taskManager.addTask('img2img', nodeList, promptText, WORKFLOW.QWEN_IMG2IMG);
+        await taskManager.addTask('img2img', nodeList, promptText, WORKFLOW.IMAGE_TO_IMAGE);
         onSuccess('任务已提交');
       } catch {
         if (cancelled) return;
@@ -223,6 +221,78 @@ export function ImageToImagePage({
       setSelectedGirlfriend(null);
     }
   };
+
+  const handleGenerateSingleStoryboardImage = useCallback(
+    async (panelIdx: number, prompt: string) => {
+      if (!params.uploadedImagePath) {
+        onError('请先上传参考图片或选择 AI 女友');
+        return;
+      }
+      if (!prompt.trim()) {
+        onError('分镜内容为空，请先生成分镜');
+        return;
+      }
+      if (taskManager.isFull) {
+        onError('任务队列已满');
+        return;
+      }
+      console.log(`[handleGenerateSingleStoryboardImage] panelIdx=${panelIdx}, prompt length=${prompt.length}, prompt="${prompt.slice(0, 80)}"`);
+      const nodeList = [
+        { nodeId: '7', fieldName: 'image', fieldValue: params.uploadedImagePath, description: 'image' },
+        { nodeId: '9', fieldName: 'batch_size', fieldValue: '1', description: 'batch_size' },
+        { nodeId: '33', fieldName: 'text', fieldValue: prompt, description: 'text' },
+      ];
+      console.log(`[handleGenerateSingleStoryboardImage] nodeList=`, JSON.stringify(nodeList));
+      try {
+        await taskManager.addTask('img2img', nodeList, prompt, WORKFLOW.IMAGE_TO_IMAGE);
+        onSuccess('分镜图片任务已提交');
+      } catch (err) {
+        onError(err instanceof Error ? err.message : '提交失败');
+      }
+    },
+    [params.uploadedImagePath, taskManager, onError, onSuccess]
+  );
+
+  const handleGenerateStoryboardPanels = useCallback(
+    async (
+      panels: StoryboardPanel[],
+      sceneName: string,
+      _isR18: boolean,
+      onSuccess: (msg: string) => void,
+      onError: (msg: string) => void
+    ) => {
+      if (!params.uploadedImagePath) {
+        onError('请先上传参考图片或选择 AI 女友');
+        return;
+      }
+
+      const remainingSlots = 20 - taskManager.tasks.length;
+      if (panels.length > remainingSlots) {
+        onError(`队列空间不足（剩余 ${remainingSlots} 个），请等待任务完成后再试`);
+        return;
+      }
+
+      const imagePath = params.uploadedImagePath;
+      console.log(`[handleGenerateStoryboardPanels] imagePath=${imagePath}, panels.length=${panels.length}`);
+      for (let i = 0; i < panels.length; i++) {
+        const panel = panels[i];
+        const nodeList = [
+          { nodeId: '7', fieldName: 'image', fieldValue: imagePath, description: 'image' },
+          { nodeId: '9', fieldName: 'batch_size', fieldValue: '1', description: 'batch_size' },
+          { nodeId: '33', fieldName: 'text', fieldValue: panel.image_prompt, description: 'text' },
+        ];
+        console.log(`[handleGenerateStoryboardPanels] panel[${i}] nodeList=`, JSON.stringify(nodeList));
+        try {
+          await taskManager.addTask('img2img', nodeList, panel.image_prompt, WORKFLOW.IMAGE_TO_IMAGE);
+        } catch (err) {
+          onError(err instanceof Error ? err.message : '任务提交失败');
+          return;
+        }
+      }
+      onSuccess(`分镜「${sceneName}」共 ${panels.length} 个任务已提交`);
+    },
+    [params.uploadedImagePath, taskManager]
+  );
 
   // Build tag-only prompt (for expand API — excludes customPrompt to avoid duplication)
   const buildTagPrompt = useCallback((): string => {
@@ -551,43 +621,27 @@ export function ImageToImagePage({
 
     setIsGeneratingFromPrompt(true);
     try {
-      // Debug: log workflow format
-      try {
-        const format = await getWorkflowFormat(apiKey, WORKFLOW.QWEN_IMG2IMG);
-        console.log('[QWEN_IMG2IMG] Workflow format:', JSON.stringify(format, null, 2));
-      } catch (e) {
-        console.warn('[QWEN_IMG2IMG] Could not fetch workflow format:', e);
-      }
-
       const nodeList = [
-        { nodeId: '60', fieldName: 'image', fieldValue: params.uploadedImagePath, description: '选择图片' },
-        { nodeId: '64', fieldName: 'batch_size', fieldValue: String(params.batchSize), description: '图片数量' },
-        { nodeId: '82', fieldName: 'value', fieldValue: 'false', description: 'tt/zip（默认zip）' },
-        { nodeId: '59', fieldName: 'text', fieldValue: finalText, description: '文字描述' },
-        { nodeId: '70', fieldName: 'ckpt_name', fieldValue: 'Qwen-Rapid-AIO-NSFW-v23.0.safetensors', description: '模型选择（qwen-2511-edit）' },
-        { nodeId: '80', fieldName: 'lora_name', fieldValue: 'any2realV2.safetensors', description: 'lora(qwen-2511)' },
-        { nodeId: '80', fieldName: 'strength_model', fieldValue: '0', description: 'lora权重' },
+        { nodeId: '7', fieldName: 'image', fieldValue: params.uploadedImagePath, description: 'image' },
+        { nodeId: '9', fieldName: 'batch_size', fieldValue: String(params.batchSize), description: 'batch_size' },
+        { nodeId: '33', fieldName: 'text', fieldValue: finalText, description: 'text' },
       ];
-      await taskManager.addTask('img2img', nodeList, finalText, WORKFLOW.QWEN_IMG2IMG);
+      await taskManager.addTask('img2img', nodeList, finalText, WORKFLOW.IMAGE_TO_IMAGE);
       onSuccess('任务已提交');
     } catch (err) {
       onError(err instanceof Error ? err.message : '提交失败');
     } finally {
       setIsGeneratingFromPrompt(false);
     }
-  }, [expandedPrompt, gachaPrompt, customPrompt, params, selectedGirlfriend, taskManager, apiKey, onError, onSuccess]);
+  }, [expandedPrompt, gachaPrompt, customPrompt, params, selectedGirlfriend, taskManager, onError, onSuccess]);
 
   const buildNodeList = () => {
     const finalPrompt = buildFinalPrompt();
 
     return [
-      { nodeId: '60', fieldName: 'image', fieldValue: params.uploadedImagePath, description: '选择图片' },
-      { nodeId: '64', fieldName: 'batch_size', fieldValue: String(params.batchSize), description: '图片数量' },
-      { nodeId: '82', fieldName: 'value', fieldValue: 'false', description: 'tt/zip（默认zip）' },
-      { nodeId: '59', fieldName: 'text', fieldValue: finalPrompt || params.prompt, description: '文字描述' },
-      { nodeId: '70', fieldName: 'ckpt_name', fieldValue: 'Qwen-Rapid-AIO-NSFW-v23.0.safetensors', description: '模型选择（qwen-2511-edit）' },
-      { nodeId: '80', fieldName: 'lora_name', fieldValue: 'any2realV2.safetensors', description: 'lora(qwen-2511)' },
-      { nodeId: '80', fieldName: 'strength_model', fieldValue: '0', description: 'lora权重' },
+      { nodeId: '7', fieldName: 'image', fieldValue: params.uploadedImagePath, description: 'image' },
+      { nodeId: '9', fieldName: 'batch_size', fieldValue: String(params.batchSize), description: 'batch_size' },
+      { nodeId: '33', fieldName: 'text', fieldValue: finalPrompt || params.prompt, description: 'text' },
     ];
   };
 
@@ -608,7 +662,7 @@ export function ImageToImagePage({
     try {
       const nodeList = buildNodeList();
       const combinedPrompt = customPrompt || params.prompt || finalPrompt;
-      await taskManager.addTask('img2img', nodeList, combinedPrompt, WORKFLOW.QWEN_IMG2IMG);
+      await taskManager.addTask('img2img', nodeList, combinedPrompt, WORKFLOW.IMAGE_TO_IMAGE);
       onSuccess('任务已提交');
     } catch (err) {
       onError(err instanceof Error ? err.message : '提交失败');
@@ -668,6 +722,18 @@ export function ImageToImagePage({
         onSelect={handlePoseSelect}
         disabled={taskManager.isFull}
         selectedGirlfriend={selectedGirlfriend}
+      />
+
+      {/* Smart Storyboard */}
+      <StoryboardSection
+        r18Enabled={isR18Enabled}
+        selectedGirlfriend={selectedGirlfriend}
+        displayLang={displayLang}
+        disabled={taskManager.isFull}
+        onGenerateStoryboard={handleGenerateStoryboardPanels}
+        onGenerateSingleImage={handleGenerateSingleStoryboardImage}
+        onSuccess={onSuccess}
+        onError={onError}
       />
 
       {/* Tag Panel - desktop */}

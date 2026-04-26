@@ -7,7 +7,6 @@ export const WORKFLOW = {
   TEXT_TO_IMAGE: '2016821668009742337',
   IMAGE_TO_IMAGE: '2016833201292976129',
   IMAGE_TO_VIDEO: '2018678819216953345',
-  QWEN_IMG2IMG: '2018659687624876033',
 } as const;
 
 export interface WorkflowNode {
@@ -215,6 +214,9 @@ export async function runTask(
   };
 
   const url = `${BASE_URL}/run/ai-app/${workflowId}`;
+
+  console.log(`[runTask] POST ${url}`);
+  console.log(`[runTask] body =`, JSON.stringify(body, null, 2));
 
   const data = await apiRequest<Record<string, unknown>>(url, {
     method: 'POST',

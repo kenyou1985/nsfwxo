@@ -34,6 +34,7 @@ import { useFinishedTaskImages } from '../contexts/FinishedTaskImagesContext';
 import type { TaskManagerReturn } from '../hooks/useTaskManager';
 import type { GirlfriendPreset } from '../data/girlfriendPresets';
 import { GirlfriendSelector } from '../components/GirlfriendSelector';
+import { StoryboardSection } from '../components/StoryboardSection';
 import { buildTxt2ImgNodeList } from '../utils/txt2imgNodeBuilder';
 import type { QueuedTask, TabType, NodeInfo } from '../types';
 import { DEFAULT_TXT2IMG_PARAMS, QUALITY_BOOST_PROMPT } from '../constants';
@@ -208,6 +209,8 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   // Safety net: reload history on mount (covers cases where init state missed localStorage)
   useEffect(() => { setHistory(getExpandHistory()); }, []);
   const [genState, setGenState] = useState<GenerateState>({});
+  const [genStates, setGenStates] = useState<Record<string, { loading: boolean; images: string[] }>>({});
+  const [sbHistoryId, setSbHistoryId] = useState<string | null>(null);
   const [batchLoading, setBatchLoading] = useState(false);
   const [outputPrompts, setOutputPrompts] = useState<string[]>(savedExpand?.outputPrompts || []);
   const [selectedOutputIdx, setSelectedOutputIdx] = useState(savedExpand?.selectedOutputIdx || 0);
@@ -345,15 +348,11 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       }
       if (digitalHumanMode && selectedGirlfriend) {
         const nodes = [
-          { nodeId: '60', fieldName: 'image', fieldValue: imagePath, description: '选择图片' },
-          { nodeId: '64', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: '图片数量' },
-          { nodeId: '82', fieldName: 'value', fieldValue: 'false', description: 'tt/zip（默认zip）' },
-          { nodeId: '59', fieldName: 'text', fieldValue: outputText, description: '文字描述' },
-          { nodeId: '70', fieldName: 'ckpt_name', fieldValue: 'Qwen-Rapid-AIO-NSFW-v23.0.safetensors', description: '模型选择（qwen-2511-edit）' },
-          { nodeId: '80', fieldName: 'lora_name', fieldValue: 'any2realV2.safetensors', description: 'lora(qwen-2511)' },
-          { nodeId: '80', fieldName: 'strength_model', fieldValue: '0', description: 'lora权重' },
-        ];
-        await taskManager.addTask('img2img', nodes, outputText, WORKFLOW.QWEN_IMG2IMG);
+        { nodeId: '7', fieldName: 'image', fieldValue: imagePath, description: 'image' },
+        { nodeId: '9', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: 'batch_size' },
+        { nodeId: '33', fieldName: 'text', fieldValue: outputText, description: 'text' },
+      ];
+      await taskManager.addTask('img2img', nodes, outputText, WORKFLOW.IMAGE_TO_IMAGE);
         onSuccess('任务已提交，请到图生图查看生成结果');
         if (onNavigate) onNavigate('img2img');
       } else {
@@ -378,7 +377,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     }
   }, [outputText, taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, onNavigate]);
 
-  const handleGenerateImage = useCallback(async (result: { id: string; prompt: string }) => {
+  const handleExpandGenerateImage = useCallback(async (result: { id: string; prompt: string }) => {
     if (taskManager.isFull) {
       onError('任务队列已满（最多 20 个任务），请等待当前任务完成');
       return;
@@ -404,16 +403,12 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     }
     if (digitalHumanMode && selectedGirlfriend) {
       const nodes = [
-        { nodeId: '60', fieldName: 'image', fieldValue: imagePath, description: '选择图片' },
-        { nodeId: '64', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: '图片数量' },
-        { nodeId: '82', fieldName: 'value', fieldValue: 'false', description: 'tt/zip（默认zip）' },
-        { nodeId: '59', fieldName: 'text', fieldValue: result.prompt, description: '文字描述' },
-        { nodeId: '70', fieldName: 'ckpt_name', fieldValue: 'Qwen-Rapid-AIO-NSFW-v23.0.safetensors', description: '模型选择（qwen-2511-edit）' },
-        { nodeId: '80', fieldName: 'lora_name', fieldValue: 'any2realV2.safetensors', description: 'lora(qwen-2511)' },
-        { nodeId: '80', fieldName: 'strength_model', fieldValue: '0', description: 'lora权重' },
+        { nodeId: '7', fieldName: 'image', fieldValue: imagePath, description: 'image' },
+        { nodeId: '9', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: 'batch_size' },
+        { nodeId: '33', fieldName: 'text', fieldValue: result.prompt, description: 'text' },
       ];
       try {
-        await taskManager.addTask('img2img', nodes, result.prompt, WORKFLOW.QWEN_IMG2IMG);
+        await taskManager.addTask('img2img', nodes, result.prompt, WORKFLOW.IMAGE_TO_IMAGE);
         onSuccess('任务已提交，请到图生图查看生成结果');
         if (onNavigate) onNavigate('img2img');
       } catch (err) {
@@ -477,15 +472,11 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     const tasks = toSubmit.map(async (result) => {
       if (digitalHumanMode && selectedGirlfriend) {
         const nodes = [
-          { nodeId: '60', fieldName: 'image', fieldValue: imagePath, description: '选择图片' },
-          { nodeId: '64', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: '图片数量' },
-          { nodeId: '82', fieldName: 'value', fieldValue: 'false', description: 'tt/zip（默认zip）' },
-          { nodeId: '59', fieldName: 'text', fieldValue: result.prompt, description: '文字描述' },
-          { nodeId: '70', fieldName: 'ckpt_name', fieldValue: 'Qwen-Rapid-AIO-NSFW-v23.0.safetensors', description: '模型选择（qwen-2511-edit）' },
-          { nodeId: '80', fieldName: 'lora_name', fieldValue: 'any2realV2.safetensors', description: 'lora(qwen-2511)' },
-          { nodeId: '80', fieldName: 'strength_model', fieldValue: '0', description: 'lora权重' },
+          { nodeId: '7', fieldName: 'image', fieldValue: imagePath, description: 'image' },
+          { nodeId: '9', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: 'batch_size' },
+          { nodeId: '33', fieldName: 'text', fieldValue: result.prompt, description: 'text' },
         ];
-        await taskManager.addTask('img2img', nodes, result.prompt, WORKFLOW.QWEN_IMG2IMG);
+        await taskManager.addTask('img2img', nodes, result.prompt, WORKFLOW.IMAGE_TO_IMAGE);
       } else {
         const nodes = buildTxt2ImgNodeList({
           width: DEFAULT_TXT2IMG_PARAMS.width,
@@ -517,6 +508,204 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       }
     }
   }, [results, taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, onNavigate]);
+
+  // Handles single-panel image generation from StoryboardSection (ExpandMode version).
+  // Reuses the same logic as handleGenerateStoryboard but for a single panel.
+  const handleExpandModeSinglePanelGenerate = useCallback(async (panelIdx: number, prompt: string) => {
+    console.log(`[handleExpandModeSinglePanelGenerate] panelIdx=${panelIdx}, digitalHumanMode=${digitalHumanMode}, selectedGirlfriend=${!!selectedGirlfriend}, prompt length=${prompt.length}, prompt="${prompt.slice(0, 80)}"`);
+    if (!prompt.trim()) {
+      onError('分镜内容为空，请先生成分镜');
+      return;
+    }
+    if (taskManager.isFull) { onError('任务队列已满'); return; }
+
+    // Determine or create a historyId for this storyboard
+    let hid = sessionStorage.getItem('sb_latest_history_id') || sbHistoryId;
+    if (!hid) {
+      // Create a minimal history entry so we have a valid historyId
+      hid = `expand_${Date.now()}`;
+      sessionStorage.setItem('sb_latest_history_id', hid);
+      setSbHistoryId(hid);
+    }
+
+    const key = `${hid}_${panelIdx}`;
+    const storyboardInfo = { historyId: hid, panelIdx };
+    setGenStates((prev) => ({ ...prev, [key]: { loading: true, images: [] } }));
+    let imagePath = selectedGirlfriend?.portraitUrl || '';
+    if (digitalHumanMode && selectedGirlfriend) {
+      try {
+        const res = await fetch(selectedGirlfriend.portraitUrl);
+        const blob = await res.blob();
+        const file = new File([blob], `${selectedGirlfriend.id}.jpg`, { type: blob.type || 'image/jpeg' });
+        const uploadResult = await uploadImage(apiKey, file);
+        imagePath = uploadResult.imagePath;
+      } catch {
+        setGenStates((prev) => { const next = { ...prev }; delete next[key]; return next; });
+        onError('AI 女友图片上传失败'); return;
+      }
+    }
+    if (digitalHumanMode && selectedGirlfriend) {
+      const charId = (selectedGirlfriend.id as string).toUpperCase().slice(0, 4);
+      const anchorPrompt = `【严格锁定】严格锁定图中22岁女性（ID:${charId}），完全保留原有面部特征，五官轮廓、脸型、眼睛、鼻子、嘴唇、发型、肤色、身材比例完全不变，不做任何面部修改，动作流畅不僵硬。超高清8K，写实细节，皮肤质感细腻，无畸变、无模糊、无穿模。`;
+      const finalPrompt = `${anchorPrompt}\n\n${prompt}`;
+      const nodes = [
+        { nodeId: '7', fieldName: 'image', fieldValue: imagePath, description: 'image' },
+        { nodeId: '9', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: 'batch_size' },
+        { nodeId: '33', fieldName: 'text', fieldValue: finalPrompt, description: 'text' },
+      ];
+      try {
+        await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, storyboardInfo);
+        onSuccess('分镜图片任务已提交');
+      } catch (err) {
+        onError(err instanceof Error ? err.message : '提交失败');
+        setGenStates((prev) => { const next = { ...prev }; delete next[key]; return next; });
+      }
+    } else {
+      const finalPrompt = `${QUALITY_BOOST_PROMPT}, ${prompt}`;
+      const nodes = buildTxt2ImgNodeList({
+        width: DEFAULT_TXT2IMG_PARAMS.width,
+        height: DEFAULT_TXT2IMG_PARAMS.height,
+        imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
+        prompt: finalPrompt,
+        lora1Name: DEFAULT_TXT2IMG_PARAMS.lora1Name,
+        lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
+        lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
+        lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
+      });
+      try {
+        await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, storyboardInfo);
+        console.log(`[handleExpandModeSinglePanelGenerate] submitted txt2img task, prompt length=${finalPrompt.length}`);
+        onSuccess('分镜图片任务已提交');
+      } catch (err) {
+        onError(err instanceof Error ? err.message : '提交失败');
+        setGenStates((prev) => { const next = { ...prev }; delete next[key]; return next; });
+      }
+    }
+  }, [taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, sbHistoryId]);
+
+  // Handle direct video generation from storyboard panel in ExpandMode
+  const handleExpandModeGenerateVideo = useCallback(async (panelKey: string, imageUrl: string, prompt: string) => {
+    console.log(`[handleExpandModeGenerateVideo] panelKey=${panelKey}, imageUrl=${imageUrl.slice(0, 50)}, prompt length=${prompt.length}`);
+    let imagePath = imageUrl;
+    if (imageUrl.startsWith('data:') || imageUrl.startsWith('blob:')) {
+      try {
+        // Convert data URL to blob without CORS fetch
+        let blob: Blob;
+        if (imageUrl.startsWith('data:')) {
+          const resp = await fetch(imageUrl);
+          blob = await resp.blob();
+        } else {
+          // blob URL — fetch from the same origin
+          const resp = await fetch(imageUrl);
+          blob = await resp.blob();
+        }
+        const file = new File([blob], `storyboard_${Date.now()}.jpg`, { type: blob.type || 'image/jpeg' });
+        const { imagePath: uploadedPath } = await uploadImage(apiKey, file);
+        imagePath = uploadedPath;
+        console.log(`[handleExpandModeGenerateVideo] uploaded, imagePath=${imagePath}`);
+      } catch (err) {
+        console.error('[handleExpandModeGenerateVideo] upload failed:', err);
+        onError('图片上传失败，请重试');
+        return;
+      }
+    }
+    const videoPrompt = prompt;
+    const nodes = [
+      { nodeId: '28', fieldName: 'value', fieldValue: '720', description: '最长边' },
+      { nodeId: '20', fieldName: 'value', fieldValue: '5', description: '时长（秒）' },
+      { nodeId: '77', fieldName: 'value', fieldValue: 'false', description: '补帧（默认关）' },
+      { nodeId: '21', fieldName: 'image', fieldValue: imagePath, description: '图片上传' },
+      { nodeId: '38', fieldName: 'value', fieldValue: videoPrompt, description: '提示词' },
+      { nodeId: '42', fieldName: 'lora_name', fieldValue: 'SmoothMixAnimationStyle_High.safetensors', description: 'lora（high）' },
+      { nodeId: '42', fieldName: 'strength_model', fieldValue: '1.0', description: 'lora权重' },
+    ];
+    const taskId = `expand-storyboard-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const taskData = { id: taskId, prompt: videoPrompt, imagePreview: imageUrl, nodeInfoList: nodes, processed: false };
+    localStorage.setItem('nsfwxo_video_task_submit', JSON.stringify(taskData));
+    window.dispatchEvent(new StorageEvent('storage', { key: 'nsfwxo_video_task_submit', newValue: JSON.stringify(taskData) }));
+    try {
+      await taskManager.addTask('img2vid', nodes, videoPrompt, WORKFLOW.IMAGE_TO_VIDEO);
+      onSuccess('视频生成任务已提交');
+    } catch (err) {
+      onError(err instanceof Error ? err.message : '视频生成失败');
+    }
+  }, [apiKey, taskManager, onError, onSuccess]);
+
+  const handleGenerateStoryboard = useCallback(async (
+    panels: { panel_number: number; scene_description: string; image_prompt: string }[],
+    sceneName: string,
+    isR18: boolean,
+    onSuccessMsg: (msg: string) => void,
+    onErrorMsg: (msg: string) => void,
+  ) => {
+    if (panels.length === 0) { onErrorMsg('没有可生成的分镜'); return; }
+    const availableSlots = 20 - taskManager.tasks.length;
+    if (availableSlots <= 0) { onErrorMsg('任务队列已满'); return; }
+
+    const newHistoryId = addStoryboardHistory({
+      plot: sceneName,
+      panel_count: panels.length,
+      r18: isR18,
+      panels,
+    });
+
+    sessionStorage.setItem('sb_latest_history_id', newHistoryId);
+    sessionStorage.setItem(`sb_panel_${newHistoryId}_submitted`, JSON.stringify(true));
+
+    let imagePath = selectedGirlfriend?.portraitUrl || '';
+    if (digitalHumanMode && selectedGirlfriend) {
+      try {
+        const res = await fetch(selectedGirlfriend.portraitUrl);
+        const blob = await res.blob();
+        const file = new File([blob], `${selectedGirlfriend.id}.jpg`, { type: blob.type || 'image/jpeg' });
+        const uploadResult = await uploadImage(apiKey, file);
+        imagePath = uploadResult.imagePath;
+      } catch {
+        onErrorMsg('AI 女友图片上传失败'); return;
+      }
+    }
+
+    const toSubmit = panels.slice(0, availableSlots);
+    const tasks = toSubmit.map((panel, i) => async () => {
+      const panelIdx = i;
+      const panelStoryboardInfo = { historyId: newHistoryId, panelIdx };
+      if (digitalHumanMode && selectedGirlfriend) {
+        const charId = (selectedGirlfriend.id as string).toUpperCase().slice(0, 4);
+        const anchorPrompt = `【严格锁定】严格锁定图中22岁女性（ID:${charId}），完全保留原有面部特征，五官轮廓、脸型、眼睛、鼻子、嘴唇、发型、肤色、身材比例完全不变，不做任何面部修改，动作流畅不僵硬。超高清8K，写实细节，皮肤质感细腻，无畸变、无模糊、无穿模。`;
+        const finalPrompt = `${anchorPrompt}\n\n${panel.image_prompt}`;
+        const nodes = [
+          { nodeId: '7', fieldName: 'image', fieldValue: imagePath, description: 'image' },
+          { nodeId: '9', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: 'batch_size' },
+          { nodeId: '33', fieldName: 'text', fieldValue: finalPrompt, description: 'text' },
+        ];
+        await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, panelStoryboardInfo);
+      } else {
+        const finalPrompt = `${QUALITY_BOOST_PROMPT}, ${panel.image_prompt}`;
+        const nodes = buildTxt2ImgNodeList({
+          width: DEFAULT_TXT2IMG_PARAMS.width,
+          height: DEFAULT_TXT2IMG_PARAMS.height,
+          imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
+          prompt: finalPrompt,
+          lora1Name: DEFAULT_TXT2IMG_PARAMS.lora1Name,
+          lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
+          lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
+          lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
+        });
+        await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, panelStoryboardInfo);
+      }
+    });
+
+    const settled = await Promise.allSettled(tasks.map((t) => t()));
+    const submitted = settled.filter((r) => r.status === 'fulfilled').length;
+    settled.forEach((r, i) => {
+      if (r.status === 'rejected') {
+        onErrorMsg(`提交第 ${i + 1} 个时失败: ${r.reason instanceof Error ? r.reason.message : '未知错误'}`);
+      }
+    });
+    if (submitted > 0) {
+      onSuccessMsg(`已提交 ${submitted} 个分镜生图任务`);
+    }
+  }, [taskManager, apiKey, digitalHumanMode, selectedGirlfriend]);
 
   return (
     <div className="space-y-4">
@@ -673,7 +862,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
                   setOutputText(outputPrompts[Math.max(0, results.length - 2)] || '');
                 }
               }}
-              onGenerateImage={() => handleGenerateImage(result)}
+              onGenerateImage={() => handleExpandGenerateImage(result)}
               onUseAsOutput={() => {
                 const idx = results.findIndex((r) => r.id === result.id);
                 setSelectedOutputIdx(idx);
@@ -685,6 +874,20 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           ))}
         </div>
       )}
+
+      {/* Smart Storyboard Section */}
+      <StoryboardSection
+        r18Enabled={r18Mode}
+        selectedGirlfriend={selectedGirlfriend}
+        displayLang="zh"
+        disabled={taskManager.isFull || (digitalHumanMode && !selectedGirlfriend)}
+        onGenerateStoryboard={handleGenerateStoryboard}
+        onGenerateSingleImage={handleExpandModeSinglePanelGenerate}
+        onGenerateVideo={handleExpandModeGenerateVideo}
+        onToggleFavorite={handleToggleFavorite}
+        onSuccess={onSuccess}
+        onError={onError}
+      />
     </div>
   );
 }
@@ -982,7 +1185,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
 
   const totalTags = results.reduce((sum, r) => sum + Object.values(r.tags_used || {}).flat().length, 0);
 
-  const handleGenerateImage = useCallback(async (idx: number, prompt: string) => {
+  const handleRandomGenerateImage = useCallback(async (idx: number, prompt: string) => {
     if (taskManager.isFull) {
       onError('任务队列已满（最多 20 个任务），请等待当前任务完成');
       return;
@@ -1010,16 +1213,12 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     }
     if (digitalHumanMode && selectedGirlfriend) {
       const nodes = [
-        { nodeId: '60', fieldName: 'image', fieldValue: imagePath, description: '选择图片' },
-        { nodeId: '64', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: '图片数量' },
-        { nodeId: '82', fieldName: 'value', fieldValue: 'false', description: 'tt/zip（默认zip）' },
-        { nodeId: '59', fieldName: 'text', fieldValue: prompt, description: '文字描述' },
-        { nodeId: '70', fieldName: 'ckpt_name', fieldValue: 'Qwen-Rapid-AIO-NSFW-v23.0.safetensors', description: '模型选择（qwen-2511-edit）' },
-        { nodeId: '80', fieldName: 'lora_name', fieldValue: 'any2realV2.safetensors', description: 'lora(qwen-2511)' },
-        { nodeId: '80', fieldName: 'strength_model', fieldValue: '0', description: 'lora权重' },
+        { nodeId: '7', fieldName: 'image', fieldValue: imagePath, description: 'image' },
+        { nodeId: '9', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: 'batch_size' },
+        { nodeId: '33', fieldName: 'text', fieldValue: prompt, description: 'text' },
       ];
       try {
-        await taskManager.addTask('img2img', nodes, prompt, WORKFLOW.QWEN_IMG2IMG);
+        await taskManager.addTask('img2img', nodes, prompt, WORKFLOW.IMAGE_TO_IMAGE);
         onSuccess('任务已提交，请到图生图查看生成结果');
         if (onNavigate) onNavigate('img2img');
       } catch (err) {
@@ -1083,15 +1282,11 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     const tasks = toSubmit.map(async (result) => {
       if (digitalHumanMode && selectedGirlfriend) {
         const nodes = [
-          { nodeId: '60', fieldName: 'image', fieldValue: imagePath, description: '选择图片' },
-          { nodeId: '64', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: '图片数量' },
-          { nodeId: '82', fieldName: 'value', fieldValue: 'false', description: 'tt/zip（默认zip）' },
-          { nodeId: '59', fieldName: 'text', fieldValue: result.prompt, description: '文字描述' },
-          { nodeId: '70', fieldName: 'ckpt_name', fieldValue: 'Qwen-Rapid-AIO-NSFW-v23.0.safetensors', description: '模型选择（qwen-2511-edit）' },
-          { nodeId: '80', fieldName: 'lora_name', fieldValue: 'any2realV2.safetensors', description: 'lora(qwen-2511)' },
-          { nodeId: '80', fieldName: 'strength_model', fieldValue: '0', description: 'lora权重' },
+          { nodeId: '7', fieldName: 'image', fieldValue: imagePath, description: 'image' },
+          { nodeId: '9', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: 'batch_size' },
+          { nodeId: '33', fieldName: 'text', fieldValue: result.prompt, description: 'text' },
         ];
-        await taskManager.addTask('img2img', nodes, result.prompt, WORKFLOW.QWEN_IMG2IMG);
+        await taskManager.addTask('img2img', nodes, result.prompt, WORKFLOW.IMAGE_TO_IMAGE);
       } else {
         const nodes = buildTxt2ImgNodeList({
           width: DEFAULT_TXT2IMG_PARAMS.width,
@@ -1237,7 +1432,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               onToggle={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
               onCopy={() => handleCopy(idx, result.prompt)}
               genState={genStates[idx]}
-              onGenerateImage={() => handleGenerateImage(idx, result.prompt)}
+              onGenerateImage={() => handleRandomGenerateImage(idx, result.prompt)}
               onFavorited={(url) => handleToggleFavorite(url, result.prompt)}
               taskManager={taskManager}
               digitalHumanMode={digitalHumanMode}
@@ -1495,11 +1690,11 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     error?: string; // error message when generation failed
   }>>({});
 
-  // Active theme tab (for tab switching between themes) — MUST be declared before effectiveHistoryId
+  // Active theme tab (for tab switching between themes) — MUST be declared before sbHistoryId
   const [activeThemeTab, setActiveThemeTab] = useState<number | null>(null);
 
   // Helper: get the effective historyId for multi-theme mode
-  const effectiveHistoryId = activeThemeTab !== null
+  const sbHistoryId = activeThemeTab !== null
     ? (themeOutlineStates[activeThemeTab]?.historyId || currentHistoryId)
     : currentHistoryId;
 
@@ -1565,22 +1760,22 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   // We use the storyboardInfo from the task callback to know exactly which panel to update.
   const { finishedTasks } = useFinishedTaskImages();
   useEffect(() => {
-    const hid = effectiveHistoryId;
-    if (!hid) return;
+    // Support both ExpandMode's sbHistoryId and StoryboardSection's sb_latest_history_id
+    const storyboardHistoryId = sessionStorage.getItem('sb_latest_history_id') || sbHistoryId;
+    if (!storyboardHistoryId) return;
     for (const [taskId, info] of Object.entries(finishedTasks)) {
       const { images, storyboardInfo, zipUrl } = info;
       if (!images || images.length === 0) continue;
+      const hid = storyboardInfo?.historyId || storyboardHistoryId;
       // If the task has explicit storyboardInfo, use it directly
-      if (storyboardInfo && storyboardInfo.historyId === hid) {
+      if (storyboardInfo && (storyboardInfo.historyId === storyboardHistoryId || storyboardInfo.historyId === sbHistoryId)) {
         const { panelIdx } = storyboardInfo;
         const key = `${hid}_${panelIdx}`;
-        // Only update if we don't already have valid data URLs
         setGenStates((prev) => {
           const current = prev[key];
           if (current?.images.length > 0 && current.images[0]?.startsWith('data:')) return prev;
           return { ...prev, [key]: { loading: false, images } };
         });
-        // Persist to panel cache and history record (with zipUrl for re-extraction on cache miss)
         cacheStoryboardPanelImages(hid, panelIdx, images).then(() => {
           const panelImages: Record<number, string[]> = { [panelIdx]: images };
           updateStoryboardHistoryImages(hid, panelImages, zipUrl, { [panelIdx]: images.length });
@@ -1613,12 +1808,12 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         }
       }
     }
-  }, [finishedTasks, activePanels, effectiveHistoryId]);
+  }, [finishedTasks, activePanels, sbHistoryId]);
 
   // ── Sync genStates with taskManager.tasks so panel cards reflect live images ──
   // Also converts blob URLs to data URLs immediately so they survive page refresh.
   useEffect(() => {
-    const hid = effectiveHistoryId;
+    const hid = sbHistoryId;
     if (!hid) return;
     setGenStates((prev) => {
       let changed = false;
@@ -1654,13 +1849,13 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       }
       return changed ? next : prev;
     });
-  }, [taskManager.tasks, activePanels, effectiveHistoryId]);
+  }, [taskManager.tasks, activePanels, sbHistoryId]);
 
   // Persist generated panel images: blob URLs are converted to data URLs immediately
   // and cached so they survive page refresh. Also updates genStates so the UI uses
   // data URLs instead of ephemeral blob URLs.
   useEffect(() => {
-    const hid = effectiveHistoryId;
+    const hid = sbHistoryId;
     if (!hid) return;
 
     const genStateKeys = Object.keys(genStates).filter((k) => k.startsWith(`${hid}_`));
@@ -1731,7 +1926,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     };
 
     convertAndCache();
-  }, [genStates, effectiveHistoryId]);
+  }, [genStates, sbHistoryId]);
 
   // Video prompt state
   const [videoScript, setVideoScript] = useState<{
@@ -2102,13 +2297,19 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     }
   };
 
-  const handleGenerateImage = useCallback(async (panelIdx: number, prompt: string) => {
+  // Handles single-panel image generation (called from StoryboardSection per-panel button).
+  // Uses sb_latest_history_id from sessionStorage if available, otherwise sbHistoryId.
+  // This ensures the finished-task effect can cache images back to the correct history entry.
+  const handleStoryboardGenerateImage = useCallback(async (panelIdx: number, prompt: string) => {
+    console.log(`[handleStoryboardGenerateImage] panelIdx=${panelIdx}, digitalHumanMode=${digitalHumanMode}, selectedGirlfriend=${!!selectedGirlfriend}, prompt length=${prompt.length}, prompt preview=${prompt.slice(0, 100)}`);
+    if (!prompt.trim()) {
+      onError('分镜内容为空，请先生成分镜');
+      return;
+    }
     if (taskManager.isFull) { onError('任务队列已满'); return; }
-    const hid = effectiveHistoryId || `temp_${Date.now()}`;
+    const hid = sessionStorage.getItem('sb_latest_history_id') || sbHistoryId || `temp_${Date.now()}`;
     const key = `${hid}_${panelIdx}`;
-    // storyboardInfo ties this task to the specific panel so images can be cached correctly
     const storyboardInfo = { historyId: hid, panelIdx };
-    // Set loading state immediately
     setGenStates((prev) => ({ ...prev, [key]: { loading: true, images: [] } }));
     let imagePath = selectedGirlfriend?.portraitUrl || '';
     if (digitalHumanMode && selectedGirlfriend) {
@@ -2124,23 +2325,17 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       }
     }
     if (digitalHumanMode && selectedGirlfriend) {
-      // Format prompt with Qwen-2511 face-lock for character consistency
-      const charName = selectedGirlfriend.nameZh || selectedGirlfriend.name;
       const charId = (selectedGirlfriend.id as string).toUpperCase().slice(0, 4);
       const anchorPrompt = `【严格锁定】严格锁定图中22岁女性（ID:${charId}），完全保留原有面部特征，五官轮廓、脸型、眼睛、鼻子、嘴唇、发型、肤色、身材比例完全不变，不做任何面部修改，动作流畅不僵硬。超高清8K，写实细节，皮肤质感细腻，无畸变、无模糊、无穿模。`;
       const finalPrompt = `${anchorPrompt}\n\n${prompt}`;
       const nodes = [
-        { nodeId: '60', fieldName: 'image', fieldValue: imagePath, description: '选择图片' },
-        { nodeId: '64', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: '图片数量' },
-        { nodeId: '82', fieldName: 'value', fieldValue: 'false', description: 'tt/zip' },
-        { nodeId: '59', fieldName: 'text', fieldValue: finalPrompt, description: '文字描述' },
-        { nodeId: '70', fieldName: 'ckpt_name', fieldValue: 'Qwen-Rapid-AIO-NSFW-v23.0.safetensors', description: '模型' },
-        { nodeId: '80', fieldName: 'lora_name', fieldValue: 'any2realV2.safetensors', description: 'lora' },
-        { nodeId: '80', fieldName: 'strength_model', fieldValue: '0', description: 'lora权重' },
+        { nodeId: '7', fieldName: 'image', fieldValue: imagePath, description: 'image' },
+        { nodeId: '9', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: 'batch_size' },
+        { nodeId: '33', fieldName: 'text', fieldValue: finalPrompt, description: 'text' },
       ];
       try {
-        await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.QWEN_IMG2IMG, undefined, storyboardInfo);
-        onSuccess('任务已提交');
+        await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, storyboardInfo);
+        onSuccess('分镜图片任务已提交');
       } catch (err) {
         onError(err instanceof Error ? err.message : '提交失败');
         setGenStates((prev) => { const next = { ...prev }; delete next[key]; return next; });
@@ -2159,13 +2354,14 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       });
       try {
         await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, storyboardInfo);
-        onSuccess('任务已提交');
+        console.log(`[handleStoryboardGenerateImage] submitted txt2img task, prompt length=${finalPrompt.length}, nodes=`, JSON.stringify(nodes));
+        onSuccess('分镜图片任务已提交');
       } catch (err) {
         onError(err instanceof Error ? err.message : '提交失败');
         setGenStates((prev) => { const next = { ...prev }; delete next[key]; return next; });
       }
     }
-  }, [taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, effectiveHistoryId]);
+  }, [taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, sbHistoryId]);
 
   // Generate video prompt for a panel based on image prompt
   const generateVideoPromptForPanel = useCallback((imagePrompt: string): string => {
@@ -2277,7 +2473,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       for (let i = 0; i < activePanels.length; i++) {
         const panel = activePanels[i];
         const panelKey = `panel-${i}`;
-        const panelGenState = genStates[`${effectiveHistoryId}_${i}`];
+        const panelGenState = genStates[`${sbHistoryId}_${i}`];
         const panelTasks = taskManager.tasks.filter((t) => t.prompt === panel.image_prompt && t.images.length > 0);
         let imageUrl = '';
 
@@ -2390,8 +2586,13 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       }
     }
     const toSubmit = activePanels.slice(0, availableSlots);
-    const tasks: (() => Promise<void>)[] = toSubmit.map((panel) => {
-      const panelIdx = activePanels.indexOf(panel);
+    console.log(`[handleBatchGenerate] activePanels.length=${activePanels.length}, toSubmit.length=${toSubmit.length}, r18Mode=${r18Mode}`);
+    for (let i = 0; i < toSubmit.length; i++) {
+      console.log(`[handleBatchGenerate] panel[${i}].image_prompt = "${toSubmit[i].image_prompt.slice(0, 100)}" (length=${toSubmit[i].image_prompt.length})`);
+    }
+    const tasks: (() => Promise<void>)[] = toSubmit.map((panel, i) => {
+      const panelIdx = i;
+      console.log(`[handleBatchGenerate] task[${i}] using panel.image_prompt="${panel.image_prompt.slice(0, 100)}" (length=${panel.image_prompt.length})`);
       const panelStoryboardInfo = { historyId: hid, panelIdx };
       return async () => {
         if (digitalHumanMode && selectedGirlfriend) {
@@ -2400,15 +2601,11 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
           const anchorPrompt = `【严格锁定】严格锁定图中22岁女性（ID:${charId}），完全保留原有面部特征，五官轮廓、脸型、眼睛、鼻子、嘴唇、发型、肤色、身材比例完全不变，不做任何面部修改，动作流畅不僵硬。超高清8K，写实细节，皮肤质感细腻，无畸变、无模糊、无穿模。`;
           const finalPrompt = `${anchorPrompt}\n\n${panel.image_prompt}`;
           const nodes = [
-            { nodeId: '60', fieldName: 'image', fieldValue: imagePath, description: '选择图片' },
-            { nodeId: '64', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: '图片数量' },
-            { nodeId: '82', fieldName: 'value', fieldValue: 'false', description: 'tt/zip' },
-            { nodeId: '59', fieldName: 'text', fieldValue: finalPrompt, description: '文字描述' },
-            { nodeId: '70', fieldName: 'ckpt_name', fieldValue: 'Qwen-Rapid-AIO-NSFW-v23.0.safetensors', description: '模型' },
-            { nodeId: '80', fieldName: 'lora_name', fieldValue: 'any2realV2.safetensors', description: 'lora' },
-            { nodeId: '80', fieldName: 'strength_model', fieldValue: '0', description: 'lora权重' },
+            { nodeId: '7', fieldName: 'image', fieldValue: imagePath, description: 'image' },
+            { nodeId: '9', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: 'batch_size' },
+            { nodeId: '33', fieldName: 'text', fieldValue: finalPrompt, description: 'text' },
           ];
-          await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.QWEN_IMG2IMG, undefined, panelStoryboardInfo);
+          await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, panelStoryboardInfo);
         } else {
           const finalPrompt = `${QUALITY_BOOST_PROMPT}, ${panel.image_prompt}`;
           const nodes = buildTxt2ImgNodeList({
@@ -3251,7 +3448,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                 normalizedPanelPrompt.includes(taskPromptNorm) ||
                 (normalizedPanelPrompt.length > 50 && taskPromptNorm.includes(normalizedPanelPrompt.substring(0, Math.min(normalizedPanelPrompt.length, 150))));
             });
-            const genStateKey = `${effectiveHistoryId}_${idx}`;
+            const genStateKey = `${sbHistoryId}_${idx}`;
             const hasGenerated = (genStates[genStateKey]?.images?.length ?? 0) > 0;
             return (
               <StoryboardPanelCard
@@ -3264,7 +3461,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                 onToggle={() => setExpandedPanel(expandedPanel === idx ? null : idx)}
                 onCopyPanel={() => handleCopyPanel(panel, idx)}
                 genState={genStates[genStateKey]}
-                onGenerateImage={() => handleGenerateImage(idx, panel.image_prompt)}
+                onGenerateImage={() => handleStoryboardGenerateImage(idx, panel.image_prompt)}
                 onFavorited={(url) => handleToggleFavorite(url, panel.image_prompt)}
                 taskManager={taskManager}
                 digitalHumanMode={digitalHumanMode}

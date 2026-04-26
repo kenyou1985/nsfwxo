@@ -43,7 +43,7 @@ export function buildTxt2ImgNodeList(options: Txt2ImgNodeOptions): NodeInfo[] {
     { nodeId: '5', fieldName: 'width', fieldValue: String(width), description: '宽度' },
     { nodeId: '5', fieldName: 'height', fieldValue: String(height), description: '高度' },
     { nodeId: '5', fieldName: 'batch_size', fieldValue: String(imageCount), description: '数量' },
-    { nodeId: '6', fieldName: 'text', fieldValue: prompt, description: '提示词' },
+    { nodeId: '6', fieldName: 'text', fieldValue: String(prompt || ''), description: '提示词' },
     {
       nodeId: '7',
       fieldName: 'text',
