@@ -4,12 +4,13 @@
  * into structured panel data. Handles garbled/mixed-script text.
  */
 
-// Garbled "视频" prefixes from Bengali/Indian scripts that get rendered
-// when AI models corrupt Chinese characters
+// All known garbled "视频" prefixes from Bengali/Indic scripts corrupting Chinese text.
+// Patterns: Bengali letter + vowel + consonant + vowel combinations.
 const GARBLED_VIDEO_PREFIXES = [
   'ভিডಿಯೋ',  // Bengali + Kannada
   'ভিডിയോ',  // Bengali + Malayalam
   'ভিডियো',   // Bengali + Devanagari
+  'ভিডিও',    // Pure Bengali (all characters from Bengali script)
 ];
 
 // ─── Time word conversion ────────────────────────────────────────────────────────
@@ -47,7 +48,8 @@ function convertTime(match: string, hours: string, minutes: string, suffix: stri
   if (isNaN(h) || isNaN(m)) return match;
   const hWord = hourToWord(h);
   const mWord = minuteToWord(m);
-  const suffixNorm = suffix.replace(/\./g, '').toLowerCase().trim();
+  // Normalize suffix: strip dots and spaces -> "a.m." or "am" or "p.m."
+  const suffixNorm = suffix.replace(/[. ]/g, '').toLowerCase();
   const suffixWord = suffixNorm === 'am' ? 'a.m.' : suffixNorm === 'pm' ? 'p.m.' : suffix;
   return `${hWord} ${mWord} ${suffixWord}`.trim();
 }
@@ -59,16 +61,15 @@ function convertTime(match: string, hours: string, minutes: string, suffix: stri
  * Handles times without am/pm suffix as well.
  */
 function convertTimesToWords(text: string): string {
-  // Pattern: optional word before, HH:MM, optional am/pm/pm. suffix
-  // We lookbehind for word characters or start to avoid matching inside words
+  // Pattern: HH:MM followed by optional am/pm (with flexible dot/space variations)
+  // Handles: "11:40 a.m." "11:40 a.m" "11:40 am" "11:40 a.m" "11:40 a. m." "11:40 p.m."
+  // Guard: skip ordinals like "8th", "12th"
   return text.replace(
-    /(\d{1,2}):(\d{2})([ \.]*(?:a\.?m\.?|p\.?m\.?))?/gi,
+    /(\d{1,2}):(\d{2})([ .]*?(?:a\.?m\.?|p\.?m\.?))?/gi,
     (match, hours, minutes, suffix) => {
-      // Guard: do not convert "8th" (ordinals), "12:34" look like not times
       if (/^\d{1,2}th?$/i.test(hours)) return match;
-      // Guard: if suffix exists, require it to look like am/pm
       if (suffix !== undefined) {
-        const norm = suffix.replace(/\./g, '').trim().toLowerCase();
+        const norm = suffix.replace(/[ .]/g, '').toLowerCase();
         if (norm && !/^(a\.?m\.?|p\.?m\.?)$/i.test(norm)) return match;
       }
       return convertTime(match, hours, minutes, suffix ?? '');
@@ -89,8 +90,8 @@ export function normalizeScriptText(text: string): string {
     result = result.replace(new RegExp(prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '视频');
   }
 
-  // Also handle "ভিড" alone followed by "提示词" (partial corruption)
-  result = result.replace(/ভিড(?=[提示词])/g, '视频');
+  // Also handle "ভিড" alone followed by "提示词" or "提示詞" (partial corruption)
+  result = result.replace(/ভিড(?=[提示詞])/g, '视频');
 
   // Normalize "动画提示词" → "视频提示词"
   result = result.replace(/动画提示词/g, '视频提示词');
@@ -102,7 +103,16 @@ export function normalizeScriptText(text: string): string {
   // Ensure each field label starts on its own line.
   // Handles both multi-line scripts (already formatted) and single-line / OCR
   // scripts where labels appear mid-sentence without preceding newlines.
-  const labels = ['视频提示词', '图片提示词', '镜头文案', '景别', '语音分镜', '音效', '镜头'];
+  // All label variants (simplified + traditional) for newline insertion
+  const labels = [
+    '视频提示词', '視頻提示詞', '动画提示词', '動畫提示詞',
+    '图片提示词', '圖片提示詞',
+    '镜头文案', '鏡頭文案',
+    '景别', '景別',
+    '语音分镜', '語音分鏡',
+    '音效',
+    '镜头', '鏡頭',
+  ];
   for (const label of labels) {
     // Insert a newline before the label only if it's NOT already at line start.
     // Pattern: preceded by any character that is NOT a newline or string start.
@@ -142,13 +152,21 @@ function parseNormalizedText(raw: string): { panels: ParsedScriptPanel[]; errors
   const panels: ParsedScriptPanel[] = [];
   const errors: string[] = [];
 
-  // Field label names — order matters (longer/more specific first)
+  // Field label names — longer/more specific first.
+  // Includes simplified and traditional Chinese variants.
   const FIELD_LABELS: { label: string; field: string }[] = [
     { label: '视频提示词', field: 'video_prompt' },
+    { label: '視頻提示詞', field: 'video_prompt' },   // traditional
+    { label: '动画提示词', field: 'video_prompt' },
+    { label: '動畫提示詞', field: 'video_prompt' },   // traditional
     { label: '图片提示词', field: 'image_prompt' },
+    { label: '圖片提示詞', field: 'image_prompt' },   // traditional
     { label: '镜头文案',   field: 'scene_description' },
+    { label: '鏡頭文案',   field: 'scene_description' }, // traditional
     { label: '景别',       field: 'shot_type' },
+    { label: '景別',       field: 'shot_type' },        // traditional
     { label: '语音分镜',   field: 'voiceover' },
+    { label: '語音分鏡',   field: 'voiceover' },        // traditional
     { label: '音效',       field: 'sound_cue' },
   ];
 
