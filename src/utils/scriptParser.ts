@@ -15,6 +15,7 @@ const GARBLED_VIDEO_PREFIXES = [
 /**
  * Normalize garbled text: replace Bengali/Indian-script garbled "视频"
  * prefixes with correct Chinese "视频", and normalize "动画" variants.
+ * Also ensures each field label starts on its own line for reliable parsing.
  */
 export function normalizeScriptText(text: string): string {
   let result = text;
@@ -27,8 +28,21 @@ export function normalizeScriptText(text: string): string {
   // Also handle "ভিড" alone followed by "提示词" (partial corruption)
   result = result.replace(/ভিড(?=[提示词])/g, '视频');
 
-  // Normalize "动画提示词" → "视频提示词" (treat animation prompt same as video prompt)
+  // Normalize "动画提示词" → "视频提示词"
   result = result.replace(/动画提示词/g, '视频提示词');
+
+  // Ensure each field label starts on its own line.
+  // Handles both multi-line scripts (already formatted) and single-line / OCR
+  // scripts where labels appear mid-sentence without preceding newlines.
+  const labels = ['视频提示词', '图片提示词', '镜头文案', '景别', '语音分镜', '音效', '镜头'];
+  for (const label of labels) {
+    // Insert a newline before the label only if it's NOT already at line start.
+    // Pattern: preceded by any character that is NOT a newline or string start.
+    result = result.replace(new RegExp(
+      '(?<!\\n)(?=' + label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')',
+      'g'
+    ), '\n');
+  }
 
   return result;
 }
@@ -52,14 +66,15 @@ export interface ParseScriptResult {
 
 /**
  * Parse the raw script text (already normalized) into panels.
- * Uses indexOf-based field boundary detection — reliable regardless of
- * block content (handles : in timestamps, Chinese chars in body text, etc.).
+ * Handles two formats:
+ * 1. Multi-line: each field on its own line (proper formatting)
+ * 2. Single-line / OCR: fields separated by LABEL:VALUE without newlines
  */
 function parseNormalizedText(raw: string): { panels: ParsedScriptPanel[]; errors: string[] } {
   const panels: ParsedScriptPanel[] = [];
   const errors: string[] = [];
 
-  // Field label names (without regex) — must appear at the start of a line
+  // Field label names — order matters (longer/more specific first)
   const FIELD_LABELS: { label: string; field: string }[] = [
     { label: '视频提示词', field: 'video_prompt' },
     { label: '图片提示词', field: 'image_prompt' },
@@ -69,53 +84,46 @@ function parseNormalizedText(raw: string): { panels: ParsedScriptPanel[]; errors
     { label: '音效',       field: 'sound_cue' },
   ];
 
-  // For each label, build variants: "LABEL：" and "LABEL:"
-  const labelVariants: { label: string; colon: string; field: string }[] = [];
-  for (const { label, field } of FIELD_LABELS) {
-    labelVariants.push({ label, colon: label + '：', field });
-    labelVariants.push({ label, colon: label + ':', field });
-  }
-  // Sort by length descending so longer labels match before shorter ones
-  labelVariants.sort((a, b) => b.colon.length - a.colon.length);
+  // Build regex: match field label (at start of string, or after newline),
+  // followed by colon/fullwidth-colon and optional whitespace.
+  // This works for both multi-line scripts and OCR single-line scripts.
+  const escapedLabels = FIELD_LABELS.map((f) => f.label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const labelRegex = new RegExp(
+    '(?:^|(?:\\n))(' + escapedLabels.join('|') + ')[：:][ \\t]*',
+    'gmu'
+  );
 
-  // Split into panel blocks by "镜头" header at line start
-  const panelBlocks = raw.split(/(?=^镜头\s*\d+)/mu);
+  // Normalize line endings and collapse excessive whitespace
+  const normalized = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+  // Split into panel blocks by "镜头" header
+  const panelBlocks = normalized.split(/(?=^镜头\s*\d+)/mu);
 
   for (const block of panelBlocks) {
     const trimmed = block.trim();
     if (!trimmed) continue;
 
-    // Extract panel number
+    // Extract panel number from header
     const headerMatch = trimmed.match(/^镜头\s*(\d+)/m);
     const panel_number = headerMatch ? parseInt(headerMatch[1], 10) : 0;
 
-    // For each label variant, find its position in the block.
-    // We scan through the block by looking for the first occurrence of each
-    // label variant, then find the field value between that position and
-    // the next field's position (or end of block).
-    const labelPositions: { pos: number; field: string }[] = [];
-
-    for (const lv of labelVariants) {
-      // Search from the end of the header line onwards to avoid matching "镜头1" itself
-      const searchStart = headerMatch ? headerMatch.index! + headerMatch[0].length : 0;
-      const pos = trimmed.indexOf(lv.colon, searchStart);
-      if (pos !== -1) {
-        labelPositions.push({ pos, field: lv.field });
-      }
-    }
-
-    // Sort by position in text (ascending)
-    labelPositions.sort((a, b) => a.pos - b.pos);
-
-    // Extract value for each field: from end of label to start of next label
+    // Extract field values using regex on the whole block string.
+    // For each field, find its label position, then take text up to the
+    // next label (or end). This correctly handles content that contains
+    // characters that look like label starts (e.g. "11:40", "8th Street").
     const fieldValues: Record<string, string> = {};
-    for (let i = 0; i < labelPositions.length; i++) {
-      const { pos, field } = labelPositions[i];
-      const colonStr = labelVariants.find((lv) => lv.field === field && trimmed.substring(pos, pos + lv.colon.length) === lv.colon)!.colon;
-      const valueStart = pos + colonStr.length;
-      const valueEnd = i + 1 < labelPositions.length ? labelPositions[i + 1].pos : trimmed.length;
-      const rawValue = trimmed.substring(valueStart, valueEnd);
-      fieldValues[field] = rawValue.trim();
+
+    for (const fl of FIELD_LABELS) {
+      // Find this label in the block
+      const escaped = fl.label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const fieldRegex = new RegExp(
+        '(?:^|(?:\\n))(' + escaped + ')[：:][ \\t]*(.*?)(?=(?:\\n)(?:' + escapedLabels.join('|') + ')[：:]|$)',
+        'smu'
+      );
+      const match = trimmed.match(fieldRegex);
+      if (match && match[1]) {
+        fieldValues[fl.field] = match[2].trim();
+      }
     }
 
     const hasContent =
