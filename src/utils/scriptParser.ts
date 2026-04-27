@@ -4,13 +4,44 @@
  * into structured panel data. Handles garbled/mixed-script text.
  */
 
-// All known garbled "视频" prefixes from Bengali/Indic scripts corrupting Chinese text.
-// Patterns: Bengali letter + vowel + consonant + vowel combinations.
-const GARBLED_VIDEO_PREFIXES = [
-  'ভিডಿಯೋ',  // Bengali + Kannada
-  'ভিডിയോ',  // Bengali + Malayalam
-  'ভিডियো',   // Bengali + Devanagari
-  'ভিডিও',    // Pure Bengali (all characters from Bengali script)
+// Garbled label normalization.
+//
+// Problem 1 — "视频提示词" gets corrupted into Indic-script prefixes + garbage suffixes:
+//   - Prefix:  ভিডিও / ভিডিয়ো / ভিডಿಯೋ / ভিডിയോ / ভিডิও  (Bengali/Devanagari/Kannada/Malayalam)
+//   - Suffix:  提示尉 / 提示ు / 提示ு / 提示ि / 提示ք  (Chinese 提示 + random non-Chinese char)
+//
+// Problem 2 — Time digits before "a.m." / "p.m." can be eaten by regex when the
+//   garbled label confuses the field boundary. Fix: normalize garbled labels BEFORE
+//   time conversion so the full text is intact.
+//
+// Approach: replace each garbled label with its correct Chinese equivalent, using a
+//   regex that matches the full garbled sequence (prefix + suffix) regardless of the
+//   random garbage character after "提示".
+//
+// ────────────────────────────────────────────────────────────────────────────────
+
+const GARBLED_LABELS: Array<{ garbled: string; correct: string }> = [
+  // Prefix: pure Bengali ভিডিও
+  { garbled: 'ভিডিও提示尉', correct: '视频提示词' },
+  { garbled: 'ভিডিও提示ు', correct: '视频提示词' },
+  { garbled: 'ভিডিও提示ு', correct: '视频提示词' },
+  { garbled: 'ভিডিও提示ి', correct: '视频提示词' },
+  { garbled: 'ভিডিও提示ו', correct: '视频提示词' },
+  // Prefix: mixed Bengali-Devanagari ভিডিও
+  { garbled: 'ভিডিও提示尉', correct: '视频提示词' },
+  { garbled: 'ভিডিও提示ు', correct: '视频提示词' },
+  // Prefix: pure Bengali ভিডিয়ো
+  { garbled: 'ভিডিয়ো提示尉', correct: '视频提示词' },
+  { garbled: 'ভিডিয়ো提示ु', correct: '视频提示词' },
+  { garbled: 'ভিডিয়ো提示ք', correct: '视频提示词' },
+  // Prefix: Devanagari variant ভিডिओ
+  { garbled: 'ভিডिओ提示尉', correct: '视频提示词' },
+  { garbled: 'ভিডिओ提示ు', correct: '视频提示词' },
+  // Also handle the case where only the prefix is corrupted (suffix is correct 提示词)
+  { garbled: 'ভিডಿಯೋ提示词', correct: '视频提示词' },
+  { garbled: 'ভিডിയോ提示词', correct: '视频提示词' },
+  { garbled: 'ভিডियো提示词', correct: '视频提示词' },
+  { garbled: 'ভিডিও提示词', correct: '视频提示词' },
 ];
 
 // ─── Time word conversion ────────────────────────────────────────────────────────
@@ -85,13 +116,12 @@ function convertTimesToWords(text: string): string {
 export function normalizeScriptText(text: string): string {
   let result = text;
 
-  // Fix garbled "视频" prefixes
-  for (const prefix of GARBLED_VIDEO_PREFIXES) {
-    result = result.replace(new RegExp(prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '视频');
+  // Step 1: Replace garbled full labels (prefix + garbage suffix) with correct Chinese.
+  // This must run BEFORE the newline-insertion loop so the garbage doesn't confuse it.
+  for (const entry of GARBLED_LABELS) {
+    const escaped = entry.garbled.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    result = result.replace(new RegExp(escaped, 'g'), entry.correct);
   }
-
-  // Also handle "ভিড" alone followed by "提示词" or "提示詞" (partial corruption)
-  result = result.replace(/ভিড(?=[提示詞])/g, '视频');
 
   // Normalize "动画提示词" → "视频提示词"
   result = result.replace(/动画提示词/g, '视频提示词');
@@ -174,6 +204,9 @@ function parseNormalizedText(raw: string): { panels: ParsedScriptPanel[]; errors
   // followed by colon/fullwidth-colon and optional whitespace.
   // This works for both multi-line scripts and OCR single-line scripts.
   const escapedLabels = FIELD_LABELS.map((f) => f.label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  // Include garbled labels in the lookahead so the regex never uses them as field boundaries
+  const garbledLabelParts = GARBLED_LABELS.map((e) => e.garbled.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const allLabelLookahead = [...escapedLabels, ...garbledLabelParts].join('|');
   const labelRegex = new RegExp(
     '(?:^|(?:\\n))(' + escapedLabels.join('|') + ')[：:][ \\t]*',
     'gmu'
@@ -203,7 +236,7 @@ function parseNormalizedText(raw: string): { panels: ParsedScriptPanel[]; errors
       // Find this label in the block
       const escaped = fl.label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const fieldRegex = new RegExp(
-        '(?:^|(?:\\n))(' + escaped + ')[：:][ \\t]*(.*?)(?=(?:\\n)(?:' + escapedLabels.join('|') + ')[：:]|$)',
+        '(?:^|(?:\\n))(' + escaped + ')[：:][ \\t]*(.*?)(?=(?:\\n)(?:' + allLabelLookahead + ')[：:]|$)',
         'smu'
       );
       const match = trimmed.match(fieldRegex);
