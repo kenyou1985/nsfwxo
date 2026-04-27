@@ -182,15 +182,15 @@ function parseNormalizedText(raw: string): { panels: ParsedScriptPanel[]; errors
   // Normalize line endings and collapse excessive whitespace
   const normalized = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
-  // Split into panel blocks by "镜头" header
-  const panelBlocks = normalized.split(/(?=^镜头\s*\d+)/mu);
+  // Split into panel blocks by "镜头" header (both simplified and traditional)
+  const panelBlocks = normalized.split(/(?=^(?:镜头|鏡頭)\s*\d+)/mu);
 
   for (const block of panelBlocks) {
     const trimmed = block.trim();
     if (!trimmed) continue;
 
     // Extract panel number from header
-    const headerMatch = trimmed.match(/^镜头\s*(\d+)/m);
+    const headerMatch = trimmed.match(/^(?:镜头|鏡頭)\s*(\d+)/m);
     const panel_number = headerMatch ? parseInt(headerMatch[1], 10) : 0;
 
     // Extract field values using regex on the whole block string.
