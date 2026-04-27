@@ -1189,13 +1189,13 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
                         )}
                       </div>
                       {panel.scene_description && (
-                        <p className="text-[11px] text-text-secondary line-clamp-2">{panel.scene_description}</p>
+                        <p className="text-[11px] text-text-secondary whitespace-pre-wrap break-words">{panel.scene_description}</p>
                       )}
                       {panel.video_prompt && (
-                        <p className="text-[10px] text-purple-500 line-clamp-2">视频: {panel.video_prompt}</p>
+                        <p className="text-[10px] text-purple-500 whitespace-pre-wrap break-words">视频: {panel.video_prompt}</p>
                       )}
                       {panel.image_prompt && (
-                        <p className="text-[10px] text-green-600 line-clamp-2">图片: {panel.image_prompt}</p>
+                        <p className="text-[10px] text-green-600 whitespace-pre-wrap break-words">图片: {panel.image_prompt}</p>
                       )}
                       {panel.sound_cue && (
                         <p className="text-[10px] text-amber-600">音效: {panel.sound_cue}</p>
