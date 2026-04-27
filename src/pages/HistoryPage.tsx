@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Trash2, Image as ImageIcon, Clock, X, RotateCcw, Loader2, Video, Heart, Download } from 'lucide-react';
+import { Trash2, Image as ImageIcon, Clock, X, RotateCcw, Loader2, Video, Heart, Download, AlertTriangle, HardDrive } from 'lucide-react';
 import { getRecords, deleteRecord, clearAllHistory, type HistoryRecord } from '../services/historyService';
 import { loadCachedOrExtractedImages } from '../services/imageCacheService';
 import { extractImagesFromZipAsDataUrls } from '../services/runninghub';
 import { getFavorites, addFavorite, removeFavorite, clearFavorites, type FavoriteItem } from '../services/storage';
+import { getStorageStats, getLocalStorageStats, getUnifiedCacheStats } from '../services/storageQuota';
 
 function formatDate(ts: number): string {
   const d = new Date(ts);
@@ -22,9 +23,11 @@ interface VideoHistoryRecord {
 
 interface HistoryPageProps {
   onRegenerate?: (record: HistoryRecord) => void;
+  onSuccess?: (msg: string) => void;
+  onError?: (msg: string) => void;
 }
 
-export function HistoryPage({ onRegenerate }: HistoryPageProps) {
+export function HistoryPage({ onRegenerate, onSuccess, onError }: HistoryPageProps) {
   const [activeTab, setActiveTab] = useState<'image' | 'video' | 'favorites'>('image');
   const [records, setRecords] = useState<HistoryRecord[]>([]);
   const [videoRecords, setVideoRecords] = useState<VideoHistoryRecord[]>([]);
@@ -36,6 +39,22 @@ export function HistoryPage({ onRegenerate }: HistoryPageProps) {
   const [lightboxRecordIndex, setLightboxRecordIndex] = useState<number | null>(null);
   const [lightboxImageIndex, setLightboxImageIndex] = useState<number>(0);
   const [lightboxFavoriteIndex, setLightboxFavoriteIndex] = useState<number | null>(null);
+
+  const [storageStats, setStorageStats] = useState<{
+    localStorageMB: number; cacheMB: number; itemCount: number;
+  } | null>(null);
+
+  // Load storage stats — always active since the bar is visible for all tabs
+  useEffect(() => {
+    getStorageStats().then((stats) => {
+      const MB = 1024 * 1024;
+      setStorageStats({
+        localStorageMB: Math.round(stats.localStorageBytes / MB * 10) / 10,
+        cacheMB: Math.round(stats.cacheBytes / MB * 10) / 10,
+        itemCount: Math.round((stats.localStorageBytes + stats.cacheBytes) / MB),
+      });
+    });
+  }, []);
 
   const loadImagesForRecord = useCallback(async (record: HistoryRecord) => {
     if (!record.zipUrl) return;
@@ -158,9 +177,15 @@ export function HistoryPage({ onRegenerate }: HistoryPageProps) {
     if (existing) {
       removeFavorite(existing.id);
       setFavorites(getFavorites());
+      onSuccess?.('已取消收藏');
     } else {
-      addFavorite({ imageUrl, prompt, source: 'history', r18: false });
+      const added = addFavorite({ imageUrl, prompt, source: 'history', r18: false });
+      if (!added) {
+        onError?.('收藏失败，请重试');
+        return;
+      }
       setFavorites(getFavorites());
+      onSuccess?.('已收藏');
     }
   };
 
@@ -239,6 +264,22 @@ export function HistoryPage({ onRegenerate }: HistoryPageProps) {
           </button>
         )}
       </div>
+
+      {/* Storage stats bar — always visible in history page */}
+      {storageStats && (
+        <div className="mb-2 rounded-lg px-3 py-2 text-xs flex items-center gap-3 bg-gray-50 border border-gray-200 text-text-secondary">
+          <HardDrive size={12} className="flex-shrink-0" />
+          <span>本地存储</span>
+          <span className="font-medium whitespace-nowrap">
+            {storageStats.localStorageMB} MB
+          </span>
+          <span className="text-gray-300">|</span>
+          <span>图片缓存</span>
+          <span className="font-medium whitespace-nowrap">
+            {storageStats.cacheMB} MB
+          </span>
+        </div>
+      )}
 
       {/* Empty state */}
       {!hasAnyRecords && (
@@ -461,7 +502,7 @@ export function HistoryPage({ onRegenerate }: HistoryPageProps) {
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                   />
                   <button
-                    onClick={(e) => { e.stopPropagation(); handleToggleFavorite(item.imageUrl); }}
+                    onClick={(e) => { e.stopPropagation(); handleToggleFavorite(item.imageUrl ?? ""); }}
                     className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 transition-colors"
                   >
                     <Heart size={14} className="fill-red-500 text-red-500" />
@@ -566,13 +607,13 @@ export function HistoryPage({ onRegenerate }: HistoryPageProps) {
             </span>
             <div className="flex items-center gap-2">
               <button
-                onClick={(e) => { e.stopPropagation(); handleToggleFavorite(favorites[lightboxFavoriteIndex].imageUrl); }}
+                onClick={(e) => { e.stopPropagation(); handleToggleFavorite(favorites[lightboxFavoriteIndex].imageUrl ?? ""); }}
                 className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
               >
-                <Heart size={18} className={isFav(favorites[lightboxFavoriteIndex].imageUrl) ? 'fill-red-500 text-red-500' : 'text-white'} />
+                <Heart size={18} className={isFav(favorites[lightboxFavoriteIndex].imageUrl ?? "") ? 'fill-red-500 text-red-500' : 'text-white'} />
               </button>
               <button
-                onClick={(e) => { e.stopPropagation(); handleDownload(favorites[lightboxFavoriteIndex].imageUrl); }}
+                onClick={(e) => { e.stopPropagation(); handleDownload(favorites[lightboxFavoriteIndex].imageUrl ?? ""); }}
                 className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
               >
                 <Download size={18} />

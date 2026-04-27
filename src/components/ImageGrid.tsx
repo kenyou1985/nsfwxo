@@ -82,18 +82,11 @@ export function ImageGrid({ images, isLoading, onToggleFavorite, selectedIndex, 
                 alt={`Generated ${i + 1}`}
                 className="w-full aspect-video object-cover transition-transform group-hover:scale-105"
               />
-              {/* Selected highlight */}
-              {selectedIndex === i && (
-                <div className="absolute inset-0 ring-2 ring-purple-500 ring-offset-1 bg-purple-500/20">
-                  <div className="absolute top-1 left-1 w-5 h-5 rounded-full bg-purple-500 flex items-center justify-center">
-                    <Check size={10} className="text-white" />
-                  </div>
-                </div>
-              )}
+              {/* Favorite button — always on top */}
               {onToggleFavorite && (
                 <button
                   onClick={(e) => { e.stopPropagation(); handleToggleFavorite(url); }}
-                  className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 transition-colors"
+                  className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 transition-colors z-10"
                 >
                   <Heart
                     size={11}
@@ -101,17 +94,26 @@ export function ImageGrid({ images, isLoading, onToggleFavorite, selectedIndex, 
                   />
                 </button>
               )}
+              {/* Selected overlay — renders after buttons in DOM so it's on top */}
+              {selectedIndex === i && (
+                <div className="absolute inset-0 bg-purple-500/20 z-[5]">
+                  <div className="absolute top-1 left-1 w-5 h-5 rounded-full bg-purple-500 flex items-center justify-center z-[6]">
+                    <Check size={10} className="text-white" />
+                  </div>
+                </div>
+              )}
+              {/* Hover action buttons */}
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
                 <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
                     onClick={(e) => { e.stopPropagation(); handleDownload(url, i); }}
-                    className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/30 transition-colors"
+                    className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/30 transition-colors z-10"
                   >
                     <Download size={13} />
                   </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); openLightbox(i); }}
-                    className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/30 transition-colors"
+                    className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/30 transition-colors z-10"
                   >
                     <ZoomIn size={13} />
                   </button>

@@ -13,6 +13,7 @@ import { useBackendUrl } from './hooks/useBackendUrl';
 import { useToast } from './hooks/useToast';
 import { useTaskManager, loadPersistedTasks, clearPersistedTasks, type PersistedTaskEntry } from './hooks/useTaskManager';
 import { saveTaskToHistory, type HistoryRecord } from './services/historyService';
+import { migrateLegacyStorageData } from './services/storage';
 import { DEFAULT_GIRLFRIEND_PRESETS } from './data/girlfriendPresets';
 import { buildTxt2ImgNodeList } from './utils/txt2imgNodeBuilder';
 import { WORKFLOW } from './services/runninghub';
@@ -30,6 +31,14 @@ function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [img2imgPendingPrompt, setImg2imgPendingPrompt] = useState<string>('');
   const [regenerateWithGirlfriendId, setRegenerateWithGirlfriendId] = useState<string>('');
+
+  // One-time migration: strip legacy data URLs from favorites and storyboard history
+  useEffect(() => {
+    const result = migrateLegacyStorageData();
+    if (result.favoritesCleaned > 0 || result.storyboardsCleaned > 0) {
+      console.log('[App] Legacy storage migration complete:', result);
+    }
+  }, []);
 
   // ── Finished task images registry ──
   // Updated whenever any task completes, so pages can subscribe and cache images
@@ -185,7 +194,7 @@ function App() {
           />
         );
       case 'history':
-        return <HistoryPage onRegenerate={handleRegenerateFromHistory} />;
+        return <HistoryPage onRegenerate={handleRegenerateFromHistory} onSuccess={toast.success} onError={toast.error} />;
       case 'aiprompt':
         return (
           <AIPromptPage
@@ -218,6 +227,7 @@ function App() {
             renderPage()
           )}
         </main>
+
 
       {/* Mobile: Inline API Key editor panel */}
       {isSettingsOpen && isLoaded && (

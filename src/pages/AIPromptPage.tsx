@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { extractVideoPromptFromImagePrompt } from '../utils/videoPromptExtractor';
 import {
   Wand2, Shuffle, LayoutList, Copy, Check, Loader2,
   ChevronDown, ChevronUp, Sparkles, RotateCcw, Send,
@@ -28,6 +29,7 @@ import {
   cacheStoryboardPanelImages, getAllCachedPanelImages,
   addFavorite, removeFavorite, getFavorites, clearFavorites, isFavorited,
   type ExpandHistoryItem, type RandomHistoryItem, type StoryboardHistoryItem, type FavoriteItem,
+  resolvePanelImages,
 } from '../services/storage';
 import { loadCachedOrExtractPanelImages } from '../services/imageCacheService';
 import { useFinishedTaskImages } from '../contexts/FinishedTaskImagesContext';
@@ -219,16 +221,19 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   const [girlfriendUploading, setGirlfriendUploading] = useState(false);
   const [favorites, setFavorites] = useState<FavoriteItem[]>(() => getFavorites());
 
-  const handleToggleFavorite = (imageUrl: string, prompt?: string) => {
+  const handleToggleFavorite = useCallback((imageUrl: string, prompt?: string) => {
     const existing = favorites.find((f) => f.imageUrl === imageUrl);
     if (existing) {
       removeFavorite(existing.id);
       setFavorites(getFavorites());
     } else {
-      addFavorite({ imageUrl, prompt, source: 'expand', r18: r18Mode });
+      const added = addFavorite({ imageUrl, prompt, source: 'expand', r18: r18Mode });
+      if (!added) {
+        console.error('[handleToggleFavorite] addFavorite returned false — URL mismatch or duplicate:', imageUrl.slice(0, 80));
+      }
       setFavorites(getFavorites());
     }
-  };
+  }, [favorites, r18Mode]);
 
   // Persist expand state to sessionStorage so it survives page switches
   useEffect(() => {
@@ -583,22 +588,21 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     }
   }, [taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, sbHistoryId]);
 
-  // Handle direct video generation from storyboard panel in ExpandMode
+  // Handle direct video generation from storyboard panel in ExpandMode.
+  // Reuses the ImageToVideoPage logic by writing to sessionStorage and navigating.
   const handleExpandModeGenerateVideo = useCallback(async (panelKey: string, imageUrl: string, prompt: string) => {
     console.log(`[handleExpandModeGenerateVideo] panelKey=${panelKey}, imageUrl=${imageUrl.slice(0, 50)}, prompt length=${prompt.length}`);
+
+    // Generate video prompt from image prompt
+    const videoPrompt = extractVideoPromptFromImagePrompt(prompt, r18Mode);
+    console.log(`[handleExpandModeGenerateVideo] videoPrompt="${videoPrompt}"`);
+
+    // Upload image if needed (data URL or blob URL)
     let imagePath = imageUrl;
     if (imageUrl.startsWith('data:') || imageUrl.startsWith('blob:')) {
       try {
-        // Convert data URL to blob without CORS fetch
-        let blob: Blob;
-        if (imageUrl.startsWith('data:')) {
-          const resp = await fetch(imageUrl);
-          blob = await resp.blob();
-        } else {
-          // blob URL — fetch from the same origin
-          const resp = await fetch(imageUrl);
-          blob = await resp.blob();
-        }
+        const resp = await fetch(imageUrl);
+        const blob = await resp.blob();
         const file = new File([blob], `storyboard_${Date.now()}.jpg`, { type: blob.type || 'image/jpeg' });
         const { imagePath: uploadedPath } = await uploadImage(apiKey, file);
         imagePath = uploadedPath;
@@ -609,27 +613,19 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         return;
       }
     }
-    const videoPrompt = prompt;
-    const nodes = [
-      { nodeId: '28', fieldName: 'value', fieldValue: '720', description: '最长边' },
-      { nodeId: '20', fieldName: 'value', fieldValue: '5', description: '时长（秒）' },
-      { nodeId: '77', fieldName: 'value', fieldValue: 'false', description: '补帧（默认关）' },
-      { nodeId: '21', fieldName: 'image', fieldValue: imagePath, description: '图片上传' },
-      { nodeId: '38', fieldName: 'value', fieldValue: videoPrompt, description: '提示词' },
-      { nodeId: '42', fieldName: 'lora_name', fieldValue: 'SmoothMixAnimationStyle_High.safetensors', description: 'lora（high）' },
-      { nodeId: '42', fieldName: 'strength_model', fieldValue: '1.0', description: 'lora权重' },
-    ];
-    const taskId = `expand-storyboard-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    const taskData = { id: taskId, prompt: videoPrompt, imagePreview: imageUrl, nodeInfoList: nodes, processed: false };
-    localStorage.setItem('nsfwxo_video_task_submit', JSON.stringify(taskData));
-    window.dispatchEvent(new StorageEvent('storage', { key: 'nsfwxo_video_task_submit', newValue: JSON.stringify(taskData) }));
-    try {
-      await taskManager.addTask('img2vid', nodes, videoPrompt, WORKFLOW.IMAGE_TO_VIDEO);
-      onSuccess('视频生成任务已提交');
-    } catch (err) {
-      onError(err instanceof Error ? err.message : '视频生成失败');
+
+    // Safety check
+    if (!imagePath || imagePath.length > 300) {
+      console.error('[handleExpandModeGenerateVideo] Invalid imagePath:', imagePath?.slice(0, 100));
+      onError('图片路径无效，请重新选择图片');
+      return;
     }
-  }, [apiKey, taskManager, onError, onSuccess]);
+
+    // Store in sessionStorage and navigate to ImageToVideoPage (same pattern as existing storyboard_img2vid)
+    const data = JSON.stringify({ imageUrl, imagePath, prompt: videoPrompt });
+    sessionStorage.setItem('storyboard_img2vid_direct', data);
+    onNavigate?.('img2vid');
+  }, [apiKey, onError, onNavigate, r18Mode]);
 
   const handleGenerateStoryboard = useCallback(async (
     panels: { panel_number: number; scene_description: string; image_prompt: string }[],
@@ -883,7 +879,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         disabled={taskManager.isFull || (digitalHumanMode && !selectedGirlfriend)}
         onGenerateStoryboard={handleGenerateStoryboard}
         onGenerateSingleImage={handleExpandModeSinglePanelGenerate}
-        onGenerateVideo={handleExpandModeGenerateVideo}
+        onGenerateVideo={(imageUrl, prompt, panelKey) => handleExpandModeGenerateVideo(panelKey, imageUrl, prompt)}
         onToggleFavorite={handleToggleFavorite}
         onSuccess={onSuccess}
         onError={onError}
@@ -1713,7 +1709,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     const initial: Record<string, { loading: boolean; images: string[] }> = {};
 
     if (historyItem?.panelImages) {
-      for (const [idx, imgs] of Object.entries(historyItem.panelImages)) {
+      const resolved = resolvePanelImages(historyItem.panelImages);
+      for (const [idx, imgs] of Object.entries(resolved)) {
         initial[`${hid}_${idx}`] = { loading: false, images: imgs };
       }
     }
@@ -2245,7 +2242,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     const initial: Record<string, { loading: boolean; images: string[] }> = {};
 
     if (item.panelImages) {
-      for (const [idx, imgs] of Object.entries(item.panelImages)) {
+      const resolved = resolvePanelImages(item.panelImages);
+      for (const [idx, imgs] of Object.entries(resolved)) {
         initial[`${item.id}_${idx}`] = { loading: false, images: imgs };
       }
     }
@@ -2365,38 +2363,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
 
   // Generate video prompt for a panel based on image prompt
   const generateVideoPromptForPanel = useCallback((imagePrompt: string): string => {
-    const parts = imagePrompt.split(/[,，.。;；\n]/).map((p) => p.trim()).filter(Boolean);
-    const motion: string[] = [];
-    const camera: string[] = [];
-    const lighting: string[] = [];
-    const style: string[] = [];
-    const environment: string[] = [];
-    const other: string[] = [];
-    const motionWords = ['walk', 'turn', 'move', 'dance', 'run', 'jump', 'sit', 'stand', 'slow', 'fast', 'gentle', 'smooth', 'natural', 'flow', 'breathing', 'smile', 'blink', 'head', 'turning', 'looking', 'reach', 'raise', 'touch', 'hold', 'cross', 'lean', 'bend', 'twist', 'rolling', 'moving', 'step', 'foot'];
-    const cameraWords = ['close-up', 'close up', 'medium shot', 'long shot', 'pan', 'zoom', 'tilt', 'dolly', 'tracking', 'steady', 'cinematic', 'camera', 'angle', 'shot', 'wide', 'lens', 'depth of field', 'bokeh', 'pov', 'background blur'];
-    const lightingWords = ['light', 'sunlight', 'natural light', 'backlit', 'soft light', 'hard light', 'warm', 'cool', 'dim', 'bright', 'glow', 'shadow', 'rim light', 'golden hour', 'dusk', 'dawn', 'fog', 'neon', 'candlelight', 'moonlight'];
-    const styleWords = ['realistic', 'cinematic', '8k', '4k', 'high quality', 'aesthetic', 'soft tone', 'vintage', 'film grain', 'portrait', 'photo', 'no distortion', 'hyperrealistic', 'photorealistic', 'masterpiece'];
-    const envWords = ['indoor', 'outdoor', 'beach', 'forest', 'park', 'street', 'studio', 'garden', 'room', 'bedroom', 'bathroom', 'balcony', 'rooftop', 'background', 'setting', 'hotel', 'office', 'classroom', 'shower', 'pool', 'car', 'gym'];
-    parts.forEach((part) => {
-      const lower = part.toLowerCase();
-      if (motionWords.some((w) => lower.includes(w))) motion.push(part);
-      else if (cameraWords.some((w) => lower.includes(w))) camera.push(part);
-      else if (lightingWords.some((w) => lower.includes(w))) lighting.push(part);
-      else if (styleWords.some((w) => lower.includes(w))) style.push(part);
-      else if (envWords.some((w) => lower.includes(w))) environment.push(part);
-      else other.push(part);
-    });
-    const sections: string[] = [];
-    if (environment.length > 0) sections.push(environment.slice(0, 2).join(', '));
-    if (motion.length > 0) sections.push(motion.slice(0, 3).join(', '));
-    if (camera.length > 0) sections.push(camera.slice(0, 2).join(', '));
-    if (lighting.length > 0) sections.push(lighting.slice(0, 1).join(', '));
-    if (style.length > 0) sections.push(style.slice(0, 1).join(', '));
-    else sections.push('realistic cinematic quality');
-    if (r18Mode) sections.push('intimate atmosphere, smooth natural motion');
-    const remaining = other.filter((p) => p.length > 3 && p.length < 100);
-    if (remaining.length > 0) sections.push(remaining.slice(0, 3).join(', '));
-    return sections.filter(Boolean).join(', ');
+    return extractVideoPromptFromImagePrompt(imagePrompt, r18Mode);
   }, [r18Mode]);
 
   // Handle image selection for a panel
@@ -3577,7 +3544,10 @@ function StoryboardHistoryList({ history, onLoad, onDelete }: {
           }
         };
         for (const imgs of Object.values(cached)) addImages(imgs);
-        if (h.panelImages) { for (const imgs of Object.values(h.panelImages)) addImages(imgs); }
+        if (h.panelImages) {
+          const resolved = resolvePanelImages(h.panelImages);
+          for (const imgs of Object.values(resolved)) addImages(imgs);
+        }
         addImages(h.images || []);
         if (allImages.length > 0) newPreviews[h.id] = allImages.slice(0, 6);
       }
@@ -3675,7 +3645,7 @@ function FavoritesList({ favorites, r18Mode, onRemove, onClear }: {
   const handleDownload = (e: React.MouseEvent, item: FavoriteItem) => {
     e.stopPropagation();
     const a = document.createElement('a');
-    a.href = item.imageUrl;
+    a.href = item.imageUrl ?? "";
     a.download = `favorite_${item.id}.png`;
     a.target = '_blank';
     a.rel = 'noopener noreferrer';
@@ -3699,7 +3669,7 @@ function FavoritesList({ favorites, r18Mode, onRemove, onClear }: {
       <div className="grid grid-cols-3 gap-2 p-3">
         {favorites.map((item) => (
           <div key={item.id} className="relative group aspect-square rounded-lg overflow-hidden bg-bg-elevated">
-            <img src={item.imageUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
+            <img src={item.imageUrl ?? ""} alt="" className="w-full h-full object-cover" loading="lazy" />
             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
               <button
                 onClick={(e) => handleDownload(e, item)}
@@ -3822,9 +3792,9 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
                         {onFavorited && (
                           <button
                             onClick={(e) => { e.stopPropagation(); onFavorited(img); }}
-                            className="w-8 h-8 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
+                            className={`w-8 h-8 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity ${isFavorited(img) ? 'bg-red-500 text-white' : 'bg-black/50 text-white hover:bg-red-500'}`}
                           >
-                            <Heart size={14} className={isFavorited(img) ? 'fill-red-500 text-red-500' : 'text-white'} />
+                            <Heart size={14} className={isFavorited(img) ? 'fill-white' : ''} />
                           </button>
                         )}
                       </div>
@@ -3946,8 +3916,8 @@ function AIGeneratedImagePreview({ src, prompt, onFavorited, allImages, index }:
             <Download size={12} />
           </button>
           {onFavorited && (
-            <button onClick={handleFavorite} className={`w-7 h-7 rounded-full bg-white/90 flex items-center justify-center transition-colors ${isFavorited(displaySrc) ? 'text-red-500' : 'text-gray-700 hover:bg-white'}`}>
-              <Heart size={12} className={isFavorited(displaySrc) ? 'fill-red-500' : ''} />
+            <button onClick={handleFavorite} className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors ${isFavorited(displaySrc) ? 'bg-red-500 text-white' : 'bg-white/90 text-gray-700 hover:bg-white'}`}>
+              <Heart size={12} className={isFavorited(displaySrc) ? 'fill-white' : ''} />
             </button>
           )}
           {images.length > 1 && (

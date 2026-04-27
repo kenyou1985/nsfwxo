@@ -326,7 +326,7 @@ interface UnifiedImageEntry {
   refCount: number;
 }
 
-function hashString(input: string): string {
+export function hashString(input: string): string {
   let hash = 2166136261;
   for (let i = 0; i < input.length; i++) {
     hash ^= input.charCodeAt(i);
@@ -335,7 +335,7 @@ function hashString(input: string): string {
   return (hash >>> 0).toString(36);
 }
 
-function getUnifiedStore(): Record<string, UnifiedImageEntry> {
+export function getUnifiedStore(): Record<string, UnifiedImageEntry> {
   try {
     const raw = localStorage.getItem(UNIFIED_CACHE_STORE_KEY);
     if (!raw) return {};
@@ -384,7 +384,7 @@ async function ensureUnifiedLimits(): Promise<number> {
 /**
  * Store an image in the unified cache. Returns the content hash as reference.
  */
-async function storeImage(dataUrl: string): Promise<string> {
+export async function storeImage(dataUrl: string): Promise<string> {
   await ensureLimits();
   const store = getUnifiedStore();
   const key = computeImageHash(dataUrl);

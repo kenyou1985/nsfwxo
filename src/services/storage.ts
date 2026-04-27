@@ -5,6 +5,8 @@ import {
   deleteCachedStoryboardPanelImages,
   resolveImageRef,
   clearUnifiedImageCache,
+  getUnifiedStore,
+  hashString,
 } from './imageCacheService';
 
 // Re-export for backwards compatibility with code that imports from storage.ts
@@ -207,10 +209,56 @@ function loadHistory<T>(key: string): T[] {
 }
 
 function saveHistory<T>(key: string, items: T[]): void {
+  let dataToSave: T[] = items.slice(0, MAX_HISTORY);
+
+  // Strip data URLs from FavoriteItems to prevent localStorage quota overflow.
+  if (key === FAVORITES_KEY) {
+    dataToSave = (dataToSave as FavoriteItem[]).map((f) => {
+      if (!f.imageUrl || !f.imageUrl.startsWith('data:')) return f as FavoriteItem;
+      const imageRef = f.imageRef || hashString(f.imageUrl.slice(0, 2048));
+      return { ...f, imageRef, imageUrl: '' } as FavoriteItem;
+    }) as unknown as T[];
+  }
+
   try {
-    localStorage.setItem(key, JSON.stringify(items.slice(0, MAX_HISTORY)));
-  } catch {
-    // storage full or unavailable
+    localStorage.setItem(key, JSON.stringify(dataToSave));
+  } catch (err) {
+    console.warn('[saveHistory] localStorage write failed, attempting cleanup:', err);
+    try {
+      freeStorageSpace();
+    } catch {}
+    try {
+      const minimal = dataToSave.slice(0, 10);
+      localStorage.setItem(key, JSON.stringify(minimal));
+    } catch (e2) {
+      console.error('[saveHistory] localStorage fully unavailable:', e2);
+    }
+  }
+}
+
+function freeStorageSpace(): void {
+  const MB = 1024 * 1024;
+  const safeToRemove = ['nsfwxo_favorites'];
+  for (const k of safeToRemove) {
+    try {
+      const raw = localStorage.getItem(k);
+      if (!raw) continue;
+      const bytes = raw.length * 2;
+      if (bytes > 100 * MB) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          const cleaned = parsed.map((f: Record<string, unknown>) => {
+            if (f.imageUrl && typeof f.imageUrl === 'string' && f.imageUrl.startsWith('data:')) {
+              const imageRef = (f.imageRef as string) || hashString((f.imageUrl as string).slice(0, 2048));
+              return { ...f, imageRef, imageUrl: '' };
+            }
+            return f;
+          });
+          localStorage.setItem(k, JSON.stringify(cleaned));
+          console.warn(`[freeStorageSpace] Cleaned ${k}, freed ~${Math.round(bytes / MB)}MB`);
+        }
+      }
+    } catch {}
   }
 }
 
@@ -282,22 +330,46 @@ export function updateStoryboardHistoryImages(
   const history = getStoryboardHistory();
   const index = history.findIndex((h) => h.id === id);
   if (index !== -1) {
-    const allImages: string[] = [];
+    // Store content hash references instead of full data URLs to avoid localStorage
+    // quota overflow. Images are already stored in the unified cache via
+    // cacheStoryboardPanelImages (called separately in the same code path).
     const normalizedPanelImages: Record<number, string[]> = {};
     for (const [panelIdx, imgs] of Object.entries(panelImages)) {
-      const resolved = imgs.map((img) => resolveImageRef(img));
-      normalizedPanelImages[Number(panelIdx)] = resolved;
-      allImages.push(...resolved);
+      const refs = imgs.map((img) => {
+        // If it's already a hash ref (short alphanumeric string), use it directly.
+        // Otherwise compute the hash so we can look it up in the unified cache.
+        if (img && !img.startsWith('data:') && !img.startsWith('blob:') && !img.startsWith('http')) {
+          return img;
+        }
+        return hashString(img.slice(0, 2048));
+      });
+      normalizedPanelImages[Number(panelIdx)] = refs;
     }
     history[index] = {
       ...history[index],
+      // Store hash refs so the history entry stays small (<5KB per entry)
       panelImages: normalizedPanelImages,
-      images: allImages.slice(0, 12),
+      // Resolve the first 12 images for thumbnail preview (non-blocking, uses sync cache)
+      images: Object.values(normalizedPanelImages).flat().slice(0, 12).map((ref) => resolveImageRef(ref)),
       ...(zipUrl !== undefined ? { zipUrl } : {}),
       ...(panelImageCounts !== undefined ? { panelImageCounts } : {}),
     };
     saveHistory(STORYBOARD_HISTORY_KEY, history);
   }
+}
+
+/**
+ * Resolve panel images from a history record, converting hash refs back to data URLs.
+ * Uses the unified image cache for resolution. Returns an empty array on cache miss.
+ */
+export function resolvePanelImages(panelImages: Record<number, string[]>): Record<number, string[]> {
+  if (!panelImages) return {};
+  const resolved: Record<number, string[]> = {};
+  for (const [idx, refs] of Object.entries(panelImages)) {
+    const images = refs.map((ref) => resolveImageRef(ref)).filter(Boolean);
+    if (images.length > 0) resolved[Number(idx)] = images;
+  }
+  return resolved;
 }
 
 export function clearStoryboardHistory(): void {
@@ -312,13 +384,29 @@ export function clearStoryboardHistory(): void {
 // This eliminates duplicate storage and ensures identical images share the same entry.
 
 // ─── Favorites ───────────────────────────────────────────────────────────────────
+//
+// IMPORTANT: Favorites store content hash references (`imageRef`) instead of full
+// data URLs to avoid exhausting localStorage quota (typically 5–10MB).
+// A single base64 data URL can be 500KB–2MB, so storing URLs directly allowed
+// only ~5–20 favorites before quota overflow.
+// By storing content hashes (~20 bytes each) that reference the unified image
+// cache, we can store thousands of favorites in the same space.
+// Images are resolved at read-time via `resolveImageRef()` from imageCacheService.
 
 export interface FavoriteItem {
   id: string;
-  imageUrl: string; // data URL
+  /** Reference to the image source.
+   * - data: URLs → stored directly (short, inline, no cache needed)
+   * - blob: URLs → stored directly (valid for session lifetime)
+   * - http: URLs → stored directly (valid for session lifetime)
+   * - hash strings (36 chars) → looked up in unified cache
+   * Consumers use resolveFavoriteImageRef() to get the actual display URL. */
+  imageRef?: string;
+  /** Always empty in storage (avoids quota overflow). Resolved at read-time. */
+  imageUrl?: string;
   prompt?: string;
   source: 'expand' | 'random' | 'storyboard' | 'batch' | 'history';
-  sourceId?: string; // history item id if applicable
+  sourceId?: string;
   tags?: Record<string, string[]>;
   r18: boolean;
   timestamp: number;
@@ -327,15 +415,40 @@ export interface FavoriteItem {
 const FAVORITES_KEY = 'nsfwxo_favorites';
 
 export function getFavorites(): FavoriteItem[] {
-  return loadHistory<FavoriteItem>(FAVORITES_KEY);
+  const items = loadHistory<FavoriteItem>(FAVORITES_KEY);
+  // Resolve imageRef to actual display URL for each item.
+  return items.map((item) => {
+    if (!item.imageRef) return { ...item, imageUrl: item.imageUrl ?? '' };
+    // Try unified cache first (for hash-based references)
+    const fromCache = resolveImageRef(item.imageRef);
+    if (fromCache) return { ...item, imageUrl: fromCache };
+    // Direct URL reference — return as-is (works for data:, blob:, http: URLs)
+    return { ...item, imageUrl: item.imageRef };
+  });
 }
 
-export function addFavorite(item: Omit<FavoriteItem, 'id' | 'timestamp'>): void {
+export function addFavorite(item: Omit<FavoriteItem, 'id' | 'timestamp'>): boolean {
   const favorites = getFavorites();
-  // Avoid duplicates by image URL
-  if (favorites.some((f) => f.imageUrl === item.imageUrl)) return;
-  favorites.unshift({ ...item, id: genId(), timestamp: Date.now() });
+  const imageUrl = item.imageUrl ?? '';
+  if (!imageUrl) return false;
+
+  // Store the URL directly as imageRef. No additional storage used.
+  // - data: URLs are stored inline (~1MB each in localStorage is OK if few items)
+  // - blob/http URLs are session references
+  // Resolution happens at read-time in getFavorites().
+  if (favorites.some((f) => f.imageRef === imageUrl)) return false;
+
+  const newItem: FavoriteItem = {
+    ...item,
+    id: genId(),
+    timestamp: Date.now(),
+    imageRef: imageUrl,
+    // imageUrl intentionally omitted — resolved at read-time via getFavorites()
+    imageUrl: undefined,
+  };
+  favorites.unshift(newItem);
   saveHistory(FAVORITES_KEY, favorites);
+  return true;
 }
 
 export function removeFavorite(id: string): void {
@@ -343,12 +456,82 @@ export function removeFavorite(id: string): void {
   saveHistory(FAVORITES_KEY, favorites);
 }
 
+/**
+ * Check if an image URL (data URL, blob URL, or http URL) is favorited.
+ * Supports both the new hash-based format and legacy data URL format.
+ */
 export function isFavorited(imageUrl: string): boolean {
-  return getFavorites().some((f) => f.imageUrl === imageUrl);
+  if (!imageUrl) return false;
+  return getFavorites().some((f) => f.imageRef === imageUrl || f.imageUrl === imageUrl);
 }
 
 export function clearFavorites(): void {
   try { localStorage.removeItem(FAVORITES_KEY); } catch {}
+}
+
+/**
+ * One-time migration: strips data URLs from legacy favorites/storyboard history
+ * that predate the hash-ref migration. Can be called on app startup.
+ * Returns the number of items cleaned.
+ */
+export function migrateLegacyStorageData(): { favoritesCleaned: number; storyboardsCleaned: number } {
+  let favoritesCleaned = 0;
+  let storyboardsCleaned = 0;
+
+  try {
+    // Migrate favorites: remove imageUrl field, keep imageRef
+    const rawFavs = localStorage.getItem(FAVORITES_KEY);
+    if (rawFavs) {
+      const favs = JSON.parse(rawFavs) as FavoriteItem[];
+      const cleaned = favs.map((f) => {
+        const cleaned: FavoriteItem = { ...f };
+        if (cleaned.imageUrl && cleaned.imageUrl.startsWith('data:')) {
+          if (!cleaned.imageRef) {
+            cleaned.imageRef = hashString(cleaned.imageUrl.slice(0, 2048));
+          }
+          cleaned.imageUrl = '';
+          favoritesCleaned++;
+        }
+        return cleaned;
+      });
+      if (favoritesCleaned > 0) {
+        localStorage.setItem(FAVORITES_KEY, JSON.stringify(cleaned));
+        console.log(`[migrateLegacyStorageData] cleaned ${favoritesCleaned} legacy favorites`);
+      }
+    }
+
+    // Migrate storyboard history: resolve and re-store panelImages as hash refs
+    const rawSb = localStorage.getItem(STORYBOARD_HISTORY_KEY);
+    if (rawSb) {
+      const history = JSON.parse(rawSb) as StoryboardHistoryItem[];
+      let modified = false;
+      const migrated = history.map((h) => {
+        if (h.panelImages) {
+          for (const [idx, imgs] of Object.entries(h.panelImages)) {
+            const resolved = imgs.map((img) => {
+              if (!img) return img;
+              if (!img.startsWith('data:') && !img.startsWith('blob:')) return img;
+              return hashString(img.slice(0, 2048));
+            });
+            if (JSON.stringify(resolved) !== JSON.stringify(imgs)) {
+              (h.panelImages as Record<number, string[]>)[Number(idx)] = resolved;
+              modified = true;
+              storyboardsCleaned++;
+            }
+          }
+        }
+        return h;
+      });
+      if (modified) {
+        localStorage.setItem(STORYBOARD_HISTORY_KEY, JSON.stringify(migrated));
+        console.log(`[migrateLegacyStorageData] cleaned ${storyboardsCleaned} legacy storyboard panel entries`);
+      }
+    }
+  } catch (e) {
+    console.warn('[migrateLegacyStorageData] failed:', e);
+  }
+
+  return { favoritesCleaned, storyboardsCleaned };
 }
 
 // ─── Active Session Storage (persists current expand/random/storyboard state across page switches) ───

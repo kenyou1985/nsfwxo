@@ -9,6 +9,7 @@ import {
   cacheStoryboardPanelImages,
   updateStoryboardHistoryImages,
 } from '../services/storage';
+import { extractVideoPromptFromImagePrompt } from '../utils/videoPromptExtractor';
 import { useFinishedTaskImages } from '../contexts/FinishedTaskImagesContext';
 import { ImageGrid } from './ImageGrid';
 import type { GirlfriendPreset } from '../data/girlfriendPresets';
@@ -26,7 +27,7 @@ interface StoryboardSectionProps {
     onError: (msg: string) => void
   ) => void;
   onGenerateSingleImage?: (panelIdx: number, prompt: string) => void;
-  onGenerateVideo?: (imageUrl: string, videoPrompt: string, panelKey: string) => void;
+  onGenerateVideo?: (imageUrl: string, prompt: string, panelKey: string) => void;
   onToggleFavorite?: (url: string, prompt?: string) => void;
   onSuccess: (msg: string) => void;
   onError: (msg: string) => void;
@@ -49,7 +50,7 @@ export function StoryboardSection({
     onError?.('请前往「剧情分镜」页面使用单图生成功能');
   }, [onError]);
 
-  const noopVideo = useCallback((_imageUrl: string, _videoPrompt: string, _panelKey: string) => {
+  const noopVideo = useCallback((_imageUrl: string, _prompt: string, _panelKey: string) => {
     onError?.('智能分镜模式暂不支持图生视频，请切换到剧情分镜页面使用');
   }, [onError]);
 
@@ -154,10 +155,10 @@ export function StoryboardSection({
     setIsSubmitting(true);
     setSubmittedPanels(new Set(result.panels.map((_, i) => i)));
     panelsRef.current = result.panels;
+    // Don't start polling — the finishedTasks effect handles all image updates
     onGenerateStoryboard(result.panels, result.scene.nameZh, result.is_r18, (msg) => {
       onSuccess(msg);
       setIsSubmitting(false);
-      startPolling(result.panels);
     }, (msg) => {
       onError(msg);
       setIsSubmitting(false);
@@ -511,7 +512,7 @@ export function StoryboardSection({
                               setGeneratingPanel(idx);
                               generatingPanelRef.current = idx;
                               if (result) panelsRef.current = result.panels;
-                              if (result) startPolling(result.panels);
+                              // Don't start polling — finishedTasks effect handles image updates
                               actualSingleImage(idx, panel.image_prompt);
                             }}
                             disabled={disabled || generatingPanel === idx}
@@ -559,9 +560,22 @@ export function StoryboardSection({
                     </p>
 
                     {/* Prompt preview */}
-                    <p className="text-[9px] text-text-tertiary font-mono leading-relaxed line-clamp-3 mb-2">
+                    <p className="text-[9px] text-text-tertiary font-mono leading-relaxed line-clamp-3 mb-1">
                       {panel.image_prompt}
                     </p>
+
+                    {/* Video prompt — derived from image prompt */}
+                    {imgs.length > 0 && (
+                      <div className="mb-2">
+                        <div className="flex items-center gap-1 mb-0.5">
+                          <Video size={8} className="text-blue-400" />
+                          <span className="text-[8px] text-blue-400 font-medium">视频提示词</span>
+                        </div>
+                        <p className="text-[8px] text-blue-500/80 font-mono leading-relaxed line-clamp-2 bg-blue-50 rounded px-1.5 py-1">
+                          {extractVideoPromptFromImagePrompt(panel.image_prompt, r18Enabled)}
+                        </p>
+                      </div>
+                    )}
 
                     {/* Image grid preview — card style with favorite + click to preview */}
                     {imgs.length > 0 ? (

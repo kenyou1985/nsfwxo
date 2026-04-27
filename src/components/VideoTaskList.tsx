@@ -272,13 +272,23 @@ function VideoTaskCard({ task, onCancel, onRegenerate, onSelectForRegenerate }: 
 }
 
 export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>(({ apiKey, onError, onSuccess, maxTasks = 10 }, ref) => {
+  // Restore ALL tasks from localStorage, including completed ones (within 24h).
+  // Previously only QUEUEING/RUNNING tasks were restored, causing completed tasks
+  // submitted from other pages (e.g. smart storyboard) to disappear on return.
   const [tasks, setTasks] = useState<VideoTask[]>(() => {
     try {
       const saved = localStorage.getItem('nsfwxo_video_tasks');
       if (saved) {
         const parsed = JSON.parse(saved) as VideoTask[];
-        // Only keep non-finished tasks
-        return parsed.filter((t) => t.status === 'QUEUEING' || t.status === 'RUNNING');
+        const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+        const filtered = parsed.filter((t) => {
+          if (t.status === 'FINISHED' || t.status === 'FAILED') {
+            return t.startTime > Date.now() - ONE_DAY_MS;
+          }
+          return true;
+        });
+        console.log(`[VideoTaskList] Restored ${filtered.length}/${parsed.length} tasks from localStorage:`, filtered.map((t) => ({ id: t.id, status: t.status, taskId: t.taskId })));
+        return filtered;
       }
     } catch {
       // ignore
@@ -294,11 +304,13 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
   const saveToHistoryRef = useRef<(task: VideoTask) => void>(() => {});
 
   useEffect(() => {
-    // Persist active tasks to localStorage
+    // Persist all tasks to localStorage so they survive navigation and page refresh.
+    // VideoTaskList restores from here on mount, so we keep all tasks (active + completed).
     try {
       localStorage.setItem('nsfwxo_video_tasks', JSON.stringify(tasks));
-    } catch {
-      // ignore
+      console.debug(`[VideoTaskList] Persisted ${tasks.length} tasks to localStorage:`, tasks.map((t) => ({ id: t.id, status: t.status })));
+    } catch (e) {
+      console.warn('[VideoTaskList] Failed to persist tasks to localStorage:', e);
     }
   }, [tasks]);
 
@@ -345,16 +357,57 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
     return () => clearInterval(timer);
   }, []);
 
-  // Resume polling for tasks restored from localStorage
+  // Resume polling for active tasks restored from localStorage, and re-extract images
+  // for completed tasks that were restored without their result images.
   useEffect(() => {
     tasks.forEach((t) => {
       if ((t.status === 'QUEUEING' || t.status === 'RUNNING') && t.taskId && !pollingRef.current[t.id]) {
         console.log('[VideoTaskList] Resuming poll for task:', t.id);
         pollTask(t);
       }
+      // If a FINISHED task was restored from localStorage but has no images, try to
+      // extract them from the task result (blob URLs expire after page refresh).
+      if (t.status === 'FINISHED' && t.images.length === 0 && t.taskId) {
+        console.log('[VideoTaskList] Restoring images for completed task:', t.id);
+        extractImagesForTask(t).catch(() => {});
+      }
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const extractImagesForTask = useCallback(async (task: VideoTask) => {
+    if (!task.taskId || imagesExtractedRef.current[task.id]) return;
+    imagesExtractedRef.current[task.id] = true;
+    try {
+      const resp = await getTaskResults(apiKey, task.taskId);
+      const results = resp.results;
+      if (!results || results.length === 0) return;
+
+      let images: string[] = [];
+      const pngResults = results.filter((r) =>
+        r.outputType === 'png' || r.fileType === 'png' || r.url?.endsWith('.png')
+      );
+      if (pngResults.length > 0) {
+        images = pngResults.map((r) => r.url).filter(Boolean) as string[];
+      }
+
+      if (images.length === 0) {
+        const zipResult = results.find((r) =>
+          r.outputType === 'zip' || r.fileType === 'zip' || r.url?.endsWith('.zip')
+        );
+        if (zipResult?.url) {
+          images = await extractImagesFromZipAsDataUrls(zipResult.url);
+        }
+      }
+
+      if (images.length > 0) {
+        setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, images } : t));
+        console.log(`[VideoTaskList] Restored ${images.length} images for task ${task.id}`);
+      }
+    } catch (err) {
+      console.warn('[VideoTaskList] Failed to extract images for task', task.id, err);
+    }
+  }, [apiKey]);
 
   const pollTask = useCallback(async (task: VideoTask) => {
     if (!apiKey || !task.taskId) return;
@@ -465,10 +518,12 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
     };
 
     setTasks((prev) => [newTask, ...prev].slice(0, maxTasks));
+    console.log(`[VideoTaskList] handleSubmit: task ${id} added, QUEUEING. Calling runTask...`);
 
     // Run task via VideoTaskList's own API (for normal img2vid page flow)
     try {
       const result = await runTask(apiKey, '2018678819216953345', nodeInfoList);
+      console.log(`[VideoTaskList] handleSubmit: task ${id} got taskId=${result.taskId}, status=${result.status}`);
       const taskWithId = { ...newTask, taskId: result.taskId, status: 'RUNNING' as const };
       setTasks((prev) => prev.map((t) => t.id === id ? taskWithId : t));
       onSuccess('任务已提交');
