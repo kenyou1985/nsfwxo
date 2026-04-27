@@ -4,45 +4,61 @@
  * into structured panel data. Handles garbled/mixed-script text.
  */
 
-// Garbled label normalization.
+// Garbled video-label normalization.
 //
-// Problem 1 — "视频提示词" gets corrupted into Indic-script prefixes + garbage suffixes:
-//   - Prefix:  ভিডিও / ভিডিয়ো / ভিডಿಯೋ / ভিডിയോ / ভিডิও  (Bengali/Devanagari/Kannada/Malayalam)
-//   - Suffix:  提示尉 / 提示ు / 提示ு / 提示ि / 提示ք  (Chinese 提示 + random non-Chinese char)
+// AI corrupts "视频提示词" into Bengali/Devanagari prefix + garbage suffix.
+// The suffix is a random non-Chinese character(s) after "提示".
 //
-// Problem 2 — Time digits before "a.m." / "p.m." can be eaten by regex when the
-//   garbled label confuses the field boundary. Fix: normalize garbled labels BEFORE
-//   time conversion so the full text is intact.
+// Known variants from production:
+//   Prefix (Bengali):  ভিডিও  ভিডিও  ভিডিও
+//   Prefix (mixed):    ভিডিয়ো  ভিডिओ
+//   Suffix garbage:    尉 ు ு ் ॄ ि ք  ו 尉 ు 尉 ु 出 梄尉 梄尉 尉 出
+//                     ים  ג եં び ե 梄 梄 出
+//   Embedded colon:    ডিও提示び:t  (the :t is part of garbage before the value)
 //
-// Approach: replace each garbled label with its correct Chinese equivalent, using a
-//   regex that matches the full garbled sequence (prefix + suffix) regardless of the
-//   random garbage character after "提示".
+// Approach: use a regex that matches the structural pattern:
+//   (ভিড(?:ি(?:ও|ো)|িও)|ডিও) — Bengali/Devanagari video prefix
+//   提示                           — correct Chinese "提示"
+//   (?:[^\n:]*?)                  — any non-colon/non-newline garbage (lazy)
+//   (?=[:\n]|$)                   — stop before colon/label separator or end-of-text
 //
+// This handles all cases:
+//   "ভিডিও提示尉:Camera"   → "视频提示词:Camera"
+//   "ডিও提示び:t 12:30"     → "视频提示词 12:30"  (colon in garbage → dropped)
+//   "ভিডিও提示尉" (end)     → "视频提示词"
+//   "ভিডিও提示尉\n景别:..." → "视频提示词\n景别:..."
 // ────────────────────────────────────────────────────────────────────────────────
 
-const GARBLED_LABELS: Array<{ garbled: string; correct: string }> = [
-  // Prefix: pure Bengali ভিডিও
-  { garbled: 'ভিডিও提示尉', correct: '视频提示词' },
-  { garbled: 'ভিডিও提示ు', correct: '视频提示词' },
-  { garbled: 'ভিডিও提示ு', correct: '视频提示词' },
-  { garbled: 'ভিডিও提示ి', correct: '视频提示词' },
-  { garbled: 'ভিডিও提示ו', correct: '视频提示词' },
-  // Prefix: mixed Bengali-Devanagari ভিডিও
-  { garbled: 'ভিডিও提示尉', correct: '视频提示词' },
-  { garbled: 'ভিডিও提示ు', correct: '视频提示词' },
-  // Prefix: pure Bengali ভিডিয়ো
-  { garbled: 'ভিডিয়ো提示尉', correct: '视频提示词' },
-  { garbled: 'ভিডিয়ো提示ु', correct: '视频提示词' },
-  { garbled: 'ভিডিয়ো提示ք', correct: '视频提示词' },
-  // Prefix: Devanagari variant ভিডिओ
-  { garbled: 'ভিডिओ提示尉', correct: '视频提示词' },
-  { garbled: 'ভিডिओ提示ు', correct: '视频提示词' },
-  // Also handle the case where only the prefix is corrupted (suffix is correct 提示词)
-  { garbled: 'ভিডಿಯೋ提示词', correct: '视频提示词' },
-  { garbled: 'ভিডിയോ提示词', correct: '视频提示词' },
-  { garbled: 'ভিডियো提示词', correct: '视频提示词' },
-  { garbled: 'ভিডিও提示词', correct: '视频提示词' },
-];
+// Matches any garbled "视频提示词" variant:
+//   Group 1: the Bengali/Devanagari video prefix
+//   Then 提示 (literal)
+//   Then any non-colon/non-newline chars (lazy)
+//   Stop at next colon, newline, or end-of-string
+const GARBLED_VIDEO_LABEL_RE =
+  /((?:ভিড(?:ি(?:ও|ো)|িও)|ডিও)提示[^\n:]*?)(?=[:\n]|$)/gu;
+
+// Matches garbled video label at end of string (no colon follows):
+// Handles cases like "ভিডিও提示尉" at the very end of the text.
+const GARBLED_VIDEO_LABEL_END_RE =
+  /((?:ভিড(?:ি(?:ও|ো)|িও)|ডিও)提示[^\n]*$)/gmu;
+
+function replaceGarbledVideoLabel(
+  match: string,
+  _prefix: string,
+  _offset: number,
+  _text: string
+): string {
+  return '视频提示词';
+}
+
+function replaceGarbledVideoLabelEnd(
+  match: string,
+  _prefix: string,
+  _offset: number,
+  _text: string
+): string {
+  return '视频提示词';
+}
 
 // ─── Time word conversion ────────────────────────────────────────────────────────
 
@@ -79,7 +95,6 @@ function convertTime(match: string, hours: string, minutes: string, suffix: stri
   if (isNaN(h) || isNaN(m)) return match;
   const hWord = hourToWord(h);
   const mWord = minuteToWord(m);
-  // Normalize suffix: strip dots and spaces -> "a.m." or "am" or "p.m."
   const suffixNorm = suffix.replace(/[. ]/g, '').toLowerCase();
   const suffixWord = suffixNorm === 'am' ? 'a.m.' : suffixNorm === 'pm' ? 'p.m.' : suffix;
   return `${hWord} ${mWord} ${suffixWord}`.trim();
@@ -92,8 +107,6 @@ function convertTime(match: string, hours: string, minutes: string, suffix: stri
  * Handles times without am/pm suffix as well.
  */
 function convertTimesToWords(text: string): string {
-  // Pattern: HH:MM followed by optional am/pm (with flexible dot/space variations)
-  // Handles: "11:40 a.m." "11:40 a.m" "11:40 am" "11:40 a.m" "11:40 a. m." "11:40 p.m."
   // Guard: skip ordinals like "8th", "12th"
   return text.replace(
     /(\d{1,2}):(\d{2})([ .]*?(?:a\.?m\.?|p\.?m\.?))?/gi,
@@ -109,19 +122,25 @@ function convertTimesToWords(text: string): string {
 }
 
 /**
- * Normalize garbled text: replace Bengali/Indian-script garbled "视频"
- * prefixes with correct Chinese "视频", and normalize "动画" variants.
+ * Normalize garbled text: replace Bengali/Indian-script garbled "视频提示词"
+ * labels with correct Chinese, and normalize "动画" variants.
  * Also ensures each field label starts on its own line for reliable parsing.
  */
 export function normalizeScriptText(text: string): string {
   let result = text;
 
-  // Step 1: Replace garbled full labels (prefix + garbage suffix) with correct Chinese.
-  // This must run BEFORE the newline-insertion loop so the garbage doesn't confuse it.
-  for (const entry of GARBLED_LABELS) {
-    const escaped = entry.garbled.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    result = result.replace(new RegExp(escaped, 'g'), entry.correct);
-  }
+  // Step 1: Replace garbled video labels (prefix + 提示 + garbage) with correct Chinese.
+  // Run the main regex first (handles labels followed by colon/newline):
+  result = result.replace(GARBLED_VIDEO_LABEL_RE, replaceGarbledVideoLabel);
+
+  // Run the end-of-string regex for any remaining garbled labels at text end:
+  result = result.replace(GARBLED_VIDEO_LABEL_END_RE, replaceGarbledVideoLabelEnd);
+
+  // Also handle garbled prefix + correct 提示词 suffix (rare case):
+  result = result.replace(
+    /((?:ভিড(?:ি(?:ও|ো)|িও)|ডিও)提示词)/gu,
+    '视频提示词'
+  );
 
   // Normalize "动画提示词" → "视频提示词"
   result = result.replace(/动画提示词/g, '视频提示词');
@@ -131,8 +150,6 @@ export function normalizeScriptText(text: string): string {
   result = convertTimesToWords(result);
 
   // Ensure each field label starts on its own line.
-  // Handles both multi-line scripts (already formatted) and single-line / OCR
-  // scripts where labels appear mid-sentence without preceding newlines.
   // All label variants (simplified + traditional) for newline insertion
   const labels = [
     '视频提示词', '視頻提示詞', '动画提示词', '動畫提示詞',
@@ -144,8 +161,6 @@ export function normalizeScriptText(text: string): string {
     '镜头', '鏡頭',
   ];
   for (const label of labels) {
-    // Insert a newline before the label only if it's NOT already at line start.
-    // Pattern: preceded by any character that is NOT a newline or string start.
     result = result.replace(new RegExp(
       '(?<!\\n)(?=' + label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')',
       'g'
@@ -182,37 +197,33 @@ function parseNormalizedText(raw: string): { panels: ParsedScriptPanel[]; errors
   const panels: ParsedScriptPanel[] = [];
   const errors: string[] = [];
 
-  // Field label names — longer/more specific first.
-  // Includes simplified and traditional Chinese variants.
   const FIELD_LABELS: { label: string; field: string }[] = [
     { label: '视频提示词', field: 'video_prompt' },
-    { label: '視頻提示詞', field: 'video_prompt' },   // traditional
+    { label: '視頻提示詞', field: 'video_prompt' },
     { label: '动画提示词', field: 'video_prompt' },
-    { label: '動畫提示詞', field: 'video_prompt' },   // traditional
+    { label: '動畫提示詞', field: 'video_prompt' },
     { label: '图片提示词', field: 'image_prompt' },
-    { label: '圖片提示詞', field: 'image_prompt' },   // traditional
+    { label: '圖片提示詞', field: 'image_prompt' },
     { label: '镜头文案',   field: 'scene_description' },
-    { label: '鏡頭文案',   field: 'scene_description' }, // traditional
+    { label: '鏡頭文案',   field: 'scene_description' },
     { label: '景别',       field: 'shot_type' },
-    { label: '景別',       field: 'shot_type' },        // traditional
+    { label: '景別',       field: 'shot_type' },
     { label: '语音分镜',   field: 'voiceover' },
-    { label: '語音分鏡',   field: 'voiceover' },        // traditional
+    { label: '語音分鏡',   field: 'voiceover' },
     { label: '音效',       field: 'sound_cue' },
   ];
 
-  // Build regex: match field label (at start of string, or after newline),
-  // followed by colon/fullwidth-colon and optional whitespace.
-  // This works for both multi-line scripts and OCR single-line scripts.
   const escapedLabels = FIELD_LABELS.map((f) => f.label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-  // Include garbled labels in the lookahead so the regex never uses them as field boundaries
-  const garbledLabelParts = GARBLED_LABELS.map((e) => e.garbled.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-  const allLabelLookahead = [...escapedLabels, ...garbledLabelParts].join('|');
+  // Add garbled video prefix patterns to the lookahead so they never become field boundaries
+  const garbledPrefixes = [
+    '(?:ভিড(?:ি(?:ও|ো)|িও)|ডিও)提示[^\\n:]*?',
+  ];
+  const allLabelLookahead = [...escapedLabels, ...garbledPrefixes].join('|');
   const labelRegex = new RegExp(
     '(?:^|(?:\\n))(' + escapedLabels.join('|') + ')[：:][ \\t]*',
     'gmu'
   );
 
-  // Normalize line endings and collapse excessive whitespace
   const normalized = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
   // Split into panel blocks by "镜头" header (both simplified and traditional)
@@ -222,18 +233,12 @@ function parseNormalizedText(raw: string): { panels: ParsedScriptPanel[]; errors
     const trimmed = block.trim();
     if (!trimmed) continue;
 
-    // Extract panel number from header
     const headerMatch = trimmed.match(/^(?:镜头|鏡頭)\s*(\d+)/m);
     const panel_number = headerMatch ? parseInt(headerMatch[1], 10) : 0;
 
-    // Extract field values using regex on the whole block string.
-    // For each field, find its label position, then take text up to the
-    // next label (or end). This correctly handles content that contains
-    // characters that look like label starts (e.g. "11:40", "8th Street").
     const fieldValues: Record<string, string> = {};
 
     for (const fl of FIELD_LABELS) {
-      // Find this label in the block
       const escaped = fl.label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const fieldRegex = new RegExp(
         '(?:^|(?:\\n))(' + escaped + ')[：:][ \\t]*(.*?)(?=(?:\\n)(?:' + allLabelLookahead + ')[：:]|$)',
