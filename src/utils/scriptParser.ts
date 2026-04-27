@@ -33,24 +33,6 @@ export function normalizeScriptText(text: string): string {
   return result;
 }
 
-/**
- * Field label patterns to match (normalized + variants).
- * Order matters: more specific patterns first.
- */
-const FIELD_PATTERNS: { label: string; pattern: RegExp; field: string }[] = [
-  { label: '视频提示词', pattern: /视频提示词[：:]\s*/i, field: 'video_prompt' },
-  { label: '图片提示词', pattern: /图片提示词[：:]\s*/i, field: 'image_prompt' },
-  { label: '镜头文案',   pattern: /镜头文案[：:]\s*/i, field: 'scene_description' },
-  { label: '景别',       pattern: /景别[：:]\s*/i, field: 'shot_type' },
-  { label: '语音分镜',   pattern: /语音分镜[：:]\s*/i, field: 'voiceover' },
-  { label: '音效',       pattern: /音效[：:]\s*/i, field: 'sound_cue' },
-  { label: '镜头',       pattern: /镜头\d*[：:]\s*/i, field: 'shot_number' },
-];
-
-/**
- * Parse a block of storyboard script text into structured panels.
- * Returns an array of parsed panels with all fields extracted.
- */
 export interface ParsedScriptPanel {
   panel_number: number;
   scene_description: string;
@@ -59,7 +41,6 @@ export interface ParsedScriptPanel {
   shot_type: string;
   voiceover: string;
   sound_cue: string;
-  /** Raw text of this block before parsing */
   raw_text: string;
 }
 
@@ -71,71 +52,94 @@ export interface ParseScriptResult {
 
 /**
  * Parse the raw script text (already normalized) into panels.
+ * Uses line-based parsing to correctly handle field values containing
+ * characters that look like field label prefixes.
  */
 function parseNormalizedText(raw: string): { panels: ParsedScriptPanel[]; errors: string[] } {
   const panels: ParsedScriptPanel[] = [];
   const errors: string[] = [];
 
-  // Split into blocks by "镜头" header
-  // Pattern: "镜头1\n" or "镜头 1\n" or "镜头1：" etc.
-  const blocks = raw.split(/(?=^镜头\s*\d+)/mu);
+  // Field label names (without regex) — must match /^LABEL/
+  const FIELD_LABELS: { label: string; field: string }[] = [
+    { label: '视频提示词', field: 'video_prompt' },
+    { label: '图片提示词', field: 'image_prompt' },
+    { label: '镜头文案',   field: 'scene_description' },
+    { label: '景别',       field: 'shot_type' },
+    { label: '语音分镜',   field: 'voiceover' },
+    { label: '音效',       field: 'sound_cue' },
+  ];
 
-  for (let i = 0; i < blocks.length; i++) {
-    const block = blocks[i].trim();
-    if (!block) continue;
+  // Build regex that matches any field label at the start of a line
+  // The label can be followed by : or ： and optional whitespace
+  const labelRegex = new RegExp(
+    '^(' + FIELD_LABELS.map((f) => f.label).join('|') + ')[：:][ \\t]*',
+    'mu'
+  );
+
+  // Split into panel blocks by "镜头" header (at line start)
+  const panelBlocks = raw.split(/(?=^镜头\s*\d+)/mu);
+
+  for (const block of panelBlocks) {
+    const trimmed = block.trim();
+    if (!trimmed) continue;
 
     // Extract panel number from header
-    const headerMatch = block.match(/^镜头\s*(\d+)/m);
-    const panel_number = headerMatch ? parseInt(headerMatch[1], 10) : i + 1;
+    const headerMatch = trimmed.match(/^镜头\s*(\d+)/m);
+    const panel_number = headerMatch ? parseInt(headerMatch[1], 10) : 0;
 
-    // Initialize fields
-    const fields: Record<string, string> = {
-      panel_number: String(panel_number),
-      scene_description: '',
-      image_prompt: '',
-      video_prompt: '',
-      shot_type: '',
-      voiceover: '',
-      sound_cue: '',
+    // Parse all labeled fields within this block using line scanning
+    const fieldValues: Record<string, string> = {};
+    const lines = trimmed.split('\n');
+    let currentField = '';
+    let currentLines: string[] = [];
+
+    const flushField = () => {
+      if (currentField && currentLines.length > 0) {
+        fieldValues[currentField] = currentLines.join('\n').trim();
+      }
+      currentField = '';
+      currentLines = [];
     };
 
-    // Try to extract each field
-    for (const fp of FIELD_PATTERNS) {
-      const match = block.match(fp.pattern);
-      if (match) {
-        const afterLabel = block.substring(match.index! + match[0].length);
-        // Field value ends at next field label, blank line, or end
-        let value = '';
-        let endIdx = -1;
-        for (const nextFp of FIELD_PATTERNS) {
-          const nextMatch = afterLabel.indexOf(nextFp.pattern.source.match(/^[^\[]*/)![0]);
-          if (nextMatch !== -1 && (endIdx === -1 || nextMatch < endIdx)) {
-            endIdx = nextMatch;
-          }
+    for (const line of lines) {
+      const labelMatch = line.match(labelRegex);
+      if (labelMatch) {
+        flushField();
+        // Find which field this label corresponds to
+        const matchedText = labelMatch[1];
+        const fieldDef = FIELD_LABELS.find((f) => f.label === matchedText);
+        if (fieldDef) {
+          currentField = fieldDef.field;
+          // Value is everything after the label part (preserving the rest of this line)
+          const afterLabel = line.substring(labelMatch[0].length);
+          currentLines.push(afterLabel);
         }
-        // Also end at double newline
-        const blankIdx = afterLabel.search(/\n\s*\n/);
-        if (blankIdx !== -1 && (endIdx === -1 || blankIdx < endIdx)) {
-          endIdx = blankIdx;
+      } else {
+        // Continuation line — only append if we're inside a field value
+        if (currentField) {
+          currentLines.push(line);
         }
-
-        value = endIdx === -1 ? afterLabel.trim() : afterLabel.substring(0, endIdx).trim();
-        fields[fp.field] = value;
+        // Otherwise (e.g. "镜头1" header line with no content) — skip
       }
     }
+    flushField();
 
-    // Only add if we found at least some content
-    const hasContent = fields.scene_description || fields.image_prompt || fields.video_prompt || fields.shot_type;
+    const hasContent =
+      fieldValues['scene_description'] ||
+      fieldValues['image_prompt'] ||
+      fieldValues['video_prompt'] ||
+      fieldValues['shot_type'];
+
     if (hasContent) {
       panels.push({
         panel_number,
-        scene_description: fields.scene_description,
-        image_prompt: fields.image_prompt,
-        video_prompt: fields.video_prompt,
-        shot_type: fields.shot_type,
-        voiceover: fields.voiceover,
-        sound_cue: fields.sound_cue,
-        raw_text: block,
+        scene_description: fieldValues['scene_description'] || '',
+        image_prompt: fieldValues['image_prompt'] || '',
+        video_prompt: fieldValues['video_prompt'] || '',
+        shot_type: fieldValues['shot_type'] || '',
+        voiceover: fieldValues['voiceover'] || '',
+        sound_cue: fieldValues['sound_cue'] || '',
+        raw_text: trimmed,
       });
     }
   }
