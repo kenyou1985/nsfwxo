@@ -569,7 +569,7 @@ export function StoryboardSection({
                       <div className="mb-2">
                         <div className="flex items-center gap-1 mb-0.5">
                           <Video size={8} className="text-blue-400" />
-                          <span className="text-[8px] text-blue-400 font-medium">视频提示词</span>
+                          <span className="text-[8px] text-blue-400 font-medium">动画提示词</span>
                         </div>
                         <p className="text-[8px] text-blue-500/80 font-mono leading-relaxed line-clamp-2 bg-blue-50 rounded px-1.5 py-1">
                           {extractVideoPromptFromImagePrompt(panel.image_prompt, r18Enabled)}

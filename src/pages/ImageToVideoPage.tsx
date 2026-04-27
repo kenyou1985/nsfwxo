@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Video, Image as ImageIcon, Wand2, Copy, Check, Loader2, X, Clock, History, Sparkles, ChevronRight, ChevronDown, Trash2 } from 'lucide-react';
+import { Video, Image as ImageIcon, Wand2, Copy, Check, Loader2, X, Clock, History, Sparkles, ChevronRight, ChevronDown, ChevronUp, Trash2, Clapperboard } from 'lucide-react';
 import { ImageUploader } from '../components/ImageUploader';
 import { GirlfriendSelector } from '../components/GirlfriendSelector';
 import { ParameterSlider } from '../components/ParameterSlider';
@@ -8,6 +8,7 @@ import { GenerateButton } from '../components/GenerateButton';
 import { VideoTaskList } from '../components/VideoTaskList';
 import { uploadImage } from '../services/runninghub';
 import { expandPrompt, randomPrompt } from '../services/promptApi';
+import { parseStoryboardScript, toVideoScriptPanels, type ParsedScriptPanel } from '../utils/scriptParser';
 import { getYunwuKey } from '../services/storage';
 import { getRecords, deleteRecord, clearAllHistory, type HistoryRecord } from '../services/historyService';
 import { extractImagesFromZipAsDataUrls } from '../services/runninghub';
@@ -397,7 +398,7 @@ function AIPromptPanel({ on应用 }: AIPromptPanelProps) {
               R18模式 ? 'bg-gradient-to-r from-red-500 to-red-600 text-white hover:opacity-90' : 'bg-gradient-to-r from-primary to-primary/80 text-white hover:opacity-90'
             }`}
           >
-            <Video size={14} />生成视频提示词
+            <Video size={14} />生成动画提示词
           </button>
         </div>
       )}
@@ -806,6 +807,12 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
   const [selectedGirlfriend, setSelectedGirlfriend] = useState<GirlfriendPreset | null>(null);
   const [girlfriendUploading, setGirlfriendUploading] = useState(false);
 
+  // Script import state
+  const [parsedScriptPanels, setParsedScriptPanels] = useState<ParsedScriptPanel[]>([]);
+  const [scriptInputText, setScriptInputText] = useState('');
+  const [scriptInputOpen, setScriptInputOpen] = useState(false);
+  const [parseError, setParseError] = useState<string | null>(null);
+
   // Check for storyboard image2video data on mount
   useEffect(() => {
     // Try new direct format first (auto-generate)
@@ -1031,6 +1038,22 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
     onSuccess(`已应用姿势: ${poseName}`);
   };
 
+  const handleParseScript = () => {
+    if (!scriptInputText.trim()) return;
+    try {
+      const result = parseStoryboardScript(scriptInputText);
+      if (result.panels.length === 0) {
+        setParseError('未能识别到任何分镜，请检查格式是否正确（需包含「镜头」编号）');
+        return;
+      }
+      setParsedScriptPanels(result.panels);
+      setParseError(null);
+      onSuccess(`成功解析 ${result.panels.length} 个分镜`);
+    } catch (err) {
+      setParseError(err instanceof Error ? err.message : '解析失败');
+    }
+  };
+
   return (
     <div className="space-y-4 animate-fade-in">
       {/* 任务列表 */}
@@ -1093,6 +1116,98 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
         disabled={isSubmitting}
         selectedGirlfriend={selectedGirlfriend}
       />
+
+      {/* 脚本导入 — 从粘贴的脚本文本中识别分镜 */}
+      <div className="rounded-xl bg-bg-surface border border-border overflow-hidden">
+        <button
+          onClick={() => setScriptInputOpen(!scriptInputOpen)}
+          className="w-full px-4 py-3 flex items-center justify-between hover:bg-bg-elevated transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <Clapperboard size={15} className="text-purple-500" />
+            <span className="text-sm font-medium text-text-primary">脚本导入</span>
+            {parsedScriptPanels.length > 0 && (
+              <span className="px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-600 text-[11px] font-medium">
+                {parsedScriptPanels.length} 个分镜
+              </span>
+            )}
+          </div>
+          {scriptInputOpen ? <ChevronUp size={15} className="text-text-tertiary" /> : <ChevronDown size={15} className="text-text-tertiary" />}
+        </button>
+
+        {scriptInputOpen && (
+          <div className="px-4 pb-4 space-y-3 border-t border-border/50">
+            <p className="text-xs text-text-tertiary mt-2">
+              粘贴分镜脚本文本，自动识别「镜头文案」「图片提示词」「视频提示词」「景别」「音效」「语音分镜」等字段。
+            </p>
+            <textarea
+              value={scriptInputText}
+              onChange={(e) => { setScriptInputText(e.target.value); setParseError(null); }}
+              placeholder={'粘贴分镜脚本，例如：\n\n镜头1\n镜头文案: xxx\n图片提示词: xxx\n视频提示词: xxx\n景别: 中景\n音效: xxx\n\n镜头2\n...'}
+              rows={8}
+              className="w-full px-3 py-2 rounded-lg bg-bg-elevated border border-border text-xs text-text-primary placeholder-slate-600 focus:outline-none focus:border-primary/50 resize-none font-mono"
+            />
+            {parseError && (
+              <p className="text-xs text-red-500">{parseError}</p>
+            )}
+            <div className="flex gap-2">
+              <button
+                onClick={handleParseScript}
+                disabled={!scriptInputText.trim()}
+                className="px-4 py-2 rounded-lg bg-purple-600 text-white text-xs font-medium hover:bg-purple-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                解析脚本
+              </button>
+              {parsedScriptPanels.length > 0 && (
+                <button
+                  onClick={() => { setParsedScriptPanels([]); setScriptInputText(''); setParseError(null); }}
+                  className="px-4 py-2 rounded-lg bg-bg-elevated border border-border text-text-secondary text-xs hover:bg-bg-hover transition-colors"
+                >
+                  清除
+                </button>
+              )}
+            </div>
+
+            {/* Parsed panels preview */}
+            {parsedScriptPanels.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-text-secondary font-medium">解析结果预览</span>
+                  <span className="text-xs text-text-tertiary">{parsedScriptPanels.length} 个分镜</span>
+                </div>
+                <div className="max-h-60 overflow-y-auto space-y-2">
+                  {parsedScriptPanels.map((panel, idx) => (
+                    <div key={idx} className="rounded-lg bg-bg-elevated border border-border p-3 space-y-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="px-1.5 py-0.5 rounded bg-purple-600 text-white text-[10px] font-medium">
+                          镜头{panel.panel_number}
+                        </span>
+                        {panel.shot_type && (
+                          <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-600 text-[10px]">
+                            {panel.shot_type}
+                          </span>
+                        )}
+                      </div>
+                      {panel.scene_description && (
+                        <p className="text-[11px] text-text-secondary line-clamp-2">{panel.scene_description}</p>
+                      )}
+                      {panel.video_prompt && (
+                        <p className="text-[10px] text-purple-500 line-clamp-2">视频: {panel.video_prompt}</p>
+                      )}
+                      {panel.image_prompt && (
+                        <p className="text-[10px] text-green-600 line-clamp-2">图片: {panel.image_prompt}</p>
+                      )}
+                      {panel.sound_cue && (
+                        <p className="text-[10px] text-amber-600">音效: {panel.sound_cue}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* 视频参数 */}
       <div className="rounded-xl bg-bg-surface border border-border p-4">

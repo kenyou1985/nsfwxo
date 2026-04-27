@@ -16,6 +16,7 @@ import {
   generateVideoScript,
   listStoryboardThemes,
   pollPromptTask,
+  getPromptTaskStatus,
   type PromptTaskStatus,
   PromptResult,
 } from '../services/promptApi';
@@ -1687,108 +1688,144 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   useEffect(() => { onErrorRef.current = onError; }, [onError]);
 
   // Track pending async prompt tasks (task_id -> task type) for polling/restore on refresh.
-  // Persisted to sessionStorage so tasks survive page refresh — the server-side
-  // background task keeps running even when the browser is killed/backgrounded.
+  // Persisted to localStorage so tasks survive page refresh and are shared across tabs.
   const [pendingPromptTasks, setPendingPromptTasks] = useState<Record<string, string>>(() => {
     try {
-      const raw = sessionStorage.getItem('nsfwxo_pending_prompt_tasks');
-      console.log('[restore] useState init, sessionStorage raw:', raw);
+      const raw = localStorage.getItem('nsfwxo_pending_prompt_tasks');
       return raw ? JSON.parse(raw) : {};
     } catch { return {}; }
   });
 
-  // Always log sessionStorage on mount, regardless of task state
-  useEffect(() => {
-    console.log('[restore] mount, pendingPromptTasks:', pendingPromptTasks);
-    console.log('[restore] mount, sessionStorage:', sessionStorage.getItem('nsfwxo_pending_prompt_tasks'));
-  }, []);
-
-  // Persist pending tasks to sessionStorage so they survive page refresh
+  // Persist pending tasks to localStorage
   useEffect(() => {
     try {
-      console.log('[restore] persisting pendingPromptTasks:', pendingPromptTasks);
-      sessionStorage.setItem('nsfwxo_pending_prompt_tasks', JSON.stringify(pendingPromptTasks));
-    } catch (e) { console.error('[restore] sessionStorage write failed:', e); }
+      localStorage.setItem('nsfwxo_pending_prompt_tasks', JSON.stringify(pendingPromptTasks));
+    } catch (e) { console.error('[prompt-task] localStorage write failed:', e); }
   }, [pendingPromptTasks]);
 
-  // Poll pending tasks and restore them on mount.
+  // Cross-tab synchronization: listen for storage events from other tabs
   useEffect(() => {
-    const tasks = Object.entries(pendingPromptTasks);
-    console.log('[restore] useEffect running, tasks from sessionStorage:', tasks);
-
-    if (tasks.length === 0) return;
-
-    const abortCtrl = new AbortController();
-
-    const pollTasks = async () => {
-      for (const [taskId, taskType] of tasks) {
-        if (abortCtrl.signal.aborted) break;
+    const handler = (e: StorageEvent) => {
+      if (e.key === 'nsfwxo_pending_prompt_tasks' && e.newValue) {
         try {
-          const status = await pollPromptTask(taskId, undefined, abortCtrl.signal);
-
-          if (status.status === 'DONE') {
-            const res = status.result;
-            if (taskType === 'themes' && res?.themes) {
-              setThemeOptions(res.themes);
-              setStoryStep('themes');
-              setSelectedThemes([]);
-              onSuccessRef.current(`主题已生成（${res.themes.length} 个），请选择`);
-            } else if (taskType === 'outline' && res?.storyboard) {
-              const panels = res.storyboard;
-              const hid = res.theme_id;
-              const historyId = addStoryboardHistory({
-                plot: res.theme_title ?? '主题',
-                panel_count: panels.length,
-                r18: r18Mode,
-                panels,
-              });
-              if (hid !== undefined) {
-                setThemeOutlineStates((prev) => ({
-                  ...prev,
-                  [hid]: {
-                    generating: false,
-                    outlineArc: res.outline?.arc ?? '',
-                    outlineScenes: res.outline?.scenes ?? [],
-                    panels,
-                    historyId,
-                    error: undefined,
-                  },
-                }));
-              }
-              setCurrentHistoryId(historyId);
-              saveStoryboardSession({
-                plot: res.theme_title ?? '主题',
-                panelCount: panels.length,
-                panels,
-                expandedPanel: null,
-                themeTitle: res.theme_title,
-                historyId,
-              });
-              setHistory(getStoryboardHistory());
-              onSuccessRef.current(`「${res.theme_title ?? '主题'}」的大纲已生成`);
-            } else if (taskType === 'script' && res?.panels) {
-              setVideoScript({
-                script_title: res.script_title ?? `${res.theme_title ?? '主题'} 脚本`,
-                duration: res.duration ?? '15-30秒',
-                panels: res.panels ?? [],
-              });
-              onSuccessRef.current('视频脚本生成完成');
-            }
-            // Remove completed task
-            setPendingPromptTasks((prev) => { const n = { ...prev }; delete n[taskId]; return n; });
-          } else if (status.status === 'FAILED') {
-            onErrorRef.current(status.error ?? '任务失败');
-            setPendingPromptTasks((prev) => { const n = { ...prev }; delete n[taskId]; return n; });
+          const parsed = JSON.parse(e.newValue) as Record<string, string>;
+          setPendingPromptTasks(parsed);
+        } catch { /* ignore */ }
+      }
+      // Also process cross-tab task submission signals
+      if (e.key === 'nsfwxo_prompt_task_submit' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (!parsed.processed && parsed.taskId) {
+            setPendingPromptTasks((prev) => ({ ...prev, [parsed.taskId]: parsed.taskType }));
           }
-        } catch {
-          // Network/polling error — keep task for next attempt
-        }
+          localStorage.setItem('nsfwxo_prompt_task_submit', JSON.stringify({ ...parsed, processed: true }));
+        } catch { /* ignore */ }
       }
     };
+    window.addEventListener('storage', handler);
+    return () => window.removeEventListener('storage', handler);
+  }, []);
 
-    pollTasks();
-    return () => abortCtrl.abort();
-  }, [pendingPromptTasks]); // eslint-disable-line react-hooks/exhaustive-deps
+  // ── Core: handle a single task completing (or still running) ──
+  const handlePromptTaskResult = useCallback((taskId: string, taskType: string, status: PromptTaskStatus) => {
+    const res = status.result;
+    if (status.status === 'DONE') {
+      if (taskType === 'themes' && res?.themes) {
+        setThemeOptions(res.themes);
+        setStoryStep('themes');
+        setSelectedThemes([]);
+        onSuccessRef.current(`主题已生成（${res.themes.length} 个），请选择`);
+      } else if (taskType === 'outline' && res?.storyboard) {
+        const panels = res.storyboard;
+        const hid = res.theme_id;
+        const historyId = addStoryboardHistory({
+          plot: res.theme_title ?? '主题',
+          panel_count: panels.length,
+          r18: r18Mode,
+          panels,
+        });
+        if (hid !== undefined) {
+          setThemeOutlineStates((prev) => ({
+            ...prev,
+            [hid]: {
+              generating: false,
+              outlineArc: res.outline?.arc ?? '',
+              outlineScenes: res.outline?.scenes ?? [],
+              panels,
+              historyId,
+              error: undefined,
+            },
+          }));
+        }
+        setCurrentHistoryId(historyId);
+        saveStoryboardSession({
+          plot: res.theme_title ?? '主题',
+          panelCount: panels.length,
+          panels,
+          expandedPanel: null,
+          themeTitle: res.theme_title,
+          historyId,
+        });
+        setHistory(getStoryboardHistory());
+        onSuccessRef.current(`「${res.theme_title ?? '主题'}」的大纲已生成`);
+      } else if (taskType === 'script' && res?.panels) {
+        setVideoScript({
+          script_title: res.script_title ?? `${res.theme_title ?? '主题'} 脚本`,
+          duration: res.duration ?? '15-30秒',
+          panels: res.panels ?? [],
+        });
+        onSuccessRef.current('视频脚本生成完成');
+      }
+      setPendingPromptTasks((prev) => { const n = { ...prev }; delete n[taskId]; return n; });
+    } else if (status.status === 'FAILED') {
+      onErrorRef.current(status.error ?? '任务失败');
+      setPendingPromptTasks((prev) => { const n = { ...prev }; delete n[taskId]; return n; });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Restore: parallel pre-fetch on mount, then switch to continuous polling ──
+  useEffect(() => {
+    const entries = Object.entries(pendingPromptTasks);
+    if (entries.length === 0) return;
+
+    // Step 1: Parallel status pre-fetch (like useTaskManager.restoreTasks)
+    const restore = async () => {
+      await Promise.allSettled(
+        entries.map(async ([taskId, taskType]) => {
+          try {
+            const status = await getPromptTaskStatus(taskId);
+            if (status.status === 'DONE' || status.status === 'FAILED') {
+              handlePromptTaskResult(taskId, taskType, status);
+            }
+            // else still RUNNING/PENDING — will be picked up by continuous polling
+          } catch {
+            // Network error during restore — will be retried by continuous polling
+          }
+        })
+      );
+    };
+    restore();
+
+    // Step 2: Continuous polling via setInterval
+    const pollInterval = setInterval(async () => {
+      const currentTasks = Object.entries(pendingPromptTasks);
+      if (currentTasks.length === 0) return;
+
+      await Promise.allSettled(
+        currentTasks.map(async ([taskId, taskType]) => {
+          try {
+            const status = await pollPromptTask(taskId);
+            handlePromptTaskResult(taskId, taskType, status);
+          } catch {
+            // Polling error — keep task for next interval
+          }
+        })
+      );
+    }, 3000);
+
+    return () => clearInterval(pollInterval);
+  }, [pendingPromptTasks, handlePromptTaskResult]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Track generation state per theme (for multi-select)
   const [themeOutlineStates, setThemeOutlineStates] = useState<Record<number, {
@@ -3980,7 +4017,7 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-1.5">
                   <Video size={12} className={videoPrompt ? 'text-purple-500' : 'text-text-tertiary'} />
-                  <span className={`text-xs font-medium ${videoPrompt ? 'text-purple-600' : 'text-text-tertiary'}`}>视频提示词</span>
+                  <span className={`text-xs font-medium ${videoPrompt ? 'text-purple-600' : 'text-text-tertiary'}`}>动画提示词</span>
                 </div>
                 {hasImages && (
                   <button
@@ -4004,7 +4041,7 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
               {videoPrompt ? (
                 <div className="text-xs leading-relaxed text-text-secondary whitespace-pre-wrap font-mono">{videoPrompt}</div>
               ) : (
-                <div className="text-xs text-text-tertiary">生成图片后将自动生成视频提示词</div>
+                <div className="text-xs text-text-tertiary">生成图片后将自动生成动画提示词</div>
               )}
             </div>
 

@@ -442,3 +442,11 @@ export async function pollPromptTask(
 
   throw new Error('Task polling timed out after 5 minutes');
 }
+
+// Non-blocking status check (used for parallel restore without incrementing poll attempts)
+export async function getPromptTaskStatus(taskId: string): Promise<PromptTaskStatus> {
+  const base = getBackendUrl();
+  const response = await fetch(`${base}/api/prompt/task/${taskId}`);
+  if (!response.ok) throw new Error(`Task status fetch failed: ${response.status}`);
+  return response.json() as Promise<PromptTaskStatus>;
+}
