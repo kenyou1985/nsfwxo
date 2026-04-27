@@ -12,6 +12,70 @@ const GARBLED_VIDEO_PREFIXES = [
   'ভিডियো',   // Bengali + Devanagari
 ];
 
+// ─── Time word conversion ────────────────────────────────────────────────────────
+
+const NUM_TO_WORDS: Record<number, string> = {
+  0: 'o\'clock',
+  1: 'one', 2: 'two', 3: 'three', 4: 'four',
+  5: 'five', 6: 'six', 7: 'seven', 8: 'eight',
+  9: 'nine', 10: 'ten', 11: 'eleven', 12: 'twelve',
+  13: 'thirteen', 14: 'fourteen', 15: 'fifteen', 16: 'sixteen',
+  17: 'seventeen', 18: 'eighteen', 19: 'nineteen',
+  20: 'twenty', 30: 'thirty', 40: 'forty', 50: 'fifty',
+};
+
+function hourToWord(h: number): string {
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return NUM_TO_WORDS[h12] ?? String(h12);
+}
+
+function minuteToWord(m: number): string {
+  if (m === 0) return 'o\'clock';
+  if (m === 15) return 'fifteen';
+  if (m === 30) return 'thirty';
+  if (m === 45) return 'forty-five';
+  if (m < 10) return NUM_TO_WORDS[m] ?? `oh ${NUM_TO_WORDS[m]}`;
+  if (m < 20) return NUM_TO_WORDS[m] ?? String(m);
+  const tens = Math.floor(m / 10) * 10;
+  const ones = m % 10;
+  return ones === 0 ? NUM_TO_WORDS[tens]! : `${NUM_TO_WORDS[tens]}-${NUM_TO_WORDS[ones]}`;
+}
+
+function convertTime(match: string, hours: string, minutes: string, suffix: string): string {
+  const h = parseInt(hours, 10);
+  const m = parseInt(minutes, 10);
+  if (isNaN(h) || isNaN(m)) return match;
+  const hWord = hourToWord(h);
+  const mWord = minuteToWord(m);
+  const suffixNorm = suffix.replace(/\./g, '').toLowerCase().trim();
+  const suffixWord = suffixNorm === 'am' ? 'a.m.' : suffixNorm === 'pm' ? 'p.m.' : suffix;
+  return `${hWord} ${mWord} ${suffixWord}`.trim();
+}
+
+/**
+ * Convert numeric time formats in English text to word format.
+ * e.g. "11:40 a.m." → "eleven forty a.m."
+ *      "around 3:15" → "around three fifteen"
+ * Handles times without am/pm suffix as well.
+ */
+function convertTimesToWords(text: string): string {
+  // Pattern: optional word before, HH:MM, optional am/pm/pm. suffix
+  // We lookbehind for word characters or start to avoid matching inside words
+  return text.replace(
+    /(\d{1,2}):(\d{2})([ \.]*(?:a\.?m\.?|p\.?m\.?))?/gi,
+    (match, hours, minutes, suffix) => {
+      // Guard: do not convert "8th" (ordinals), "12:34" look like not times
+      if (/^\d{1,2}th?$/i.test(hours)) return match;
+      // Guard: if suffix exists, require it to look like am/pm
+      if (suffix !== undefined) {
+        const norm = suffix.replace(/\./g, '').trim().toLowerCase();
+        if (norm && !/^(a\.?m\.?|p\.?m\.?)$/i.test(norm)) return match;
+      }
+      return convertTime(match, hours, minutes, suffix ?? '');
+    }
+  );
+}
+
 /**
  * Normalize garbled text: replace Bengali/Indian-script garbled "视频"
  * prefixes with correct Chinese "视频", and normalize "动画" variants.
@@ -30,6 +94,10 @@ export function normalizeScriptText(text: string): string {
 
   // Normalize "动画提示词" → "视频提示词"
   result = result.replace(/动画提示词/g, '视频提示词');
+
+  // Convert numeric times to English words so they render correctly in image prompts
+  // e.g. "11:40 a.m." → "eleven forty a.m."
+  result = convertTimesToWords(result);
 
   // Ensure each field label starts on its own line.
   // Handles both multi-line scripts (already formatted) and single-line / OCR
