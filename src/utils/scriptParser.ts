@@ -52,14 +52,14 @@ export interface ParseScriptResult {
 
 /**
  * Parse the raw script text (already normalized) into panels.
- * Uses line-based parsing to correctly handle field values containing
- * characters that look like field label prefixes.
+ * Uses indexOf-based field boundary detection — reliable regardless of
+ * block content (handles : in timestamps, Chinese chars in body text, etc.).
  */
 function parseNormalizedText(raw: string): { panels: ParsedScriptPanel[]; errors: string[] } {
   const panels: ParsedScriptPanel[] = [];
   const errors: string[] = [];
 
-  // Field label names (without regex) — must match /^LABEL/
+  // Field label names (without regex) — must appear at the start of a line
   const FIELD_LABELS: { label: string; field: string }[] = [
     { label: '视频提示词', field: 'video_prompt' },
     { label: '图片提示词', field: 'image_prompt' },
@@ -69,60 +69,54 @@ function parseNormalizedText(raw: string): { panels: ParsedScriptPanel[]; errors
     { label: '音效',       field: 'sound_cue' },
   ];
 
-  // Build regex that matches any field label at the start of a line
-  // The label can be followed by : or ： and optional whitespace
-  const labelRegex = new RegExp(
-    '^(' + FIELD_LABELS.map((f) => f.label).join('|') + ')[：:][ \\t]*',
-    'mu'
-  );
+  // For each label, build variants: "LABEL：" and "LABEL:"
+  const labelVariants: { label: string; colon: string; field: string }[] = [];
+  for (const { label, field } of FIELD_LABELS) {
+    labelVariants.push({ label, colon: label + '：', field });
+    labelVariants.push({ label, colon: label + ':', field });
+  }
+  // Sort by length descending so longer labels match before shorter ones
+  labelVariants.sort((a, b) => b.colon.length - a.colon.length);
 
-  // Split into panel blocks by "镜头" header (at line start)
+  // Split into panel blocks by "镜头" header at line start
   const panelBlocks = raw.split(/(?=^镜头\s*\d+)/mu);
 
   for (const block of panelBlocks) {
     const trimmed = block.trim();
     if (!trimmed) continue;
 
-    // Extract panel number from header
+    // Extract panel number
     const headerMatch = trimmed.match(/^镜头\s*(\d+)/m);
     const panel_number = headerMatch ? parseInt(headerMatch[1], 10) : 0;
 
-    // Parse all labeled fields within this block using line scanning
-    const fieldValues: Record<string, string> = {};
-    const lines = trimmed.split('\n');
-    let currentField = '';
-    let currentLines: string[] = [];
+    // For each label variant, find its position in the block.
+    // We scan through the block by looking for the first occurrence of each
+    // label variant, then find the field value between that position and
+    // the next field's position (or end of block).
+    const labelPositions: { pos: number; field: string }[] = [];
 
-    const flushField = () => {
-      if (currentField && currentLines.length > 0) {
-        fieldValues[currentField] = currentLines.join('\n').trim();
-      }
-      currentField = '';
-      currentLines = [];
-    };
-
-    for (const line of lines) {
-      const labelMatch = line.match(labelRegex);
-      if (labelMatch) {
-        flushField();
-        // Find which field this label corresponds to
-        const matchedText = labelMatch[1];
-        const fieldDef = FIELD_LABELS.find((f) => f.label === matchedText);
-        if (fieldDef) {
-          currentField = fieldDef.field;
-          // Value is everything after the label part (preserving the rest of this line)
-          const afterLabel = line.substring(labelMatch[0].length);
-          currentLines.push(afterLabel);
-        }
-      } else {
-        // Continuation line — only append if we're inside a field value
-        if (currentField) {
-          currentLines.push(line);
-        }
-        // Otherwise (e.g. "镜头1" header line with no content) — skip
+    for (const lv of labelVariants) {
+      // Search from the end of the header line onwards to avoid matching "镜头1" itself
+      const searchStart = headerMatch ? headerMatch.index! + headerMatch[0].length : 0;
+      const pos = trimmed.indexOf(lv.colon, searchStart);
+      if (pos !== -1) {
+        labelPositions.push({ pos, field: lv.field });
       }
     }
-    flushField();
+
+    // Sort by position in text (ascending)
+    labelPositions.sort((a, b) => a.pos - b.pos);
+
+    // Extract value for each field: from end of label to start of next label
+    const fieldValues: Record<string, string> = {};
+    for (let i = 0; i < labelPositions.length; i++) {
+      const { pos, field } = labelPositions[i];
+      const colonStr = labelVariants.find((lv) => lv.field === field && trimmed.substring(pos, pos + lv.colon.length) === lv.colon)!.colon;
+      const valueStart = pos + colonStr.length;
+      const valueEnd = i + 1 < labelPositions.length ? labelPositions[i + 1].pos : trimmed.length;
+      const rawValue = trimmed.substring(valueStart, valueEnd);
+      fieldValues[field] = rawValue.trim();
+    }
 
     const hasContent =
       fieldValues['scene_description'] ||
