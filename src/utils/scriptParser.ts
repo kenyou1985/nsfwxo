@@ -240,8 +240,15 @@ function parseNormalizedText(raw: string): { panels: ParsedScriptPanel[]; errors
 
     for (const fl of FIELD_LABELS) {
       const escaped = fl.label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      // Match the field value up to a newline followed by a known label.
+      // Non-greedy .*? stops at the FIRST \n+label boundary, not the last.
+      // The s flag lets . match newlines so multi-line field values work.
+      // NOTE: this lookahead uses (?:label1|label2)[：:] NOT (?=label1|label2)[：:]
+      //   because the nested lookahead (?=X)[：:] would fail — the inner lookahead
+      //   asserts X at current position, then [：:] tries to match at the SAME position,
+      //   but X has already consumed chars, so [：:] fails. Using (?:X)[：:] fixes this.
       const fieldRegex = new RegExp(
-        '(?:^|(?:\\n))(' + escaped + ')[：:][ \\t]*(.*?)(?=(?:\\n)(?:' + allLabelLookahead + ')[：:]|$)',
+        '(?:^|(?:\\n))(' + escaped + ')[：:][ \\t]*(.*?)(?=\\n(?:' + escapedLabels.join('|') + ')[：:])',
         'smu'
       );
       const match = trimmed.match(fieldRegex);
