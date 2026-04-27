@@ -1692,9 +1692,16 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   const [pendingPromptTasks, setPendingPromptTasks] = useState<Record<string, string>>(() => {
     try {
       const raw = sessionStorage.getItem('nsfwxo_pending_prompt_tasks');
+      console.log('[restore] useState init, sessionStorage raw:', raw);
       return raw ? JSON.parse(raw) : {};
     } catch { return {}; }
   });
+
+  // Always log sessionStorage on mount, regardless of task state
+  useEffect(() => {
+    console.log('[restore] mount, pendingPromptTasks:', pendingPromptTasks);
+    console.log('[restore] mount, sessionStorage:', sessionStorage.getItem('nsfwxo_pending_prompt_tasks'));
+  }, []);
 
   // Persist pending tasks to sessionStorage so they survive page refresh
   useEffect(() => {
