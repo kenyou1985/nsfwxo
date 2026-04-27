@@ -173,7 +173,8 @@ export function HistoryPage({ onRegenerate, onSuccess, onError }: HistoryPagePro
   };
 
   const handleToggleFavorite = (imageUrl: string, prompt?: string) => {
-    const existing = favorites.find((f) => f.imageUrl === imageUrl);
+    // Use imageRef for lookup since addFavorite stores the URL in imageRef field
+    const existing = favorites.find((f) => f.imageRef === imageUrl);
     if (existing) {
       removeFavorite(existing.id);
       setFavorites(getFavorites());
@@ -196,7 +197,8 @@ export function HistoryPage({ onRegenerate, onSuccess, onError }: HistoryPagePro
     }
   };
 
-  const isFav = (url: string) => favorites.some((f) => f.imageUrl === url);
+  // Use imageRef for lookup since addFavorite stores the URL in imageRef field
+  const isFav = (url: string) => favorites.some((f) => f.imageRef === url);
 
   // Image history
   const currentImages = lightboxRecordIndex !== null && activeTab === 'image'

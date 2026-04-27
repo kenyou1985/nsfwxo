@@ -77,6 +77,7 @@ export interface StoryboardThemeOption {
 }
 
 export interface StoryboardThemesResponse {
+  task_id?: string;
   themes: StoryboardThemeOption[];
 }
 
@@ -86,6 +87,7 @@ export interface StoryboardOutline {
 }
 
 export interface StoryboardOutlineResponse {
+  task_id?: string;
   theme_id: number;
   theme_title: string;
   outline: StoryboardOutline;
@@ -102,6 +104,7 @@ export interface VideoScriptPanel {
 }
 
 export interface StoryboardScriptResponse {
+  task_id?: string;
   theme_title: string;
   script_title: string;
   duration: string;
@@ -279,11 +282,12 @@ export async function generateStoryboard(
 export async function generateStoryboardThemes(
   r18: boolean = false,
   count: number = 10,
-  customDescription?: string
+  customDescription?: string,
+  asyncMode: boolean = false
 ): Promise<StoryboardThemesResponse> {
   const base = getBackendUrl();
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 300000); // 5 min
+  const timeout = setTimeout(() => controller.abort(), 300000);
   try {
     const response = await apiRequest<StoryboardThemesResponse>(
       `${base}/api/prompt/storyboard/themes`,
@@ -294,6 +298,7 @@ export async function generateStoryboardThemes(
           r18,
           count,
           ...(customDescription ? { custom_description: customDescription } : {}),
+          async_mode: asyncMode,
         }),
       },
     );
@@ -322,17 +327,18 @@ export async function generateStoryboardOutline(
   themeTitle: string,
   panelCount: number,
   r18: boolean = false,
+  asyncMode: boolean = false,
 ): Promise<StoryboardOutlineResponse> {
   const base = getBackendUrl();
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 300000); // 5 min
+  const timeout = setTimeout(() => controller.abort(), 300000);
   try {
     const response = await apiRequest<StoryboardOutlineResponse>(
       `${base}/api/prompt/storyboard/outline`,
       {
         method: 'POST',
         signal: controller.signal as RequestInit['signal'],
-        body: JSON.stringify({ theme_id: themeId, theme_title: themeTitle, panel_count: panelCount, r18 }),
+        body: JSON.stringify({ theme_id: themeId, theme_title: themeTitle, panel_count: panelCount, r18, async_mode: asyncMode }),
       },
     );
     return response;
@@ -350,10 +356,11 @@ export async function generateVideoScript(
   themeTitle: string,
   r18: boolean,
   panels: { panel_number: number; scene_description: string; image_prompt: string }[],
+  asyncMode: boolean = false,
 ): Promise<StoryboardScriptResponse> {
   const base = getBackendUrl();
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 300000); // 5 min
+  const timeout = setTimeout(() => controller.abort(), 300000);
   try {
     const response = await apiRequest<StoryboardScriptResponse>(
       `${base}/api/prompt/storyboard/script`,
@@ -368,6 +375,7 @@ export async function generateVideoScript(
             scene_description: p.scene_description,
             image_prompt: p.image_prompt,
           })),
+          async_mode: asyncMode,
         }),
       },
     );
@@ -380,4 +388,55 @@ export async function generateVideoScript(
   } finally {
     clearTimeout(timeout);
   }
+}
+
+// ─── Async Task Polling ─────────────────────────────────────────────────────────
+
+export interface PromptTaskStatus {
+  task_id: string;
+  task_type: 'themes' | 'outline' | 'script';
+  status: 'PENDING' | 'RUNNING' | 'DONE' | 'FAILED';
+  created_at: number;
+  started_at: number | null;
+  completed_at: number | null;
+  result: {
+    themes?: Array<{ id: number; title: string; description: string; tags: string[]; r18_level: string; category: string; scenario_count: number; costume_count: number }>;
+    outline?: { arc: string; scenes: string[] };
+    storyboard?: Array<{ panel_number: number; scene_description: string; image_prompt: string }>;
+    theme_title?: string;
+    script_title?: string;
+    duration?: string;
+    panels?: Array<{ panel: number; heading: string; action: string; dialogue: string; sound_cue: string; camera: string }>;
+  } | null;
+  error: string | null;
+}
+
+const POLL_INTERVAL_MS = 2000;
+const POLL_MAX_ATTEMPTS = 150;
+
+export async function pollPromptTask(
+  taskId: string,
+  onStatus?: (status: PromptTaskStatus) => void,
+  signal?: AbortSignal,
+): Promise<PromptTaskStatus> {
+  const base = getBackendUrl();
+
+  for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt++) {
+    if (signal?.aborted) throw new Error('Task polling cancelled');
+
+    const response = await fetch(`${base}/api/prompt/task/${taskId}`, { signal });
+    if (!response.ok) {
+      throw new Error(`Task polling failed: ${response.status}`);
+    }
+
+    const status: PromptTaskStatus = await response.json();
+    onStatus?.(status);
+
+    if (status.status === 'DONE') return status;
+    if (status.status === 'FAILED') throw new Error(status.error ?? 'Task failed');
+
+    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+  }
+
+  throw new Error('Task polling timed out after 5 minutes');
 }

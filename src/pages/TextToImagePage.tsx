@@ -201,7 +201,8 @@ export function TextToImagePage({
   }, [customPrompt, onSuccess]);
 
   const handleToggleFavorite = (imageUrl: string) => {
-    const existing = getFavorites().find((f) => f.imageUrl === imageUrl);
+    // Use imageRef for lookup since addFavorite stores the URL in imageRef field
+    const existing = getFavorites().find((f) => f.imageRef === imageUrl);
     if (existing) {
       removeFavorite(existing.id);
     } else {

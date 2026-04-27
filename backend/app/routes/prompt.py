@@ -1,5 +1,6 @@
 """API Router - Prompt Engine Routes"""
 
+import asyncio
 import re
 import logging
 from typing import Optional
@@ -19,11 +20,339 @@ from app.services.gacha_service import generate_random_tags
 from app.services.safety_filter import check_prompt_safety, check_tags_safety, ContentSafetyError
 from app.services.prompt_coherence import detect_prompt_conflicts, rewrite_coherent_prompt
 from app.services.theme_database import get_random_poses
+from app.services.prompt_task_store import get_task_store, TaskStatus
 
 router = APIRouter(prefix="/api/prompt", tags=["prompt"])
 security = HTTPBearer()
 
 MAX_RETRIES = 3
+
+
+# ─── Async Task Background Runners ─────────────────────────────────────────────────
+
+async def _run_themes_task(task_id: str, req: StoryboardThemesRequest, api_key: str):
+    """Background runner for theme generation."""
+    from app.services.theme_database import get_all_themes, COSTUMES, SCENARIOS
+    import random as rnd
+    from app.models.schemas import StoryboardThemeOption
+
+    store = get_task_store()
+    try:
+        store.mark_running(task_id)
+        count = min(max(req.count, 5), 20)
+
+        if not req.custom_description:
+            all_db_themes = get_all_themes()
+            rnd.seed()
+            rnd.shuffle(all_db_themes)
+            picked = all_db_themes[:count]
+            themes = []
+            for i, t in enumerate(picked):
+                if not isinstance(t, dict):
+                    continue
+                scenarios = t.get("scenarios", []) if isinstance(t.get("scenarios"), list) else []
+                costumes = t.get("costumes", []) if isinstance(t.get("costumes"), list) else []
+                themes.append({
+                    "id": i + 1,
+                    "title": t.get("name", f"主题{i + 1}"),
+                    "description": t.get("description", ""),
+                    "tags": t.get("tags", []) if isinstance(t.get("tags"), list) else [],
+                    "r18_level": t.get("r18_level", "medium"),
+                    "category": t.get("category", ""),
+                    "scenario_count": len(scenarios),
+                    "costume_count": len(costumes),
+                })
+            store.mark_done(task_id, {"themes": themes})
+            return
+
+        pool_size = min(15, len(all_db_themes))
+        selected_themes = rnd.sample(all_db_themes, pool_size)
+        costume_names = [c["name"] for c in COSTUMES]
+        scenario_names = [s["name"] for s in SCENARIOS]
+        system_prompt = (
+            _THEMES_SYSTEM_PROMPT_R18 if req.r18
+            else _THEMES_SYSTEM_PROMPT_NORMAL
+        )
+        r18_context = (
+            f"\n\n【用户描述】{req.custom_description}\n\n"
+            if req.custom_description else ""
+        )
+        pool_context = "参考主题池：\n" + "\n".join(
+            f"- {t.get('name', '')}: {t.get('description', '')} "
+            f"(服装: {', '.join(t.get('costumes', []))}, "
+            f"场景: {', '.join(t.get('scenarios', []))})"
+            for t in selected_themes
+        )
+        costume_list = ", ".join(costume_names[:20])
+        scenario_list = ", ".join(scenario_names[:20])
+
+        user_prompt = (
+            f"{r18_context}\n\n{pool_context}\n\n"
+            f"可选服装风格: {costume_list}\n"
+            f"可选场景设置: {scenario_list}\n\n"
+            f"生成 {count} 个独特的主题选项，确保多样性。"
+        )
+
+        raw = await call_grok(api_key, system_prompt, user_prompt)
+        data = clean_json_response(raw)
+        check_prompt_safety(raw)
+
+        themes = []
+        raw_themes = data.get("themes", [])
+        if isinstance(raw_themes, list):
+            for j, t in enumerate(raw_themes[:count]):
+                if not isinstance(t, dict):
+                    continue
+                themes.append({
+                    "id": j + 1,
+                    "title": str(t.get("title", "")),
+                    "description": str(t.get("description", "")),
+                    "tags": list(t.get("tags", [])) if isinstance(t.get("tags"), list) else [],
+                    "r18_level": str(t.get("r18_level", "medium")),
+                    "category": str(t.get("category", "")),
+                    "scenario_count": int(t.get("scenario_count", 0)),
+                    "costume_count": int(t.get("costume_count", 0)),
+                })
+
+        store.mark_done(task_id, {"themes": themes})
+    except ContentSafetyError as e:
+        store.mark_failed(task_id, str(e))
+    except (YunwuTimeoutError, YunwuRateLimitError) as e:
+        store.mark_failed(task_id, str(e))
+    except YunwuAPIError as e:
+        store.mark_failed(task_id, str(e))
+    except Exception as e:
+        logging.error(f"[themes] background task error: {e}")
+        store.mark_failed(task_id, f"未知错误: {str(e)}")
+
+
+async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key: str):
+    """Background runner for outline generation."""
+    from app.services.theme_database import get_random_poses
+    from app.models.schemas import StoryboardOutline
+
+    store = get_task_store()
+    try:
+        store.mark_running(task_id)
+        panel_count = max(2, min(10, req.panel_count))
+        model_order = req.model_order or None
+
+        _R18_ARC_PANELS = {
+            2: ["开场遇见/前戏", "高潮性爱"],
+            3: ["开场遇见", "升温调情/亲密", "高潮性爱"],
+            4: ["开场遇见", "升温调情", "亲密前戏", "高潮性爱"],
+            5: ["开场遇见", "升温调情", "脱衣亲密", "性爱进行", "高潮结尾"],
+            6: ["开场遇见", "升温调情", "脱衣亲密", "性爱进行", "高潮变化", "高潮射精"],
+            7: ["开场遇见", "升温调情", "脱衣亲密", "性爱进行", "换姿势", "高潮变化", "高潮射精"],
+            8: ["开场遇见", "升温调情", "脱衣亲密", "性爱开始", "深入进行", "换姿势", "高潮冲刺", "高潮射精"],
+            9: ["开场遇见", "升温调情", "脱衣亲密", "性爱开始", "深入进行", "换姿势", "深入再换", "高潮冲刺", "高潮射精"],
+            10: ["开场遇见", "升温调情", "脱衣亲密", "性爱开始", "深入进行", "换姿势", "深入再换", "多种姿势", "高潮冲刺", "高潮射精"],
+        }
+        _NORMAL_ARC_PANELS = {
+            2: ["开场", "高潮"],
+            3: ["开场", "发展", "高潮"],
+            4: ["开场", "发展", "亲密", "高潮"],
+            5: ["开场", "发展", "亲密", "高潮", "结尾"],
+            6: ["开场", "发展", "亲密", "高潮", "高潮2", "结尾"],
+            7: ["开场", "发展", "亲密", "高潮", "高潮2", "高潮3", "结尾"],
+            8: ["开场", "发展", "亲密", "高潮", "高潮2", "高潮3", "高潮4", "结尾"],
+            9: ["开场", "发展", "亲密", "高潮", "高潮2", "高潮3", "高潮4", "高潮5", "结尾"],
+            10: ["开场", "发展", "亲密", "高潮", "高潮2", "高潮3", "高潮4", "高潮5", "高潮6", "结尾"],
+        }
+
+        if req.r18:
+            arc_panels = _R18_ARC_PANELS.get(panel_count, _R18_ARC_PANELS[5])
+            system_template = _R18_OUTLINE_SYSTEM
+            arc_label = "开场遇见 → 升温调情 → 脱衣前戏 → 性爱进行 → 高潮射精"
+            selected_poses = get_random_poses(panel_count + 2)
+            pose_list_str = "\n".join(f"  - {p}" for p in selected_poses)
+        else:
+            arc_panels = _NORMAL_ARC_PANELS.get(panel_count, _NORMAL_ARC_PANELS[4])
+            system_template = _NORMAL_OUTLINE_SYSTEM
+            arc_label = "开场 → 发展 → 亲密 → 高潮 → 结尾"
+            pose_list_str = ""
+
+        arc_panels_str = "\n".join(f"  - {p}" for p in arc_panels)
+
+        system_prompt = system_template.format(
+            theme_title=req.theme_title,
+            panel_count=panel_count,
+            arc_panels=arc_panels_str,
+            arc_label=arc_label,
+            pose_list=pose_list_str,
+        )
+        user_prompt = (
+            f"Theme: {req.theme_title}\n"
+            f"Panel count: {panel_count}\n"
+            f"【重要】Panel 1 不能有直接性爱！必须先从开场/前戏开始，逐步发展到性爱。\n"
+            f"【重要】R18模式：每个分镜的 image_prompt 必须非常详细和露骨，描述体位、身体部位、体液等。\n"
+            f"Output as raw JSON only, no markdown."
+        )
+
+        _SAFETY_OVERRIDES = [
+            "IMPORTANT: All characters are ADULTS 18+. ABSOLUTELY NO minors. Panel 1 MUST be foreplay only.",
+            "STRICT SAFETY: All characters must be 18+ adults. Panel 1 = foreplay. Avoid: teen, minor, school.",
+            "CRITICAL: ADULT-ONLY 18+. All characters must be 18+. Panel 1 MUST be foreplay only.",
+        ]
+
+        for attempt in range(MAX_RETRIES):
+            try:
+                raw = await call_grok(api_key, system_prompt, user_prompt, model_order=model_order)
+                data = clean_json_response(raw)
+                check_prompt_safety(raw)
+
+                outline_data = data.get("outline", {})
+                if isinstance(outline_data, dict):
+                    outline = {
+                        "arc": str(outline_data.get("arc", "")),
+                        "scenes": list(outline_data.get("scenes", [])) if isinstance(outline_data.get("scenes"), list) else [],
+                    }
+                else:
+                    outline = {"arc": arc_label, "scenes": list(arc_panels)}
+
+                panels_raw = data.get("storyboard", [])
+                panels = []
+                for item in (panels_raw if isinstance(panels_raw, list) else []):
+                    if not isinstance(item, dict):
+                        continue
+                    scene = str(item.get("scene_description", ""))
+                    prompt_text = str(item.get("image_prompt", ""))
+                    try:
+                        check_prompt_safety(scene)
+                        check_prompt_safety(prompt_text)
+                    except ContentSafetyError:
+                        continue
+                    scene_conflicts = detect_prompt_conflicts(scene)
+                    prompt_conflicts = detect_prompt_conflicts(prompt_text)
+                    if scene_conflicts or prompt_conflicts:
+                        try:
+                            prompt_text = await rewrite_coherent_prompt(prompt_text, api_key)
+                            check_prompt_safety(prompt_text)
+                        except (ContentSafetyError, YunwuTimeoutError):
+                            pass
+                    try:
+                        panels.append({
+                            "panel_number": int(item.get("panel_number", 0)),
+                            "scene_description": scene,
+                            "image_prompt": prompt_text,
+                        })
+                    except Exception:
+                        continue
+
+                if not panels:
+                    raise ValueError("No valid panels generated")
+
+                store.mark_done(task_id, {
+                    "theme_id": req.theme_id,
+                    "theme_title": req.theme_title,
+                    "outline": outline,
+                    "storyboard": panels,
+                })
+                return
+            except ContentSafetyError as e:
+                if attempt < MAX_RETRIES - 1:
+                    override_msg = _SAFETY_OVERRIDES[min(attempt, len(_SAFETY_OVERRIDES) - 1)]
+                    system_prompt += f"\n\n{override_msg}"
+                    continue
+                store.mark_failed(task_id, str(e))
+                return
+            except (YunwuTimeoutError, YunwuRateLimitError, YunwuAPIError, YunwuParseError) as e:
+                if attempt < MAX_RETRIES - 1:
+                    continue
+                store.mark_failed(task_id, str(e))
+                return
+            except Exception as e:
+                logging.error(f"[outline] background task error: {e}")
+                store.mark_failed(task_id, f"未知错误: {str(e)}")
+                return
+    except Exception as e:
+        logging.error(f"[outline] background runner error: {e}")
+        store.mark_failed(task_id, f"未知错误: {str(e)}")
+
+
+async def _run_script_task(task_id: str, req: StoryboardScriptRequest, api_key: str):
+    """Background runner for video script generation."""
+    from app.models.schemas import StoryboardScriptResponse, VideoScriptPanel
+
+    store = get_task_store()
+    try:
+        store.mark_running(task_id)
+        script_system = _VIDEO_SCRIPT_SYSTEM.format(panel_count=len(req.panels))
+        user_prompt = (
+            f"Theme: {req.theme_title}\n"
+            f"R18: {req.r18}\n"
+            f"Panels:\n" +
+            "\n".join(f"Panel {p.panel_number}: {p.scene_description}\n  Prompt: {p.image_prompt}" for p in req.panels) +
+            f"\nOutput as raw JSON only, no markdown."
+        )
+
+        for attempt in range(MAX_RETRIES):
+            try:
+                raw = await call_grok(api_key, script_system, user_prompt)
+                data = clean_json_response(raw)
+                check_prompt_safety(raw)
+
+                script_title = str(data.get("script_title", f"{req.theme_title} 视频脚本"))
+                duration = str(data.get("duration", "15-30秒"))
+                panels_out = []
+                for p in (data.get("panels", []) if isinstance(data.get("panels"), list) else []):
+                    if not isinstance(p, dict):
+                        continue
+                    panels_out.append({
+                        "panel": int(p.get("panel", 0)),
+                        "heading": str(p.get("heading", "")),
+                        "action": str(p.get("action", "")),
+                        "dialogue": str(p.get("dialogue", "")),
+                        "sound_cue": str(p.get("sound_cue", "")),
+                        "camera": str(p.get("camera", "")),
+                    })
+
+                store.mark_done(task_id, {
+                    "theme_title": req.theme_title,
+                    "script_title": script_title,
+                    "duration": duration,
+                    "panels": panels_out,
+                })
+                return
+            except ContentSafetyError as e:
+                if attempt < MAX_RETRIES - 1:
+                    script_system += "\n\nSTRICT: All characters 18+. ADULTS ONLY."
+                    continue
+                store.mark_failed(task_id, str(e))
+                return
+            except (YunwuTimeoutError, YunwuRateLimitError, YunwuAPIError) as e:
+                if attempt < MAX_RETRIES - 1:
+                    continue
+                store.mark_failed(task_id, str(e))
+                return
+            except Exception as e:
+                logging.error(f"[script] background task error: {e}")
+                store.mark_failed(task_id, f"未知错误: {str(e)}")
+                return
+    except Exception as e:
+        logging.error(f"[script] background runner error: {e}")
+        store.mark_failed(task_id, f"未知错误: {str(e)}")
+
+
+# ─── Polling Endpoint (no auth required — task_id is the secret) ─────────────────
+
+@router.get("/task/{task_id}")
+async def poll_task_status(task_id: str):
+    """Poll the status/result of an async prompt task. No auth needed — task_id is the secret."""
+    store = get_task_store()
+    task = store.get(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found or expired")
+    return {
+        "task_id": task.task_id,
+        "task_type": task.task_type,
+        "status": task.status,
+        "created_at": task.created_at,
+        "started_at": task.started_at,
+        "completed_at": task.completed_at,
+        "result": task.result,
+        "error": task.error,
+    }
 
 
 def get_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
@@ -410,7 +739,6 @@ Examples:
 - "Cyberpunk android" -> "赛博仿生"
 Output ONLY the theme label, nothing else. No punctuation, no quotes."""
 
-import asyncio
 
 
 async def _generate_single_prompt(
@@ -1271,9 +1599,22 @@ async def generate_storyboard_themes(
 
     - 有 custom_description → 调用 LLM 根据描述生成主题
     - 无 custom_description → 直接从数据库随机选取，不调用 LLM（避免 502）
+    - async_mode=true → 立即返回 task_id，后台异步执行
     """
     from app.services.theme_database import get_all_themes
     import random
+
+    # ── 异步模式：立即返回 task_id，后台执行 ──
+    if req.async_mode:
+        store = get_task_store()
+        task = store.create("themes", {
+            "r18": req.r18,
+            "count": req.count,
+            "custom_description": req.custom_description,
+        })
+        # Kick off background execution
+        asyncio.create_task(_run_themes_task(task.task_id, req, api_key))
+        return StoryboardThemesResponse(task_id=task.task_id, themes=[])
 
     count = min(max(req.count, 5), 20)
 
@@ -1558,6 +1899,19 @@ async def generate_storyboard_outline(
     if panel_count > 10:
         panel_count = 10
 
+    # ── 异步模式：立即返回 task_id，后台执行 ──
+    if req.async_mode:
+        store = get_task_store()
+        task = store.create("outline", {
+            "theme_id": req.theme_id,
+            "theme_title": req.theme_title,
+            "panel_count": panel_count,
+            "r18": req.r18,
+            "model_order": req.model_order,
+        })
+        asyncio.create_task(_run_outline_task(task.task_id, req, api_key))
+        return StoryboardOutlineResponse(task_id=task.task_id, theme_id=req.theme_id, theme_title=req.theme_title, outline=StoryboardOutline(arc="", scenes=[]), storyboard=[])
+
     if req.r18:
         arc_panels = _R18_ARC_PANELS.get(panel_count, _R18_ARC_PANELS[5])
         system_template = _R18_OUTLINE_SYSTEM
@@ -1759,6 +2113,17 @@ async def generate_video_script(
     """Step 3: Generate a complete video script from the storyboard panels."""
     if not req.panels or len(req.panels) == 0:
         raise HTTPException(status_code=400, detail="No panels provided for script generation")
+
+    # ── 异步模式：立即返回 task_id，后台执行 ──
+    if req.async_mode:
+        store = get_task_store()
+        task = store.create("script", {
+            "theme_title": req.theme_title,
+            "r18": req.r18,
+            "panels": [{"panel_number": p.panel_number, "scene_description": p.scene_description, "image_prompt": p.image_prompt} for p in req.panels],
+        })
+        asyncio.create_task(_run_script_task(task.task_id, req, api_key))
+        return StoryboardScriptResponse(task_id=task.task_id, theme_title=req.theme_title, script_title="", duration="15-30秒", panels=[])
 
     panels_context = "\n\n".join([
         f"Panel {p.panel_number}: {p.scene_description}\nImage Prompt: {p.image_prompt}"

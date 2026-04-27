@@ -15,6 +15,8 @@ import {
   generateStoryboardOutline,
   generateVideoScript,
   listStoryboardThemes,
+  pollPromptTask,
+  type PromptTaskStatus,
   PromptResult,
 } from '../services/promptApi';
 import {
@@ -222,7 +224,8 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   const [favorites, setFavorites] = useState<FavoriteItem[]>(() => getFavorites());
 
   const handleToggleFavorite = useCallback((imageUrl: string, prompt?: string) => {
-    const existing = favorites.find((f) => f.imageUrl === imageUrl);
+    // Use imageRef for lookup since addFavorite stores the URL in imageRef field
+    const existing = favorites.find((f) => f.imageRef === imageUrl);
     if (existing) {
       removeFavorite(existing.id);
       setFavorites(getFavorites());
@@ -1073,7 +1076,8 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   const [favorites, setFavorites] = useState<FavoriteItem[]>(() => getFavorites());
 
   const handleToggleFavorite = (imageUrl: string, prompt?: string) => {
-    const existing = favorites.find((f) => f.imageUrl === imageUrl);
+    // Use imageRef for lookup since addFavorite stores the URL in imageRef field
+    const existing = favorites.find((f) => f.imageRef === imageUrl);
     if (existing) {
       removeFavorite(existing.id);
       setFavorites(getFavorites());
@@ -1676,6 +1680,104 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   const [outlineScenes, setOutlineScenes] = useState<string[]>(savedStoryboard?.outlineScenes || []);
   const [generatingOutline, setGeneratingOutline] = useState(false);
 
+  // Refs for callbacks used inside async effects — avoids stale closure issues
+  const onSuccessRef = useRef(onSuccess);
+  const onErrorRef = useRef(onError);
+  useEffect(() => { onSuccessRef.current = onSuccess; }, [onSuccess]);
+  useEffect(() => { onErrorRef.current = onError; }, [onError]);
+
+  // Track pending async prompt tasks (task_id -> task type) for polling/restore on refresh.
+  // Persisted to sessionStorage so tasks survive page refresh — the server-side
+  // background task keeps running even when the browser is killed/backgrounded.
+  const [pendingPromptTasks, setPendingPromptTasks] = useState<Record<string, string>>(() => {
+    try {
+      const raw = sessionStorage.getItem('nsfwxo_pending_prompt_tasks');
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  });
+
+  // Persist pending tasks to sessionStorage so they survive page refresh
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('nsfwxo_pending_prompt_tasks', JSON.stringify(pendingPromptTasks));
+    } catch {}
+  }, [pendingPromptTasks]);
+
+  // Poll pending tasks and restore them on mount.
+  useEffect(() => {
+    const tasks = Object.entries(pendingPromptTasks);
+    if (tasks.length === 0) return;
+
+    const abortCtrl = new AbortController();
+
+    const pollTasks = async () => {
+      for (const [taskId, taskType] of tasks) {
+        if (abortCtrl.signal.aborted) break;
+        try {
+          const status = await pollPromptTask(taskId, undefined, abortCtrl.signal);
+
+          if (status.status === 'DONE') {
+            const res = status.result;
+            if (taskType === 'themes' && res?.themes) {
+              setThemeOptions(res.themes);
+              setStoryStep('themes');
+              setSelectedThemes([]);
+              onSuccessRef.current(`主题已生成（${res.themes.length} 个），请选择`);
+            } else if (taskType === 'outline' && res?.storyboard) {
+              const panels = res.storyboard;
+              const hid = res.theme_id;
+              const historyId = addStoryboardHistory({
+                plot: res.theme_title ?? '主题',
+                panel_count: panels.length,
+                r18: r18Mode,
+                panels,
+              });
+              setThemeOutlineStates((prev) => ({
+                ...prev,
+                [hid]: {
+                  generating: false,
+                  outlineArc: res.outline?.arc ?? '',
+                  outlineScenes: res.outline?.scenes ?? [],
+                  panels,
+                  historyId,
+                  error: undefined,
+                },
+              }));
+              setCurrentHistoryId(historyId);
+              saveStoryboardSession({
+                plot: res.theme_title ?? '主题',
+                panelCount: panels.length,
+                panels,
+                expandedPanel: null,
+                themeTitle: res.theme_title,
+                historyId,
+              });
+              setHistory(getStoryboardHistory());
+              onSuccessRef.current(`「${res.theme_title ?? '主题'}」的大纲已生成`);
+            } else if (taskType === 'script' && res?.panels) {
+              setVideoScript({
+                script_title: res.script_title ?? `${res.theme_title ?? '主题'} 脚本`,
+                duration: res.duration ?? '15-30秒',
+                panels: res.panels ?? [],
+              });
+              onSuccessRef.current('视频脚本生成完成');
+            }
+            // Remove completed task
+            setPendingPromptTasks((prev) => { const n = { ...prev }; delete n[taskId]; return n; });
+          } else if (status.status === 'FAILED') {
+            onErrorRef.current(status.error ?? '任务失败');
+            setPendingPromptTasks((prev) => { const n = { ...prev }; delete n[taskId]; return n; });
+          }
+        } catch {
+          // Network/polling error — keep task for next attempt
+        }
+      }
+    };
+
+    pollTasks();
+    return () => abortCtrl.abort();
+  }, [pendingPromptTasks]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Track generation state per theme (for multi-select)
   const [themeOutlineStates, setThemeOutlineStates] = useState<Record<number, {
     generating: boolean;
@@ -1963,7 +2065,18 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     try {
       const desc = customDesc !== undefined ? customDesc : customThemeMode ? customThemeDescription : undefined;
       const cnt = customCnt !== undefined ? customCnt : customThemeCount;
-      const res = await generateStoryboardThemes(r18Mode, cnt, desc || undefined);
+      const res = await generateStoryboardThemes(r18Mode, cnt, desc || undefined, true);
+
+      // Async mode: if task_id returned, track for polling
+      if (res.task_id) {
+        setPendingPromptTasks((prev) => ({ ...prev, [res.task_id!]: 'themes' }));
+        setStoryStep('themes');
+        onSuccess(`主题生成任务已提交（可后台运行，屏幕关闭不影响）`);
+        setLoading(false);
+        return;
+      }
+
+      // Sync mode fallback (shouldn't happen with asyncMode=true, but handle it)
       setThemeOptions(res.themes);
       setStoryStep('themes');
       setSelectedThemes([]);
@@ -2024,7 +2137,15 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       [theme.id]: { generating: true, outlineArc: '', outlineScenes: [], panels: [], historyId: undefined, error: undefined },
     }));
     try {
-      const res = await generateStoryboardOutline(theme.id, theme.title, panelCount, r18Mode);
+      const res = await generateStoryboardOutline(theme.id, theme.title, panelCount, r18Mode, true);
+
+      // Async mode: if task_id returned, track for polling
+      if (res.task_id) {
+        setPendingPromptTasks((prev) => ({ ...prev, [res.task_id!]: 'outline' }));
+        return;
+      }
+
+      // Sync fallback
       const historyId = addStoryboardHistory({ plot: theme.title, panel_count: panelCount, r18: r18Mode, panels: res.storyboard });
       setThemeOutlineStates((prev) => ({
         ...prev,
@@ -2040,7 +2161,6 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       onSuccess(`「${theme.title}」的大纲已生成`);
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : `「${theme.title}」分镜生成失败`;
-      // Show error on the card instead of deleting — user can retry
       setThemeOutlineStates((prev) => ({
         ...prev,
         [theme.id]: {
@@ -2073,7 +2193,17 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     if (!selectedTheme) { onError('请先选择一个主题'); return; }
     setGeneratingOutline(true);
     try {
-      const res = await generateStoryboardOutline(selectedTheme.id, selectedTheme.title, panelCount, r18Mode);
+      const res = await generateStoryboardOutline(selectedTheme.id, selectedTheme.title, panelCount, r18Mode, true);
+
+      // Async mode: track for polling
+      if (res.task_id) {
+        setPendingPromptTasks((prev) => ({ ...prev, [res.task_id!]: 'outline' }));
+        onSuccess(`分镜生成任务已提交（可后台运行，屏幕关闭不影响）`);
+        setGeneratingOutline(false);
+        return;
+      }
+
+      // Sync fallback
       const historyId = addStoryboardHistory({ plot: selectedTheme.title, panel_count: panelCount, r18: r18Mode, panels: res.storyboard });
       setOutlineArc(res.outline.arc);
       setOutlineScenes(res.outline.scenes);
@@ -2103,7 +2233,15 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       [theme.id]: { generating: true, outlineArc: '', outlineScenes: [], panels: [], historyId: prev[theme.id]?.historyId, error: undefined },
     }));
     try {
-      const res = await generateStoryboardOutline(theme.id, theme.title, panelCount, r18Mode);
+      const res = await generateStoryboardOutline(theme.id, theme.title, panelCount, r18Mode, true);
+
+      // Async mode: track for polling
+      if (res.task_id) {
+        setPendingPromptTasks((prev) => ({ ...prev, [res.task_id!]: 'outline' }));
+        return;
+      }
+
+      // Sync fallback
       const historyId = addStoryboardHistory({ plot: theme.title, panel_count: panelCount, r18: r18Mode, panels: res.storyboard });
       setThemeOutlineStates((prev) => ({
         ...prev,
@@ -2210,7 +2348,17 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     if (panels.length === 0) { onError('先生成分镜'); return; }
     setGeneratingScript(true);
     try {
-      const res = await generateVideoScript(selectedTheme?.title || '默认主题', r18Mode, panels);
+      const res = await generateVideoScript(selectedTheme?.title || '默认主题', r18Mode, panels, true);
+
+      // Async mode: track for polling
+      if (res.task_id) {
+        setPendingPromptTasks((prev) => ({ ...prev, [res.task_id!]: 'script' }));
+        onSuccess(`视频脚本生成任务已提交（可后台运行）`);
+        setGeneratingScript(false);
+        return;
+      }
+
+      // Sync fallback
       setVideoScript(res);
       onSuccess('视频脚本已生成');
     } catch (err) {
@@ -2285,7 +2433,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   };
 
   const handleToggleFavorite = (imageUrl: string, prompt?: string) => {
-    const existing = favorites.find((f) => f.imageUrl === imageUrl);
+    // Use imageRef for lookup since addFavorite stores the URL in imageRef field
+    const existing = favorites.find((f) => f.imageRef === imageUrl);
     if (existing) {
       removeFavorite(existing.id);
       setFavorites(getFavorites());

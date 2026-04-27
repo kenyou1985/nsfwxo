@@ -76,6 +76,7 @@ class StoryboardThemesRequest(BaseModel):
     r18: bool = Field(default=False, description="是否启用 R18 模式")
     count: int = Field(default=10, ge=5, le=20, description="生成主题数量 5-20，默认 10")
     custom_description: Optional[str] = Field(default=None, description="用户自定义描述，根据此描述生成主题，优先于随机生成")
+    async_mode: bool = Field(default=False, description="设为 true 时立即返回 task_id，后台异步执行，前端轮询结果")
 
 
 class StoryboardThemeOption(BaseModel):
@@ -92,6 +93,7 @@ class StoryboardThemeOption(BaseModel):
 
 class StoryboardThemesResponse(BaseModel):
     """Response containing theme options for user to select"""
+    task_id: Optional[str] = Field(default=None, description="异步模式下的任务ID，前端轮询使用")
     themes: List[StoryboardThemeOption]
 
 
@@ -104,6 +106,7 @@ class StoryboardOutlineRequest(BaseModel):
     panel_count: int = Field(default=5, ge=2, le=10, description="分镜数量 2-10")
     r18: bool = Field(default=False, description="是否启用 R18 模式")
     model_order: Optional[List[str]] = Field(default=None, description="模型顺序，优先用第一个，失败则尝试后续模型")
+    async_mode: bool = Field(default=False, description="设为 true 时立即返回 task_id，后台异步执行，前端轮询结果")
 
 
 class StoryboardOutline(BaseModel):
@@ -114,6 +117,7 @@ class StoryboardOutline(BaseModel):
 
 class StoryboardOutlineResponse(BaseModel):
     """Response containing the narrative outline and storyboard panels"""
+    task_id: Optional[str] = Field(default=None, description="异步模式下的任务ID，前端轮询使用")
     theme_id: int
     theme_title: str
     outline: StoryboardOutline
@@ -127,6 +131,7 @@ class StoryboardScriptRequest(BaseModel):
     theme_title: str = Field(..., description="Selected theme title")
     r18: bool = Field(default=False, description="是否启用 R18 模式")
     panels: List[StoryboardPanel] = Field(..., description="已生成的分镜列表，用于生成视频脚本")
+    async_mode: bool = Field(default=False, description="设为 true 时立即返回 task_id，后台异步执行，前端轮询结果")
 
 
 class VideoScriptPanel(BaseModel):
@@ -141,6 +146,7 @@ class VideoScriptPanel(BaseModel):
 
 class StoryboardScriptResponse(BaseModel):
     """Response containing the complete video script"""
+    task_id: Optional[str] = Field(default=None, description="异步模式下的任务ID，前端轮询使用")
     theme_title: str
     script_title: str
     duration: str = Field(default="15-30秒")
