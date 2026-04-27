@@ -400,6 +400,7 @@ export interface PromptTaskStatus {
   started_at: number | null;
   completed_at: number | null;
   result: {
+    theme_id?: number;
     themes?: Array<{ id: number; title: string; description: string; tags: string[]; r18_level: string; category: string; scenario_count: number; costume_count: number }>;
     outline?: { arc: string; scenes: string[] };
     storyboard?: Array<{ panel_number: number; scene_description: string; image_prompt: string }>;

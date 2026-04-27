@@ -1742,17 +1742,19 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                 r18: r18Mode,
                 panels,
               });
-              setThemeOutlineStates((prev) => ({
-                ...prev,
-                [hid]: {
-                  generating: false,
-                  outlineArc: res.outline?.arc ?? '',
-                  outlineScenes: res.outline?.scenes ?? [],
-                  panels,
-                  historyId,
-                  error: undefined,
-                },
-              }));
+              if (hid !== undefined) {
+                setThemeOutlineStates((prev) => ({
+                  ...prev,
+                  [hid]: {
+                    generating: false,
+                    outlineArc: res.outline?.arc ?? '',
+                    outlineScenes: res.outline?.scenes ?? [],
+                    panels,
+                    historyId,
+                    error: undefined,
+                  },
+                }));
+              }
               setCurrentHistoryId(historyId);
               saveStoryboardSession({
                 plot: res.theme_title ?? '主题',
