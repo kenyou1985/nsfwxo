@@ -420,6 +420,7 @@ export async function pollPromptTask(
   signal?: AbortSignal,
 ): Promise<PromptTaskStatus> {
   const base = getBackendUrl();
+  console.log('[pollPromptTask] polling task:', taskId, 'at:', `${base}/api/prompt/task/${taskId}`);
 
   for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt++) {
     if (signal?.aborted) throw new Error('Task polling cancelled');

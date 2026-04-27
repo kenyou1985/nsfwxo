@@ -228,8 +228,10 @@ function saveHistory<T>(key: string, items: T[]): void {
       freeStorageSpace();
     } catch {}
     try {
-      const minimal = dataToSave.slice(0, 10);
+      // Aggressive truncation: keep only 20 most recent items
+      const minimal = dataToSave.slice(0, 20);
       localStorage.setItem(key, JSON.stringify(minimal));
+      console.warn(`[saveHistory] Saved with aggressive truncation to 20 items`);
     } catch (e2) {
       console.error('[saveHistory] localStorage fully unavailable:', e2);
     }
@@ -238,24 +240,49 @@ function saveHistory<T>(key: string, items: T[]): void {
 
 function freeStorageSpace(): void {
   const MB = 1024 * 1024;
-  const safeToRemove = ['nsfwxo_favorites'];
-  for (const k of safeToRemove) {
+
+  // Always clean favorites first — it is the primary quota offender (contains legacy data: URLs)
+  try {
+    const raw = localStorage.getItem(FAVORITES_KEY);
+    if (raw) {
+      const bytes = raw.length * 2;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        const cleaned = parsed.map((f: Record<string, unknown>) => {
+          if (f.imageUrl && typeof f.imageUrl === 'string' && f.imageUrl.startsWith('data:')) {
+            const imageRef = (f.imageRef as string) || hashString((f.imageUrl as string).slice(0, 2048));
+            return { ...f, imageRef, imageUrl: '' };
+          }
+          return f;
+        });
+        localStorage.setItem(FAVORITES_KEY, JSON.stringify(cleaned));
+        console.warn(`[freeStorageSpace] Cleaned ${FAVORITES_KEY}, freed ~${Math.round(bytes / MB)}MB`);
+      }
+    }
+  } catch {}
+
+  // Clean oversized history keys
+  const historyKeys = [
+    'nsfwxo_expand_history', 'nsfwxo_random_history', 'nsfwxo_storyboard_history',
+  ];
+  for (const k of historyKeys) {
     try {
       const raw = localStorage.getItem(k);
       if (!raw) continue;
       const bytes = raw.length * 2;
-      if (bytes > 100 * MB) {
+      if (bytes > 50 * MB) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
-          const cleaned = parsed.map((f: Record<string, unknown>) => {
-            if (f.imageUrl && typeof f.imageUrl === 'string' && f.imageUrl.startsWith('data:')) {
-              const imageRef = (f.imageRef as string) || hashString((f.imageUrl as string).slice(0, 2048));
-              return { ...f, imageRef, imageUrl: '' };
+          // Keep latest 100 items, strip any large blob fields
+          const trimmed = parsed.slice(0, 100).map((item: Record<string, unknown>) => {
+            const cleaned = { ...item };
+            if (cleaned.panels && Array.isArray(cleaned.panels)) {
+              cleaned.panels = (cleaned.panels as Record<string, unknown>[]).slice(0, 5);
             }
-            return f;
+            return cleaned;
           });
-          localStorage.setItem(k, JSON.stringify(cleaned));
-          console.warn(`[freeStorageSpace] Cleaned ${k}, freed ~${Math.round(bytes / MB)}MB`);
+          localStorage.setItem(k, JSON.stringify(trimmed));
+          console.warn(`[freeStorageSpace] Trimmed ${k}, freed ~${Math.round(bytes / MB)}MB`);
         }
       }
     } catch {}
@@ -482,7 +509,12 @@ export function migrateLegacyStorageData(): { favoritesCleaned: number; storyboa
     // Migrate favorites: remove imageUrl field, keep imageRef
     const rawFavs = localStorage.getItem(FAVORITES_KEY);
     if (rawFavs) {
+      const bytes = rawFavs.length * 2;
       const favs = JSON.parse(rawFavs) as FavoriteItem[];
+
+      // Always strip data: URLs. Also trim to 50 items if storage exceeds 5MB
+      // (avoids quota overflow on subsequent saves when legacy data is still present)
+      let needsSave = false;
       const cleaned = favs.map((f) => {
         const cleaned: FavoriteItem = { ...f };
         if (cleaned.imageUrl && cleaned.imageUrl.startsWith('data:')) {
@@ -491,18 +523,29 @@ export function migrateLegacyStorageData(): { favoritesCleaned: number; storyboa
           }
           cleaned.imageUrl = '';
           favoritesCleaned++;
+          needsSave = true;
         }
         return cleaned;
       });
-      if (favoritesCleaned > 0) {
+
+      const shouldTrim = bytes > 5 * 1024 * 1024 && cleaned.length > 50;
+      if (shouldTrim) {
+        // Keep 50 most recent, all data: URLs already stripped above
+        cleaned.splice(50);
+        needsSave = true;
+        console.warn(`[migrateLegacyStorageData] trimmed favorites from ${favs.length} to 50 items (size was ${Math.round(bytes / 1024 / 1024)}MB)`);
+      }
+
+      if (needsSave) {
         localStorage.setItem(FAVORITES_KEY, JSON.stringify(cleaned));
-        console.log(`[migrateLegacyStorageData] cleaned ${favoritesCleaned} legacy favorites`);
+        console.log(`[migrateLegacyStorageData] cleaned ${favoritesCleaned} legacy favorites, trimmed: ${shouldTrim}`);
       }
     }
 
     // Migrate storyboard history: resolve and re-store panelImages as hash refs
     const rawSb = localStorage.getItem(STORYBOARD_HISTORY_KEY);
     if (rawSb) {
+      const bytes = rawSb.length * 2;
       const history = JSON.parse(rawSb) as StoryboardHistoryItem[];
       let modified = false;
       const migrated = history.map((h) => {
@@ -522,6 +565,14 @@ export function migrateLegacyStorageData(): { favoritesCleaned: number; storyboa
         }
         return h;
       });
+
+      // Trim storyboard history if > 5MB
+      if (bytes > 5 * 1024 * 1024 && migrated.length > 30) {
+        migrated.splice(30);
+        modified = true;
+        console.warn(`[migrateLegacyStorageData] trimmed storyboard history from ${history.length} to 30 items`);
+      }
+
       if (modified) {
         localStorage.setItem(STORYBOARD_HISTORY_KEY, JSON.stringify(migrated));
         console.log(`[migrateLegacyStorageData] cleaned ${storyboardsCleaned} legacy storyboard panel entries`);

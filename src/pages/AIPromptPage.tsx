@@ -1699,13 +1699,16 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   // Persist pending tasks to sessionStorage so they survive page refresh
   useEffect(() => {
     try {
+      console.log('[restore] persisting pendingPromptTasks:', pendingPromptTasks);
       sessionStorage.setItem('nsfwxo_pending_prompt_tasks', JSON.stringify(pendingPromptTasks));
-    } catch {}
+    } catch (e) { console.error('[restore] sessionStorage write failed:', e); }
   }, [pendingPromptTasks]);
 
   // Poll pending tasks and restore them on mount.
   useEffect(() => {
     const tasks = Object.entries(pendingPromptTasks);
+    console.log('[restore] useEffect running, tasks from sessionStorage:', tasks);
+
     if (tasks.length === 0) return;
 
     const abortCtrl = new AbortController();
