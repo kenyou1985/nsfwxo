@@ -229,27 +229,35 @@ function App() {
         </main>
 
 
-      {/* Mobile: Inline API Key editor panel */}
+      {/* Mobile: full-screen drawer (not the half-cover sheet from earlier) */}
       {isSettingsOpen && isLoaded && (
-        <div className="lg:hidden fixed inset-x-0 bottom-0 z-50 bg-white border-t border-border rounded-t-2xl shadow-2xl animate-slide-in-bottom">
-          <InlineApiKeyEditor
-            // RunningHub
-            apiKey={apiKey}
-            maskedKey={maskedKey}
-            onSaveApiKey={saveApiKey}
-            onClearApiKey={removeApiKey}
-            // Yunwu
-            yunwuKey={yunwuKey}
-            maskedYunwuKey={maskedYunwuKey}
-            onSaveYunwuKey={saveYunwuKey}
-            onClearYunwuKey={removeYunwuKey}
-            // Backend URL
-            backendUrl={backendUrl}
-            onSaveBackendUrl={saveBackendUrl}
-            onResetBackendUrl={resetBackendUrl}
-            defaultBackendUrl={defaultUrl}
-            onClose={() => setIsSettingsOpen(false)}
-          />
+        <div className="lg:hidden fixed inset-0 z-50 bg-bg-surface flex flex-col">
+          <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-border bg-bg-surface">
+            <h2 className="text-base font-semibold text-text-primary">API 设置</h2>
+            <button onClick={() => setIsSettingsOpen(false)} className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-bg-elevated transition-colors" aria-label="Close">
+              <X size={18} className="text-text-secondary" />
+            </button>
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto p-4">
+            <InlineApiKeyEditor
+              // RunningHub
+              apiKey={apiKey}
+              maskedKey={maskedKey}
+              onSaveApiKey={saveApiKey}
+              onClearApiKey={removeApiKey}
+              // Yunwu
+              yunwuKey={yunwuKey}
+              maskedYunwuKey={maskedYunwuKey}
+              onSaveYunwuKey={saveYunwuKey}
+              onClearYunwuKey={removeYunwuKey}
+              // Backend URL
+              backendUrl={backendUrl}
+              onSaveBackendUrl={saveBackendUrl}
+              onResetBackendUrl={resetBackendUrl}
+              defaultBackendUrl={defaultUrl}
+              onClose={() => setIsSettingsOpen(false)}
+            />
+          </div>
         </div>
       )}
 
