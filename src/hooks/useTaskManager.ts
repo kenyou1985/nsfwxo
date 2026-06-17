@@ -15,7 +15,8 @@ import type {
 } from '../types';
 
 const POLL_INTERVAL = 10000;
-const MAX_TASKS = 20;
+export const MAX_TASKS = 100;
+export const MAX_CONCURRENT = 5;
 export const TASK_PERSIST_KEY = 'ai_task_persist';
 
 // Persisted task entry (without ephemeral fields)
@@ -148,6 +149,10 @@ export function useTaskManager({
   const onTaskImagesReadyRef = useRef(onTaskImagesReady);
   const imagesExtractedRef = useRef<Record<string, boolean>>({});
   const restoringRef = useRef<Record<string, boolean>>({});
+  // Queue of task IDs waiting for a free concurrency slot.
+  // Tasks in this queue are already shown in `tasks` with status QUEUEING,
+  // but have no taskId yet (not yet submitted to RunningHub).
+  const pendingQueueRef = useRef<string[]>([]);
 
   // All effects are always called (no conditional hooks)
   useEffect(() => { apiKeyRef.current = apiKey; }, [apiKey]);
@@ -325,6 +330,8 @@ export function useTaskManager({
 
       if (newStatus === 'FAILED') {
         unpersistTask(task.id);
+        inFlightRef.current.delete(task.id);
+        drainPendingQueueRef.current();
         let errorMsg = '任务失败';
         try {
           const resultsResponse = await getTaskResults(currentApiKey, task.taskId);
@@ -344,6 +351,8 @@ export function useTaskManager({
 
       // newStatus === 'FINISHED'
       unpersistTask(task.id);
+      inFlightRef.current.delete(task.id);
+      drainPendingQueueRef.current();
 
       // Skip extraction if restoreTasks is already handling this task
       if (restoringRef.current[task.id]) {
@@ -387,6 +396,190 @@ export function useTaskManager({
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [pollTask]);
 
+  // Mirror of the latest tasks list, used by drainPendingQueue and addTask
+  // to read state synchronously without relying on a stale closure or async
+  // useEffect-driven ref sync. The ref is updated on every tasks change.
+  const tasksRef = useRef<QueuedTask[]>([]);
+  // Synchronous tracker of task IDs that have been submitted to RunningHub
+  // and have not yet reached a terminal state (FINISHED/FAILED). Updated
+  // immediately on submit and on completion, so the concurrency gate
+  // always sees the correct in-flight count regardless of React batching.
+  const inFlightRef = useRef<Set<string>>(new Set());
+  // Per-task retry attempt count for server-side 421 backoff.
+  const retryAttemptRef = useRef<Map<string, number>>(new Map());
+
+  useEffect(() => {
+    tasksRef.current = tasks;
+  }, [tasks]);
+
+  // Use a ref to break the circular dependency between drainPendingQueue
+  // (called by submitTask) and submitTask (called by drainPendingQueue).
+  const drainPendingQueueRef = useRef<() => void>(() => {});
+
+  // Internal: actually submit a task (already in `tasks` list) to RunningHub.
+  // Used by both addTask (when slot is free) and drainPendingQueue.
+  const submitTask = useCallback(
+    (task: QueuedTask, attempt = 0) => {
+      const currentApiKey = apiKeyRef.current;
+      if (!currentApiKey) return;
+
+      const { id, workflowType, nodeInfoList, prompt, storyboardInfo } = task;
+      const workflowIdOverride = (task as QueuedTask & { workflowIdOverride?: string }).workflowIdOverride;
+
+      const resolvedWorkflowId = workflowIdOverride
+        || (workflowType === 'txt2img' ? WORKFLOW.TEXT_TO_IMAGE
+          : workflowType === 'img2img' ? WORKFLOW.IMAGE_TO_IMAGE
+          : WORKFLOW.IMAGE_TO_VIDEO);
+
+      // Mark in-flight synchronously so concurrent addTask/drain calls see it.
+      inFlightRef.current.add(id);
+
+      runTask(currentApiKey, resolvedWorkflowId, nodeInfoList)
+        .then((data) => {
+          const taskId = data.taskId || '';
+
+          // Server-side queue limit (HTTP 200 with errorCode 421). The task
+          // never made it to RunningHub, so put it back at the head of the
+          // pending queue and retry after a backoff delay. After MAX_RETRIES
+          // attempts, give up and mark the task as failed so the user knows
+          // to investigate (likely another device/tab is consuming the slot).
+          const MAX_421_RETRIES = 8;
+          if (!taskId && data.errorCode === '421') {
+            inFlightRef.current.delete(id);
+            const nextAttempt = attempt + 1;
+            if (nextAttempt > MAX_421_RETRIES) {
+              const finalMsg = '服务端并发数已满且多次重试仍被拒绝，请等待其他设备/页面的任务完成后再试';
+              unpersistTask(id);
+              setTasks((prev) =>
+                prev.map((t) =>
+                  t.id === id ? { ...t, status: 'FAILED' as TaskStatus, error: finalMsg } : t
+                )
+              );
+              onErrorRef.current?.(id, finalMsg);
+              drainPendingQueueRef.current();
+              return;
+            }
+            const backoff = Math.min(15000, 2000 * Math.pow(1.5, attempt));
+            console.warn(`[useTaskManager] Task ${id} hit server queue limit (421). Retrying in ${backoff}ms (attempt ${nextAttempt}/${MAX_421_RETRIES}).`);
+            setTimeout(() => {
+              // Re-insert at the head so it gets the next slot. Pass the
+              // incremented attempt count so the next submitTask call also
+              // has the updated retry count for its own backoff calculation.
+              pendingQueueRef.current = [id, ...pendingQueueRef.current.filter((qid) => qid !== id)];
+              // Stash the next attempt count on a per-id ref so we can pass it through.
+              retryAttemptRef.current.set(id, nextAttempt);
+              drainPendingQueueRef.current();
+            }, backoff);
+            return;
+          }
+
+          if (!taskId) {
+            inFlightRef.current.delete(id);
+            unpersistTask(id);
+            setTasks((prev) =>
+              prev.map((t) =>
+                t.id === id ? { ...t, status: 'FAILED' as TaskStatus, error: data.errorMessage || '未获取到 taskId' } : t
+              )
+            );
+            onErrorRef.current?.(id, data.errorMessage || '未获取到 taskId');
+            drainPendingQueueRef.current();
+            return;
+          }
+
+          const initialZipUrl = data.results?.find((r) => r.outputType === 'zip')?.url || null;
+          let initialDirectImages: string[] = [];
+          if (!initialZipUrl && data.results && data.results.length > 0) {
+            const pngResults = data.results.filter((r) =>
+              r.outputType === 'png' || r.outputType === 'webp' ||
+              r.fileType === 'png' || r.fileType === 'webp' ||
+              r.url?.match(/\.(png|webp)(\?|$)/i)
+            );
+            if (pngResults.length > 0) {
+              initialDirectImages = pngResults.map((r) => r.url).filter(Boolean) as string[];
+            }
+          }
+          const initialStatus = mapTaskStatus(data.status);
+          const initialCoins = data.usage?.consumeCoins || null;
+          const initialElapsed = data.usage?.taskCostTime ? parseInt(data.usage.taskCostTime, 10) : 0;
+
+          setTasks((prev) =>
+            prev.map((t) =>
+              t.id === id ? { ...t, taskId, zipUrl: initialZipUrl, status: 'QUEUEING', coins: initialCoins, elapsedSeconds: initialElapsed, images: initialDirectImages } : t
+            )
+          );
+          persistTask({ id, taskId, prompt, workflowType, workflowIdOverride, nodeInfoList, resultId: undefined, timestamp: Date.now(), zipUrl: initialZipUrl, storyboardInfo });
+          onTaskStatusChangeRef.current?.(id, initialStatus);
+          // Successfully submitted; clear any pending retry counter.
+          retryAttemptRef.current.delete(id);
+
+          if (initialStatus === 'FINISHED') {
+            pollingRef.current[id] = true;
+            const taskToExtract: QueuedTask = { ...task, taskId, zipUrl: initialZipUrl, coins: initialCoins, elapsedSeconds: initialElapsed, images: initialDirectImages };
+            extractFinishedTaskImages(taskToExtract, currentApiKey, taskId)
+              .then(({ updatedTask }) => {
+                unpersistTask(updatedTask.id);
+                delete pollingRef.current[updatedTask.id];
+                inFlightRef.current.delete(id);
+                drainPendingQueueRef.current();
+              })
+              .catch(() => {
+                delete pollingRef.current[id];
+                inFlightRef.current.delete(id);
+                drainPendingQueueRef.current();
+              });
+          } else if (initialStatus === 'FAILED') {
+            unpersistTask(id);
+            const errorMsg = data.errorMessage || '任务失败';
+            setTasks((prev) => prev.map((t) => t.id === id ? { ...t, error: errorMsg } : t));
+            onErrorRef.current?.(id, errorMsg);
+            inFlightRef.current.delete(id);
+            retryAttemptRef.current.delete(id);
+            drainPendingQueueRef.current();
+          } else {
+            // Task submitted successfully and is RUNNING/QUEUED server-side.
+            // Keep it in the in-flight set; the polling loop will detect
+            // completion and remove it.
+            inFlightRef.current.add(id);
+          }
+        })
+        .catch((err) => {
+          inFlightRef.current.delete(id);
+          retryAttemptRef.current.delete(id);
+          unpersistTask(id);
+          setTasks((prev) =>
+            prev.map((t) =>
+              t.id === id ? { ...t, status: 'FAILED' as TaskStatus, error: err instanceof Error ? err.message : '提交失败' } : t
+            )
+          );
+          onErrorRef.current?.(id, err instanceof Error ? err.message : '提交失败');
+          drainPendingQueueRef.current();
+        });
+    },
+    [extractFinishedTaskImages]
+  );
+
+  // Pull the next pending task and submit it if a concurrency slot is free.
+  // Defined after submitTask so we can capture it in closure; the function
+  // body is exposed via drainPendingQueueRef so submitTask can call back into it.
+  const drainPendingQueue = useCallback(() => {
+    while (pendingQueueRef.current.length > 0 && inFlightRef.current.size < MAX_CONCURRENT) {
+      const nextId = pendingQueueRef.current.shift();
+      if (!nextId) break;
+      if (inFlightRef.current.has(nextId)) continue;
+      const taskToSubmit = tasksRef.current.find((t) => t.id === nextId && !t.taskId);
+      if (!taskToSubmit) {
+        // Task was cancelled while pending; skip it.
+        continue;
+      }
+      const attempt = retryAttemptRef.current.get(nextId) ?? 0;
+      submitTask(taskToSubmit, attempt);
+    }
+  }, [submitTask]);
+
+  useEffect(() => {
+    drainPendingQueueRef.current = drainPendingQueue;
+  }, [drainPendingQueue]);
+
   const addTask = useCallback(
     async (
       workflowType: 'txt2img' | 'img2img' | 'img2vid',
@@ -421,80 +614,29 @@ export function useTaskManager({
         return [...prev, newTask];
       });
 
-      // Persist task so it can be restored after page refresh
       persistTask({ id, taskId: null, prompt, workflowType, workflowIdOverride, nodeInfoList, resultId, timestamp: Date.now(), storyboardInfo: newTask.storyboardInfo });
 
-      try {
-        const resolvedWorkflowId = workflowIdOverride
-          || (workflowType === 'txt2img' ? WORKFLOW.TEXT_TO_IMAGE
-            : workflowType === 'img2img' ? WORKFLOW.IMAGE_TO_IMAGE
-            : WORKFLOW.IMAGE_TO_VIDEO);
-
-        const data = await runTask(currentApiKey, resolvedWorkflowId, nodeInfoList);
-        const taskId = data.taskId || '';
-        if (!taskId) throw new Error('未获取到 taskId');
-
-        const initialZipUrl = data.results?.find((r) => r.outputType === 'zip')?.url || null;
-        let initialDirectImages: string[] = [];
-        if (!initialZipUrl && data.results && data.results.length > 0) {
-          const pngResults = data.results.filter((r) =>
-            r.outputType === 'png' || r.outputType === 'webp' ||
-            r.fileType === 'png' || r.fileType === 'webp' ||
-            r.url?.match(/\.(png|webp)(\?|$)/i)
-          );
-          if (pngResults.length > 0) {
-            initialDirectImages = pngResults.map((r) => r.url).filter(Boolean) as string[];
-          }
-        }
-        const initialStatus = mapTaskStatus(data.status);
-        const initialCoins = data.usage?.consumeCoins || null;
-        const initialElapsed = data.usage?.taskCostTime ? parseInt(data.usage.taskCostTime, 10) : 0;
-
-        // Set QUEUEING initially so polling skips it while we extract images
-        setTasks((prev) =>
-          prev.map((t) =>
-            t.id === id ? { ...t, taskId, zipUrl: initialZipUrl, status: 'QUEUEING', coins: initialCoins, elapsedSeconds: initialElapsed, images: initialDirectImages } : t
-          )
-        );
-        // Update persisted entry with taskId and zipUrl so it can be restored after refresh
-        persistTask({ id, taskId, prompt, workflowType, workflowIdOverride, nodeInfoList, resultId, timestamp: Date.now(), zipUrl: initialZipUrl, storyboardInfo: newTask.storyboardInfo });
-        onTaskStatusChangeRef.current?.(id, initialStatus);
-
-        if (initialStatus === 'FINISHED') {
-          pollingRef.current[id] = true;
-          const taskToExtract: QueuedTask = { ...newTask, taskId, zipUrl: initialZipUrl, coins: initialCoins, elapsedSeconds: initialElapsed, images: initialDirectImages };
-          extractFinishedTaskImages(taskToExtract, currentApiKey, taskId)
-            .then(({ updatedTask }) => {
-              unpersistTask(updatedTask.id);
-              delete pollingRef.current[updatedTask.id];
-            })
-            .catch(() => {
-              delete pollingRef.current[id];
-            });
-        } else if (initialStatus === 'FAILED') {
-          unpersistTask(id);
-          const errorMsg = data.errorMessage || '任务失败';
-          setTasks((prev) => prev.map((t) => t.id === id ? { ...t, error: errorMsg } : t));
-          onErrorRef.current?.(id, errorMsg);
-        }
+      // Concurrency gate based on synchronous in-flight tracker.
+      if (inFlightRef.current.size >= MAX_CONCURRENT) {
+        pendingQueueRef.current.push(id);
         return id;
-      } catch (err) {
-        unpersistTask(id);
-        setTasks((prev) =>
-          prev.map((t) =>
-            t.id === id ? { ...t, status: 'FAILED' as TaskStatus, error: err instanceof Error ? err.message : '提交失败' } : t
-          )
-        );
-        onErrorRef.current?.(id, err instanceof Error ? err.message : '提交失败');
-        throw err;
       }
+
+      submitTask(newTask);
+      return id;
     },
-    []
+    [submitTask]
   );
 
   const cancelTask = useCallback((id: string) => {
     delete pollingRef.current[id];
     delete restoringRef.current[id];
+    inFlightRef.current.delete(id);
+    retryAttemptRef.current.delete(id);
+    // If the task is still waiting in the pending queue, remove it from there
+    // (no submission was ever made, so no slot is freed — but next drain
+    // call will simply skip the missing id).
+    pendingQueueRef.current = pendingQueueRef.current.filter((qid) => qid !== id);
     unpersistTask(id);
     setTasks((prev) => prev.filter((t) => t.id !== id));
   }, []);
@@ -666,10 +808,12 @@ export function useTaskManager({
             restoredTasks.push(task);
             unpersistTask(task.id);
           } else {
-            // Task is still running/queuing - add to active polling
+            // Task is still running/queuing server-side — track it in the
+            // in-flight set so the concurrency gate accounts for it.
             task.status = mappedStatus;
             restoredTasks.push(task);
             immediatePollTasks.push(task);
+            inFlightRef.current.add(task.id);
           }
         }
 

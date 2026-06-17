@@ -36,7 +36,7 @@ import {
 } from '../services/storage';
 import { loadCachedOrExtractPanelImages } from '../services/imageCacheService';
 import { useFinishedTaskImages } from '../contexts/FinishedTaskImagesContext';
-import type { TaskManagerReturn } from '../hooks/useTaskManager';
+import { MAX_TASKS, type TaskManagerReturn } from '../hooks/useTaskManager';
 import type { GirlfriendPreset } from '../data/girlfriendPresets';
 import { GirlfriendSelector } from '../components/GirlfriendSelector';
 import { StoryboardSection } from '../components/StoryboardSection';
@@ -334,7 +334,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   const handleMainGenerateImage = useCallback(async () => {
     if (!outputText.trim()) { onError('请先生成或选择一个扩写提示词'); return; }
     if (taskManager.isFull) {
-      onError('任务队列已满（最多 20 个任务），请等待当前任务完成');
+      onError(`任务队列已满（最多 ${MAX_TASKS} 个任务），请等待当前任务完成`);
       return;
     }
     setGeneratingMain(true);
@@ -388,7 +388,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
 
   const handleExpandGenerateImage = useCallback(async (result: { id: string; prompt: string }) => {
     if (taskManager.isFull) {
-      onError('任务队列已满（最多 20 个任务），请等待当前任务完成');
+      onError(`任务队列已满（最多 ${MAX_TASKS} 个任务），请等待当前任务完成`);
       return;
     }
     setGenState((prev) => ({ ...prev, [result.id]: { loading: true, images: [], taskId: null } }));
@@ -456,7 +456,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
 
   const handleBatchGenerate = useCallback(async () => {
     if (results.length === 0) return;
-    const availableSlots = 20 - taskManager.tasks.length;
+    const availableSlots = MAX_TASKS - taskManager.tasks.length;
     if (availableSlots <= 0) {
       onError('任务队列已满，请等待当前任务完成');
       return;
@@ -639,7 +639,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     onErrorMsg: (msg: string) => void,
   ) => {
     if (panels.length === 0) { onErrorMsg('没有可生成的分镜'); return; }
-    const availableSlots = 20 - taskManager.tasks.length;
+    const availableSlots = MAX_TASKS - taskManager.tasks.length;
     if (availableSlots <= 0) { onErrorMsg('任务队列已满'); return; }
 
     const newHistoryId = addStoryboardHistory({
@@ -1188,7 +1188,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
 
   const handleRandomGenerateImage = useCallback(async (idx: number, prompt: string) => {
     if (taskManager.isFull) {
-      onError('任务队列已满（最多 20 个任务），请等待当前任务完成');
+      onError(`任务队列已满（最多 ${MAX_TASKS} 个任务），请等待当前任务完成`);
       return;
     }
     setGenStates((prev) => ({ ...prev, [idx]: { loading: true, images: [] } }));
@@ -1258,7 +1258,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
 
   const handleBatchGenerate = useCallback(async () => {
     if (results.length === 0) return;
-    const availableSlots = 20 - taskManager.tasks.length;
+    const availableSlots = MAX_TASKS - taskManager.tasks.length;
     if (availableSlots <= 0) {
       onError('任务队列已满，请等待当前任务完成');
       return;
@@ -2714,7 +2714,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
 
   const handleBatchGenerate = useCallback(async () => {
     if (activePanels.length === 0) return;
-    const availableSlots = 20 - taskManager.tasks.length;
+    const availableSlots = MAX_TASKS - taskManager.tasks.length;
     if (availableSlots <= 0) { onError('任务队列已满'); return; }
     setBatchLoading(true);
     let submitted = 0;

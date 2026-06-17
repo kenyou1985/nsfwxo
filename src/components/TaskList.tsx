@@ -3,6 +3,7 @@ import { X, Download, Clock, Coins, CheckCircle, XCircle, Loader2, RotateCcw, Zo
 import JSZip from 'jszip';
 import type { QueuedTask } from '../types';
 import { downloadZip, downloadImage } from '../services/runninghub';
+import { MAX_TASKS } from '../hooks/useTaskManager';
 
 interface TaskListProps {
   tasks: QueuedTask[];
@@ -62,7 +63,7 @@ export function TaskList({ tasks, onCancel, onClearCompleted, onRegenerate }: Ta
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium text-text-primary">
-          任务列表 ({tasks.length}/20)
+          任务列表 ({tasks.length}/{MAX_TASKS})
         </h3>
         {hasCompleted && (
           <button

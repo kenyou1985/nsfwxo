@@ -10,7 +10,7 @@ import { StoryboardSection } from '../components/StoryboardSection';
 import { uploadImage, WORKFLOW } from '../services/runninghub';
 import { expandPrompt, randomPrompt } from '../services/promptApi';
 import type { ImageToImageParams, QueuedTask } from '../types';
-import type { TaskManagerReturn } from '../hooks/useTaskManager';
+import { MAX_TASKS, type TaskManagerReturn } from '../hooks/useTaskManager';
 import type { WeightMode } from '../components/PromptEditor';
 import { DEFAULT_GIRLFRIEND_PRESETS, type GirlfriendPreset } from '../data/girlfriendPresets';
 import { PosePresetSelector } from '../components/PosePresetSelector';
@@ -128,7 +128,7 @@ export function ImageToImagePage({
           return;
         }
         if (taskManager.isFull) {
-          onError('任务队列已满（最多 20 个任务），请等待当前任务完成');
+          onError(`任务队列已满（最多 ${MAX_TASKS} 个任务），请等待当前任务完成`);
           return;
         }
         const nodeList = [
@@ -266,7 +266,7 @@ export function ImageToImagePage({
         return;
       }
 
-      const remainingSlots = 20 - taskManager.tasks.length;
+      const remainingSlots = MAX_TASKS - taskManager.tasks.length;
       if (panels.length > remainingSlots) {
         onError(`队列空间不足（剩余 ${remainingSlots} 个），请等待任务完成后再试`);
         return;
@@ -566,7 +566,7 @@ export function ImageToImagePage({
 
   const handleGacha = useCallback(async () => {
     if (taskManager.isFull) {
-      onError('任务队列已满（最多 20 个任务），请等待当前任务完成');
+      onError(`任务队列已满（最多 ${MAX_TASKS} 个任务），请等待当前任务完成`);
       return;
     }
 
@@ -609,7 +609,7 @@ export function ImageToImagePage({
     const textToUse = expandedPrompt.trim() || gachaPrompt.trim() || customPrompt.trim();
     if (!textToUse) return;
     if (taskManager.isFull) {
-      onError('任务队列已满（最多 20 个任务），请等待当前任务完成');
+      onError(`任务队列已满（最多 ${MAX_TASKS} 个任务），请等待当前任务完成`);
       return;
     }
 
@@ -656,7 +656,7 @@ export function ImageToImagePage({
       return;
     }
     if (taskManager.isFull) {
-      onError('任务队列已满（最多 20 个任务），请等待当前任务完成');
+      onError(`任务队列已满（最多 ${MAX_TASKS} 个任务），请等待当前任务完成`);
       return;
     }
     try {

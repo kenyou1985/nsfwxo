@@ -1,7 +1,7 @@
 import JSZip from 'jszip';
 import type { NodeInfo, RunTaskRequest, TaskResponse, UploadResponse, TaskStatus } from '../types';
 
-const BASE_URL = 'https://www.runninghub.cn/openapi/v2';
+const BASE_URL = 'https://www.runninghub.ai/openapi/v2';
 
 export const WORKFLOW = {
   TEXT_TO_IMAGE: '2016821668009742337',
@@ -224,17 +224,35 @@ export async function runTask(
   }, apiKey) as Record<string, unknown>;
 
   const taskId = (data.taskId as string) || ((data.data as Record<string, unknown> | null)?.taskId as string) || '';
+  const errorCode = (data.errorCode as string) || '';
 
+  // Server-side concurrency limit (errorCode 421). The task never made it
+  // to RunningHub; return a normal TaskResponse with an empty taskId so
+  // the caller can detect it and decide whether to retry. We deliberately
+  // do NOT throw here so the caller's retry logic can run without being
+  // caught by a generic .catch() that would mark the task as failed.
   if (!taskId) {
-    console.error('API Response:', JSON.stringify(data, null, 2));
-    throw new Error(`任务提交失败: ${(data.msg as string) || '未获取到 taskId'}`);
+    console.warn(`[runTask] No taskId in response (errorCode=${errorCode}, msg=${data.msg || data.errorMessage || ''})`);
+    return {
+      taskId: '',
+      status: '',
+      errorCode,
+      errorMessage: (data.errorMessage as string) || (data.msg as string) || '未获取到 taskId',
+      results: null,
+      clientId: (data.clientId as string) || '',
+      promptTips: (data.promptTips as string) || '',
+      failedReason: (data.failedReason as Record<string, unknown>) || {},
+      usage: null,
+      parentTaskId: null,
+      taskUsageList: null,
+    };
   }
 
   // 构建为 TaskResponse 格式
   return {
     taskId,
     status: (data.status as string) || 'RUNNING',
-    errorCode: (data.errorCode as string) || '',
+    errorCode,
     errorMessage: (data.errorMessage as string) || '',
     results: (data.results as TaskResponse['results']) || null,
     clientId: (data.clientId as string) || '',
@@ -263,7 +281,7 @@ export async function getTaskStatus(
 ): Promise<TaskResponse> {
   // 查询任务状态：POST /task/openapi/status（无 /openapi/v2 前缀）
   // 只返回简单状态字符串：QUEUED, RUNNING, SUCCESS, FAILED
-  const statusUrl = 'https://www.runninghub.cn/task/openapi/status';
+  const statusUrl = 'https://www.runninghub.ai/task/openapi/status';
 
   const statusData = await apiRequest<{
     code?: number;
@@ -295,7 +313,7 @@ export async function getTaskResults(
   apiKey: string,
   taskId: string
 ): Promise<TaskResponse> {
-  const outputsUrl = 'https://www.runninghub.cn/task/openapi/outputs';
+  const outputsUrl = 'https://www.runninghub.ai/task/openapi/outputs';
 
   const outputsData = await apiRequest<{
     code?: number;

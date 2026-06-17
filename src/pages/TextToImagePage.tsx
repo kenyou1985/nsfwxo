@@ -6,7 +6,7 @@ import { GenerateButton } from '../components/GenerateButton';
 import { ImageGrid } from '../components/ImageGrid';
 import { TaskList } from '../components/TaskList';
 import type { TextToImageParams, QueuedTask } from '../types';
-import type { TaskManagerReturn } from '../hooks/useTaskManager';
+import { MAX_TASKS, type TaskManagerReturn } from '../hooks/useTaskManager';
 import { DEFAULT_TXT2IMG_PARAMS, QUALITY_BOOST_PROMPT, LORA_PRESETS } from '../constants';
 import type { WeightMode } from '../components/PromptEditor';
 import { buildTxt2ImgNodeList } from '../utils/txt2imgNodeBuilder';
@@ -246,7 +246,7 @@ export function TextToImagePage({
     const textToUse = expandedPrompt.trim() || customPrompt.trim();
     if (!textToUse) return;
     if (taskManager.isFull) {
-      onError('任务队列已满（最多 20 个任务），请等待当前任务完成');
+      onError(`任务队列已满（最多 ${MAX_TASKS} 个任务），请等待当前任务完成`);
       return;
     }
     setIsGeneratingFromPrompt(true);
@@ -303,7 +303,7 @@ export function TextToImagePage({
       return;
     }
     if (taskManager.isFull) {
-      onError('任务队列已满（最多 20 个任务），请等待当前任务完成');
+      onError(`任务队列已满（最多 ${MAX_TASKS} 个任务），请等待当前任务完成`);
       return;
     }
     try {
