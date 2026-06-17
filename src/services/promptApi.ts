@@ -427,6 +427,14 @@ export async function pollPromptTask(
     if (signal?.aborted) throw new Error('Task polling cancelled');
 
     const response = await fetch(`${base}/api/prompt/task/${taskId}`, { signal });
+    if (response.status === 404 || response.status === 410) {
+      // Task no longer exists on the backend (e.g. server restart, cache
+      // eviction). Signal this with a typed error so the caller can drop
+      // the taskId from the pending queue rather than polling forever.
+      const err = new Error(`Prompt task ${taskId} not found on backend`);
+      (err as Error & { notFound?: boolean }).notFound = true;
+      throw err;
+    }
     if (!response.ok) {
       throw new Error(`Task polling failed: ${response.status}`);
     }
@@ -447,6 +455,11 @@ export async function pollPromptTask(
 export async function getPromptTaskStatus(taskId: string): Promise<PromptTaskStatus> {
   const base = getBackendUrl();
   const response = await fetch(`${base}/api/prompt/task/${taskId}`);
+  if (response.status === 404 || response.status === 410) {
+    const err = new Error(`Prompt task ${taskId} not found on backend`);
+    (err as Error & { notFound?: boolean }).notFound = true;
+    throw err;
+  }
   if (!response.ok) throw new Error(`Task status fetch failed: ${response.status}`);
   return response.json() as Promise<PromptTaskStatus>;
 }

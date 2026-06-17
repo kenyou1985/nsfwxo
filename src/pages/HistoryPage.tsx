@@ -33,6 +33,7 @@ export function HistoryPage({ onRegenerate, onSuccess, onError }: HistoryPagePro
   const [videoRecords, setVideoRecords] = useState<VideoHistoryRecord[]>([]);
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
   const [loadedImages, setLoadedImages] = useState<Record<string, string[]>>({});
+  const loadedImagesRef = useRef<Record<string, string[]>>({});
   const [loadingKeys, setLoadingKeys] = useState<Set<string>>(new Set());
   const loadingKeysRef = useRef<Set<string>>(new Set());
 
@@ -58,17 +59,25 @@ export function HistoryPage({ onRegenerate, onSuccess, onError }: HistoryPagePro
 
   const loadImagesForRecord = useCallback(async (record: HistoryRecord) => {
     if (!record.zipUrl) return;
-    if (loadedImages[record.id]) return;
+    // Don't retry records we've already finished — either successfully or
+    // unsuccessfully. Re-trying a 404 zip URL every render floods the console.
+    if (loadedImagesRef.current[record.id] !== undefined) return;
     if (loadingKeysRef.current.has(record.id)) return;
 
     loadingKeysRef.current.add(record.id);
     setLoadingKeys((prev) => new Set(prev).add(record.id));
+    loadedImagesRef.current[record.id] = [];
     setLoadedImages((prev) => ({ ...prev, [record.id]: [] }));
 
     try {
       const dataUrls = await loadCachedOrExtractedImages(record.zipUrl, () => extractImagesFromZipAsDataUrls(record.zipUrl ?? ''));
+      loadedImagesRef.current[record.id] = dataUrls;
       setLoadedImages((prev) => ({ ...prev, [record.id]: dataUrls }));
-    } catch {
+    } catch (err) {
+      // Don't re-attempt this record on later renders. The zip URL may be
+      // permanently gone (e.g. RunningHub evicted the file), and we'd
+      // otherwise re-fetch and re-log the 404 on every render.
+      loadedImagesRef.current[record.id] = [];
       setLoadedImages((prev) => ({ ...prev, [record.id]: [] }));
     } finally {
       loadingKeysRef.current.delete(record.id);
@@ -78,7 +87,7 @@ export function HistoryPage({ onRegenerate, onSuccess, onError }: HistoryPagePro
         return next;
       });
     }
-  }, []); // Intentionally empty deps — loadedImages is read inside via ref, not via closure
+  }, []); // Intentionally empty deps — refs track current state without re-creating this callback
 
   const loadVideoHistory = useCallback(() => {
     try {

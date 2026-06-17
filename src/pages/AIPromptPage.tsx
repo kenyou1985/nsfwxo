@@ -215,7 +215,18 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   useEffect(() => { setHistory(getExpandHistory()); }, []);
   const [genState, setGenState] = useState<GenerateState>({});
   const [genStates, setGenStates] = useState<Record<string, { loading: boolean; images: string[] }>>({});
-  const [sbHistoryId, setSbHistoryId] = useState<string | null>(null);
+  // Initialize sbHistoryId from sessionStorage so a hard refresh of the
+  // page can re-hydrate the per-panel images already stored in
+  // genStates. Without this, sbHistoryId stays null until the user
+  // submits a new task (line ~537), so every panel card looks up
+  // genStates[`null_${idx}`] — which is always empty — and shows the
+  // broken-image placeholder, even though mount effect has just
+  // populated genStates[`${savedHistoryId}_${idx}`] with the right
+  // images. The lazy initializer fires once, on first render.
+  const [sbHistoryId, setSbHistoryId] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return sessionStorage.getItem('sb_latest_history_id');
+  });
   const [batchLoading, setBatchLoading] = useState(false);
   const [outputPrompts, setOutputPrompts] = useState<string[]>(savedExpand?.outputPrompts || []);
   const [selectedOutputIdx, setSelectedOutputIdx] = useState(savedExpand?.selectedOutputIdx || 0);
@@ -1738,17 +1749,28 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         onSuccessRef.current(`主题已生成（${res.themes.length} 个），请选择`);
       } else if (taskType === 'outline' && res?.storyboard) {
         const panels = res.storyboard;
-        const hid = res.theme_id;
+        const themeKey = res.theme_id;
+        // Idempotency guard: the polling loop can deliver the same DONE
+        // status multiple times after a page refresh, and React strict mode
+        // can also double-invoke effects in dev. Without this guard we'd
+        // unshift a duplicate StoryboardHistory entry every time, leading
+        // to dozens of identical rows in the history panel.
+        const alreadyHandledKey = `outline_done_${taskId}`;
+        if (sessionStorage.getItem(alreadyHandledKey) === '1') {
+          setPendingPromptTasks((prev) => { const n = { ...prev }; delete n[taskId]; return n; });
+          return;
+        }
+        sessionStorage.setItem(alreadyHandledKey, '1');
         const historyId = addStoryboardHistory({
           plot: res.theme_title ?? '主题',
           panel_count: panels.length,
           r18: r18Mode,
           panels,
         });
-        if (hid !== undefined) {
+        if (themeKey !== undefined) {
           setThemeOutlineStates((prev) => ({
             ...prev,
-            [hid]: {
+            [themeKey]: {
               generating: false,
               outlineArc: res.outline?.arc ?? '',
               outlineScenes: res.outline?.scenes ?? [],
@@ -1789,6 +1811,22 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     const entries = Object.entries(pendingPromptTasks);
     if (entries.length === 0) return;
 
+    // Helper: if the backend reports the task is gone, drop it from the
+    // pending queue and surface a one-time warning. Otherwise we'd poll it
+    // forever (and the user would see 404s flood the console every 3s).
+    const dropIfNotFound = (taskId: string, err: unknown) => {
+      if (err && typeof err === 'object' && (err as { notFound?: boolean }).notFound) {
+        console.warn(`[prompt-task] ${taskId} no longer exists on backend; dropping from pending queue.`);
+        setPendingPromptTasks((prev) => {
+          if (!(taskId in prev)) return prev;
+          const { [taskId]: _drop, ...rest } = prev;
+          return rest;
+        });
+        return true;
+      }
+      return false;
+    };
+
     // Step 1: Parallel status pre-fetch (like useTaskManager.restoreTasks)
     const restore = async () => {
       await Promise.allSettled(
@@ -1799,7 +1837,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
               handlePromptTaskResult(taskId, taskType, status);
             }
             // else still RUNNING/PENDING — will be picked up by continuous polling
-          } catch {
+          } catch (err) {
+            if (dropIfNotFound(taskId, err)) return;
             // Network error during restore — will be retried by continuous polling
           }
         })
@@ -1817,7 +1856,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
           try {
             const status = await pollPromptTask(taskId);
             handlePromptTaskResult(taskId, taskType, status);
-          } catch {
+          } catch (err) {
+            if (dropIfNotFound(taskId, err)) return;
             // Polling error — keep task for next interval
           }
         })
@@ -1857,6 +1897,16 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
 
     const historyItems = getStoryboardHistory();
     const historyItem = historyItems.find((h) => h.id === hid);
+    // Diagnostic: log what we have so it's easy to see in the console why
+    // a panel might render as empty after a page refresh.
+    console.debug('[storyboard:restore]', {
+      hid,
+      zipUrl: historyItem?.zipUrl,
+      hasPanelImages: !!historyItem?.panelImages,
+      panelImageEntries: historyItem?.panelImages ? Object.keys(historyItem.panelImages).length : 0,
+      panelImageSample: historyItem?.panelImages ? Object.values(historyItem.panelImages)[0]?.slice(0, 2) : null,
+      panelCount: saved.panels.length,
+    });
     const initial: Record<string, { loading: boolean; images: string[] }> = {};
 
     if (historyItem?.panelImages) {
@@ -1878,22 +1928,50 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       setGenStates(initial);
     }
 
-    // Background zip extraction for any panels still missing images
+    let bgCancelled = false;
+
+    // Background: try to fill any panel slot whose genStates entry is
+    // empty (e.g. because the unified cache was evicted, the djb2
+    // img_cache key under FNV-1a also misses, or the history entry's
+    // panelImages is full of orphan hash refs from an older broken
+    // migration). This is the last-resort loader — when it succeeds
+    // the user sees their panels even after every other cache layer
+    // failed, and we write the recovered data: URLs back into the
+    // history record so the next refresh is fast.
+    let bgActive = 0;
     for (let i = 0; i < saved.panels.length; i++) {
       const key = `${hid}_${i}`;
-      if (initial[key]?.images.length > 0) continue;
+      const hasUsable = (initial[key]?.images || []).some(
+        (img) => img && (img.startsWith('data:') || img.startsWith('blob:') || img.startsWith('http')),
+      );
+      if (hasUsable) continue;
 
+      bgActive++;
+      const panelZip = historyItem?.panelZipUrls?.[i] || historyItem?.zipUrl;
       const count = historyItem?.panelImageCounts?.[i] || 4;
-      loadCachedOrExtractPanelImages(historyItem?.zipUrl, count, hid, i).then((images) => {
-        if (images.length > 0) {
-          setGenStates((prev) => {
-            const existing = prev[key];
-            if (existing?.images.length > 0 && existing.images[0]?.startsWith('data:')) return prev;
-            return { ...prev, [key]: { loading: false, images } };
-          });
-        }
+      loadCachedOrExtractPanelImages(panelZip, count, hid, i, panelZip).then((images) => {
+        if (bgCancelled) return;
+        const usable = images.filter((img) => img && (img.startsWith('data:') || img.startsWith('blob:') || img.startsWith('http')));
+        if (usable.length === 0) return;
+        setGenStates((prev) => {
+          const existing = prev[key];
+          // Don't clobber a later-arriving value (e.g. live task finish).
+          if (existing?.images.length > 0 && existing.images[0]?.startsWith('data:')) return prev;
+          return { ...prev, [key]: { loading: false, images: usable } };
+        });
+        // Persist recovered images back into history.panelImages so the
+        // next mount hits the fast path (genStates lookup from the
+        // resolved data: URLs).
+        updateStoryboardHistoryImages(hid, { [i]: usable }, panelZip, { [i]: usable.length });
+      }).catch((err) => {
+        console.debug('[storyboard:restore] background panel fill failed for', hid, i, err);
       });
     }
+    console.debug(`[storyboard:restore] dispatched ${bgActive} background panel fill(s)`);
+
+    // (Orphan-hash recovery is handled by the bgActive loop above; it
+    // covers the same conditions — panelImages full of stale hashes or
+    // empty arrays — and persists recovered images back into history.)
   }, []); // intentionally empty — only runs once on mount
 
   // ── Derived active values (must be before useEffects that depend on them) ──
@@ -1901,6 +1979,64 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   const activeOutlineScenes = activeThemeTab !== null ? (themeOutlineStates[activeThemeTab]?.outlineScenes || []) : outlineScenes;
   const activePanels = activeThemeTab !== null ? (themeOutlineStates[activeThemeTab]?.panels || []) : panels;
   const activeThemeInfo = activeThemeTab !== null ? selectedThemes.find((t) => t.id === activeThemeTab) : (selectedTheme || (selectedThemes[0] ?? null));
+
+  // ── Mirror HistoryPage's image-loading pattern for the storyboard view ──
+  // HistoryPage's `loadImagesForRecord` runs whenever the user lands on a
+  // record and populates the gallery asynchronously. The storyboard view
+  // was missing an equivalent: after navigating to a different
+  // currentHistoryId (e.g. picking a row from the history list, or
+  // returning after a refresh) the per-panel cache might be empty in
+  // genStates and the user would see blank thumbnails until the next
+  // finished task fires. This effect proactively pulls images from the
+  // unified + generic cache (loadCachedOrExtractPanelImages' fallback
+  // chain) for every panel of the active history, with the same
+  // in-flight + error guards used in HistoryPage.
+  //
+  // genStates is intentionally read via ref so the effect doesn't re-run
+  // on every state update (which would re-trigger the load and create
+  // a render loop). We only want to react to changes in the active
+  // history or panel list.
+  const genStatesRef = useRef(genStates);
+  genStatesRef.current = genStates;
+  const loadedKeysRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const hid = sbHistoryId;
+    if (!hid || activePanels.length === 0) return;
+
+    const historyItem = getStoryboardHistory().find((h) => h.id === hid);
+    const zipUrl = historyItem?.zipUrl;
+    const panelImageCounts = historyItem?.panelImageCounts;
+
+    let cancelled = false;
+    (async () => {
+      for (let i = 0; i < activePanels.length; i++) {
+        if (cancelled) return;
+        const key = `${hid}_${i}`;
+        if (loadedKeysRef.current.has(key)) continue;
+        const state = genStatesRef.current[key];
+        if (state?.images.length && state.images[0].startsWith('data:')) {
+          loadedKeysRef.current.add(key);
+          continue;
+        }
+        const count = panelImageCounts?.[i] || 4;
+        const panelZip = historyItem?.panelZipUrls?.[i] || zipUrl;
+        const images = await loadCachedOrExtractPanelImages(panelZip, count, hid, i, panelZip);
+        if (cancelled) return;
+        if (images.length === 0) continue;
+        loadedKeysRef.current.add(key);
+        setGenStates((prev) => {
+          const existing = prev[key];
+          if (existing?.images.length > 0 && existing.images[0]?.startsWith('data:')) return prev;
+          return { ...prev, [key]: { loading: false, images } };
+        });
+      }
+    })().catch((err) => {
+      console.debug('[storyboard] cache load failed:', err);
+    });
+
+    return () => { cancelled = true; };
+  }, [sbHistoryId, activePanels]);
 
   // ── Subscribe to finished task images and cache them for the storyboard ──
   // This is the primary path: when any task completes, its data URL images are
@@ -1930,17 +2066,16 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         });
         continue;
       }
-      // Fallback: match by prompt text (for tasks without explicit storyboardInfo)
+      // Fallback: match by exact prompt (for tasks without explicit
+      // storyboardInfo). Substring match was merging tasks from adjacent
+      // panels whose prompts share a common prefix.
       for (let i = 0; i < activePanels.length; i++) {
         const panel = activePanels[i];
         const panelPromptNorm = panel.image_prompt.trim().replace(/\s+/g, ' ');
         const matchedTask = taskManager.tasks.find((t) => {
           if (t.id !== taskId || t.images.length === 0) return false;
           const taskPromptNorm = t.prompt.trim().replace(/\s+/g, ' ');
-          return taskPromptNorm === panelPromptNorm ||
-            taskPromptNorm.includes(panelPromptNorm) ||
-            panelPromptNorm.includes(taskPromptNorm) ||
-            (panelPromptNorm.length > 50 && taskPromptNorm.includes(panelPromptNorm.substring(0, Math.min(panelPromptNorm.length, 150))));
+          return taskPromptNorm === panelPromptNorm;
         });
         if (matchedTask) {
           const key = `${hid}_${i}`;
@@ -1969,13 +2104,16 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       for (let i = 0; i < activePanels.length; i++) {
         const panel = activePanels[i];
         const panelPromptNorm = panel.image_prompt.trim().replace(/\s+/g, ' ');
+        // Prefer storyboardInfo match (set by handleBatchGenerate). Fall back
+        // to exact-prompt match — substring match was merging tasks from
+        // adjacent panels whose prompts share a common prefix.
         const matchedTask = taskManager.tasks.find((t) => {
           if (t.images.length === 0) return false;
+          if (t.storyboardInfo && t.storyboardInfo.historyId === hid) {
+            return t.storyboardInfo.panelIdx === i;
+          }
           const taskPromptNorm = t.prompt.trim().replace(/\s+/g, ' ');
-          return taskPromptNorm === panelPromptNorm ||
-            taskPromptNorm.includes(panelPromptNorm) ||
-            panelPromptNorm.includes(taskPromptNorm) ||
-            (panelPromptNorm.length > 50 && taskPromptNorm.includes(panelPromptNorm.substring(0, Math.min(panelPromptNorm.length, 150))));
+          return taskPromptNorm === panelPromptNorm;
         });
         const key = `${hid}_${i}`;
         if (matchedTask) {
@@ -2040,21 +2178,17 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         if (historyIdFromKey !== hid) continue;
         if (!state.images || state.images.length === 0) continue;
 
-        const hasBlob = state.images.some((img) => img.startsWith('blob:'));
-        if (hasBlob) {
-          const dataUrlImages = await Promise.all(state.images.map((img) => ensureDataUrl(img)));
-          panelImages[Number(panelIdx)] = dataUrlImages;
-          await cacheStoryboardPanelImages(hid, Number(panelIdx), dataUrlImages);
-          updates[key] = { loading: false, images: dataUrlImages };
-          needsGenStatesUpdate = true;
-        } else if (!state.images.some((img) => img.startsWith('data:'))) {
-          // Has images but not data URLs — try to cache them too
-          const dataUrlImages = await Promise.all(state.images.map((img) => ensureDataUrl(img)));
-          panelImages[Number(panelIdx)] = dataUrlImages;
-          await cacheStoryboardPanelImages(hid, Number(panelIdx), dataUrlImages);
-          updates[key] = { loading: false, images: dataUrlImages };
-          needsGenStatesUpdate = true;
-        }
+        // Convert every image to a data URL. Filter out anything that
+        // resolves to empty (e.g. bare hash refs after a cache migration)
+        // so genStates never holds invalid <img src> values.
+        const dataUrlImages = (await Promise.all(state.images.map((img) => ensureDataUrl(img))))
+          .filter((s): s is string => !!s);
+        if (dataUrlImages.length === 0) continue;
+
+        panelImages[Number(panelIdx)] = dataUrlImages;
+        await cacheStoryboardPanelImages(hid, Number(panelIdx), dataUrlImages);
+        updates[key] = { loading: false, images: dataUrlImages };
+        needsGenStatesUpdate = true;
       }
 
       // Update genStates so UI uses persistent data URLs instead of blob URLs
@@ -2431,6 +2565,12 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     setThemeOutlineStates({});
     setShowHistory(false);
     setCurrentHistoryId(item.id);
+    // sbHistoryId is derived from currentHistoryId (and activeThemeTab)
+    // so it picks up the new value automatically once currentHistoryId
+    // is set. Updating sessionStorage keeps the layout consistent with
+    // the new sb_latest_history_id path that other parts of the app
+    // (e.g. finishedTasks effect, mount effect) read.
+    sessionStorage.setItem('sb_latest_history_id', item.id);
 
     // Restore images for this history entry from three sources (same priority as HistoryPage):
     // 1. direct panelImages field in history record (fastest, already in memory)
@@ -2470,7 +2610,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       if (current?.images.length > 0 && current.images[0]?.startsWith('data:')) continue;
 
       const count = item.panelImageCounts?.[i] || 4;
-      const images = await loadCachedOrExtractPanelImages(item.zipUrl, count, item.id, i);
+      const panelZip = item.panelZipUrls?.[i] || item.zipUrl;
+      const images = await loadCachedOrExtractPanelImages(panelZip, count, item.id, i, panelZip);
       if (images.length > 0) {
         setGenStates((prev) => {
           const existing = prev[key];
@@ -2482,14 +2623,26 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   };
 
   const handleToggleFavorite = (imageUrl: string, prompt?: string) => {
-    // Use imageRef for lookup since addFavorite stores the URL in imageRef field
-    const existing = favorites.find((f) => f.imageRef === imageUrl);
+    // Match by either the new hash-ref format (imageRef is a small hash
+    // pointing into the unified cache) or the legacy format where
+    // imageRef was the data URL itself. Also check the resolved imageUrl
+    // field for any leftover data URL references from older code paths.
+    const existing = favorites.find(
+      (f) =>
+        f.imageRef === imageUrl ||
+        f.imageUrl === imageUrl ||
+        (typeof f.imageRef === 'string' && f.imageRef.startsWith('data:') && f.imageRef === imageUrl),
+    );
     if (existing) {
       removeFavorite(existing.id);
       setFavorites(getFavorites());
     } else {
-      addFavorite({ imageUrl, prompt, source: 'storyboard', r18: r18Mode });
-      setFavorites(getFavorites());
+      const ok = addFavorite({ imageUrl, prompt, source: 'storyboard', r18: r18Mode });
+      if (ok) {
+        setFavorites(getFavorites());
+      } else {
+        onError?.('收藏失败：存储空间已满，请先清理浏览器数据');
+      }
     }
   };
 
@@ -2578,6 +2731,28 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     setPreviewIndex(index);
     setPreviewPrompt(prompt || '');
     setShowPreview(true);
+  }, []);
+
+  // Handle downloading a single image from a storyboard panel. Mirrors the
+  // download action used in HistoryPage so users have a consistent way to
+  // save generated images without leaving the storyboard view.
+  const handleDownloadImage = useCallback((imageUrl: string) => {
+    try {
+      const a = document.createElement('a');
+      a.href = imageUrl;
+      // Data URLs come through as `data:image/png;base64,...` — the browser
+      // will derive the right extension from the MIME type. For blob URLs we
+      // let the browser decide as well. Fall back to "png" if neither
+      // sniffable pattern matches.
+      const mimeMatch = imageUrl.match(/^data:(image\/[a-zA-Z0-9+.-]+);/);
+      const ext = mimeMatch ? mimeMatch[1].split('/')[1] : 'png';
+      a.download = `storyboard-${Date.now()}.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch (err) {
+      console.error('[handleDownloadImage] failed:', err);
+    }
   }, []);
 
   // Handle direct video generation from storyboard panel
@@ -2719,15 +2894,20 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     setBatchLoading(true);
     let submitted = 0;
 
-    // Create a new history entry for the regenerated images — don't overwrite existing history
-    const newHistoryId = addStoryboardHistory({
+    // Reuse the current history entry when the user is regenerating images
+    // for an already-loaded storyboard. Creating a brand-new history entry
+    // on every click was producing a long list of duplicate rows in the
+    // history panel (same theme + same panels, many copies).
+    const hid = currentHistoryId ?? addStoryboardHistory({
       plot: activeThemeInfo?.title || selectedThemes[0]?.title || '新生成',
       panel_count: activePanels.length,
       r18: r18Mode,
       panels: activePanels,
     });
-    setCurrentHistoryId(newHistoryId);
-    const hid = newHistoryId;
+    setCurrentHistoryId(hid);
+    // Other parts of the app (e.g. FinishedTaskImagesContext subscriber) look
+    // for the latest history id in sessionStorage — keep it in sync.
+    sessionStorage.setItem('sb_latest_history_id', hid);
 
     // Mark all panels as loading immediately (use string keys for multi-theme support)
     setGenStates((prev) => {
@@ -2799,7 +2979,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     if (submitted > 0) {
       onSuccess(`已提交 ${submitted} 个生图任务`);
     }
-  }, [activePanels, activeThemeInfo, selectedThemes, taskManager, setGenStates, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, r18Mode]);
+  }, [activePanels, activeThemeInfo, selectedThemes, taskManager, setGenStates, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, r18Mode, currentHistoryId]);
 
   const hasContent = storyStep === 'panels' && panels.length > 0;
 
@@ -3633,6 +3813,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                 selectedGirlfriend={selectedGirlfriend}
                 selectedImageIndex={selectedImage?.index}
                 onSelectImage={(imageIdx, imageUrl) => handleSelectPanelImage(panelKey, imageIdx, imageUrl)}
+                onDownload={handleDownloadImage}
                 videoPrompt={videoPrompt}
                 hasGeneratedImages={hasGenerated}
                 onPreviewImage={handlePreviewImage}
@@ -3656,18 +3837,25 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
               <button
                 onClick={() => handleToggleFavorite(previewImages[previewIndex], previewPrompt)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                  favorites.some((f) => f.imageUrl === previewImages[previewIndex])
+                  isFavorited(previewImages[previewIndex])
                     ? 'bg-red-500 text-white'
-                    : 'bg-white/10 text-white hover:bg-white/20'
+                    : 'bg-white/90 text-gray-700 hover:bg-white'
                 }`}
               >
-                <Heart size={12} fill={favorites.some((f) => f.imageUrl === previewImages[previewIndex]) ? 'currentColor' : 'none'} />
-                {favorites.some((f) => f.imageUrl === previewImages[previewIndex]) ? '已收藏' : '收藏'}
+                <Heart size={12} fill={isFavorited(previewImages[previewIndex]) ? 'currentColor' : 'none'} />
+                {isFavorited(previewImages[previewIndex]) ? '已收藏' : '收藏'}
+              </button>
+              <button
+                onClick={() => handleDownloadImage(previewImages[previewIndex])}
+                title="下载图片"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-white/90 text-gray-700 hover:bg-white transition-all"
+              >
+                <Download size={12} />下载
               </button>
             </div>
             <button
               onClick={() => setShowPreview(false)}
-              className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+              className="w-10 h-10 rounded-full bg-white/90 hover:bg-white text-gray-700 flex items-center justify-center transition-colors"
             >
               <X size={20} />
             </button>
@@ -3755,50 +3943,70 @@ function StoryboardHistoryList({ history, onLoad, onDelete }: {
       }
     };
 
-    const sync = () => {
-      const missing = history.filter((h) =>
-        !previewImagesRef.current[h.id] &&
-        !loadingPreviewsRef.current.has(h.id)
-      );
-      if (missing.length === 0) return;
-
-      if (inFlightRef.current) return;
-      inFlightRef.current = true;
-
-      missing.forEach((h) => {
-        loadingPreviewsRef.current.add(h.id);
-      });
-      if (!cancelled) setLoadingPreviews((prev) => new Set([...prev, ...missing.map((h) => h.id)]));
-
-      (async () => {
-        for (const h of missing) {
-          if (cancelled) break;
-          try {
-            const images = await loadCachedOrExtractPanelImages(h.zipUrl, 6, h.id, 0);
-            if (!cancelled && images.length > 0) {
-              const updated = { ...previewImagesRef.current, [h.id]: images.slice(0, 6) };
-              previewImagesRef.current = updated;
-              setPreviewImages(updated);
-            }
-          } catch (e) {
-            console.debug('[StoryboardHistoryList] zip extraction failed for', h.id, e);
-          } finally {
-            if (!cancelled) {
-              loadingPreviewsRef.current.delete(h.id);
-              setLoadingPreviews((prev) => {
-                const next = new Set(prev);
-                next.delete(h.id);
-                return next;
-              });
+    const loadOne = async (h: StoryboardHistoryItem) => {
+      // The per-entry preview used to call loadCachedOrExtractPanelImages
+      // with a hard-coded panelIdx=0, which meant every entry's preview
+      // came from the same panel slot and entries that happened to have
+      // panel 0 cached would all show the same image. Walk every panel
+      // in the entry so the preview reflects the actual gallery, not
+      // just whichever panel has the most recent cache write.
+      const seen = new Set<string>();
+      const collected: string[] = [];
+      const panels = Math.max(1, h.panel_count || 1);
+      const perPanelCount = h.panelImageCounts?.[0] || 4;
+      for (let p = 0; p < panels && collected.length < 6; p++) {
+        try {
+          // Use the per-panel zipUrl from panelZipUrls when present so
+          // each panel reads its own img_cache entry. Fall back to
+          // h.zipUrl for entries written by older versions of the app
+          // that only had a single zipUrl field.
+          const panelZip = h.panelZipUrls?.[p] || h.zipUrl;
+          const imgs = await loadCachedOrExtractPanelImages(panelZip, perPanelCount, h.id, p, panelZip);
+          for (const img of imgs) {
+            if (img && !seen.has(img) && collected.length < 6) {
+              seen.add(img);
+              collected.push(img);
             }
           }
+        } catch (e) {
+          console.debug('[StoryboardHistoryList] panel load failed for', h.id, 'panel', p, e);
         }
-        inFlightRef.current = false;
-      })();
+      }
+      if (cancelled) return;
+      if (collected.length > 0) {
+        const updated = { ...previewImagesRef.current, [h.id]: collected };
+        previewImagesRef.current = updated;
+        setPreviewImages(updated);
+      }
     };
 
+    // Fire-and-forget per-entry loaders. Earlier code shared a single
+    // inFlightRef across all entries, so entry #2 waited for #1's zip
+    // download to finish before it could even start. With many entries
+    // (5+) the queue would starve the last ones into showing no
+    // preview. Each entry now runs its own loader — they're cheap, the
+    // generic cache is a sync localStorage read for already-cached
+    // panels, and parallelization dramatically improves perceived
+    // load time.
+    for (const h of history) {
+      if (previewImagesRef.current[h.id] || loadingPreviewsRef.current.has(h.id)) continue;
+      loadingPreviewsRef.current.add(h.id);
+      setLoadingPreviews((prev) => new Set([...prev, h.id]));
+      loadOne(h)
+        .catch((e) => console.debug('[StoryboardHistoryList] loadOne failed for', h.id, e))
+        .finally(() => {
+          loadingPreviewsRef.current.delete(h.id);
+          if (!cancelled) {
+            setLoadingPreviews((prev) => {
+              const next = new Set(prev);
+              next.delete(h.id);
+              return next;
+            });
+          }
+        });
+    }
+
     syncCache();
-    sync();
   }, [history, refreshKey]);
 
   if (history.length === 0) {
@@ -3892,13 +4100,14 @@ function FavoritesList({ favorites, r18Mode, onRemove, onClear }: {
   );
 }
 
-function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onToggle, onCopyPanel, genState, onGenerateImage, onFavorited, taskManager, digitalHumanMode, selectedGirlfriend, selectedImageIndex, onSelectImage, onGenerateVideo, videoPrompt, hasGeneratedImages, onPreviewImage, videoGenLoading, onDirectGenerateVideo }: {
+function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onToggle, onCopyPanel, genState, onGenerateImage, onFavorited, onDownload, taskManager, digitalHumanMode, selectedGirlfriend, selectedImageIndex, onSelectImage, onGenerateVideo, videoPrompt, hasGeneratedImages, onPreviewImage, videoGenLoading, onDirectGenerateVideo }: {
   panel: { panel_number: number; scene_description: string; image_prompt: string };
   idx: number; isExpanded: boolean; r18Mode: boolean; copiedPanel: number | null;
   onToggle: () => void; onCopyPanel: () => void;
   genState?: { loading: boolean; images: string[] };
   onGenerateImage: () => void;
   onFavorited?: (url: string) => void;
+  onDownload?: (url: string) => void;
   taskManager: TaskManagerReturn;
   digitalHumanMode?: boolean; selectedGirlfriend?: GirlfriendPreset | null;
   selectedImageIndex?: number;
@@ -3914,19 +4123,28 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
   const displayImages = genState?.images ?? [];
 
   const normalizedPanelPrompt = panel.image_prompt.trim().replace(/\s+/g, ' ');
-  const panelRelatedTasks = taskManager.tasks.filter(
-    (t: QueuedTask) => (t.status === 'RUNNING' || t.status === 'QUEUEING' || t.status === 'FINISHED') && t.images.length > 0
-  ).filter((t: QueuedTask) => {
+  // Match a task to this panel by exact prompt only. The previous substring
+  // matching (includes / startsWith) merged tasks from adjacent panels
+  // because their prompts share a common prefix (e.g. "现代校园场景, 22 岁").
+  // We also keep tasks without images (still QUEUEING/RUNNING) so the
+  // "generating/queued" badge works.
+  const panelRelatedTasks = taskManager.tasks.filter((t: QueuedTask) => {
+    if (t.status !== 'RUNNING' && t.status !== 'QUEUEING' && t.status !== 'FINISHED') return false;
+    if (t.status !== 'RUNNING' && t.status !== 'QUEUEING' && t.images.length === 0) return false;
     const taskPromptNorm = t.prompt.trim().replace(/\s+/g, ' ');
-    return taskPromptNorm === normalizedPanelPrompt ||
-      taskPromptNorm.includes(normalizedPanelPrompt) ||
-      normalizedPanelPrompt.includes(taskPromptNorm) ||
-      (normalizedPanelPrompt.length > 50 && taskPromptNorm.includes(normalizedPanelPrompt.substring(0, Math.min(normalizedPanelPrompt.length, 150))));
+    return taskPromptNorm === normalizedPanelPrompt;
   });
 
   const taskImages = panelRelatedTasks.flatMap((t: QueuedTask) => t.images);
   const allDisplayImages = displayImages.length > 0 ? displayImages : taskImages;
   const hasImages = allDisplayImages.length > 0;
+
+  // Per-panel status for loading placeholder. Only show "generating/queued"
+  // when no images are present yet — once images arrive, the green badge
+  // takes over.
+  const isQueued = panelRelatedTasks.some((t: QueuedTask) => t.status === 'QUEUEING');
+  const isGenerating = panelRelatedTasks.some((t: QueuedTask) => t.status === 'RUNNING');
+  const showLoadingState = !hasImages && (isGenLoading || isQueued || isGenerating);
 
   return (
     <div className={`rounded-2xl overflow-hidden shadow-card ${r18Mode ? 'border border-red-200 bg-white' : 'bg-white border border-border'}`}>
@@ -3936,6 +4154,16 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
           <span className={`w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0 ${r18Mode ? 'bg-gradient-to-br from-red-500 to-red-700 text-white' : 'bg-gradient-to-br from-primary to-primary/60 text-white'}`}>{panel.panel_number}</span>
           <span className="text-sm text-text-primary font-medium whitespace-pre-wrap break-words line-clamp-2">{panel.scene_description}</span>
           {hasImages && <span className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center flex-shrink-0 bg-green-500 text-white`}>{allDisplayImages.length}</span>}
+          {showLoadingState && (
+            <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium flex-shrink-0 ${
+              isGenerating
+                ? 'bg-blue-50 text-blue-600 border border-blue-200'
+                : 'bg-amber-50 text-amber-600 border border-amber-200'
+            }`}>
+              <Loader2 size={10} className="animate-spin" />
+              {isQueued && !isGenerating ? '排队中' : '生成中'}
+            </span>
+          )}
         </div>
         {isExpanded ? <ChevronUp size={14} className="text-text-tertiary" /> : <ChevronDown size={14} className="text-text-tertiary" />}
       </button>
@@ -3963,6 +4191,21 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
             </div>
             <div className={`rounded-xl px-4 py-3 text-xs leading-relaxed whitespace-pre-wrap font-mono ${r18Mode ? 'bg-red-50 text-red-700' : 'bg-bg-elevated text-text-secondary'}`}>{panel.image_prompt}</div>
 
+            {/* Loading/queued placeholder — shown while a task is in flight for
+                this panel but no images have arrived yet. Without this, the
+                user sees a blank panel between batch submission and the first
+                image landing. */}
+            {showLoadingState && !hasImages && (
+              <div className={`mt-3 rounded-xl border-2 border-dashed flex items-center justify-center gap-2 px-4 py-6 text-xs font-medium ${
+                isGenerating
+                  ? (r18Mode ? 'border-blue-200 bg-blue-50/40 text-blue-500' : 'border-blue-200 bg-blue-50/40 text-blue-600')
+                  : (r18Mode ? 'border-amber-200 bg-amber-50/40 text-amber-500' : 'border-amber-200 bg-amber-50/40 text-amber-600')
+              }`}>
+                <Loader2 size={14} className="animate-spin" />
+                <span>{isQueued && !isGenerating ? '排队中，等待生成…' : '生成中，图片即将出现…'}</span>
+              </div>
+            )}
+
             {/* Generated images preview with selection and preview */}
             {hasImages && (
               <div className="mt-3">
@@ -3971,7 +4214,7 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
                   <span className="text-[10px] text-text-tertiary">{allDisplayImages.length} 张</span>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
-                  {allDisplayImages.slice(0, 6).map((img, i) => (
+                  {allDisplayImages.filter((img) => img && (img.startsWith('data:') || img.startsWith('blob:') || img.startsWith('http'))).slice(0, 6).map((img, i) => (
                     <div
                       key={i}
                       className={`relative group cursor-pointer rounded-lg overflow-hidden transition-all ${
@@ -3982,19 +4225,45 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
                         onPreviewImage?.(allDisplayImages, i, panel.image_prompt);
                       }}
                     >
-                      <img src={img} alt="" className="w-full aspect-square object-cover" loading="lazy" />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-1">
-                        <div className="w-8 h-8 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                          <ZoomIn size={16} className="text-white" />
-                        </div>
+                      <img
+                        src={img}
+                        alt=""
+                        className="w-full aspect-square object-cover"
+                        loading="lazy"
+                        onError={(e) => {
+                          // Hide broken images — bare hash refs and dead
+                          // blob URLs would otherwise show as the browser's
+                          // default broken-image icon.
+                          (e.currentTarget as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors pointer-events-none" />
+                      <div className="absolute top-1 right-1 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         {onFavorited && (
                           <button
-                            onClick={(e) => { e.stopPropagation(); onFavorited(img); }}
-                            className={`w-8 h-8 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity ${isFavorited(img) ? 'bg-red-500 text-white' : 'bg-black/50 text-white hover:bg-red-500'}`}
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); e.preventDefault(); onFavorited(img); }}
+                            title={isFavorited(img) ? '取消收藏' : '收藏'}
+                            className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${isFavorited(img) ? 'bg-red-500 text-white' : 'bg-black/55 text-white hover:bg-red-500'}`}
                           >
-                            <Heart size={14} className={isFavorited(img) ? 'fill-white' : ''} />
+                            <Heart size={13} className={isFavorited(img) ? 'fill-white' : ''} />
                           </button>
                         )}
+                        {onDownload && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); e.preventDefault(); onDownload(img); }}
+                            title="下载图片"
+                            className="w-7 h-7 rounded-full bg-black/55 text-white hover:bg-blue-500 flex items-center justify-center transition-all"
+                          >
+                            <Download size={13} />
+                          </button>
+                        )}
+                      </div>
+                      <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                        <div className="w-9 h-9 rounded-full bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-auto flex items-center justify-center">
+                          <ZoomIn size={18} className="text-white" />
+                        </div>
                       </div>
                       {selectedImageIndex === i && (
                         <div className="absolute top-1 left-1 bg-purple-500 text-white text-[9px] px-1.5 py-0.5 rounded font-medium flex items-center gap-0.5">
@@ -4127,19 +4396,35 @@ function AIGeneratedImagePreview({ src, prompt, onFavorited, allImages, index }:
       </div>
       {lightbox && (
         <div className="fixed inset-0 z-[100] bg-black/90 flex flex-col items-center justify-center animate-fade-in" onClick={() => setLightbox(false)}>
-          <div className="absolute top-4 right-4 flex items-center gap-2">
+          <div className="absolute top-4 right-4 flex items-center gap-2 z-20">
             {prompt && (
-              <button onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(prompt); }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 text-white text-xs hover:bg-white/20 transition-colors">
+              <button onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(prompt); }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/90 text-gray-700 text-xs hover:bg-white transition-colors">
                 <Copy size={12} />复制提示词
               </button>
             )}
-            <button onClick={handleDownload} className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors">
-              <Download size={16} />
+            <button
+              onClick={handleDownload}
+              title="下载图片"
+              className="w-10 h-10 rounded-full bg-white/90 hover:bg-white text-gray-700 hover:text-blue-600 flex items-center justify-center transition-colors"
+            >
+              <Download size={18} />
             </button>
-            <button onClick={handleFavorite} className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
-              <Heart size={16} className={isFavorited(displaySrc) ? 'fill-red-500 text-red-500' : 'text-white'} />
+            <button
+              onClick={handleFavorite}
+              title={isFavorited(displaySrc) ? '取消收藏' : '收藏'}
+              className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+                isFavorited(displaySrc)
+                  ? 'bg-red-500 text-white hover:bg-red-600'
+                  : 'bg-white/90 text-gray-700 hover:bg-white hover:text-red-500'
+              }`}
+            >
+              <Heart size={18} className={isFavorited(displaySrc) ? 'fill-white' : ''} />
             </button>
-            <button onClick={setLightbox.bind(null, false)} className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors">
+            <button
+              onClick={() => setLightbox(false)}
+              title="关闭"
+              className="w-10 h-10 rounded-full bg-white/90 hover:bg-white text-gray-700 flex items-center justify-center transition-colors"
+            >
               <X size={20} />
             </button>
           </div>
