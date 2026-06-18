@@ -1205,21 +1205,15 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       return;
     }
     setGenStates((prev) => ({ ...prev, [idx]: { loading: true, images: [] } }));
-    // Resolve the user-selected theme for the history card. We check three
-    // sources in priority order because the user can:
-    //   1. Pick a theme in the dropdown and抽卡 — theme state is "暗示优雅",
-    //      results[i].theme is "" (API doesn't echo it back).
-    //   2. 抽卡 then switch the dropdown back to 完全随机 — the dropdown
-    //      state is the source of truth, results[i].theme is stale.
-    //   3. Load a previous抽卡 result from history — results[i].theme is
-    //      populated from the history item; theme state may be "".
-    // We prefer the dropdown state, but fall back to the result's theme so
-    // history-loaded runs still label correctly.
+    // Per the user feedback: the history card's "主题" label for random
+    // records must show the per-result theme_label that the UI displays
+    // alongside the prompt (e.g. "地牢舔阴", "失禁盲绳"), NOT the
+    // user-selected dropdown theme (which is "完全随机" by default and
+    // adds no information). theme_label is set by the API on every抽卡
+    // result and loaded back from history on reload — so it's always
+    // available here.
     const resultForIdx = results[idx];
-    const themeKey = theme || resultForIdx?.theme || '';
-    const randomTheme = (themeKey && THEMES.find((t) => t.key === themeKey)?.label)
-      || (resultForIdx?.theme && resultForIdx.theme !== '' ? resultForIdx.theme : '')
-      || '';
+    const randomTheme = resultForIdx?.theme_label || '';
     let imagePath = selectedGirlfriend?.portraitUrl || '';
     let referenceImageUrl = '';
     if (digitalHumanMode && selectedGirlfriend) {
@@ -1308,13 +1302,11 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       }
     }
     const toSubmit = results.slice(0, availableSlots);
-    // See handleRandomGenerateImage for the priority order. The batch path
-    // sees results[0]..results[N-1] which all share the same抽卡 theme.
+    // See handleRandomGenerateImage — random history cards show the
+    // per-result theme_label (the sub-theme the API returns with each
+    // prompt, e.g. "地牢舔阴"), not the dropdown's "完全随机".
     const firstResult = toSubmit[0];
-    const themeKey = theme || firstResult?.theme || '';
-    const randomTheme = (themeKey && THEMES.find((t) => t.key === themeKey)?.label)
-      || (firstResult?.theme && firstResult.theme !== '' ? firstResult.theme : '')
-      || '';
+    const randomTheme = firstResult?.theme_label || '';
     const tasks = toSubmit.map(async (result) => {
       if (digitalHumanMode && selectedGirlfriend) {
         const nodes = [
