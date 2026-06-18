@@ -2303,6 +2303,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   // Image selection and video generation state
   const [selectedPanelImages, setSelectedPanelImages] = useState<Record<string, { index: number; url: string }>>({});
   const [videoGenLoading, setVideoGenLoading] = useState<Record<string, boolean>>({});
+  // Per-panel "智能扩写" spinner state for the video prompt editor.
+  const [promptEditLoading, setPromptEditLoading] = useState<Record<number, boolean>>({});
   const [previewImages, setPreviewImages] = useState<string[]>([]);
   const [previewIndex, setPreviewIndex] = useState(0);
   const [previewPrompt, setPreviewPrompt] = useState<string>('');
@@ -2617,7 +2619,12 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     if (panels.length === 0) { onError('先生成分镜'); return; }
     setGeneratingScript(true);
     try {
-      const res = await generateVideoScript(selectedTheme?.title || '默认主题', r18Mode, panels, true);
+      // Explicit model order: try grok-4.2 first; if it fails (timeout,
+      // 5xx, content filter, etc.) backend's call_grok() automatically
+      // falls back to grok-4-1-fast-non-reasoning. Same chain used for
+      // per-panel regen below.
+      const modelOrder = ['grok-4.2', 'grok-4-1-fast-non-reasoning'];
+      const res = await generateVideoScript(selectedTheme?.title || '默认主题', r18Mode, panels, true, modelOrder);
 
       // Async mode: track for polling
       if (res.task_id) {
@@ -2662,6 +2669,62 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       setGeneratingScript(false);
     }
   };
+
+  /**
+   * Per-panel regenerate video prompt. Calls the backend's
+   * `/storyboard/script` endpoint with only the one panel and a model
+   * order of [grok-4.2, grok-4-1-fast-non-reasoning]. Backend call_grok()
+   * already implements model-level fallback: any failure on grok-4.2
+   * (timeout / 5xx / content filter / etc.) automatically retries with
+   * the next model in the list. So the user's intent of "try grok-4.2
+   * first, fall back to grok-4-1-fast-non-reasoning on failure" is
+   * delivered with a single explicit field — no client-side retry logic.
+   */
+  const VIDEO_PROMPT_MODEL_ORDER = ['grok-4.2', 'grok-4-1-fast-non-reasoning'];
+
+  const handleRegenerateVideoPrompt = useCallback(async (panelIdx: number) => {
+    const panel = panels[panelIdx];
+    if (!panel) { onError('找不到对应的分镜'); return; }
+    setPromptEditLoading((prev) => ({ ...prev, [panelIdx]: true }));
+    try {
+      const res = await generateVideoScript(
+        selectedTheme?.title || activeThemeInfo?.title || '默认主题',
+        r18Mode,
+        [panel],
+        false, // sync — single panel, want result back immediately
+        VIDEO_PROMPT_MODEL_ORDER,
+      );
+      const scriptPanel = res.panels.find((sp) => sp.panel === panel.panel_number) || res.panels[0];
+      if (!scriptPanel) throw new Error('后端未返回该分镜的脚本');
+      const sceneForPrompt = [
+        scriptPanel.action,
+        scriptPanel.heading,
+        scriptPanel.dialogue ? `对白：${scriptPanel.dialogue}` : '',
+        scriptPanel.sound_cue ? `音效：${scriptPanel.sound_cue}` : '',
+        scriptPanel.camera ? `镜头：${scriptPanel.camera}` : '',
+      ].filter(Boolean).join('；');
+      const newPrompt = extractVideoPromptFromImagePrompt({
+        imagePrompt: panel.image_prompt,
+        sceneDescription: sceneForPrompt,
+        r18Mode,
+      });
+      setPanelVideoPrompts((prev) => ({ ...prev, [panelIdx]: newPrompt }));
+      // Also persist into videoScript so /storyboard/script re-runs pick it up
+      setVideoScript((prev) => {
+        const others = prev?.panels.filter((sp) => sp.panel !== panel.panel_number) ?? [];
+        return { ...(prev ?? {} as any), panels: [...others, scriptPanel] } as any;
+      });
+      onSuccess(`分镜 ${panel.panel_number} 的动画提示词已智能扩写`);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : '智能扩写失败');
+    } finally {
+      setPromptEditLoading((prev) => {
+        const next = { ...prev };
+        delete next[panelIdx];
+        return next;
+      });
+    }
+  }, [panels, selectedTheme, activeThemeInfo, r18Mode, onError, onSuccess]);
 
   const handleCopyPanel = (panel: { image_prompt: string }, idx: number) => { navigator.clipboard.writeText(panel.image_prompt).then(() => { setCopiedPanel(idx); setTimeout(() => setCopiedPanel(null), 2000); }); };
   const handleCopyAll = () => { navigator.clipboard.writeText(panels.map((p) => `[Panel ${p.panel_number}]\n${p.image_prompt}`).join('\n\n')).then(() => { setCopiedPanel(-1); setTimeout(() => setCopiedPanel(null), 2000); }); };
@@ -3992,6 +4055,9 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                 videoGenLoading={videoGenLoading[panelKey]}
                 onDirectGenerateVideo={(imageUrl, prompt) => handleDirectGenerateVideo(panelKey, imageUrl, prompt)}
                 themeTitle={activeThemeInfo?.title || plot}
+                onRegenerateVideoPrompt={() => handleRegenerateVideoPrompt(idx)}
+                promptEditLoading={!!promptEditLoading[idx]}
+                onVideoPromptChange={(newPrompt) => setPanelVideoPrompts((prev) => ({ ...prev, [idx]: newPrompt }))}
               />
             );
           })}
@@ -4250,7 +4316,7 @@ function FavoritesList({ favorites, r18Mode, onRemove, onClear }: {
   );
 }
 
-function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onToggle, onCopyPanel, genState, onGenerateImage, onFavorited, onDownload, taskManager, digitalHumanMode, selectedGirlfriend, selectedImageIndex, onSelectImage, onGenerateVideo, videoPrompt, hasGeneratedImages, onPreviewImage, videoGenLoading, onDirectGenerateVideo, themeTitle }: {
+function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onToggle, onCopyPanel, genState, onGenerateImage, onFavorited, onDownload, taskManager, digitalHumanMode, selectedGirlfriend, selectedImageIndex, onSelectImage, onGenerateVideo, videoPrompt, hasGeneratedImages, onPreviewImage, videoGenLoading, onDirectGenerateVideo, themeTitle, onRegenerateVideoPrompt, promptEditLoading, onVideoPromptChange }: {
   panel: { panel_number: number; scene_description: string; image_prompt: string };
   idx: number; isExpanded: boolean; r18Mode: boolean; copiedPanel: number | null;
   onToggle: () => void; onCopyPanel: () => void;
@@ -4269,6 +4335,12 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
   videoGenLoading?: boolean;
   onDirectGenerateVideo?: (imageUrl: string, prompt: string) => void;
   themeTitle?: string;
+  /** Trigger a single-panel video-prompt "智能扩写" via backend grok-4.2 → grok-4-1-fast-non-reasoning */
+  onRegenerateVideoPrompt?: () => void;
+  /** Spinner state for the smart-expand button */
+  promptEditLoading?: boolean;
+  /** Edits to the prompt (writes back into parent state so 图生视频 uses the latest text) */
+  onVideoPromptChange?: (newPrompt: string) => void;
 }) {
   const isGenLoading = genState?.loading;
   const displayImages = genState?.images ?? [];
@@ -4463,39 +4535,70 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
                 <div className="flex items-center gap-1.5">
                   <Video size={12} className={videoPrompt ? 'text-purple-500' : 'text-text-tertiary'} />
                   <span className={`text-xs font-medium ${videoPrompt ? 'text-purple-600' : 'text-text-tertiary'}`}>动画提示词</span>
+                  <span className="text-[10px] text-text-tertiary">(可编辑)</span>
                 </div>
-                {hasImages && (
-                  <button
-                    onClick={() => {
-                      const imageToUse = selectedImageIndex !== undefined && allDisplayImages[selectedImageIndex]
-                        ? allDisplayImages[selectedImageIndex]
-                        : allDisplayImages[0];
-                      // Always pass a panel-derived videoPrompt. We never want
-                      // to fall back to a raw panel.image_prompt here because
-                      // that may be the whole-storyboard master prompt (and
-                      // would yield a junk video prompt like "32宫格").
-                      const promptForVideo = videoPrompt || extractVideoPromptFromImagePrompt({
-                        imagePrompt: panel.image_prompt,
-                        sceneDescription: panel.scene_description,
-                        r18Mode,
-                      });
-                      onDirectGenerateVideo?.(imageToUse, promptForVideo);
-                    }}
-                    disabled={videoGenLoading || !videoPrompt}
-                    className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                      !videoPrompt || videoGenLoading
-                        ? 'bg-purple-100 text-purple-400 cursor-not-allowed'
-                        : 'bg-purple-500 text-white hover:bg-purple-600'
-                    }`}
-                  >
-                    {videoGenLoading ? <><Loader2 size={11} className="animate-spin" /> 生成中</> : <><Video size={11} />图生视频</>}
-                  </button>
-                )}
+                <div className="flex items-center gap-1">
+                  {onRegenerateVideoPrompt && (
+                    <button
+                      onClick={onRegenerateVideoPrompt}
+                      disabled={promptEditLoading}
+                      title="智能扩写：先用 grok-4.2，失败自动用 grok-4-1-fast-non-reasoning"
+                      className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                        promptEditLoading
+                          ? 'bg-bg-elevated text-text-secondary cursor-not-allowed'
+                          : 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90'
+                      }`}
+                    >
+                      {promptEditLoading ? (
+                        <><Loader2 size={11} className="animate-spin" /> 扩写中</>
+                      ) : (
+                        <><Wand2 size={11} />智能扩写</>
+                      )}
+                    </button>
+                  )}
+                  {hasImages && (
+                    <button
+                      onClick={() => {
+                        const imageToUse = selectedImageIndex !== undefined && allDisplayImages[selectedImageIndex]
+                          ? allDisplayImages[selectedImageIndex]
+                          : allDisplayImages[0];
+                        // Always pass a panel-derived videoPrompt. We never want
+                        // to fall back to a raw panel.image_prompt here because
+                        // that may be the whole-storyboard master prompt (and
+                        // would yield a junk video prompt like "32宫格").
+                        const promptForVideo = videoPrompt || extractVideoPromptFromImagePrompt({
+                          imagePrompt: panel.image_prompt,
+                          sceneDescription: panel.scene_description,
+                          r18Mode,
+                        });
+                        onDirectGenerateVideo?.(imageToUse, promptForVideo);
+                      }}
+                      disabled={videoGenLoading || !videoPrompt}
+                      className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                        !videoPrompt || videoGenLoading
+                          ? 'bg-purple-100 text-purple-400 cursor-not-allowed'
+                          : 'bg-purple-500 text-white hover:bg-purple-600'
+                      }`}
+                    >
+                      {videoGenLoading ? <><Loader2 size={11} className="animate-spin" /> 生成中</> : <><Video size={11} />图生视频</>}
+                    </button>
+                  )}
+                </div>
               </div>
               {videoPrompt ? (
-                <div className="text-xs leading-relaxed text-text-secondary whitespace-pre-wrap font-mono">{videoPrompt}</div>
+                onVideoPromptChange ? (
+                  <textarea
+                    value={videoPrompt}
+                    onChange={(e) => onVideoPromptChange(e.target.value)}
+                    rows={3}
+                    placeholder="动画提示词..."
+                    className="w-full text-xs leading-relaxed text-text-secondary font-mono p-2 rounded-lg border border-purple-200 bg-white focus:outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-300 resize-y"
+                  />
+                ) : (
+                  <div className="text-xs leading-relaxed text-text-secondary whitespace-pre-wrap font-mono">{videoPrompt}</div>
+                )
               ) : (
-                <div className="text-xs text-text-tertiary">生成图片后将自动生成动画提示词</div>
+                <div className="text-xs text-text-tertiary">生成图片后将自动生成动画提示词，或点击「智能扩写」生成</div>
               )}
             </div>
 

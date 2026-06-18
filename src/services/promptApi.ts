@@ -357,6 +357,7 @@ export async function generateVideoScript(
   r18: boolean,
   panels: { panel_number: number; scene_description: string; image_prompt: string }[],
   asyncMode: boolean = false,
+  modelOrder?: string[],
 ): Promise<StoryboardScriptResponse> {
   const base = getBackendUrl();
   const controller = new AbortController();
@@ -376,6 +377,12 @@ export async function generateVideoScript(
             image_prompt: p.image_prompt,
           })),
           async_mode: asyncMode,
+          // model_order: frontend tells backend which LLM to try first,
+          // and what to fall back to on failure. Backend's call_grok()
+          // implements model-level fallback: any failure (timeout, 5xx,
+          // content refusal) on the primary model automatically retries
+          // with the next one in the list.
+          model_order: modelOrder,
         }),
       },
     );
