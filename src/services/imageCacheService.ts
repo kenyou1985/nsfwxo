@@ -496,6 +496,28 @@ export async function storeImage(dataUrl: string): Promise<string> {
 }
 
 /**
+ * Synchronous variant of storeImage. Used by paths (e.g. addFavorite) that
+ * must return a ref the caller can read back IMMEDIATELY — otherwise the
+ * favorites tab reads localStorage before this async write finishes and
+ * resolveImageRef returns "" for the brand-new ref, showing a broken
+ * `<img src="">` until the async resolution swaps it in.
+ *
+ * The async storeImage still runs after this and does the size/LRU
+ * enforcement; on dedup hits it just increments refCount, so the sync
+ * version's write doesn't cause double-counting.
+ */
+export function storeImageSync(dataUrl: string): string {
+  const key = computeImageHash(dataUrl);
+  const now = Date.now();
+  const store = getUnifiedStore();
+  if (!store[key]) {
+    store[key] = { dataUrl, cachedAt: now, sizeBytes: dataUrl.length * 2, refCount: 1 };
+    saveUnifiedStore(store);
+  }
+  return key;
+}
+
+/**
  * Resolve a content hash reference back to the actual data URL.
  */
 export function resolveImageRef(ref: string): string {

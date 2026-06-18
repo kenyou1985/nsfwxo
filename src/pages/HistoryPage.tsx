@@ -556,13 +556,25 @@ export function HistoryPage({ onRegenerate, onSuccess, onError }: HistoryPagePro
                 <div
                   key={item.id}
                   className="relative aspect-square rounded-lg overflow-hidden bg-bg-elevated group cursor-pointer"
-                  onClick={() => setLightboxFavoriteIndex(item.id === favorites[0]?.id ? 0 : favorites.findIndex((f) => f.id === item.id))}
+                  onClick={() => item.imageUrl && setLightboxFavoriteIndex(item.id === favorites[0]?.id ? 0 : favorites.findIndex((f) => f.id === item.id))}
                 >
-                  <img
-                    src={item.imageUrl}
-                    alt="收藏"
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                  />
+                  {item.imageUrl ? (
+                    <img
+                      src={item.imageUrl}
+                      alt="收藏"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                    />
+                  ) : (
+                    // Orphan ref (legacy data stored before the hash-ref
+                    // migration, or a hash the unified cache can't resolve).
+                    // Show a placeholder rather than a broken-image icon so
+                    // the favorites tab still renders cleanly.
+                    <div className="w-full h-full flex flex-col items-center justify-center text-text-tertiary bg-bg-elevated">
+                      <ImageIcon size={20} className="opacity-40" />
+                      <span className="text-[9px] mt-1 opacity-60">图片已失效</span>
+                    </div>
+                  )}
                   <button
                     onClick={(e) => { e.stopPropagation(); handleToggleFavorite(item.imageUrl ?? ""); }}
                     className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 transition-colors"

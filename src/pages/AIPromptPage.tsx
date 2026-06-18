@@ -1205,12 +1205,11 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       return;
     }
     setGenStates((prev) => ({ ...prev, [idx]: { loading: true, images: [] } }));
-    // Capture the current result's theme (if any) so the history record can
-    // show "剧情: <theme>" alongside the source tag. The user explicitly
-    // asked for the theme to be visible on every history card, including
-    // random抽卡 which can be themed (e.g. multiple prompts under one theme).
-    const resultForIdx = results[idx];
-    const randomTheme = resultForIdx?.theme || resultForIdx?.theme_label || '';
+    // Capture the user-selected theme for the history card label. `theme` is
+    // a THEMES key (e.g. "暗示优雅"); an empty key means "完全随机".
+    // We must NOT fall back to result.theme_label — that's an API-returned
+    // counter like "主题1"/"主题2" that adds no information.
+    const randomTheme = THEMES.find((t) => t.key === theme)?.label || '';
     let imagePath = selectedGirlfriend?.portraitUrl || '';
     let referenceImageUrl = '';
     if (digitalHumanMode && selectedGirlfriend) {
@@ -1273,7 +1272,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         });
       }
     }
-  }, [taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, onNavigate, results]);
+  }, [taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, onNavigate, theme]);
 
   const handleBatchGenerate = useCallback(async () => {
     if (results.length === 0) return;
@@ -1299,8 +1298,10 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       }
     }
     const toSubmit = results.slice(0, availableSlots);
+    // Use the user-selected theme (not the per-result theme_label, which is
+    // a counter like "主题1" / "主题2" with no real meaning).
+    const randomTheme = THEMES.find((t) => t.key === theme)?.label || '';
     const tasks = toSubmit.map(async (result) => {
-      const randomTheme = result?.theme || result?.theme_label || '';
       if (digitalHumanMode && selectedGirlfriend) {
         const nodes = [
           { nodeId: '7', fieldName: 'image', fieldValue: imagePath, description: 'image' },
@@ -1338,7 +1339,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         if (onNavigate) onNavigate('txt2img');
       }
     }
-  }, [results, taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, onNavigate]);
+  }, [results, taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, onNavigate, theme]);
 
   return (
     <div className="space-y-4">

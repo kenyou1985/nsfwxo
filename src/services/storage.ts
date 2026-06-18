@@ -9,6 +9,7 @@ import {
   computeImageHash,
   hashString,
   storeImage,
+  storeImageSync,
 } from './imageCacheService';
 
 // Re-export for backwards compatibility with code that imports from storage.ts
@@ -538,11 +539,14 @@ export function addFavorite(item: Omit<FavoriteItem, 'id' | 'timestamp'>): boole
   let dataUrlToCache: string | null = null;
   if (imageUrl.startsWith('data:')) {
     dataUrlToCache = imageUrl;
-    // Provisional ref so dedup check + storage write work synchronously.
-    // We use a content-derived hash so identical images deduplicate even
-    // before storeImage resolves; once the async write completes the ref
-    // is replaced with the canonical one.
-    refForStorage = hashString(imageUrl.slice(0, 2048));
+    // Compute the same hash storeImage() will produce, and write the image
+    // into the unified cache SYNCHRONOUSLY so getFavorites() can resolve
+    // the ref on the very next read. Without the sync write, the async
+    // storeImage() takes a tick (longer on first call when ensureLimits()
+    // awaits the quota API), and the favorites tab renders with an empty
+    // imageUrl → broken <img src="">. With this write the ref is hot by
+    // the time we return.
+    refForStorage = storeImageSync(imageUrl);
   } else {
     // blob:/http: keep the URL as-is — it will resolve at read time.
     refForStorage = imageUrl;
