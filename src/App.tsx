@@ -194,7 +194,7 @@ function App() {
           />
         );
       case 'history':
-        return <HistoryPage onRegenerate={handleRegenerateFromHistory} onSuccess={toast.success} onError={toast.error} />;
+        return <HistoryPage onRegenerate={handleRegenerateFromHistory} onSuccess={toast.success} onError={toast.error} onNavigate={(tab) => setActiveTab(tab)} />;
       case 'aiprompt':
         return (
           <AIPromptPage

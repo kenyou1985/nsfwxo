@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Trash2, Image as ImageIcon, Clock, X, RotateCcw, Loader2, Video, Heart, Download, AlertTriangle, HardDrive, Bookmark, Layers } from 'lucide-react';
+import { Trash2, Image as ImageIcon, Clock, X, RotateCcw, Loader2, Video, Heart, Download, AlertTriangle, HardDrive, Bookmark, Layers, Check, Circle } from 'lucide-react';
 import { getRecords, deleteRecord, clearAllHistory, type HistoryRecord } from '../services/historyService';
 import { loadCachedOrExtractedImages } from '../services/imageCacheService';
 import { extractImagesFromZipAsDataUrls } from '../services/runninghub';
@@ -45,9 +45,10 @@ interface HistoryPageProps {
   onRegenerate?: (record: HistoryRecord) => void;
   onSuccess?: (msg: string) => void;
   onError?: (msg: string) => void;
+  onNavigate?: (tab: 'txt2img' | 'img2img' | 'img2vid' | 'aiprompt' | 'history') => void;
 }
 
-export function HistoryPage({ onRegenerate, onSuccess, onError }: HistoryPageProps) {
+export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate }: HistoryPageProps) {
   const [activeTab, setActiveTab] = useState<'image' | 'video' | 'favorites'>('image');
   const [records, setRecords] = useState<HistoryRecord[]>([]);
   const [videoRecords, setVideoRecords] = useState<VideoHistoryRecord[]>([]);
@@ -60,6 +61,8 @@ export function HistoryPage({ onRegenerate, onSuccess, onError }: HistoryPagePro
   const [lightboxRecordIndex, setLightboxRecordIndex] = useState<number | null>(null);
   const [lightboxImageIndex, setLightboxImageIndex] = useState<number>(0);
   const [lightboxFavoriteIndex, setLightboxFavoriteIndex] = useState<number | null>(null);
+  // 每条历史记录"生视频"按钮使用的图片索引（默认 0 = 第一张）。
+  const [selectedImg2vidIndex, setSelectedImg2vidIndex] = useState<Record<string, number>>({});
 
   const [storageStats, setStorageStats] = useState<{
     localStorageMB: number; cacheMB: number; itemCount: number;
@@ -187,6 +190,24 @@ export function HistoryPage({ onRegenerate, onSuccess, onError }: HistoryPagePro
     // Fallback to images stored directly in the record (data URLs already extracted)
     return record.images || [];
   };
+
+  // 历史记录 → 图生视频：把第一张图作为参考图存到 sessionStorage，
+  // 跳到图生视频页面。ImageToVideoPage 会在 mount 时读取这个 key，
+  // 上传图片 + 填到预览里，但**不自动生成**，由用户手动输入提示词后点击生成。
+  const handleGenerateVideoFromImage = useCallback((imageUrl: string) => {
+    if (!onNavigate) {
+      onError?.('当前页面无法跳转到图生视频');
+      return;
+    }
+    try {
+      sessionStorage.setItem('history_img2vid', JSON.stringify({ imageUrl }));
+    } catch (err) {
+      console.error('[HistoryPage] failed to set sessionStorage', err);
+      onError?.('保存图片失败：' + (err instanceof Error ? err.message : '未知错误'));
+      return;
+    }
+    onNavigate('img2vid');
+  }, [onNavigate, onError]);
 
   const handleDownload = (url: string, isVideo = false) => {
     const link = document.createElement('a');
@@ -423,17 +444,22 @@ export function HistoryPage({ onRegenerate, onSuccess, onError }: HistoryPagePro
                   </div>
                 ) : images.length > 0 ? (
                   <div className="flex gap-2 overflow-x-auto pb-1">
-                    {images.map((url, imgIndex) => (
+                    {images.map((url, imgIndex) => {
+                      const selectedIdx = selectedImg2vidIndex[record.id] ?? 0;
+                      const isSelected = selectedIdx === imgIndex;
+                      return (
                       <div
                         key={imgIndex}
-                        className="relative flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-bg-elevated cursor-pointer group"
+                        className={`relative flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-bg-elevated cursor-pointer group ${isSelected ? 'ring-2 ring-purple-500' : ''}`}
                         onClick={() => openLightbox(recordIndex, imgIndex)}
+                        title={isSelected ? '已选为生视频图片（点击缩略图查看大图）' : '点击查看大图'}
                       >
                         <img
                           src={url}
                           alt={`图片 ${imgIndex + 1}`}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                         />
+                        {/* 收藏：右上 */}
                         <button
                           onClick={(e) => { e.stopPropagation(); handleToggleFavorite(url, record.prompt); }}
                           className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/50 flex items-center justify-center transition-opacity hover:bg-black/70"
@@ -441,11 +467,25 @@ export function HistoryPage({ onRegenerate, onSuccess, onError }: HistoryPagePro
                         >
                           <Heart size={11} className={isFav(url) ? 'fill-red-500 text-red-500' : 'text-white opacity-0 group-hover:opacity-100 transition-opacity'} />
                         </button>
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                        {/* 选中"生视频"：左下，点击切换本张为生视频目标图。stopPropagation 避免触发 lightbox。 */}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setSelectedImg2vidIndex(prev => ({ ...prev, [record.id]: imgIndex })); }}
+                          className={`absolute bottom-0.5 left-0.5 w-5 h-5 rounded-full flex items-center justify-center transition-all ${
+                            isSelected
+                              ? 'bg-purple-500 text-white shadow-md'
+                              : 'bg-black/40 text-white opacity-0 group-hover:opacity-100 hover:bg-black/60'
+                          }`}
+                          title={isSelected ? '已选为生视频图片' : '选为生视频图片'}
+                          aria-label={isSelected ? '已选为生视频图片' : '选为生视频图片'}
+                        >
+                          {isSelected ? <Check size={11} /> : <Circle size={11} />}
+                        </button>
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center pointer-events-none">
                           <ImageIcon size={14} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : null}
 
@@ -454,6 +494,19 @@ export function HistoryPage({ onRegenerate, onSuccess, onError }: HistoryPagePro
                     {images.length > 0 ? `${images.length} 张图片` : '暂无图片'}
                     {record.coins && ` · ${record.coins} RH币`}
                   </span>
+                  {images.length > 0 && onNavigate && (
+                    <button
+                      onClick={() => {
+                        const selectedIdx = selectedImg2vidIndex[record.id] ?? 0;
+                        const url = images[selectedIdx] ?? images[0];
+                        handleGenerateVideoFromImage(url);
+                      }}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90 transition-all"
+                      title={`使用第 ${(selectedImg2vidIndex[record.id] ?? 0) + 1} 张图片作为参考图，跳转到图生视频页面`}
+                    >
+                      <Video size={11} />生视频
+                    </button>
+                  )}
                 </div>
               </div>
             );
