@@ -29,7 +29,7 @@ interface StoryboardSectionProps {
     onError: (msg: string) => void
   ) => void;
   onGenerateSingleImage?: (panelIdx: number, prompt: string, context?: { themeTitle?: string; panelNumber?: number }) => void;
-  onGenerateVideo?: (imageUrl: string, prompt: string, panelKey: string) => void;
+  onGenerateVideo?: (imageUrl: string, imagePrompt: string, sceneDescription: string, panelKey: string) => void;
   onToggleFavorite?: (url: string, prompt?: string) => void;
   onSuccess: (msg: string) => void;
   onError: (msg: string) => void;
@@ -54,7 +54,7 @@ export function StoryboardSection({
     onError?.('请前往「剧情分镜」页面使用单图生成功能');
   }, [onError]);
 
-  const noopVideo = useCallback((_imageUrl: string, _prompt: string, _panelKey: string) => {
+  const noopVideo = useCallback((_imageUrl: string, _imagePrompt: string, _sceneDescription: string, _panelKey: string) => {
     onError?.('智能分镜模式暂不支持图生视频，请切换到剧情分镜页面使用');
   }, [onError]);
 
@@ -183,7 +183,10 @@ export function StoryboardSection({
     });
   };
 
-  // Generate video for a specific panel image — uses selected image if available
+  // Generate video for a specific panel image — uses selected image if available.
+  // Pass both image_prompt AND scene_description so the video prompt extractor
+  // can target the panel's actual action, not the whole storyboard's master
+  // image_prompt (which would otherwise be a junk "32宫格" string).
   const handleGenerateVideo = (panelIdx: number) => {
     const imgs = panelImages[panelIdx] ?? [];
     if (imgs.length === 0) return;
@@ -191,7 +194,13 @@ export function StoryboardSection({
     const imageUrl = imgs[selectedIdx] ?? imgs[0];
     setVideoLoadingPanel(panelIdx);
     try {
-      actualVideo(imageUrl, result?.panels[panelIdx].image_prompt ?? '', `panel-${panelIdx}`);
+      const panel = result?.panels[panelIdx];
+      actualVideo(
+        imageUrl,
+        panel?.image_prompt ?? '',
+        panel?.scene_description ?? '',
+        `panel-${panelIdx}`,
+      );
       onSuccess('视频生成任务已提交');
     } catch (err) {
       onError(err instanceof Error ? err.message : '视频生成失败');
@@ -612,7 +621,9 @@ export function StoryboardSection({
                       {panel.image_prompt}
                     </p>
 
-                    {/* Video prompt — derived from image prompt */}
+                    {/* Video prompt — derived from image prompt + scene description
+                        so the animation prompt aligns with the panel's actual action,
+                        not the whole storyboard's master image_prompt. */}
                     {imgs.length > 0 && (
                       <div className="mb-2">
                         <div className="flex items-center gap-1 mb-0.5">
@@ -620,7 +631,11 @@ export function StoryboardSection({
                           <span className="text-[8px] text-blue-400 font-medium">动画提示词</span>
                         </div>
                         <p className="text-[8px] text-blue-500/80 font-mono leading-relaxed line-clamp-2 bg-blue-50 rounded px-1.5 py-1">
-                          {extractVideoPromptFromImagePrompt(panel.image_prompt, r18Enabled)}
+                          {extractVideoPromptFromImagePrompt({
+                            imagePrompt: panel.image_prompt,
+                            sceneDescription: panel.scene_description,
+                            r18Mode: r18Enabled,
+                          })}
                         </p>
                       </div>
                     )}

@@ -606,11 +606,25 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
 
   // Handle direct video generation from storyboard panel in ExpandMode.
   // Reuses the ImageToVideoPage logic by writing to sessionStorage and navigating.
-  const handleExpandModeGenerateVideo = useCallback(async (panelKey: string, imageUrl: string, prompt: string) => {
-    console.log(`[handleExpandModeGenerateVideo] panelKey=${panelKey}, imageUrl=${imageUrl.slice(0, 50)}, prompt length=${prompt.length}`);
+  // Receives the panel's image_prompt + scene_description so the video prompt
+  // can target the panel's specific action (rather than the whole storyboard's
+  // master image_prompt, which would otherwise be a junk string like "32宫格").
+  const handleExpandModeGenerateVideo = useCallback(async (
+    panelKey: string,
+    imageUrl: string,
+    imagePrompt: string,
+    sceneDescription: string,
+  ) => {
+    console.log(`[handleExpandModeGenerateVideo] panelKey=${panelKey}, imageUrl=${imageUrl.slice(0, 50)}, imagePrompt length=${imagePrompt.length}, sceneDescription length=${sceneDescription.length}`);
 
-    // Generate video prompt from image prompt
-    const videoPrompt = extractVideoPromptFromImagePrompt(prompt, r18Mode);
+    // Generate video prompt using BOTH image_prompt and scene_description.
+    // The sceneDescription drives the action sequence; imagePrompt drives the
+    // visual identity (subject/outfit/environment framing).
+    const videoPrompt = extractVideoPromptFromImagePrompt({
+      imagePrompt,
+      sceneDescription,
+      r18Mode,
+    });
     console.log(`[handleExpandModeGenerateVideo] videoPrompt="${videoPrompt}"`);
 
     // Upload image if needed (data URL or blob URL)
@@ -896,7 +910,9 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         disabled={taskManager.isFull || (digitalHumanMode && !selectedGirlfriend)}
         onGenerateStoryboard={handleGenerateStoryboard}
         onGenerateSingleImage={handleExpandModeSinglePanelGenerate}
-        onGenerateVideo={(imageUrl, prompt, panelKey) => handleExpandModeGenerateVideo(panelKey, imageUrl, prompt)}
+        onGenerateVideo={(imageUrl, imagePrompt, sceneDescription, panelKey) =>
+          handleExpandModeGenerateVideo(panelKey, imageUrl, imagePrompt, sceneDescription)
+        }
         onToggleFavorite={handleToggleFavorite}
         onSuccess={onSuccess}
         onError={onError}
@@ -2803,11 +2819,6 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     }
   }, [taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, sbHistoryId, activeThemeInfo, plot]);
 
-  // Generate video prompt for a panel based on image prompt
-  const generateVideoPromptForPanel = useCallback((imagePrompt: string): string => {
-    return extractVideoPromptFromImagePrompt(imagePrompt, r18Mode);
-  }, [r18Mode]);
-
   // Handle image selection for a panel
   const handleSelectPanelImage = useCallback((panelKey: string, imageIndex: number, imageUrl: string) => {
     setSelectedPanelImages(prev => ({
@@ -2846,8 +2857,11 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     }
   }, []);
 
-  // Handle direct video generation from storyboard panel
-  const handleDirectGenerateVideo = useCallback(async (panelKey: string, imageUrl: string, prompt: string) => {
+  // Handle direct video generation from storyboard panel.
+  // Receives the already-computed `videoPrompt` (which was derived in the
+  // StoryboardMode render using BOTH image_prompt and scene_description via
+  // extractVideoPromptFromImagePrompt). We just pass it through.
+  const handleDirectGenerateVideo = useCallback(async (panelKey: string, imageUrl: string, videoPrompt: string) => {
     setVideoGenLoading(prev => ({ ...prev, [panelKey]: true }));
     try {
       let imagePath = imageUrl;
@@ -2865,8 +2879,19 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         }
       }
 
-      // Generate video prompt
-      const videoPrompt = generateVideoPromptForPanel(prompt);
+      // videoPrompt was already computed by StoryboardMode render with both
+      // image_prompt and scene_description factored in.
+      // Safety: if the caller didn't supply a prompt, fall back to a
+      // scene+image dual-input computation (covers legacy call sites).
+      let finalVideoPrompt = videoPrompt;
+      if (!finalVideoPrompt) {
+        console.warn(`[handleDirectGenerateVideo] empty videoPrompt for panelKey=${panelKey}; falling back to dual-input computation`);
+        finalVideoPrompt = extractVideoPromptFromImagePrompt({
+          imagePrompt: '',
+          sceneDescription: '',
+          r18Mode,
+        });
+      }
 
       // Build node list for video generation (matching ImageToVideoPage format)
       const nodes = [
@@ -2874,25 +2899,25 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         { nodeId: '20', fieldName: 'value', fieldValue: '5', description: '时长（秒）' },
         { nodeId: '77', fieldName: 'value', fieldValue: 'false', description: '补帧（默认关）' },
         { nodeId: '21', fieldName: 'image', fieldValue: imagePath, description: '图片上传' },
-        { nodeId: '38', fieldName: 'value', fieldValue: videoPrompt, description: '提示词' },
+        { nodeId: '38', fieldName: 'value', fieldValue: finalVideoPrompt, description: '提示词' },
         { nodeId: '42', fieldName: 'lora_name', fieldValue: 'SmoothMixAnimationStyle_High.safetensors', description: 'lora（high）' },
         { nodeId: '42', fieldName: 'strength_model', fieldValue: '1.0', description: 'lora权重' },
       ];
 
       // Notify VideoTaskList via localStorage so it shows the task
       const taskId = `storyboard-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-      const taskData = { id: taskId, prompt: videoPrompt, imagePreview: imageUrl, nodeInfoList: nodes, processed: false };
+      const taskData = { id: taskId, prompt: finalVideoPrompt, imagePreview: imageUrl, nodeInfoList: nodes, processed: false };
       localStorage.setItem('nsfwxo_video_task_submit', JSON.stringify(taskData));
       window.dispatchEvent(new StorageEvent('storage', { key: 'nsfwxo_video_task_submit', newValue: JSON.stringify(taskData) }));
 
-      await taskManager.addTask('img2vid', nodes, videoPrompt, WORKFLOW.IMAGE_TO_VIDEO);
+      await taskManager.addTask('img2vid', nodes, finalVideoPrompt, WORKFLOW.IMAGE_TO_VIDEO);
       onSuccess('视频生成任务已提交');
     } catch (err) {
       onError(err instanceof Error ? err.message : '视频生成失败');
     } finally {
       setVideoGenLoading(prev => { const next = { ...prev }; delete next[panelKey]; return next; });
     }
-  }, [apiKey, taskManager, onError, onSuccess, generateVideoPromptForPanel]);
+  }, [apiKey, taskManager, onError, onSuccess, r18Mode]);
 
   // Handle batch video generation from storyboard panels
   const handleBatchGenerateVideo = useCallback(async () => {
@@ -2939,8 +2964,13 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
           }
         }
 
-        // Generate video prompt
-        const videoPrompt = generateVideoPromptForPanel(panel.image_prompt);
+        // Generate video prompt using both image_prompt and scene_description
+        // so the action sequence lines up with the panel's actual scene.
+        const videoPrompt = extractVideoPromptFromImagePrompt({
+          imagePrompt: panel.image_prompt,
+          sceneDescription: panel.scene_description,
+          r18Mode,
+        });
 
         // Build node list for video generation (matching ImageToVideoPage format)
         const nodes = [
@@ -2976,7 +3006,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     } finally {
       setBatchVideoLoading(false);
     }
-  }, [activePanels, genStates, taskManager, apiKey, generateVideoPromptForPanel, onError, onSuccess]);
+  }, [activePanels, genStates, taskManager, apiKey, onError, onSuccess, r18Mode]);
 
   const handleBatchGenerate = useCallback(async () => {
     if (activePanels.length === 0) return;
@@ -4401,7 +4431,16 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
                       const imageToUse = selectedImageIndex !== undefined && allDisplayImages[selectedImageIndex]
                         ? allDisplayImages[selectedImageIndex]
                         : allDisplayImages[0];
-                      onDirectGenerateVideo?.(imageToUse, videoPrompt || panel.image_prompt);
+                      // Always pass a panel-derived videoPrompt. We never want
+                      // to fall back to a raw panel.image_prompt here because
+                      // that may be the whole-storyboard master prompt (and
+                      // would yield a junk video prompt like "32宫格").
+                      const promptForVideo = videoPrompt || extractVideoPromptFromImagePrompt({
+                        imagePrompt: panel.image_prompt,
+                        sceneDescription: panel.scene_description,
+                        r18Mode,
+                      });
+                      onDirectGenerateVideo?.(imageToUse, promptForVideo);
                     }}
                     disabled={videoGenLoading || !videoPrompt}
                     className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
