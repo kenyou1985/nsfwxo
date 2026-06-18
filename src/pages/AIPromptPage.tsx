@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { extractVideoPromptFromImagePrompt } from '../utils/videoPromptExtractor';
+import { makeThumbnailForStorage } from '../utils/imageThumbnail';
 import {
   Wand2, Shuffle, LayoutList, Copy, Check, Loader2,
   ChevronDown, ChevronUp, Sparkles, RotateCcw, Send,
@@ -651,9 +652,19 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       return;
     }
 
-    // Store in sessionStorage and navigate to ImageToVideoPage (same pattern as existing storyboard_img2vid)
-    const data = JSON.stringify({ imageUrl, imagePath, prompt: videoPrompt });
-    sessionStorage.setItem('storyboard_img2vid_direct', data);
+    // Store in sessionStorage and navigate to ImageToVideoPage (same pattern as existing storyboard_img2vid).
+    // imageUrl is down-scaled to a 64×64 JPEG thumbnail — full data: URLs can
+    // be 1-2 MB each, and even sessionStorage has a 10 MB cap that fills
+    // quickly with multiple panels in a row.
+    const thumbnail = await makeThumbnailForStorage(imageUrl);
+    const data = JSON.stringify({ imageUrl: thumbnail, imagePath, prompt: videoPrompt });
+    try {
+      sessionStorage.setItem('storyboard_img2vid_direct', data);
+    } catch (storageErr) {
+      console.error('[handleExpandModeGenerateVideo] sessionStorage write failed:', storageErr);
+      onError('存储空间不足，请清理浏览器数据后重试');
+      return;
+    }
     onNavigate?.('img2vid');
   }, [apiKey, onError, onNavigate, r18Mode]);
 
@@ -2904,11 +2915,29 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         { nodeId: '42', fieldName: 'strength_model', fieldValue: '1.0', description: 'lora权重' },
       ];
 
-      // Notify VideoTaskList via localStorage so it shows the task
+      // Notify VideoTaskList via localStorage so it shows the task.
+      // CRITICAL: imagePreview here is only used by VideoTaskList for a
+      // 48×48 thumbnail. Stashing the raw 1-2 MB data: URL would blow the
+      // ~5 MB localStorage budget in just 3-4 tasks. Downscale to a tiny
+      // JPEG first; the visual difference at thumbnail size is invisible.
       const taskId = `storyboard-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-      const taskData = { id: taskId, prompt: finalVideoPrompt, imagePreview: imageUrl, nodeInfoList: nodes, processed: false };
-      localStorage.setItem('nsfwxo_video_task_submit', JSON.stringify(taskData));
-      window.dispatchEvent(new StorageEvent('storage', { key: 'nsfwxo_video_task_submit', newValue: JSON.stringify(taskData) }));
+      const thumbnailForStorage = await makeThumbnailForStorage(imageUrl);
+      const taskData = {
+        id: taskId,
+        prompt: finalVideoPrompt,
+        imagePreview: thumbnailForStorage,
+        nodeInfoList: nodes,
+        processed: false,
+      };
+      try {
+        localStorage.setItem('nsfwxo_video_task_submit', JSON.stringify(taskData));
+        window.dispatchEvent(new StorageEvent('storage', { key: 'nsfwxo_video_task_submit', newValue: JSON.stringify(taskData) }));
+      } catch (storageErr) {
+        // Quota can still trip even with thumbnails if other app code has
+        // already filled localStorage. Log and continue — the task itself
+        // is submitted below via taskManager, so the user still gets video.
+        console.warn('[handleDirectGenerateVideo] localStorage notify failed (non-fatal):', storageErr);
+      }
 
       await taskManager.addTask('img2vid', nodes, finalVideoPrompt, WORKFLOW.IMAGE_TO_VIDEO);
       onSuccess('视频生成任务已提交');
@@ -2985,7 +3014,10 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
 
         try {
           const taskId = `storyboard-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-          submittedTasks.push({ id: taskId, prompt: videoPrompt, imagePreview: imageUrl, nodeInfoList: nodes });
+          // Use a tiny JPEG thumbnail for the localStorage handoff (raw
+          // data: URLs blow past the quota in 3-4 entries).
+          const thumbnail = await makeThumbnailForStorage(imageUrl);
+          submittedTasks.push({ id: taskId, prompt: videoPrompt, imagePreview: thumbnail, nodeInfoList: nodes });
           await taskManager.addTask('img2vid', nodes, videoPrompt, WORKFLOW.IMAGE_TO_VIDEO);
           submitted++;
         } catch (err) {
@@ -2995,8 +3027,15 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       // Notify VideoTaskList about all submitted tasks
       if (submittedTasks.length > 0) {
         const batchData = { tasks: submittedTasks, processed: false };
-        localStorage.setItem('nsfwxo_video_task_batch', JSON.stringify(batchData));
-        window.dispatchEvent(new StorageEvent('storage', { key: 'nsfwxo_video_task_batch', newValue: JSON.stringify(batchData) }));
+        try {
+          localStorage.setItem('nsfwxo_video_task_batch', JSON.stringify(batchData));
+          window.dispatchEvent(new StorageEvent('storage', { key: 'nsfwxo_video_task_batch', newValue: JSON.stringify(batchData) }));
+        } catch (storageErr) {
+          // Quota can still trip even with thumbnails if other code filled
+          // localStorage. Tasks are already submitted via taskManager, so
+          // the user still gets their videos.
+          console.warn('[handleBatchGenerateVideo] localStorage notify failed (non-fatal):', storageErr);
+        }
       }
       if (submitted > 0) {
         onSuccess(`已提交 ${submitted} 个视频生成任务`);
