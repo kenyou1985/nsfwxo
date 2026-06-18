@@ -1716,6 +1716,14 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   useEffect(() => { onSuccessRef.current = onSuccess; }, [onSuccess]);
   useEffect(() => { onErrorRef.current = onError; }, [onError]);
 
+  /**
+   * 用于在异步任务完成（handlePromptTaskResult 'script' 分支）时拿到最新的 panels 列表。
+   * useCallback 闭包的是最初渲染时的值，单纯依赖 panels 数组会让 callback 频繁重建，破坏 polling
+   * 循环的稳定性；改用 ref 每次 effect 同步最新值即可。
+   */
+  const panelsRefForPrompt = useRef(panels);
+  useEffect(() => { panelsRefForPrompt.current = panels; }, [panels]);
+
   // Track pending async prompt tasks (task_id -> task type) for polling/restore on refresh.
   // Persisted to localStorage so tasks survive page refresh and are shared across tabs.
   const [pendingPromptTasks, setPendingPromptTasks] = useState<Record<string, string>>(() => {
@@ -1810,12 +1818,36 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         setHistory(getStoryboardHistory());
         onSuccessRef.current(`「${res.theme_title ?? '主题'}」的大纲已生成`);
       } else if (taskType === 'script' && res?.panels) {
-        setVideoScript({
+        const scriptRes = {
           script_title: res.script_title ?? `${res.theme_title ?? '主题'} 脚本`,
           duration: res.duration ?? '15-30秒',
           panels: res.panels ?? [],
-        });
-        onSuccessRef.current('视频脚本生成完成');
+        };
+        setVideoScript(scriptRes);
+
+        // 【修复】异步完成路径也要把脚本回填到每个分镜的"动画提示词"位置
+        // 用 res.panels（后端生成的 VideoScriptPanel）按 panel 编号映射回 panels 数组 idx
+        const nextPrompts: Record<number, string> = {};
+        const livePanels = panelsRefForPrompt.current;
+        for (let i = 0; i < livePanels.length; i++) {
+          const panel = livePanels[i];
+          const scriptPanel = scriptRes.panels.find((sp) => sp.panel === panel.panel_number) || scriptRes.panels[i];
+          if (!scriptPanel) continue;
+          const sceneForPrompt = [
+            scriptPanel.action,
+            scriptPanel.heading,
+            scriptPanel.dialogue ? `对白：${scriptPanel.dialogue}` : '',
+            scriptPanel.sound_cue ? `音效：${scriptPanel.sound_cue}` : '',
+            scriptPanel.camera ? `镜头：${scriptPanel.camera}` : '',
+          ].filter(Boolean).join('；');
+          nextPrompts[i] = extractVideoPromptFromImagePrompt({
+            imagePrompt: panel.image_prompt,
+            sceneDescription: sceneForPrompt,
+            r18Mode,
+          });
+        }
+        setPanelVideoPrompts(nextPrompts);
+        onSuccessRef.current(`视频脚本生成完成，已回填到 ${Object.keys(nextPrompts).length} 个分镜的动画提示词`);
       }
       setPendingPromptTasks((prev) => { const n = { ...prev }; delete n[taskId]; return n; });
     } else if (status.status === 'FAILED') {
@@ -2233,6 +2265,14 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   } | null>(null);
   const [generatingScript, setGeneratingScript] = useState(false);
 
+  /**
+   * 【动画提示词回填】生成视频脚本（handleGenerateScript）后，按 panel 索引回填到每个分镜。
+   * key 是 panel 在 panels 数组中的 idx（不是 panel_number，避免和后端 panel 编号错位）。
+   * 渲染时 StoryboardPanelCard 的 videoPrompt prop 优先从这里取。
+   * 切换主题 / 重新生成分镜 / 主动 reset 时会清空。
+   */
+  const [panelVideoPrompts, setPanelVideoPrompts] = useState<Record<number, string>>({});
+
   // Image selection and video generation state
   const [selectedPanelImages, setSelectedPanelImages] = useState<Record<string, { index: number; url: string }>>({});
   const [videoGenLoading, setVideoGenLoading] = useState<Record<string, boolean>>({});
@@ -2282,6 +2322,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       setOutlineArc('');
       setOutlineScenes([]);
       setThemeOutlineStates({});
+      setPanelVideoPrompts({});
       onSuccess(`生成了 ${res.themes.length} 个主题，请选择`);
     } catch (err) {
       onError(err instanceof Error ? err.message : '主题生成失败');
@@ -2303,6 +2344,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       setOutlineArc('');
       setOutlineScenes([]);
       setThemeOutlineStates({});
+      setPanelVideoPrompts({});
     } catch (err) {
       onError(err instanceof Error ? err.message : '主题库加载失败');
     } finally {
@@ -2409,6 +2451,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       setExpandedPanel(null);
       setStoryStep('panels');
       setCurrentHistoryId(historyId);
+      setPanelVideoPrompts({});
       saveStoryboardSession({
         plot: selectedTheme.title, panelCount, panels: res.storyboard, expandedPanel: null,
         themeId: selectedTheme.id, themeTitle: selectedTheme.title,
@@ -2535,6 +2578,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     setOutlineArc('');
     setOutlineScenes([]);
     setVideoScript(null);
+    setPanelVideoPrompts({});
     setStoryStep('themes');
     setGenStates({});
     setCurrentHistoryId(null);
@@ -2558,7 +2602,33 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
 
       // Sync fallback
       setVideoScript(res);
-      onSuccess('视频脚本已生成');
+
+      // 【修复】把脚本里的 action 回填到每个分镜的"动画提示词"位置
+      // 把后端返回的 VideoScriptPanel 按 panel 编号映射回 panels 数组的 idx，
+      // 然后用 extractVideoPromptFromImagePrompt 以"后端 action（剧情）" + "图片 prompt" 双重输入，
+      // 生成"以剧情为核心、围绕首帧画面"的 Wan2.2 中文视频提示词。
+      const nextPrompts: Record<number, string> = {};
+      for (let i = 0; i < panels.length; i++) {
+        const panel = panels[i];
+        const scriptPanel = res.panels.find((sp) => sp.panel === panel.panel_number) || res.panels[i];
+        if (!scriptPanel) continue;
+        // 合并"后端 action（剧情主体）" + "dialogue + heading + sound_cue + camera（环境/氛围）"
+        const sceneForPrompt = [
+          scriptPanel.action,
+          scriptPanel.heading,
+          scriptPanel.dialogue ? `对白：${scriptPanel.dialogue}` : '',
+          scriptPanel.sound_cue ? `音效：${scriptPanel.sound_cue}` : '',
+          scriptPanel.camera ? `镜头：${scriptPanel.camera}` : '',
+        ].filter(Boolean).join('；');
+        // 重新以"剧情为优先"生成视频提示词（覆盖"按图片 prompt 推测"的结果）
+        nextPrompts[i] = extractVideoPromptFromImagePrompt({
+          imagePrompt: panel.image_prompt,
+          sceneDescription: sceneForPrompt,
+          r18Mode,
+        });
+      }
+      setPanelVideoPrompts(nextPrompts);
+      onSuccess(`视频脚本已生成，已回填到 ${Object.keys(nextPrompts).length} 个分镜的动画提示词`);
     } catch (err) {
       onError(err instanceof Error ? err.message : '脚本生成失败');
     } finally {
@@ -2574,6 +2644,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     setPanels(item.panels);
     setStoryStep('panels');
     setVideoScript(null);
+    setPanelVideoPrompts({});
     setOutlineArc('');
     setOutlineScenes([]);
     setSelectedThemes([]);
@@ -3491,6 +3562,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                                 setOutlineArc(state.outlineArc);
                                 setOutlineScenes(state.outlineScenes);
                                 setStoryStep('panels');
+                                setPanelVideoPrompts({});
                                 const hid = state.historyId;
                                 if (hid) {
                                   setCurrentHistoryId(hid);
@@ -3653,7 +3725,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
               >
                 {generatingScript ? <><Loader2 size={14} className="animate-spin" /> 生成脚本...</> : <><Clapperboard size={14} />生成视频脚本</>}
               </button>
-              <button onClick={() => { setStoryStep('themes'); setSelectedTheme(null); setOutlineArc(''); setOutlineScenes([]); setPanels([]); setVideoScript(null); }} className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl font-medium text-sm bg-bg-elevated text-text-tertiary hover:bg-bg-hover transition-colors">
+              <button onClick={() => { setStoryStep('themes'); setSelectedTheme(null); setOutlineArc(''); setOutlineScenes([]); setPanels([]); setVideoScript(null); setPanelVideoPrompts({}); }} className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl font-medium text-sm bg-bg-elevated text-text-tertiary hover:bg-bg-hover transition-colors">
                 <RotateCcw size={14} />换主题
               </button>
             </div>
@@ -3804,7 +3876,16 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
             // Use theme-specific panel key to avoid conflicts when switching tabs
             const panelKey = activeThemeTab !== null ? `theme-${activeThemeTab}-panel-${idx}` : `panel-${idx}`;
             const selectedImage = selectedPanelImages[panelKey];
-            const videoPrompt = generateVideoPromptForPanel(panel.image_prompt);
+            // 【修复】动画提示词优先级：
+            //   1) 生成视频脚本后回填的精确提示词（panelVideoPrompts[idx]，剧情/动作/环境/音效齐全）
+            //   2) 否则用"剧情 + 图片"双重输入生成（让动作和剧情强相关）
+            //   3) 最后兜底用纯图片生成（向后兼容老调用）
+            const videoPrompt = panelVideoPrompts[idx]
+              || extractVideoPromptFromImagePrompt({
+                  imagePrompt: panel.image_prompt,
+                  sceneDescription: panel.scene_description,
+                  r18Mode,
+                });
             const normalizedPanelPrompt = panel.image_prompt.trim().replace(/\s+/g, ' ');
             const panelRelatedTasks = taskManager.tasks.filter(
               (t: QueuedTask) => (t.status === 'RUNNING' || t.status === 'QUEUEING' || t.status === 'FINISHED') && t.images.length > 0
