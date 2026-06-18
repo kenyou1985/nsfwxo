@@ -35,6 +35,7 @@ import {
   resolvePanelImages,
 } from '../services/storage';
 import { loadCachedOrExtractPanelImages } from '../services/imageCacheService';
+import { extractImagesFromZipAsDataUrls } from '../services/runninghub';
 import { useFinishedTaskImages } from '../contexts/FinishedTaskImagesContext';
 import { MAX_TASKS, type TaskManagerReturn } from '../hooks/useTaskManager';
 import type { GirlfriendPreset } from '../data/girlfriendPresets';
@@ -1909,6 +1910,10 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     });
     const initial: Record<string, { loading: boolean; images: string[] }> = {};
 
+    // Source of truth: historyItem.panelImages — the same field the
+    // history list now reads. resolvePanelImages already strips orphan
+    // hash refs and empty strings, leaving only data: / blob: / http:
+    // URLs that <img src> can actually render.
     if (historyItem?.panelImages) {
       const resolved = resolvePanelImages(historyItem.panelImages);
       for (const [idx, imgs] of Object.entries(resolved)) {
@@ -1916,29 +1921,17 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       }
     }
 
-    const cached = getAllCachedPanelImages(hid, saved.panels.length);
-    for (const [idx, imgs] of Object.entries(cached)) {
-      const key = `${hid}_${idx}`;
-      if (!initial[key]) {
-        initial[key] = { loading: false, images: imgs };
-      }
-    }
-
     if (Object.keys(initial).length > 0) {
       setGenStates(initial);
     }
 
-    let bgCancelled = false;
-
-    // Background: try to fill any panel slot whose genStates entry is
-    // empty (e.g. because the unified cache was evicted, the djb2
-    // img_cache key under FNV-1a also misses, or the history entry's
-    // panelImages is full of orphan hash refs from an older broken
-    // migration). This is the last-resort loader — when it succeeds
-    // the user sees their panels even after every other cache layer
-    // failed, and we write the recovered data: URLs back into the
-    // history record so the next refresh is fast.
-    let bgActive = 0;
+    // Background: for any panel slot still empty, ask the per-panel zip
+    // for its images and write them back into panelImages. This is a
+    // single zip download per missing panel — no unified-store, no
+    // djb2 legacy cache, no inline sha256 of the first 2 KB. The point
+    // is to be boring and reliable: if the zip is still on RunningHub
+    // we re-extract, and we never overwrite a fresh live task result
+    // with a stale zip image.
     for (let i = 0; i < saved.panels.length; i++) {
       const key = `${hid}_${i}`;
       const hasUsable = (initial[key]?.images || []).some(
@@ -1946,32 +1939,27 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       );
       if (hasUsable) continue;
 
-      bgActive++;
       const panelZip = historyItem?.panelZipUrls?.[i] || historyItem?.zipUrl;
-      const count = historyItem?.panelImageCounts?.[i] || 4;
-      loadCachedOrExtractPanelImages(panelZip, count, hid, i, panelZip).then((images) => {
-        if (bgCancelled) return;
-        const usable = images.filter((img) => img && (img.startsWith('data:') || img.startsWith('blob:') || img.startsWith('http')));
-        if (usable.length === 0) return;
-        setGenStates((prev) => {
-          const existing = prev[key];
-          // Don't clobber a later-arriving value (e.g. live task finish).
-          if (existing?.images.length > 0 && existing.images[0]?.startsWith('data:')) return prev;
-          return { ...prev, [key]: { loading: false, images: usable } };
-        });
-        // Persist recovered images back into history.panelImages so the
-        // next mount hits the fast path (genStates lookup from the
-        // resolved data: URLs).
-        updateStoryboardHistoryImages(hid, { [i]: usable }, panelZip, { [i]: usable.length });
-      }).catch((err) => {
-        console.debug('[storyboard:restore] background panel fill failed for', hid, i, err);
-      });
-    }
-    console.debug(`[storyboard:restore] dispatched ${bgActive} background panel fill(s)`);
+      if (!panelZip) continue;
 
-    // (Orphan-hash recovery is handled by the bgActive loop above; it
-    // covers the same conditions — panelImages full of stale hashes or
-    // empty arrays — and persists recovered images back into history.)
+      extractImagesFromZipAsDataUrls(panelZip)
+        .then((images) => {
+          const usable = images.filter((img) => img && img.startsWith('data:'));
+          if (usable.length === 0) return;
+          setGenStates((prev) => {
+            const existing = prev[key];
+            // Don't clobber a later-arriving value (e.g. live task finish).
+            if (existing?.images.length > 0 && existing.images[0]?.startsWith('data:')) return prev;
+            return { ...prev, [key]: { loading: false, images: usable } };
+          });
+          // Persist recovered images back into history.panelImages so the
+          // next mount hits the fast path.
+          updateStoryboardHistoryImages(hid, { [i]: usable }, panelZip, { [i]: usable.length });
+        })
+        .catch((err) => {
+          console.debug('[storyboard:restore] panel zip extraction failed for', hid, i, err);
+        });
+    }
   }, []); // intentionally empty — only runs once on mount
 
   // ── Derived active values (must be before useEffects that depend on them) ──
@@ -2585,14 +2573,6 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       }
     }
 
-    const cachedImages = getAllCachedPanelImages(item.id, item.panels.length);
-    for (const [idx, imgs] of Object.entries(cachedImages)) {
-      const key = `${item.id}_${idx}`;
-      if (!initial[key]) {
-        initial[key] = { loading: false, images: imgs };
-      }
-    }
-
     setGenStates(initial);
 
     // Save theme title to session so handleBatchGenerate can use it even after selectedThemes is cleared
@@ -2603,22 +2583,32 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     // Also update selectedTheme so activeThemeInfo is populated for batch generate
     setSelectedTheme({ id: 0, title: item.plot, description: '', tags: [], r18_level: '', category: undefined });
 
-    // Background: try zip extraction for any panels still missing images
+    // Background: pull images from each panel's zip for any panel slot
+    // still empty. Same "ask the zip" path used by the mount effect and
+    // the history list preview — no unified store, no djb2 cache, no
+    // shadow djb2 path. The zip is the authoritative source.
     for (let i = 0; i < item.panels.length; i++) {
       const key = `${item.id}_${i}`;
       const current = initial[key];
       if (current?.images.length > 0 && current.images[0]?.startsWith('data:')) continue;
 
-      const count = item.panelImageCounts?.[i] || 4;
       const panelZip = item.panelZipUrls?.[i] || item.zipUrl;
-      const images = await loadCachedOrExtractPanelImages(panelZip, count, item.id, i, panelZip);
-      if (images.length > 0) {
-        setGenStates((prev) => {
-          const existing = prev[key];
-          if (existing?.images.length > 0 && existing.images[0]?.startsWith('data:')) return prev;
-          return { ...prev, [key]: { loading: false, images } };
+      if (!panelZip) continue;
+
+      extractImagesFromZipAsDataUrls(panelZip)
+        .then((images) => {
+          const usable = images.filter((img) => img && img.startsWith('data:'));
+          if (usable.length === 0) return;
+          setGenStates((prev) => {
+            const existing = prev[key];
+            if (existing?.images.length > 0 && existing.images[0]?.startsWith('data:')) return prev;
+            return { ...prev, [key]: { loading: false, images: usable } };
+          });
+          updateStoryboardHistoryImages(item.id, { [i]: usable }, panelZip, { [i]: usable.length });
+        })
+        .catch((err) => {
+          console.debug('[handleHistoryLoad] panel zip extraction failed for', item.id, i, err);
         });
-      }
     }
   };
 
@@ -3908,106 +3898,67 @@ function StoryboardHistoryList({ history, onLoad, onDelete }: {
   onLoad: (h: StoryboardHistoryItem) => void;
   onDelete: (id: string) => void;
 }) {
+  // Per-entry previews. The source of truth is history[i].panelImages —
+  // a panelIdx→dataURL[] map persisted into localStorage by the live
+  // task path. Reading it directly (resolvePanelImages already strips
+  // orphan hashes and empty strings) is enough; the image history page
+  // does exactly the same and it works. We only fall back to zip
+  // extraction if the field is empty (older entries, or the field
+  // was cleared by a migration).
   const [previewImages, setPreviewImages] = useState<Record<string, string[]>>({});
-  const previewImagesRef = useRef<Record<string, string[]>>({});
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [loadingPreviews, setLoadingPreviews] = useState<Set<string>>(new Set());
-  const loadingPreviewsRef = useRef<Set<string>>(new Set());
-  const inFlightRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
+    const next: Record<string, string[]> = {};
+    const needZip: Array<{ hid: string; panelIdx: number; zipUrl: string; historyId: string; count: number }> = [];
 
-    const syncCache = () => {
-      const newPreviews: Record<string, string[]> = {};
-      for (const h of history) {
-        const cached = getAllCachedPanelImages(h.id, h.panel_count);
-        const seen = new Set<string>();
-        const allImages: string[] = [];
-        const addImages = (imgs: string[]) => {
-          for (const img of imgs) {
-            if (img && !seen.has(img)) { seen.add(img); allImages.push(img); }
-          }
-        };
-        for (const imgs of Object.values(cached)) addImages(imgs);
-        if (h.panelImages) {
-          const resolved = resolvePanelImages(h.panelImages);
-          for (const imgs of Object.values(resolved)) addImages(imgs);
-        }
-        addImages(h.images || []);
-        if (allImages.length > 0) newPreviews[h.id] = allImages.slice(0, 6);
-      }
-      if (!cancelled) {
-        previewImagesRef.current = newPreviews;
-        setPreviewImages(newPreviews);
-      }
-    };
-
-    const loadOne = async (h: StoryboardHistoryItem) => {
-      // The per-entry preview used to call loadCachedOrExtractPanelImages
-      // with a hard-coded panelIdx=0, which meant every entry's preview
-      // came from the same panel slot and entries that happened to have
-      // panel 0 cached would all show the same image. Walk every panel
-      // in the entry so the preview reflects the actual gallery, not
-      // just whichever panel has the most recent cache write.
+    for (const h of history) {
+      const resolved = h.panelImages ? resolvePanelImages(h.panelImages) : {};
       const seen = new Set<string>();
       const collected: string[] = [];
-      const panels = Math.max(1, h.panel_count || 1);
-      const perPanelCount = h.panelImageCounts?.[0] || 4;
-      for (let p = 0; p < panels && collected.length < 6; p++) {
-        try {
-          // Use the per-panel zipUrl from panelZipUrls when present so
-          // each panel reads its own img_cache entry. Fall back to
-          // h.zipUrl for entries written by older versions of the app
-          // that only had a single zipUrl field.
-          const panelZip = h.panelZipUrls?.[p] || h.zipUrl;
-          const imgs = await loadCachedOrExtractPanelImages(panelZip, perPanelCount, h.id, p, panelZip);
-          for (const img of imgs) {
-            if (img && !seen.has(img) && collected.length < 6) {
-              seen.add(img);
-              collected.push(img);
-            }
-          }
-        } catch (e) {
-          console.debug('[StoryboardHistoryList] panel load failed for', h.id, 'panel', p, e);
+      for (let p = 0; p < h.panel_count; p++) {
+        const imgs = resolved[p] || [];
+        for (const img of imgs) {
+          if (img && !seen.has(img)) { seen.add(img); collected.push(img); }
+          if (collected.length >= 6) break;
+        }
+        if (collected.length >= 6) break;
+      }
+      if (collected.length > 0) {
+        next[h.id] = collected.slice(0, 6);
+      } else {
+        // panelImages is empty for this entry — schedule a zip fallback
+        // for the first panel. We only need one image to render a
+        // preview thumbnail; the user can drill in for the full gallery.
+        const panelZip = h.panelZipUrls?.[0] || h.zipUrl;
+        if (panelZip) {
+          needZip.push({ hid: h.id, panelIdx: 0, zipUrl: panelZip, historyId: h.id, count: h.panelImageCounts?.[0] || 4 });
         }
       }
-      if (cancelled) return;
-      if (collected.length > 0) {
-        const updated = { ...previewImagesRef.current, [h.id]: collected };
-        previewImagesRef.current = updated;
-        setPreviewImages(updated);
-      }
-    };
-
-    // Fire-and-forget per-entry loaders. Earlier code shared a single
-    // inFlightRef across all entries, so entry #2 waited for #1's zip
-    // download to finish before it could even start. With many entries
-    // (5+) the queue would starve the last ones into showing no
-    // preview. Each entry now runs its own loader — they're cheap, the
-    // generic cache is a sync localStorage read for already-cached
-    // panels, and parallelization dramatically improves perceived
-    // load time.
-    for (const h of history) {
-      if (previewImagesRef.current[h.id] || loadingPreviewsRef.current.has(h.id)) continue;
-      loadingPreviewsRef.current.add(h.id);
-      setLoadingPreviews((prev) => new Set([...prev, h.id]));
-      loadOne(h)
-        .catch((e) => console.debug('[StoryboardHistoryList] loadOne failed for', h.id, e))
-        .finally(() => {
-          loadingPreviewsRef.current.delete(h.id);
-          if (!cancelled) {
-            setLoadingPreviews((prev) => {
-              const next = new Set(prev);
-              next.delete(h.id);
-              return next;
-            });
-          }
-        });
     }
 
-    syncCache();
-  }, [history, refreshKey]);
+    setPreviewImages(next);
+
+    // Fire-and-forget zip fallback. Each entry reads its own panel 0
+    // zip; on hit we write the recovered images back into the history
+    // entry's panelImages so the next mount hits the fast path.
+    for (const req of needZip) {
+      extractImagesFromZipAsDataUrls(req.zipUrl)
+        .then((imgs) => {
+          if (cancelled) return;
+          const usable = imgs.filter((u) => u && u.startsWith('data:'));
+          if (usable.length === 0) return;
+          // Persist back so the field is non-empty for next render.
+          try {
+            updateStoryboardHistoryImages(req.historyId, { [req.panelIdx]: usable }, req.zipUrl, { [req.panelIdx]: usable.length });
+          } catch {}
+          setPreviewImages((prev) => ({ ...prev, [req.hid]: usable.slice(0, 6) }));
+        })
+        .catch((err) => console.debug('[StoryboardHistoryList] zip fallback failed for', req.hid, err));
+    }
+
+    return () => { cancelled = true; };
+  }, [history]);
 
   if (history.length === 0) {
     return <div className="px-4 py-8 text-center"><Clock size={24} className="mx-auto text-text-tertiary/40 mb-2" /><p className="text-sm text-text-tertiary">暂无历史记录</p></div>;

@@ -158,20 +158,22 @@ export async function getCachedImages(zipUrl: string, count: number): Promise<st
  * composite key like `${historyId}_${panelIdx}` and reads img_cache_${hash}_N entries.
  */
 async function getCachedPanelImages(key: string, count: number): Promise<string[]> {
-  // Compute same hash as getCacheKey does so we read the right entries
-  let hash = 0;
-  for (let i = 0; i < key.length; i++) {
-    const char = key.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
-  }
-  const prefix = `${IMAGE_CACHE_PREFIX}${Math.abs(hash)}_`;
+  // Use FNV-1a 64-bit to match getCacheKey; the legacy djb2 path is
+  // read as a fallback so entries written by older versions still
+  // resolve. Same hash-and-Math.abs footgun as elsewhere in this file
+  // (INT_MIN collision), so the new path can't reuse the legacy hash.
+  const fnv = hashZipUrl(key);
+  const djb2 = hashZipUrlLegacy(key);
+  const newPrefix = `${IMAGE_CACHE_PREFIX}${fnv}_`;
+  const legacyPrefix = `${IMAGE_CACHE_PREFIX}${djb2}_`;
 
   const results: string[] = [];
   for (let i = 0; i < count; i++) {
-    const fullKey = `${prefix}${i}`;
+    const newKey = `${newPrefix}${i}`;
+    const legacyKey = `${legacyPrefix}${i}`;
     try {
-      const raw = localStorage.getItem(fullKey);
+      let raw = localStorage.getItem(newKey);
+      if (!raw) raw = localStorage.getItem(legacyKey);
       if (raw) {
         const entry = JSON.parse(raw) as CacheEntry;
         results.push(entry.dataUrl);
