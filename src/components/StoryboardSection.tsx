@@ -261,6 +261,8 @@ export function StoryboardSection({
     const historyId = sessionStorage.getItem('sb_latest_history_id');
     if (!historyId) return;
 
+    console.debug('[StoryboardSection:finishedTasks] effect running, historyId=', historyId, 'finishedTasks keys=', Object.keys(finishedTasks), 'panelImages keys=', Object.keys(panelImages));
+
     let updated = false;
     const newImages: Record<number, string[]> = {};
 
@@ -270,14 +272,25 @@ export function StoryboardSection({
 
       // Only process tasks that belong to this storyboard
       const hid = storyboardInfo?.historyId;
-      if (!hid || hid !== historyId) continue;
+      if (!hid) {
+        console.debug('[StoryboardSection:finishedTasks] skipping taskId=', taskId, 'no storyboardInfo.historyId');
+        continue;
+      }
+      if (hid !== historyId) {
+        console.debug('[StoryboardSection:finishedTasks] skipping taskId=', taskId, 'hid=', hid, '!== historyId=', historyId);
+        continue;
+      }
 
       const { panelIdx } = storyboardInfo;
       if (panelIdx === undefined) continue;
 
       // Update if we don't already have valid data URL images (avoid duplicate work)
-      if (panelImages[panelIdx]?.length > 0 && panelImages[panelIdx][0]?.startsWith('data:')) continue;
+      if (panelImages[panelIdx]?.length > 0 && panelImages[panelIdx][0]?.startsWith('data:')) {
+        console.debug('[StoryboardSection:finishedTasks] skipping taskId=', taskId, 'panelIdx=', panelIdx, 'already has dataURL images');
+        continue;
+      }
 
+      console.debug('[StoryboardSection:finishedTasks] applying taskId=', taskId, 'panelIdx=', panelIdx, 'images=', images.length);
       newImages[panelIdx] = images;
       cacheStoryboardPanelImages(hid, panelIdx, images).catch(() => {});
       updated = true;
