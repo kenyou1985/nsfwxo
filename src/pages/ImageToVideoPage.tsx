@@ -7,7 +7,7 @@ import { ParameterSelect } from '../components/ParameterSelect';
 import { GenerateButton } from '../components/GenerateButton';
 import { VideoTaskList } from '../components/VideoTaskList';
 import { uploadImage } from '../services/runninghub';
-import { expandPrompt, randomPrompt } from '../services/promptApi';
+import { expandPrompt, expandVideoFromImage, randomPrompt } from '../services/promptApi';
 import { parseStoryboardScript, toVideoScriptPanels, type ParsedScriptPanel } from '../utils/scriptParser';
 import { getYunwuKey } from '../services/storage';
 import { getRecords, deleteRecord, clearAllHistory, type HistoryRecord } from '../services/historyService';
@@ -803,6 +803,8 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
   const [loraLowWeight, setLoraLowWeight] = useState(1.0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isReuploading, setIsReuploading] = useState(false);
+  // Spinner state for the 视频参数 → 提示词 textarea "智能扩写" button.
+  const [isExpandingPrompt, setIsExpandingPrompt] = useState(false);
 
   const [selectedGirlfriend, setSelectedGirlfriend] = useState<GirlfriendPreset | null>(null);
   const [girlfriendUploading, setGirlfriendUploading] = useState(false);
@@ -819,6 +821,8 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
     const directData = sessionStorage.getItem('storyboard_img2vid_direct');
     // Try old format (navigate only)
     const oldData = sessionStorage.getItem('storyboard_img2vid');
+    // 历史记录 → 图生视频：只预填图片，不自动生成
+    const historyData = sessionStorage.getItem('history_img2vid');
 
     // Clear storage BEFORE processing to prevent duplicate submissions
     if (directData) {
@@ -826,6 +830,9 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
     }
     if (oldData) {
       sessionStorage.removeItem('storyboard_img2vid');
+    }
+    if (historyData) {
+      sessionStorage.removeItem('history_img2vid');
     }
 
     const processData = async (data: string, autoGenerate: boolean) => {
@@ -898,6 +905,11 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
       processData(directData, true);
     } else if (oldData) {
       processData(oldData, false);
+    } else if (historyData) {
+      // 历史记录只导入图片，不带 prompt，不自动生成。
+      // 复用 processData 但用空 prompt + autoGenerate=false 走完整的上传/预览路径。
+      processData(historyData, false);
+      onSuccess?.('已从历史记录导入图片，请输入提示词后点击生成');
     }
   }, [apiKey, onError, onSuccess, resolution, duration, interpolation, loraHigh, loraHighWeight, loraLow, loraLowWeight]);
 
@@ -1037,6 +1049,39 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
     setPrompt(posePrompt);
     onSuccess(`已应用姿势: ${poseName}`);
   };
+
+  // 复用 智能分镜 里的"智能扩写"逻辑（wan2.2 i2v 端点），把提示词 textarea
+  // 的内容当成"想看的动作/镜头/表情"扩写成符合 wan2.2 格式的英文视频提示词。
+  // 如果是从分镜导航过来的（parsedScriptPanels 非空），优先用 panel.image_prompt
+  // 作为画面锚（不再复述）、panel.scene_description 作为动作目标。
+  const handleExpandPrompt = useCallback(async () => {
+    const actionInput = prompt.trim();
+    const firstPanel = parsedScriptPanels[0];
+    const imageAnchor = firstPanel?.image_prompt?.trim() || '1 person, single human character';
+    const actionTarget = actionInput || firstPanel?.scene_description?.trim() || 'subtle natural micro-movement, slight head turn, breathing';
+    console.log('[视频参数·智能扩写] 开始', {
+      imageAnchorLength: imageAnchor.length,
+      actionTargetLength: actionTarget.length,
+      hasFirstPanel: !!firstPanel,
+      r18: false,
+    });
+    setIsExpandingPrompt(true);
+    try {
+      const res = await expandVideoFromImage(imageAnchor, actionTarget, false, 1);
+      console.log('[视频参数·智能扩写] 返回', res);
+      const first = res.results?.[0];
+      if (!first?.prompt) {
+        throw new Error('智能扩写返回为空，请重试');
+      }
+      setPrompt(first.prompt.trim());
+      onSuccess('提示词已按 Wan2.2 格式智能扩写');
+    } catch (err) {
+      console.error('[视频参数·智能扩写] 失败', err);
+      onError(err instanceof Error ? err.message : '智能扩写失败');
+    } finally {
+      setIsExpandingPrompt(false);
+    }
+  }, [prompt, parsedScriptPanels, onError, onSuccess]);
 
   const handleParseScript = () => {
     if (!scriptInputText.trim()) return;
@@ -1219,11 +1264,29 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
         <div className="space-y-4">
           {/* 提示词输入 */}
           <div>
-            <label className="text-xs text-text-secondary mb-1.5 block">提示词</label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs text-text-secondary">提示词</label>
+              <button
+                onClick={handleExpandPrompt}
+                disabled={isExpandingPrompt || isSubmitting}
+                title="智能扩写：按 Wan2.2 i2v 规范生成英文视频提示词（不含场景/背景/外观）"
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
+                  isExpandingPrompt || isSubmitting
+                    ? 'bg-bg-elevated text-text-secondary cursor-not-allowed'
+                    : 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90'
+                }`}
+              >
+                {isExpandingPrompt ? (
+                  <><Loader2 size={11} className="animate-spin" /> 扩写中</>
+                ) : (
+                  <><Wand2 size={11} />智能扩写</>
+                )}
+              </button>
+            </div>
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder="描述视频中的人物动作、表情、场景变化... 或使用上方 AI 提示词生成器"
+              placeholder="描述视频中的人物动作、表情、场景变化... 或点击「智能扩写」自动生成 Wan2.2 格式提示词"
               rows={4}
               className="w-full px-3 py-2 rounded-lg bg-bg-elevated border border-border text-sm text-text-primary placeholder-slate-500 focus:outline-none focus:border-primary/50 resize-none"
               disabled={isSubmitting}
