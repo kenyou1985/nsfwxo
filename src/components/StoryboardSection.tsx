@@ -10,6 +10,7 @@ import {
   resolvePanelImages,
   getStoryboardHistory,
 } from '../services/storage';
+import { loadCachedOrExtractPanelImages } from '../services/imageCacheService';
 import { extractVideoPromptFromImagePrompt } from '../utils/videoPromptExtractor';
 import { useFinishedTaskImages } from '../contexts/FinishedTaskImagesContext';
 import { ImageGrid } from './ImageGrid';
@@ -328,6 +329,83 @@ export function StoryboardSection({
       });
     }
   }, [finishedTasks, result]);
+
+  // Load images for any history entry that was opened (or restored from
+  // sessionStorage) before any live task completion. finishedTasks only
+  // holds tasks that completed in *this* browser session, so restoring a
+  // history entry from yesterday (or a sessionStorage draft) wouldn't get
+  // any dataURL through the finishedTasks effect above — and the panel
+  // cards would render empty. The fix is the same path HistoryPage uses:
+  // read the unified store first, then the legacy img_cache_<fnv>_<i>
+  // entries, and as a last resort hit the per-panel zip URL. Each step
+  // is the exact same code HistoryPage runs for its image history tab,
+  // so a thumbnail that shows up in the history page is guaranteed to
+  // show up here too.
+  useEffect(() => {
+    if (!result) return;
+    const historyId = sessionStorage.getItem('sb_latest_history_id');
+    if (!historyId) return;
+    let cancelled = false;
+
+    (async () => {
+      const historyItem = getStoryboardHistory().find((h) => h.id === historyId);
+      // Tier 0: panelImages field on the history entry, which the live
+      // path used to write directly (resolvePanelImages is a no-op for
+      // data: URLs so this works as-is).
+      const inline: Record<number, string[]> = historyItem?.panelImages
+        ? resolvePanelImages(historyItem.panelImages)
+        : {};
+
+      // Tier 1 + tier 2 + tier 3: per-panel cache chain, parallel across
+      // panels. We ask for each panel up to its declared count, but only
+      // take the first 3 to keep the initial render light.
+      const found: Record<number, string[]> = {};
+      for (let i = 0; i < result.panels.length; i++) {
+        if (inline[i] && inline[i].length > 0) {
+          found[i] = inline[i];
+          continue;
+        }
+        const cached = getCachedStoryboardPanelImages(historyId, i);
+        if (cached.length > 0) {
+          found[i] = cached;
+          continue;
+        }
+        const panelZip = historyItem?.panelZipUrls?.[i] || historyItem?.zipUrl;
+        if (!panelZip) continue;
+        try {
+          const images = await loadCachedOrExtractPanelImages(
+            panelZip,
+            historyItem?.panelImageCounts?.[i] || 3,
+            historyId,
+            i,
+            panelZip,
+          );
+          if (cancelled) return;
+          if (images.length > 0) found[i] = images;
+        } catch (err) {
+          console.debug('[StoryboardSection] panel image load failed for', historyId, i, err);
+        }
+      }
+
+      if (cancelled) return;
+      if (Object.keys(found).length > 0) {
+        setPanelImages((prev) => {
+          let changed = false;
+          const next = { ...prev };
+          for (const [idx, imgs] of Object.entries(found)) {
+            const k = Number(idx);
+            if (imgs.length > 0 && (!prev[k] || prev[k].length === 0)) {
+              next[k] = imgs;
+              changed = true;
+            }
+          }
+          return changed ? next : prev;
+        });
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [result]);
 
   const displayImages = (idx: number) => panelImages[idx] ?? [];
 
