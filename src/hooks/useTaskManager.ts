@@ -31,6 +31,12 @@ export interface PersistedTaskEntry {
   timestamp: number;
   zipUrl?: string | null; // Persisted for recovery after page refresh
   storyboardInfo?: { historyId: string; panelIdx: number }; // Storyboard panel association
+  /** UI module that produced this task — used for history-page source tag. */
+  source?: 'expand' | 'random' | 'smart-storyboard' | 'storyboard' | 'txt2img' | 'img2img' | 'img2vid';
+  /** Storyboard / random theme title — also displayed on history cards. */
+  themeTitle?: string;
+  /** 1-based panel number for storyboard tasks. */
+  panelNumber?: number;
 }
 
 export function loadPersistedTasks(): PersistedTaskEntry[] {
@@ -94,7 +100,10 @@ export interface TaskManagerReturn {
     prompt: string,
     workflowIdOverride?: string,
     resultId?: string,
-    storyboardInfo?: { historyId: string; panelIdx: number }
+    storyboardInfo?: { historyId: string; panelIdx: number },
+    source?: 'expand' | 'random' | 'smart-storyboard' | 'storyboard' | 'txt2img' | 'img2img' | 'img2vid',
+    themeTitle?: string,
+    panelNumber?: number
   ) => Promise<string>;
   addTaskWithNodeList: (
     workflowType: 'txt2img' | 'img2img' | 'img2vid',
@@ -102,7 +111,10 @@ export interface TaskManagerReturn {
     prompt: string,
     workflowIdOverride?: string,
     resultId?: string,
-    storyboardInfo?: { historyId: string; panelIdx: number }
+    storyboardInfo?: { historyId: string; panelIdx: number },
+    source?: 'expand' | 'random' | 'smart-storyboard' | 'storyboard' | 'txt2img' | 'img2img' | 'img2vid',
+    themeTitle?: string,
+    panelNumber?: number
   ) => Promise<string>;
   cancelTask: (id: string) => void;
   clearCompleted: () => void;
@@ -425,6 +437,7 @@ export function useTaskManager({
 
       const { id, workflowType, nodeInfoList, prompt, storyboardInfo } = task;
       const workflowIdOverride = (task as QueuedTask & { workflowIdOverride?: string }).workflowIdOverride;
+      const taskSource = task.source;
 
       const resolvedWorkflowId = workflowIdOverride
         || (workflowType === 'txt2img' ? WORKFLOW.TEXT_TO_IMAGE
@@ -507,7 +520,7 @@ export function useTaskManager({
               t.id === id ? { ...t, taskId, zipUrl: initialZipUrl, status: 'QUEUEING', coins: initialCoins, elapsedSeconds: initialElapsed, images: initialDirectImages } : t
             )
           );
-          persistTask({ id, taskId, prompt, workflowType, workflowIdOverride, nodeInfoList, resultId: undefined, timestamp: Date.now(), zipUrl: initialZipUrl, storyboardInfo });
+          persistTask({ id, taskId, prompt, workflowType, workflowIdOverride, nodeInfoList, resultId: undefined, timestamp: Date.now(), zipUrl: initialZipUrl, storyboardInfo, source: taskSource });
           onTaskStatusChangeRef.current?.(id, initialStatus);
           // Successfully submitted; clear any pending retry counter.
           retryAttemptRef.current.delete(id);
@@ -587,7 +600,10 @@ export function useTaskManager({
       prompt: string,
       workflowIdOverride?: string,
       resultId?: string,
-      storyboardInfo?: { historyId: string; panelIdx: number }
+      storyboardInfo?: { historyId: string; panelIdx: number },
+      source?: 'expand' | 'random' | 'smart-storyboard' | 'storyboard' | 'txt2img' | 'img2img' | 'img2vid',
+      themeTitle?: string,
+      panelNumber?: number,
     ): Promise<string> => {
       const currentApiKey = apiKeyRef.current;
       if (!currentApiKey) throw new Error('API Key not configured');
@@ -607,6 +623,9 @@ export function useTaskManager({
         coins: null,
         nodeInfoList,
         storyboardInfo,
+        source,
+        themeTitle,
+        panelNumber,
       };
 
       setTasks((prev) => {
@@ -614,7 +633,7 @@ export function useTaskManager({
         return [...prev, newTask];
       });
 
-      persistTask({ id, taskId: null, prompt, workflowType, workflowIdOverride, nodeInfoList, resultId, timestamp: Date.now(), storyboardInfo: newTask.storyboardInfo });
+      persistTask({ id, taskId: null, prompt, workflowType, workflowIdOverride, nodeInfoList, resultId, timestamp: Date.now(), storyboardInfo: newTask.storyboardInfo, source, themeTitle, panelNumber });
 
       // Concurrency gate based on synchronous in-flight tracker.
       if (inFlightRef.current.size >= MAX_CONCURRENT) {
@@ -771,6 +790,7 @@ export function useTaskManager({
             nodeInfoList: entry.nodeInfoList,
             workflowIdOverride: entry.workflowIdOverride,
             storyboardInfo: entry.storyboardInfo,
+            source: entry.source,
           };
 
           const mappedStatus = mapTaskStatus(status);

@@ -117,4 +117,19 @@ export interface QueuedTask {
   nodeInfoList: NodeInfo[];
   /** Identifies which storyboard panel this task belongs to (if any). */
   storyboardInfo?: { historyId: string; panelIdx: number };
+  /** Identifies which UI module produced this task — used to render a source
+   * tag in the history page (e.g. "智能扩写", "随机抽卡", "剧情分镜").
+   * Falls back to the workflowType-derived label when missing.
+   * - expand          → 智能扩写
+   * - random          → 随机抽卡
+   * - smart-storyboard → 智能分镜 (StoryboardSection 在智能扩写页内触发的任务)
+   * - storyboard      → 剧情分镜 (剧情分镜页面内的批量/单图任务) */
+  source?: 'expand' | 'random' | 'smart-storyboard' | 'storyboard' | 'txt2img' | 'img2img' | 'img2vid';
+  /** Storyboard / random theme title. Displayed alongside the source badge in
+   * the history page so users can tell which story/theme a finished image
+   * belongs to. Optional — only set for sources that have a theme context. */
+  themeTitle?: string;
+  /** 1-based panel number this task belongs to. Combined with themeTitle it
+   * gives users a clear "剧情: 主题名 · 第N镜" annotation. Optional. */
+  panelNumber?: number;
 }

@@ -14,6 +14,17 @@ export interface HistoryRecord {
   zipUrl: string | null;
   coins: string | null;
   createdAt: number;
+  /** Which UI module produced this record — used to render a source badge
+   * (e.g. "智能扩写", "随机抽卡", "剧情分镜") on the history page card.
+   * Falls back to workflowType-derived label when missing. */
+  source?: 'expand' | 'random' | 'smart-storyboard' | 'storyboard' | 'txt2img' | 'img2img' | 'img2vid';
+  /** Storyboard / random theme title. Rendered as a "剧情: xxx" badge
+   * alongside the source tag on the history card so the user can identify
+   * which story/theme the image belongs to. */
+  themeTitle?: string;
+  /** 1-based panel number for storyboard tasks. Combined with themeTitle
+   * gives a "剧情: xxx · 第N镜" annotation. */
+  panelNumber?: number;
 }
 
 const STORAGE_KEY = 'nsfwxo_history';
@@ -188,6 +199,9 @@ export function saveTaskToHistory(task: QueuedTask): void {
     zipUrl: task.zipUrl,
     coins: task.coins,
     createdAt: Date.now(),
+    source: task.source,
+    themeTitle: task.themeTitle,
+    panelNumber: task.panelNumber,
   };
   saveRecord(record);
 }

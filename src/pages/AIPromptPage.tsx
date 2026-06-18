@@ -5,7 +5,7 @@ import {
   ChevronDown, ChevronUp, Sparkles, RotateCcw, Send,
   AlertCircle, Settings, Eye, Tag, History, Trash2, Plus, Clock,
   Image, Zap, X, Download, User, Heart, Star, Clapperboard,
-  ChevronLeft, ChevronRight, Video, ZoomIn, RefreshCw,
+  ChevronLeft, ChevronRight, Video, ZoomIn, RefreshCw, Bookmark,
 } from 'lucide-react';
 import {
   expandPrompt,
@@ -373,7 +373,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         { nodeId: '9', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: 'batch_size' },
         { nodeId: '33', fieldName: 'text', fieldValue: outputText, description: 'text' },
       ];
-      await taskManager.addTask('img2img', nodes, outputText, WORKFLOW.IMAGE_TO_IMAGE);
+      await taskManager.addTask('img2img', nodes, outputText, WORKFLOW.IMAGE_TO_IMAGE, undefined, undefined, 'expand');
         onSuccess('任务已提交，请到图生图查看生成结果');
         if (onNavigate) onNavigate('img2img');
       } else {
@@ -387,7 +387,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
           lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
         });
-        await taskManager.addTask('txt2img', nodes, outputText);
+        await taskManager.addTask('txt2img', nodes, outputText, undefined, undefined, undefined, 'expand');
         onSuccess('任务已提交，请到文生图查看生成结果');
         if (onNavigate) onNavigate('txt2img');
       }
@@ -429,7 +429,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         { nodeId: '33', fieldName: 'text', fieldValue: result.prompt, description: 'text' },
       ];
       try {
-        await taskManager.addTask('img2img', nodes, result.prompt, WORKFLOW.IMAGE_TO_IMAGE);
+        await taskManager.addTask('img2img', nodes, result.prompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, undefined, 'expand');
         onSuccess('任务已提交，请到图生图查看生成结果');
         if (onNavigate) onNavigate('img2img');
       } catch (err) {
@@ -452,7 +452,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
       });
       try {
-        await taskManager.addTask('txt2img', nodes, result.prompt);
+        await taskManager.addTask('txt2img', nodes, result.prompt, undefined, undefined, undefined, 'expand');
         onSuccess('任务已提交，请到文生图查看生成结果');
         if (onNavigate) onNavigate('txt2img');
       } catch (err) {
@@ -497,7 +497,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           { nodeId: '9', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: 'batch_size' },
           { nodeId: '33', fieldName: 'text', fieldValue: result.prompt, description: 'text' },
         ];
-        await taskManager.addTask('img2img', nodes, result.prompt, WORKFLOW.IMAGE_TO_IMAGE);
+        await taskManager.addTask('img2img', nodes, result.prompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, undefined, 'expand');
       } else {
         const nodes = buildTxt2ImgNodeList({
           width: DEFAULT_TXT2IMG_PARAMS.width,
@@ -509,7 +509,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
           lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
         });
-        await taskManager.addTask('txt2img', nodes, result.prompt);
+        await taskManager.addTask('txt2img', nodes, result.prompt, undefined, undefined, undefined, 'expand');
       }
     });
     const results_await = await Promise.allSettled(tasks);
@@ -532,7 +532,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
 
   // Handles single-panel image generation from StoryboardSection (ExpandMode version).
   // Reuses the same logic as handleGenerateStoryboard but for a single panel.
-  const handleExpandModeSinglePanelGenerate = useCallback(async (panelIdx: number, prompt: string) => {
+  const handleExpandModeSinglePanelGenerate = useCallback(async (panelIdx: number, prompt: string, context?: { themeTitle?: string; panelNumber?: number }) => {
     console.log(`[handleExpandModeSinglePanelGenerate] panelIdx=${panelIdx}, digitalHumanMode=${digitalHumanMode}, selectedGirlfriend=${!!selectedGirlfriend}, prompt length=${prompt.length}, prompt="${prompt.slice(0, 80)}"`);
     if (!prompt.trim()) {
       onError('分镜内容为空，请先生成分镜');
@@ -575,7 +575,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         { nodeId: '33', fieldName: 'text', fieldValue: finalPrompt, description: 'text' },
       ];
       try {
-        await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, storyboardInfo);
+        await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, storyboardInfo, 'smart-storyboard', context?.themeTitle, context?.panelNumber);
         onSuccess('分镜图片任务已提交');
       } catch (err) {
         onError(err instanceof Error ? err.message : '提交失败');
@@ -594,7 +594,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
       });
       try {
-        await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, storyboardInfo);
+        await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, storyboardInfo, 'smart-storyboard', context?.themeTitle, context?.panelNumber);
         console.log(`[handleExpandModeSinglePanelGenerate] submitted txt2img task, prompt length=${finalPrompt.length}`);
         onSuccess('分镜图片任务已提交');
       } catch (err) {
@@ -681,6 +681,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     const tasks = toSubmit.map((panel, i) => async () => {
       const panelIdx = i;
       const panelStoryboardInfo = { historyId: newHistoryId, panelIdx };
+      const panelNum = panel.panel_number || (i + 1);
       if (digitalHumanMode && selectedGirlfriend) {
         const charId = (selectedGirlfriend.id as string).toUpperCase().slice(0, 4);
         const anchorPrompt = `【严格锁定】严格锁定图中22岁女性（ID:${charId}），完全保留原有面部特征，五官轮廓、脸型、眼睛、鼻子、嘴唇、发型、肤色、身材比例完全不变，不做任何面部修改，动作流畅不僵硬。超高清8K，写实细节，皮肤质感细腻，无畸变、无模糊、无穿模。`;
@@ -690,7 +691,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           { nodeId: '9', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: 'batch_size' },
           { nodeId: '33', fieldName: 'text', fieldValue: finalPrompt, description: 'text' },
         ];
-        await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, panelStoryboardInfo);
+        await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, panelStoryboardInfo, 'storyboard', sceneName || undefined, panelNum);
       } else {
         const finalPrompt = `${QUALITY_BOOST_PROMPT}, ${panel.image_prompt}`;
         const nodes = buildTxt2ImgNodeList({
@@ -703,7 +704,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
           lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
         });
-        await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, panelStoryboardInfo);
+        await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, panelStoryboardInfo, 'storyboard', sceneName || undefined, panelNum);
       }
     });
 
@@ -1204,6 +1205,12 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       return;
     }
     setGenStates((prev) => ({ ...prev, [idx]: { loading: true, images: [] } }));
+    // Capture the current result's theme (if any) so the history record can
+    // show "剧情: <theme>" alongside the source tag. The user explicitly
+    // asked for the theme to be visible on every history card, including
+    // random抽卡 which can be themed (e.g. multiple prompts under one theme).
+    const resultForIdx = results[idx];
+    const randomTheme = resultForIdx?.theme || resultForIdx?.theme_label || '';
     let imagePath = selectedGirlfriend?.portraitUrl || '';
     let referenceImageUrl = '';
     if (digitalHumanMode && selectedGirlfriend) {
@@ -1231,7 +1238,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         { nodeId: '33', fieldName: 'text', fieldValue: prompt, description: 'text' },
       ];
       try {
-        await taskManager.addTask('img2img', nodes, prompt, WORKFLOW.IMAGE_TO_IMAGE);
+        await taskManager.addTask('img2img', nodes, prompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, undefined, 'random', randomTheme || undefined);
         onSuccess('任务已提交，请到图生图查看生成结果');
         if (onNavigate) onNavigate('img2img');
       } catch (err) {
@@ -1254,7 +1261,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
       });
       try {
-        await taskManager.addTask('txt2img', nodes, prompt);
+        await taskManager.addTask('txt2img', nodes, prompt, undefined, undefined, undefined, 'random', randomTheme || undefined);
         onSuccess('任务已提交，请到文生图查看生成结果');
         if (onNavigate) onNavigate('txt2img');
       } catch (err) {
@@ -1266,7 +1273,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         });
       }
     }
-  }, [taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, onNavigate]);
+  }, [taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, onNavigate, results]);
 
   const handleBatchGenerate = useCallback(async () => {
     if (results.length === 0) return;
@@ -1293,13 +1300,14 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     }
     const toSubmit = results.slice(0, availableSlots);
     const tasks = toSubmit.map(async (result) => {
+      const randomTheme = result?.theme || result?.theme_label || '';
       if (digitalHumanMode && selectedGirlfriend) {
         const nodes = [
           { nodeId: '7', fieldName: 'image', fieldValue: imagePath, description: 'image' },
           { nodeId: '9', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: 'batch_size' },
           { nodeId: '33', fieldName: 'text', fieldValue: result.prompt, description: 'text' },
         ];
-        await taskManager.addTask('img2img', nodes, result.prompt, WORKFLOW.IMAGE_TO_IMAGE);
+        await taskManager.addTask('img2img', nodes, result.prompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, undefined, 'random', randomTheme || undefined);
       } else {
         const nodes = buildTxt2ImgNodeList({
           width: DEFAULT_TXT2IMG_PARAMS.width,
@@ -1311,7 +1319,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
           lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
         });
-        await taskManager.addTask('txt2img', nodes, result.prompt);
+        await taskManager.addTask('txt2img', nodes, result.prompt, undefined, undefined, undefined, 'random', randomTheme || undefined);
       }
     });
     const settled = await Promise.allSettled(tasks);
@@ -2686,7 +2694,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         { nodeId: '33', fieldName: 'text', fieldValue: finalPrompt, description: 'text' },
       ];
       try {
-        await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, storyboardInfo);
+        await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, storyboardInfo, 'storyboard', activeThemeInfo?.title || plot || undefined, panelIdx + 1);
         onSuccess('分镜图片任务已提交');
       } catch (err) {
         onError(err instanceof Error ? err.message : '提交失败');
@@ -2705,7 +2713,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
       });
       try {
-        await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, storyboardInfo);
+        await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, storyboardInfo, 'storyboard', activeThemeInfo?.title || plot || undefined, panelIdx + 1);
         console.log(`[handleStoryboardGenerateImage] submitted txt2img task, prompt length=${finalPrompt.length}, nodes=`, JSON.stringify(nodes));
         onSuccess('分镜图片任务已提交');
       } catch (err) {
@@ -2713,7 +2721,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         setGenStates((prev) => { const next = { ...prev }; delete next[key]; return next; });
       }
     }
-  }, [taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, sbHistoryId]);
+  }, [taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, sbHistoryId, activeThemeInfo, plot]);
 
   // Generate video prompt for a panel based on image prompt
   const generateVideoPromptForPanel = useCallback((imagePrompt: string): string => {
@@ -2942,6 +2950,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       const panelIdx = i;
       console.log(`[handleBatchGenerate] task[${i}] using panel.image_prompt="${panel.image_prompt.slice(0, 100)}" (length=${panel.image_prompt.length})`);
       const panelStoryboardInfo = { historyId: hid, panelIdx };
+      const panelNum = panel.panel_number || (i + 1);
+      const themeForTask = activeThemeInfo?.title || plot || undefined;
       return async () => {
         if (digitalHumanMode && selectedGirlfriend) {
           const charName = selectedGirlfriend.nameZh || selectedGirlfriend.name;
@@ -2953,7 +2963,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
             { nodeId: '9', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: 'batch_size' },
             { nodeId: '33', fieldName: 'text', fieldValue: finalPrompt, description: 'text' },
           ];
-          await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, panelStoryboardInfo);
+          await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, panelStoryboardInfo, 'storyboard', themeForTask, panelNum);
         } else {
           const finalPrompt = `${QUALITY_BOOST_PROMPT}, ${panel.image_prompt}`;
           const nodes = buildTxt2ImgNodeList({
@@ -2966,7 +2976,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
             lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
             lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
           });
-          await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, panelStoryboardInfo);
+          await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, panelStoryboardInfo, 'storyboard', themeForTask, panelNum);
         }
       };
     });
@@ -3822,6 +3832,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                 onPreviewImage={handlePreviewImage}
                 videoGenLoading={videoGenLoading[panelKey]}
                 onDirectGenerateVideo={(imageUrl, prompt) => handleDirectGenerateVideo(panelKey, imageUrl, prompt)}
+                themeTitle={activeThemeInfo?.title || plot}
               />
             );
           })}
@@ -3911,11 +3922,6 @@ function StoryboardHistoryList({ history, onLoad, onDelete }: {
   onLoad: (h: StoryboardHistoryItem) => void;
   onDelete: (id: string) => void;
 }) {
-  // Per-entry previews. The reliable source is the unified image store
-  // keyed by historyId + panelIdx, which the live task path populates
-  // via cacheStoryboardPanelImages. Reading from there is a synchronous
-  // localStorage read, never trips quota, and is always consistent with
-  // what the main storyboard page sees.
   const [previewImages, setPreviewImages] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
@@ -4085,7 +4091,7 @@ function FavoritesList({ favorites, r18Mode, onRemove, onClear }: {
   );
 }
 
-function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onToggle, onCopyPanel, genState, onGenerateImage, onFavorited, onDownload, taskManager, digitalHumanMode, selectedGirlfriend, selectedImageIndex, onSelectImage, onGenerateVideo, videoPrompt, hasGeneratedImages, onPreviewImage, videoGenLoading, onDirectGenerateVideo }: {
+function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onToggle, onCopyPanel, genState, onGenerateImage, onFavorited, onDownload, taskManager, digitalHumanMode, selectedGirlfriend, selectedImageIndex, onSelectImage, onGenerateVideo, videoPrompt, hasGeneratedImages, onPreviewImage, videoGenLoading, onDirectGenerateVideo, themeTitle }: {
   panel: { panel_number: number; scene_description: string; image_prompt: string };
   idx: number; isExpanded: boolean; r18Mode: boolean; copiedPanel: number | null;
   onToggle: () => void; onCopyPanel: () => void;
@@ -4103,6 +4109,7 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
   onPreviewImage?: (images: string[], currentIndex: number, prompt?: string) => void;
   videoGenLoading?: boolean;
   onDirectGenerateVideo?: (imageUrl: string, prompt: string) => void;
+  themeTitle?: string;
 }) {
   const isGenLoading = genState?.loading;
   const displayImages = genState?.images ?? [];
@@ -4135,7 +4142,7 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
     <div className={`rounded-2xl overflow-hidden shadow-card ${r18Mode ? 'border border-red-200 bg-white' : 'bg-white border border-border'}`}>
       <button onClick={onToggle}
         className={`w-full flex items-center justify-between px-4 py-3 hover:bg-bg-hover transition-colors ${r18Mode ? 'bg-red-50/30' : ''}`}>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <span className={`w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0 ${r18Mode ? 'bg-gradient-to-br from-red-500 to-red-700 text-white' : 'bg-gradient-to-br from-primary to-primary/60 text-white'}`}>{panel.panel_number}</span>
           <span className="text-sm text-text-primary font-medium whitespace-pre-wrap break-words line-clamp-2">{panel.scene_description}</span>
           {hasImages && <span className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center flex-shrink-0 bg-green-500 text-white`}>{allDisplayImages.length}</span>}
@@ -4149,8 +4156,33 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
               {isQueued && !isGenerating ? '排队中' : '生成中'}
             </span>
           )}
+          {themeTitle && (
+            <span
+              className={`hidden sm:inline-flex items-center gap-1 max-w-[160px] px-2 py-0.5 rounded-full text-[10px] font-medium flex-shrink-0 ${
+                r18Mode
+                  ? 'bg-red-50 text-red-500 border border-red-200'
+                  : 'bg-purple-50 text-purple-600 border border-purple-200'
+              }`}
+              title={`剧情：${themeTitle}`}
+            >
+              <Bookmark size={10} className="flex-shrink-0" />
+              <span className="truncate">剧情：{themeTitle}</span>
+            </span>
+          )}
         </div>
-        {isExpanded ? <ChevronUp size={14} className="text-text-tertiary" /> : <ChevronDown size={14} className="text-text-tertiary" />}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {themeTitle && (
+            <span
+              className={`sm:hidden inline-flex items-center max-w-[100px] px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                r18Mode ? 'bg-red-50 text-red-500 border border-red-200' : 'bg-purple-50 text-purple-600 border border-purple-200'
+              }`}
+              title={`剧情：${themeTitle}`}
+            >
+              <span className="truncate">{themeTitle}</span>
+            </span>
+          )}
+          {isExpanded ? <ChevronUp size={14} className="text-text-tertiary" /> : <ChevronDown size={14} className="text-text-tertiary" />}
+        </div>
       </button>
       {isExpanded && (
         <div className={`px-4 pb-4 border-t ${r18Mode ? 'border-red-100' : 'border-border/50'}`}>

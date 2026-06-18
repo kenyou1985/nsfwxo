@@ -5,14 +5,14 @@ import {
 } from 'lucide-react';
 import { generateStoryboard, type GeneratedStoryboard } from '../services/storyboardGenerator';
 import {
-  getCachedStoryboardPanelImages,
-  cacheStoryboardPanelImages,
-  resolvePanelImages,
   getStoryboardHistory,
+  resolvePanelImages,
+  cacheStoryboardPanelImages,
+  getCachedStoryboardPanelImages,
+  type StoryboardHistoryItem,
 } from '../services/storage';
-import { loadCachedOrExtractPanelImages } from '../services/imageCacheService';
-import { extractVideoPromptFromImagePrompt } from '../utils/videoPromptExtractor';
 import { useFinishedTaskImages } from '../contexts/FinishedTaskImagesContext';
+import { extractVideoPromptFromImagePrompt } from '../utils/videoPromptExtractor';
 import { ImageGrid } from './ImageGrid';
 import type { GirlfriendPreset } from '../data/girlfriendPresets';
 
@@ -28,12 +28,14 @@ interface StoryboardSectionProps {
     onSuccess: (msg: string) => void,
     onError: (msg: string) => void
   ) => void;
-  onGenerateSingleImage?: (panelIdx: number, prompt: string) => void;
+  onGenerateSingleImage?: (panelIdx: number, prompt: string, context?: { themeTitle?: string; panelNumber?: number }) => void;
   onGenerateVideo?: (imageUrl: string, prompt: string, panelKey: string) => void;
   onToggleFavorite?: (url: string, prompt?: string) => void;
   onSuccess: (msg: string) => void;
   onError: (msg: string) => void;
 }
+
+const PANEL_LOG_PREFIX = '[StoryboardSection]';
 
 export function StoryboardSection({
   r18Enabled,
@@ -47,8 +49,8 @@ export function StoryboardSection({
   onSuccess,
   onError,
 }: StoryboardSectionProps) {
-  const noopSingleImage = useCallback((panelIdx: number, prompt: string) => {
-    console.log(`[StoryboardSection noopSingleImage] panelIdx=${panelIdx}, prompt length=${prompt.length}, prompt="${prompt.slice(0, 80)}"`);
+  const noopSingleImage = useCallback((panelIdx: number, prompt: string, _context?: { themeTitle?: string; panelNumber?: number }) => {
+    console.log(`${PANEL_LOG_PREFIX} noopSingleImage called: panelIdx=${panelIdx}, prompt length=${prompt.length}`);
     onError?.('请前往「剧情分镜」页面使用单图生成功能');
   }, [onError]);
 
@@ -58,6 +60,7 @@ export function StoryboardSection({
 
   const actualSingleImage = onGenerateSingleImage ?? noopSingleImage;
   const actualVideo = onGenerateVideo ?? noopVideo;
+
   const [isOpen, setIsOpen] = useState(true);
   const [panelCount, setPanelCount] = useState<5 | 9 | 12 | 20>(9);
   const [poseMode, setPoseMode] = useState(false);
@@ -67,24 +70,36 @@ export function StoryboardSection({
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Per-panel image state: which panel indices have been submitted
+  // Per-panel submitted flag — only used to show the "生成中" badge
+  // until images arrive (either from the live finishedTasks path or from
+  // the initial history restore).
   const [submittedPanels, setSubmittedPanels] = useState<Set<number>>(new Set());
 
-  // Per-panel image cache: { [panelIdx]: string[] }
+  // Per-panel image cache: { [panelIdx]: string[] }.
+  // Source of truth for the UI. Filled in two ways:
+  //   1. Initial restore: read the same field the history page reads
+  //      (history.panelImages via resolvePanelImages, or the per-panel
+  //      unified cache via getCachedStoryboardPanelImages). This is
+  //      exactly what HistoryPage does for its image tab.
+  //   2. Live updates: useFinishedTaskImages fires when a task completes
+  //      and we splice its images in.
+  // That's it — no separate polling, no djb2 legacy path, no zip
+  // extraction, no multi-tier chain. If the history record has images,
+  // they show up; if a task completes, it shows up. Same display logic
+  // as the history page (ImageGrid).
   const [panelImages, setPanelImages] = useState<Record<number, string[]>>({});
 
-  // Per-panel video generation loading state
-  const [videoLoadingPanel, setVideoLoadingPanel] = useState<number | null>(null);
-
-  // Per-panel image generation loading state
+  // Per-panel image generation loading state (per-panel button click).
   const [generatingPanel, setGeneratingPanel] = useState<number | null>(null);
   const generatingPanelRef = useRef<number | null>(null);
 
   // Per-panel selected image index: { [panelIdx]: number }
   const [selectedPanelImages, setSelectedPanelImages] = useState<Record<number, number>>({});
 
+  // Per-panel video generation loading state
+  const [videoLoadingPanel, setVideoLoadingPanel] = useState<number | null>(null);
+
   const panelsRef = useRef<GeneratedStoryboard['panels'] | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const handleGenerate = () => {
     setIsGenerating(true);
@@ -92,6 +107,12 @@ export function StoryboardSection({
       const generated = generateStoryboard(panelCount, r18Enabled, selectedGirlfriend, poseMode, smIntensity);
       setResult(generated);
       panelsRef.current = generated.panels;
+      // Don't clear sessionStorage here — if the user is regenerating
+      // after viewing a history record, we want to keep the historyId
+      // until the new "一键生成" creates a fresh one. The render effect
+      // below will detect the (still-empty) panel images and leave them
+      // empty; the user is expected to click "一键生成" to actually
+      // produce images for the new layout.
       setPanelImages({});
       setSubmittedPanels(new Set());
       setIsOpen(true);
@@ -146,10 +167,6 @@ export function StoryboardSection({
     setGeneratingPanel(null);
     generatingPanelRef.current = null;
     panelsRef.current = null;
-    if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
   };
 
   const handleGenerateImages = () => {
@@ -157,7 +174,6 @@ export function StoryboardSection({
     setIsSubmitting(true);
     setSubmittedPanels(new Set(result.panels.map((_, i) => i)));
     panelsRef.current = result.panels;
-    // Don't start polling — the finishedTasks effect handles all image updates
     onGenerateStoryboard(result.panels, result.scene.nameZh, result.is_r18, (msg) => {
       onSuccess(msg);
       setIsSubmitting(false);
@@ -167,73 +183,10 @@ export function StoryboardSection({
     });
   };
 
-  const startPolling = (panels: GeneratedStoryboard['panels']) => {
-    panelsRef.current = panels;
-    // Read historyId directly from sessionStorage — this is set by handleGenerateStoryboard in AIPromptPage
-    const historyId = sessionStorage.getItem('sb_latest_history_id');
-    if (!historyId) {
-      console.warn('[StoryboardSection] No sb_latest_history_id in sessionStorage, polling skipped');
-      return;
-    }
-    if (pollRef.current) clearInterval(pollRef.current);
-    // Pull panelImages once at poll start (it's a synchronous localStorage
-    // read) so older history entries — which only have dataURLs inlined in
-    // history.panelImages and never went through cacheStoryboardPanelImages
-    // — show their previews on the first tick. Subsequent ticks still poll
-    // the unified store, so live task completions continue to flow in.
-    const historyItem = getStoryboardHistory().find((h) => h.id === historyId);
-    const inlinePanelImages = historyItem?.panelImages
-      ? resolvePanelImages(historyItem.panelImages)
-      : {};
-    if (Object.keys(inlinePanelImages).length > 0) {
-      setPanelImages((prev) => {
-        let changed = false;
-        const next = { ...prev };
-        for (const [idx, imgs] of Object.entries(inlinePanelImages)) {
-          if (imgs.length > 0 && (!prev[Number(idx)] || prev[Number(idx)].length === 0)) {
-            next[Number(idx)] = imgs;
-            changed = true;
-          }
-        }
-        return changed ? next : prev;
-      });
-    }
-    pollRef.current = setInterval(() => {
-      const currentPanels = panelsRef.current;
-      if (!currentPanels) return;
-      const newImages: Record<number, string[]> = {};
-      let anyUpdated = false;
-      currentPanels.forEach((_, idx) => {
-        const imgs = getCachedStoryboardPanelImages(historyId, idx);
-        newImages[idx] = imgs;
-        const currentImgs = panelImages[idx] ?? [];
-        if (JSON.stringify(imgs) !== JSON.stringify(currentImgs)) {
-          anyUpdated = true;
-        }
-      });
-      if (anyUpdated) {
-        setPanelImages(prev => {
-          const merged = { ...prev };
-          currentPanels.forEach((_, idx) => {
-            merged[idx] = newImages[idx];
-          });
-          return merged;
-        });
-        Object.entries(newImages).forEach(([k, v]) => {
-          if (v.length > 0) {
-            const idx = Number(k);
-            if (generatingPanelRef.current === idx) setGeneratingPanel(null);
-          }
-        });
-      }
-    }, 2000);
-  };
-
   // Generate video for a specific panel image — uses selected image if available
   const handleGenerateVideo = (panelIdx: number) => {
     const imgs = panelImages[panelIdx] ?? [];
     if (imgs.length === 0) return;
-    // Use the selected image if available, otherwise fall back to first image
     const selectedIdx = selectedPanelImages[panelIdx] ?? 0;
     const imageUrl = imgs[selectedIdx] ?? imgs[0];
     setVideoLoadingPanel(panelIdx);
@@ -247,165 +200,145 @@ export function StoryboardSection({
     }
   };
 
+  // ─────────────────────────────────────────────────────────────────────
+  // Single source of truth for restoring images when `result` changes.
+  // Reads from the same field HistoryPage reads (panelImages via
+  // resolvePanelImages), then falls back to the per-panel unified cache
+  // (getCachedStoryboardPanelImages) — exactly the same chain the main
+  // storyboard page uses in StoryboardMode (AIPromptPage.tsx). No
+  // separate cache, no djb2, no zip extraction in the UI thread.
+  // ─────────────────────────────────────────────────────────────────────
   useEffect(() => {
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, []);
+    if (!result) {
+      console.debug(`${PANEL_LOG_PREFIX} result cleared, resetting panelImages`);
+      setPanelImages({});
+      return;
+    }
+    const historyId = sessionStorage.getItem('sb_latest_history_id');
+    if (!historyId) {
+      console.debug(`${PANEL_LOG_PREFIX} no sb_latest_history_id in sessionStorage — fresh storyboard, no images yet`);
+      setPanelImages({});
+      return;
+    }
 
-  // Subscribe to finished task images — the same mechanism used by ExpandMode.
-  // When a task completes, its images are registered via registerTaskImages and flow
-  // into finishedTasks. We detect completed panels and update panelImages immediately.
+    let cancelled = false;
+    const historyItems = getStoryboardHistory();
+    const historyItem = historyItems.find((h) => h.id === historyId);
+    if (!historyItem) {
+      console.warn(`${PANEL_LOG_PREFIX} historyId=${historyId} not found in getStoryboardHistory() (have ${historyItems.length} entries). Clearing panel images.`);
+      setPanelImages({});
+      return;
+    }
+
+    console.debug(`${PANEL_LOG_PREFIX} restoring images for historyId=${historyId}, plot="${historyItem.plot}", panels=${historyItem.panels.length}, hasPanelImages=${!!historyItem.panelImages}, hasPanelZipUrls=${!!historyItem.panelZipUrls}`);
+
+    // Tier 1: history.panelImages (data: URLs that survive page refresh).
+    // resolvePanelImages already strips orphan hash refs and empty
+    // strings, so the result is safe to use directly as <img src=...>.
+    const inline: Record<number, string[]> = historyItem.panelImages
+      ? resolvePanelImages(historyItem.panelImages)
+      : {};
+    const inlineKeys = Object.keys(inline);
+    if (inlineKeys.length > 0) {
+      console.debug(`${PANEL_LOG_PREFIX} tier-1 hit (history.panelImages): ${inlineKeys.length} panels with data URLs (${inlineKeys.map((k) => `${k}=${inline[Number(k)].length}`).join(', ')})`);
+    } else {
+      console.debug(`${PANEL_LOG_PREFIX} tier-1 miss: history.panelImages empty or all orphan refs`);
+    }
+
+    // Tier 2: per-panel unified cache. Same function used everywhere
+    // else in the app. Only fall back to it for panels that tier 1
+    // didn't satisfy.
+    const restoreFromCache = async () => {
+      const next: Record<number, string[]> = { ...inline };
+      let fromCache = 0;
+      for (let i = 0; i < result.panels.length; i++) {
+        if (next[i] && next[i].length > 0) continue;
+        const cached = getCachedStoryboardPanelImages(historyId, i);
+        if (cached.length > 0) {
+          next[i] = cached;
+          fromCache++;
+        }
+      }
+      if (fromCache > 0) {
+        console.debug(`${PANEL_LOG_PREFIX} tier-2 hit (per-panel cache): ${fromCache} additional panels restored`);
+      } else if (inlineKeys.length === 0) {
+        console.debug(`${PANEL_LOG_PREFIX} tier-2 miss: per-panel cache empty (history will show empty previews until a task completes)`);
+      }
+      if (cancelled) return;
+      setPanelImages(next);
+    };
+    restoreFromCache();
+
+    return () => { cancelled = true; };
+  }, [result]);
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Live updates: when a task completes for one of our panels, splice
+  // its images into panelImages. Mirrors the finishedTasks effect the
+  // main storyboard page (StoryboardMode) uses, but simplified — we
+  // just write into the same Record the restore effect populates, and
+  // we let the image cache service handle persistence (the data: URL
+  // is good enough to display immediately; the unified cache write is
+  // a fire-and-forget that won't block the render).
+  // ─────────────────────────────────────────────────────────────────────
   const { finishedTasks } = useFinishedTaskImages();
   useEffect(() => {
     if (!result) return;
     const historyId = sessionStorage.getItem('sb_latest_history_id');
     if (!historyId) return;
 
-    console.debug('[StoryboardSection:finishedTasks] effect running, historyId=', historyId, 'finishedTasks keys=', Object.keys(finishedTasks), 'panelImages keys=', Object.keys(panelImages));
-
-    let updated = false;
-    const newImages: Record<number, string[]> = {};
-
+    const updates: Record<number, string[]> = {};
+    let matched = 0;
     for (const [taskId, info] of Object.entries(finishedTasks)) {
       const { images, storyboardInfo } = info;
       if (!images || images.length === 0) continue;
-
-      // Only process tasks that belong to this storyboard
       const hid = storyboardInfo?.historyId;
-      if (!hid) {
-        console.debug('[StoryboardSection:finishedTasks] skipping taskId=', taskId, 'no storyboardInfo.historyId');
-        continue;
-      }
-      if (hid !== historyId) {
-        console.debug('[StoryboardSection:finishedTasks] skipping taskId=', taskId, 'hid=', hid, '!== historyId=', historyId);
-        continue;
-      }
-
-      const { panelIdx } = storyboardInfo;
+      if (hid !== historyId) continue;
+      const { panelIdx } = storyboardInfo ?? {};
       if (panelIdx === undefined) continue;
-
-      // Update if we don't already have valid data URL images (avoid duplicate work)
-      if (panelImages[panelIdx]?.length > 0 && panelImages[panelIdx][0]?.startsWith('data:')) {
-        console.debug('[StoryboardSection:finishedTasks] skipping taskId=', taskId, 'panelIdx=', panelIdx, 'already has dataURL images');
-        continue;
-      }
-
-      console.debug('[StoryboardSection:finishedTasks] applying taskId=', taskId, 'panelIdx=', panelIdx, 'images=', images.length);
-      newImages[panelIdx] = images;
-      cacheStoryboardPanelImages(hid, panelIdx, images).catch(() => {});
-      updated = true;
-    }
-
-    if (updated && Object.keys(newImages).length > 0) {
-      setPanelImages(prev => {
-        const merged = { ...prev };
-        Object.entries(newImages).forEach(([k, v]) => { merged[Number(k)] = v; });
-        return merged;
+      updates[panelIdx] = images;
+      matched++;
+      // Fire-and-forget cache write so a future page load finds the
+      // image in the unified store too. Failures here are not user-
+      // facing because the image is already in panelImages for this
+      // session.
+      cacheStoryboardPanelImages(historyId, panelIdx, images).catch((err) => {
+        console.debug(`${PANEL_LOG_PREFIX} cache write failed for panel ${panelIdx} (non-fatal):`, err);
       });
-
-      // No-op: the live task path already caches each panel's
-      // dataURLs via cacheStoryboardPanelImages. Writing the full
-      // base64 back into history.panelImages multiplies the
-      // localStorage usage by ~10x and trips QuotaExceededError
-      // for the next saveHistory call (which then silently fails
-      // for every subsequent operation). The preview list now
-      // reads from the unified store directly.
     }
 
-    if (updated) {
-      Object.entries(newImages).forEach(([k, v]) => {
-        if (v.length > 0) {
-          const idx = Number(k);
-          if (generatingPanelRef.current === idx) setGeneratingPanel(null);
-          // Clear submitted state for this panel so loading indicator disappears
-          setSubmittedPanels(prev => {
-            if (!prev.has(idx)) return prev;
-            const next = new Set(prev);
-            next.delete(idx);
-            return next;
-          });
+    if (matched === 0) {
+      console.debug(`${PANEL_LOG_PREFIX} finishedTasks effect: no matching tasks for historyId=${historyId} (finishedTasks keys: ${Object.keys(finishedTasks).join(',') || 'none'})`);
+      return;
+    }
+
+    console.debug(`${PANEL_LOG_PREFIX} finishedTasks effect: applying ${matched} panel(s) from completed tasks (${Object.entries(updates).map(([k, v]) => `${k}=${v.length}`).join(', ')})`);
+
+    setPanelImages((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const [idx, imgs] of Object.entries(updates)) {
+        const k = Number(idx);
+        // Don't overwrite existing data-URL images with anything less.
+        // The finishedTasks effect can fire multiple times for the same
+        // taskId, and a later hash-ref-only delivery should not clobber
+        // an earlier data-URL delivery.
+        const existing = next[k];
+        if (existing && existing.length > 0 && existing[0]?.startsWith('data:')) {
+          console.debug(`${PANEL_LOG_PREFIX} skipping overwrite of panel ${k} (already has data URLs)`);
+          continue;
         }
-      });
-    }
+        next[k] = imgs;
+        changed = true;
+        // Clear per-panel "生成中" badge once images arrive.
+        if (generatingPanelRef.current === k) {
+          setGeneratingPanel(null);
+          generatingPanelRef.current = null;
+        }
+      }
+      return changed ? next : prev;
+    });
   }, [finishedTasks, result]);
-
-  // Load images for any history entry that was opened (or restored from
-  // sessionStorage) before any live task completion. finishedTasks only
-  // holds tasks that completed in *this* browser session, so restoring a
-  // history entry from yesterday (or a sessionStorage draft) wouldn't get
-  // any dataURL through the finishedTasks effect above — and the panel
-  // cards would render empty. The fix is the same path HistoryPage uses:
-  // read the unified store first, then the legacy img_cache_<fnv>_<i>
-  // entries, and as a last resort hit the per-panel zip URL. Each step
-  // is the exact same code HistoryPage runs for its image history tab,
-  // so a thumbnail that shows up in the history page is guaranteed to
-  // show up here too.
-  useEffect(() => {
-    if (!result) return;
-    const historyId = sessionStorage.getItem('sb_latest_history_id');
-    if (!historyId) return;
-    let cancelled = false;
-
-    (async () => {
-      const historyItem = getStoryboardHistory().find((h) => h.id === historyId);
-      // Tier 0: panelImages field on the history entry, which the live
-      // path used to write directly (resolvePanelImages is a no-op for
-      // data: URLs so this works as-is).
-      const inline: Record<number, string[]> = historyItem?.panelImages
-        ? resolvePanelImages(historyItem.panelImages)
-        : {};
-
-      // Tier 1 + tier 2 + tier 3: per-panel cache chain, parallel across
-      // panels. We ask for each panel up to its declared count, but only
-      // take the first 3 to keep the initial render light.
-      const found: Record<number, string[]> = {};
-      for (let i = 0; i < result.panels.length; i++) {
-        if (inline[i] && inline[i].length > 0) {
-          found[i] = inline[i];
-          continue;
-        }
-        const cached = getCachedStoryboardPanelImages(historyId, i);
-        if (cached.length > 0) {
-          found[i] = cached;
-          continue;
-        }
-        const panelZip = historyItem?.panelZipUrls?.[i] || historyItem?.zipUrl;
-        if (!panelZip) continue;
-        try {
-          const images = await loadCachedOrExtractPanelImages(
-            panelZip,
-            historyItem?.panelImageCounts?.[i] || 3,
-            historyId,
-            i,
-            panelZip,
-          );
-          if (cancelled) return;
-          if (images.length > 0) found[i] = images;
-        } catch (err) {
-          console.debug('[StoryboardSection] panel image load failed for', historyId, i, err);
-        }
-      }
-
-      if (cancelled) return;
-      if (Object.keys(found).length > 0) {
-        setPanelImages((prev) => {
-          let changed = false;
-          const next = { ...prev };
-          for (const [idx, imgs] of Object.entries(found)) {
-            const k = Number(idx);
-            if (imgs.length > 0 && (!prev[k] || prev[k].length === 0)) {
-              next[k] = imgs;
-              changed = true;
-            }
-          }
-          return changed ? next : prev;
-        });
-      }
-    })();
-
-    return () => { cancelled = true; };
-  }, [result]);
 
   const displayImages = (idx: number) => panelImages[idx] ?? [];
 
@@ -591,7 +524,6 @@ export function StoryboardSection({
               {result.panels.map((panel, idx) => {
                 const imgs = displayImages(idx);
                 const isSubmitted = submittedPanels.has(idx);
-                // Keep loading while tasks are submitted but no images received yet, or per-panel generation is in progress
                 const isLoading = (isSubmitted && imgs.length === 0) || (generatingPanel === idx);
 
                 return (
@@ -622,12 +554,14 @@ export function StoryboardSection({
                         {imgs.length === 0 && (
                           <button
                             onClick={() => {
-                              console.log(`[StoryboardSection] per-panel Gen button clicked: idx=${idx}, panel.prompt length=${panel.image_prompt.length}, prompt preview=${panel.image_prompt.slice(0, 60)}`);
+                              console.log(`${PANEL_LOG_PREFIX} per-panel Gen button clicked: idx=${idx}, prompt length=${panel.image_prompt.length}`);
                               setGeneratingPanel(idx);
                               generatingPanelRef.current = idx;
                               if (result) panelsRef.current = result.panels;
-                              // Don't start polling — finishedTasks effect handles image updates
-                              actualSingleImage(idx, panel.image_prompt);
+                              actualSingleImage(idx, panel.image_prompt, {
+                                themeTitle: result?.scene?.nameZh,
+                                panelNumber: panel.panel_number,
+                              });
                             }}
                             disabled={disabled || generatingPanel === idx}
                             className="flex items-center gap-0.5 px-2 py-0.5 rounded text-[10px] bg-indigo-500 text-white hover:bg-indigo-600 transition-colors disabled:opacity-50"
@@ -691,7 +625,8 @@ export function StoryboardSection({
                       </div>
                     )}
 
-                    {/* Image grid preview — card style with favorite + click to preview */}
+                    {/* Image grid preview — same ImageGrid used everywhere else in the app,
+                        so the display logic is identical to the history page's image tab. */}
                     {imgs.length > 0 ? (
                       <div className="mt-2 pt-2 border-t border-purple-100">
                         <ImageGrid

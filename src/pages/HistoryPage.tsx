@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Trash2, Image as ImageIcon, Clock, X, RotateCcw, Loader2, Video, Heart, Download, AlertTriangle, HardDrive } from 'lucide-react';
+import { Trash2, Image as ImageIcon, Clock, X, RotateCcw, Loader2, Video, Heart, Download, AlertTriangle, HardDrive, Bookmark, Layers } from 'lucide-react';
 import { getRecords, deleteRecord, clearAllHistory, type HistoryRecord } from '../services/historyService';
 import { loadCachedOrExtractedImages } from '../services/imageCacheService';
 import { extractImagesFromZipAsDataUrls } from '../services/runninghub';
@@ -10,6 +10,26 @@ function formatDate(ts: number): string {
   const d = new Date(ts);
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+/** Resolve which UI module produced this record, and how to render its badge.
+ *  Returns null when the source should not be shown (record predates the
+ *  source tagging and has no signal — fall back to the workflowType badge
+ *  rendered next to this). */
+function getSourceBadge(record: HistoryRecord): { label: string; className: string } | null {
+  if (!record.source) return null;
+  switch (record.source) {
+    case 'expand':
+      return { label: '智能扩写', className: 'bg-blue-500/20 text-blue-500' };
+    case 'random':
+      return { label: '随机抽卡', className: 'bg-pink-500/20 text-pink-500' };
+    case 'smart-storyboard':
+      return { label: '智能分镜', className: 'bg-purple-500/20 text-purple-500' };
+    case 'storyboard':
+      return { label: '剧情分镜', className: 'bg-indigo-500/20 text-indigo-500' };
+    default:
+      return null;
+  }
 }
 
 interface VideoHistoryRecord {
@@ -306,6 +326,15 @@ export function HistoryPage({ onRegenerate, onSuccess, onError }: HistoryPagePro
           {records.map((record, recordIndex) => {
             const images = getRecordImages(record);
             const isLoading = loadingKeys.has(record.id);
+            const sourceBadge = getSourceBadge(record);
+            // Theme/panel annotation — only meaningful for sources that have
+            // a thematic context (storyboard, smart-storyboard, random).
+            // `expand` records have no theme and should not show this.
+            const hasThemeContext = record.source === 'storyboard'
+              || record.source === 'smart-storyboard'
+              || record.source === 'random';
+            const showThemeBadge = hasThemeContext && !!record.themeTitle;
+            const showPanelBadge = (record.source === 'storyboard' || record.source === 'smart-storyboard') && record.panelNumber !== undefined;
             return (
               <div
                 key={record.id}
@@ -313,10 +342,32 @@ export function HistoryPage({ onRegenerate, onSuccess, onError }: HistoryPagePro
               >
                 <div className="flex items-start justify-between gap-2 mb-3">
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      {sourceBadge && (
+                        <span className={`text-xs px-2 py-0.5 rounded-full text-[10px] font-medium ${sourceBadge.className}`}>
+                          {sourceBadge.label}
+                        </span>
+                      )}
                       <span className="text-xs px-2 py-0.5 rounded-full bg-primary/20 text-primary text-[10px]">
                         {record.workflowType === 'txt2img' ? '文生图' : '图生图'}
                       </span>
+                      {showThemeBadge && (
+                        <span
+                          className="inline-flex items-center gap-1 max-w-[200px] px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-500 text-[10px] font-medium border border-purple-500/20"
+                          title={`主题：${record.themeTitle}`}
+                        >
+                          {showPanelBadge ? <Bookmark size={10} className="flex-shrink-0" /> : <Layers size={10} className="flex-shrink-0" />}
+                          <span className="truncate">{showPanelBadge ? `剧情：${record.themeTitle}` : `主题：${record.themeTitle}`}</span>
+                        </span>
+                      )}
+                      {showPanelBadge && (
+                        <span
+                          className="inline-flex items-center px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-500 text-[10px] font-medium border border-indigo-500/20"
+                          title={`第 ${record.panelNumber} 镜`}
+                        >
+                          第 {record.panelNumber} 镜
+                        </span>
+                      )}
                       <span className="text-xs text-text-secondary flex items-center gap-1">
                         <Clock size={11} />
                         {formatDate(record.createdAt)}
