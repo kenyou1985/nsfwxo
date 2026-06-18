@@ -34,7 +34,7 @@ import {
   type ExpandHistoryItem, type RandomHistoryItem, type StoryboardHistoryItem, type FavoriteItem,
   resolvePanelImages,
 } from '../services/storage';
-import { loadCachedOrExtractPanelImages } from '../services/imageCacheService';
+import { loadCachedOrExtractPanelImages, getCachedImages, getCachedStoryboardPanelImages } from '../services/imageCacheService';
 import { extractImagesFromZipAsDataUrls } from '../services/runninghub';
 import { useFinishedTaskImages } from '../contexts/FinishedTaskImagesContext';
 import { MAX_TASKS, type TaskManagerReturn } from '../hooks/useTaskManager';
@@ -1952,9 +1952,14 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
             if (existing?.images.length > 0 && existing.images[0]?.startsWith('data:')) return prev;
             return { ...prev, [key]: { loading: false, images: usable } };
           });
-          // Persist recovered images back into history.panelImages so the
-          // next mount hits the fast path.
-          updateStoryboardHistoryImages(hid, { [i]: usable }, panelZip, { [i]: usable.length });
+          // Note: do NOT call updateStoryboardHistoryImages here. Each
+          // entry's dataURLs are 1-2MB of base64, and the history list
+          // is bounded only by MAX_HISTORY (200) — writing 4 panels ×
+          // 4 imgs × ~1.5MB per entry is ~24MB, which busts the 5-10MB
+          // localStorage quota and cascades into a QuotaExceededError
+          // that locks out all subsequent history writes. The image
+          // cache (img_cache_<hash>_N) is the right place for that data
+          // and is already populated by the live task path.
         })
         .catch((err) => {
           console.debug('[storyboard:restore] panel zip extraction failed for', hid, i, err);
@@ -2049,8 +2054,12 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
           return { ...prev, [key]: { loading: false, images } };
         });
         cacheStoryboardPanelImages(hid, panelIdx, images).then(() => {
-          const panelImages: Record<number, string[]> = { [panelIdx]: images };
-          updateStoryboardHistoryImages(hid, panelImages, zipUrl, { [panelIdx]: images.length });
+          // Don't write the recovered dataURLs back into
+          // history.panelImages — see the comment in the mount effect
+          // for the quota math. The unified store already holds the
+          // images (via cacheStoryboardPanelImages above), and the
+          // getCachedStoryboardPanelImages path in the preview list
+          // reads from there.
         });
         continue;
       }
@@ -2072,10 +2081,9 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
             if (current?.images.length > 0 && current.images[0]?.startsWith('data:')) return prev;
             return { ...prev, [key]: { loading: false, images } };
           });
-          cacheStoryboardPanelImages(hid, i, images).then(() => {
-            const panelImages: Record<number, string[]> = { [i]: images };
-            updateStoryboardHistoryImages(hid, panelImages);
-          });
+          cacheStoryboardPanelImages(hid, i, images);
+          // See the comment in the live path above for why we don't
+          // call updateStoryboardHistoryImages here.
         }
       }
     }
@@ -2187,11 +2195,13 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         });
       }
 
-      // Also save to history record for persistence
-      if (Object.keys(panelImages).length > 0) {
-        updateStoryboardHistoryImages(hid, panelImages);
-        setHistory(getStoryboardHistory());
-      }
+      // History record persistence is intentionally skipped. The
+      // dataURLs already live in the unified store via
+      // cacheStoryboardPanelImages above, and the preview-list reader
+      // falls back to that store on render. Writing the full base64
+      // back into history.panelImages would multiply localStorage
+      // usage by ~10x and trip QuotaExceededError, which silently
+      // breaks every subsequent history save.
       console.debug(`[Storyboard] convertAndCache complete: ${Object.keys(panelImages).length} panels cached, ${Object.keys(updates).length} genState keys updated`);
     };
 
@@ -2604,7 +2614,10 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
             if (existing?.images.length > 0 && existing.images[0]?.startsWith('data:')) return prev;
             return { ...prev, [key]: { loading: false, images: usable } };
           });
-          updateStoryboardHistoryImages(item.id, { [i]: usable }, panelZip, { [i]: usable.length });
+          // Don't write the recovered dataURLs back into
+          // history.panelImages — the per-entry payload would blow the
+          // localStorage quota and cascade into QuotaExceededError on
+          // every subsequent history save.
         })
         .catch((err) => {
           console.debug('[handleHistoryLoad] panel zip extraction failed for', item.id, i, err);
@@ -3898,63 +3911,67 @@ function StoryboardHistoryList({ history, onLoad, onDelete }: {
   onLoad: (h: StoryboardHistoryItem) => void;
   onDelete: (id: string) => void;
 }) {
-  // Per-entry previews. The source of truth is history[i].panelImages —
-  // a panelIdx→dataURL[] map persisted into localStorage by the live
-  // task path. Reading it directly (resolvePanelImages already strips
-  // orphan hashes and empty strings) is enough; the image history page
-  // does exactly the same and it works. We only fall back to zip
-  // extraction if the field is empty (older entries, or the field
-  // was cleared by a migration).
+  // Per-entry previews. The reliable source is the unified image store
+  // keyed by historyId + panelIdx, which the live task path populates
+  // via cacheStoryboardPanelImages. Reading from there is a synchronous
+  // localStorage read, never trips quota, and is always consistent with
+  // what the main storyboard page sees.
   const [previewImages, setPreviewImages] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
     let cancelled = false;
     const next: Record<string, string[]> = {};
-    const needZip: Array<{ hid: string; panelIdx: number; zipUrl: string; historyId: string; count: number }> = [];
+    const needZip: Array<{ hid: string; panelIdx: number; zipUrl: string; count: number }> = [];
 
     for (const h of history) {
-      const resolved = h.panelImages ? resolvePanelImages(h.panelImages) : {};
+      // Tier 1: pull from the unified store for every panel. This is
+      // a synchronous read of panel_image_cache_<hid>_<i> entries —
+      // each entry's refs resolve to dataURLs via the unified store.
       const seen = new Set<string>();
       const collected: string[] = [];
-      for (let p = 0; p < h.panel_count; p++) {
-        const imgs = resolved[p] || [];
+      for (let p = 0; p < h.panel_count && collected.length < 6; p++) {
+        const imgs = getCachedStoryboardPanelImages(h.id, p);
         for (const img of imgs) {
           if (img && !seen.has(img)) { seen.add(img); collected.push(img); }
           if (collected.length >= 6) break;
         }
-        if (collected.length >= 6) break;
       }
       if (collected.length > 0) {
         next[h.id] = collected.slice(0, 6);
-      } else {
-        // panelImages is empty for this entry — schedule a zip fallback
-        // for the first panel. We only need one image to render a
-        // preview thumbnail; the user can drill in for the full gallery.
-        const panelZip = h.panelZipUrls?.[0] || h.zipUrl;
-        if (panelZip) {
-          needZip.push({ hid: h.id, panelIdx: 0, zipUrl: panelZip, historyId: h.id, count: h.panelImageCounts?.[0] || 4 });
-        }
+        continue;
+      }
+
+      // Tier 2: try the legacy img_cache_<fnv(zipUrl)>_N entries that
+      // the older extractFinishedTaskImages path wrote. Sync read.
+      const panelZip = h.panelZipUrls?.[0] || h.zipUrl;
+      if (panelZip) {
+        // Defer the sync read inside the effect to avoid surprising
+        // the first render — the reader returns [] on miss so this is
+        // safe to call eagerly.
+        // We push a request; the actual read happens below.
+        needZip.push({ hid: h.id, panelIdx: 0, zipUrl: panelZip, count: h.panelImageCounts?.[0] || 4 });
       }
     }
 
     setPreviewImages(next);
 
-    // Fire-and-forget zip fallback. Each entry reads its own panel 0
-    // zip; on hit we write the recovered images back into the history
-    // entry's panelImages so the next mount hits the fast path.
+    // Tier 2 + tier 3 fallback. Tier 2 reads img_cache_<hash>_N
+    // (cheap, sync-ish), tier 3 hits the network as a last resort.
     for (const req of needZip) {
-      extractImagesFromZipAsDataUrls(req.zipUrl)
-        .then((imgs) => {
-          if (cancelled) return;
-          const usable = imgs.filter((u) => u && u.startsWith('data:'));
-          if (usable.length === 0) return;
-          // Persist back so the field is non-empty for next render.
-          try {
-            updateStoryboardHistoryImages(req.historyId, { [req.panelIdx]: usable }, req.zipUrl, { [req.panelIdx]: usable.length });
-          } catch {}
+      getCachedImages(req.zipUrl, req.count).then((cached) => {
+        if (cancelled) return;
+        const usable = cached.filter((u) => u && u.startsWith('data:'));
+        if (usable.length > 0) {
           setPreviewImages((prev) => ({ ...prev, [req.hid]: usable.slice(0, 6) }));
-        })
-        .catch((err) => console.debug('[StoryboardHistoryList] zip fallback failed for', req.hid, err));
+          return;
+        }
+        return extractImagesFromZipAsDataUrls(req.zipUrl).then((imgs) => {
+          if (cancelled) return;
+          const usable2 = imgs.filter((u) => u && u.startsWith('data:'));
+          if (usable2.length === 0) return;
+          setPreviewImages((prev) => ({ ...prev, [req.hid]: usable2.slice(0, 6) }));
+        });
+      }).catch((err) => console.debug('[StoryboardHistoryList] fallback failed for', req.hid, err));
     }
 
     return () => { cancelled = true; };

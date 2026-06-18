@@ -7,7 +7,6 @@ import { generateStoryboard, type GeneratedStoryboard } from '../services/storyb
 import {
   getCachedStoryboardPanelImages,
   cacheStoryboardPanelImages,
-  updateStoryboardHistoryImages,
 } from '../services/storage';
 import { extractVideoPromptFromImagePrompt } from '../utils/videoPromptExtractor';
 import { useFinishedTaskImages } from '../contexts/FinishedTaskImagesContext';
@@ -267,16 +266,16 @@ export function StoryboardSection({
         return merged;
       });
 
-      // Persist all panel images to history (same as ExpandMode)
-      if (result) {
-        const allPanelImages: Record<number, string[]> = {};
-        result.panels.forEach((_, i) => {
-          const cached = getCachedStoryboardPanelImages(historyId, i);
-          if (cached.length > 0) allPanelImages[i] = cached;
-        });
-        updateStoryboardHistoryImages(historyId, allPanelImages);
-      }
+      // No-op: the live task path already caches each panel's
+      // dataURLs via cacheStoryboardPanelImages. Writing the full
+      // base64 back into history.panelImages multiplies the
+      // localStorage usage by ~10x and trips QuotaExceededError
+      // for the next saveHistory call (which then silently fails
+      // for every subsequent operation). The preview list now
+      // reads from the unified store directly.
+    }
 
+    if (updated) {
       Object.entries(newImages).forEach(([k, v]) => {
         if (v.length > 0) {
           const idx = Number(k);
