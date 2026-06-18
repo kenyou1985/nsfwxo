@@ -1302,19 +1302,21 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       }
     }
     const toSubmit = results.slice(0, availableSlots);
-    // See handleRandomGenerateImage — random history cards show the
-    // per-result theme_label (the sub-theme the API returns with each
-    // prompt, e.g. "地牢舔阴"), not the dropdown's "完全随机".
-    const firstResult = toSubmit[0];
-    const randomTheme = firstResult?.theme_label || '';
+    // Each result has its own theme_label (e.g. "森林绳缚", "室内双插",
+    // "触手逆骑") and each task MUST carry its own — otherwise all 3
+    // history cards in a batch will show the first result's theme, which
+    // is what the user reported. result.theme_label is populated by the
+    // API on fresh抽卡 and re-populated when results are loaded from
+    // history.
     const tasks = toSubmit.map(async (result) => {
+      const perTaskTheme = result.theme_label || '';
       if (digitalHumanMode && selectedGirlfriend) {
         const nodes = [
           { nodeId: '7', fieldName: 'image', fieldValue: imagePath, description: 'image' },
           { nodeId: '9', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: 'batch_size' },
           { nodeId: '33', fieldName: 'text', fieldValue: result.prompt, description: 'text' },
         ];
-        await taskManager.addTask('img2img', nodes, result.prompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, undefined, 'random', randomTheme || undefined);
+        await taskManager.addTask('img2img', nodes, result.prompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, undefined, 'random', perTaskTheme || undefined);
       } else {
         const nodes = buildTxt2ImgNodeList({
           width: DEFAULT_TXT2IMG_PARAMS.width,
@@ -1326,7 +1328,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
           lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
         });
-        await taskManager.addTask('txt2img', nodes, result.prompt, undefined, undefined, undefined, 'random', randomTheme || undefined);
+        await taskManager.addTask('txt2img', nodes, result.prompt, undefined, undefined, undefined, 'random', perTaskTheme || undefined);
       }
     });
     const settled = await Promise.allSettled(tasks);
