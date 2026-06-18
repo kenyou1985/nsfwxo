@@ -19,6 +19,10 @@ export {
   deleteCachedStoryboardPanelImages,
 };
 
+// resolvePanelImages is defined locally below — it's a small wrapper around
+// resolveImageRef that strips orphan hash refs and empty strings, then drops
+// per-panel entries that have no usable images left.
+
 const STORAGE_KEY = 'rh_api_key';
 const YUNWU_KEY = 'yunwu_api_key';
 const BACKEND_URL_KEY = 'prompt_backend_url';

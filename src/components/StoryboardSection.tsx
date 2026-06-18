@@ -7,6 +7,8 @@ import { generateStoryboard, type GeneratedStoryboard } from '../services/storyb
 import {
   getCachedStoryboardPanelImages,
   cacheStoryboardPanelImages,
+  resolvePanelImages,
+  getStoryboardHistory,
 } from '../services/storage';
 import { extractVideoPromptFromImagePrompt } from '../utils/videoPromptExtractor';
 import { useFinishedTaskImages } from '../contexts/FinishedTaskImagesContext';
@@ -173,6 +175,28 @@ export function StoryboardSection({
       return;
     }
     if (pollRef.current) clearInterval(pollRef.current);
+    // Pull panelImages once at poll start (it's a synchronous localStorage
+    // read) so older history entries — which only have dataURLs inlined in
+    // history.panelImages and never went through cacheStoryboardPanelImages
+    // — show their previews on the first tick. Subsequent ticks still poll
+    // the unified store, so live task completions continue to flow in.
+    const historyItem = getStoryboardHistory().find((h) => h.id === historyId);
+    const inlinePanelImages = historyItem?.panelImages
+      ? resolvePanelImages(historyItem.panelImages)
+      : {};
+    if (Object.keys(inlinePanelImages).length > 0) {
+      setPanelImages((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const [idx, imgs] of Object.entries(inlinePanelImages)) {
+          if (imgs.length > 0 && (!prev[Number(idx)] || prev[Number(idx)].length === 0)) {
+            next[Number(idx)] = imgs;
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+    }
     pollRef.current = setInterval(() => {
       const currentPanels = panelsRef.current;
       if (!currentPanels) return;

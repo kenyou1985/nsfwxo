@@ -3924,11 +3924,32 @@ function StoryboardHistoryList({ history, onLoad, onDelete }: {
     const needZip: Array<{ hid: string; panelIdx: number; zipUrl: string; count: number }> = [];
 
     for (const h of history) {
+      // Tier 0: read panelImages directly off the history entry. The
+      // live task completion path used to write dataURLs here; if those
+      // made it in (i.e. the user generated this entry before the quota
+      // bomb started firing), they're already in the right shape for
+      // <img src> and we render them with no extra work. This is the
+      // path that worked for older history rows; we must not regress it.
+      const seen = new Set<string>();
+      const collected: string[] = [];
+      if (h.panelImages) {
+        const resolved = resolvePanelImages(h.panelImages);
+        for (let p = 0; p < h.panel_count && collected.length < 6; p++) {
+          const imgs = resolved[p] || [];
+          for (const img of imgs) {
+            if (img && !seen.has(img)) { seen.add(img); collected.push(img); }
+            if (collected.length >= 6) break;
+          }
+        }
+      }
+      if (collected.length > 0) {
+        next[h.id] = collected.slice(0, 6);
+        continue;
+      }
+
       // Tier 1: pull from the unified store for every panel. This is
       // a synchronous read of panel_image_cache_<hid>_<i> entries —
       // each entry's refs resolve to dataURLs via the unified store.
-      const seen = new Set<string>();
-      const collected: string[] = [];
       for (let p = 0; p < h.panel_count && collected.length < 6; p++) {
         const imgs = getCachedStoryboardPanelImages(h.id, p);
         for (const img of imgs) {
@@ -3945,10 +3966,6 @@ function StoryboardHistoryList({ history, onLoad, onDelete }: {
       // the older extractFinishedTaskImages path wrote. Sync read.
       const panelZip = h.panelZipUrls?.[0] || h.zipUrl;
       if (panelZip) {
-        // Defer the sync read inside the effect to avoid surprising
-        // the first render — the reader returns [] on miss so this is
-        // safe to call eagerly.
-        // We push a request; the actual read happens below.
         needZip.push({ hid: h.id, panelIdx: 0, zipUrl: panelZip, count: h.panelImageCounts?.[0] || 4 });
       }
     }
