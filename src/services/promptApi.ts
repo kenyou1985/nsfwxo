@@ -219,6 +219,46 @@ export async function expandPrompt(
   }
 }
 
+/**
+ * Image-to-video (Wan2.2) 专用扩写。后端用 wan2.2 i2v system prompt，
+ * 强制只输出人物动作 / 镜头 / 表情，不输出场景、背景、外观。
+ * image_prompt 是"画面锚"（不要在输出中复述），scene_description 是
+ * 用户希望看到的动作/镜头描述（要被扩写）。
+ */
+export async function expandVideoFromImage(
+  imagePrompt: string,
+  sceneDescription: string,
+  r18: boolean = false,
+  count: number = 1,
+): Promise<ExpandResponse> {
+  const base = getBackendUrl();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 300000); // 5 min
+  try {
+    const response = await apiRequest<ExpandResponse>(
+      `${base}/api/prompt/expand/video-from-image`,
+      {
+        method: 'POST',
+        signal: controller.signal as RequestInit['signal'],
+        body: JSON.stringify({
+          image_prompt: imagePrompt,
+          scene_description: sceneDescription || undefined,
+          r18,
+          count,
+        }),
+      },
+    );
+    return response;
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error('动画提示词扩写超时（5分钟），请重试');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function randomPrompt(
   type: 'image' | 'video',
   r18: boolean = false,
@@ -360,34 +400,55 @@ export async function generateVideoScript(
   modelOrder?: string[],
 ): Promise<StoryboardScriptResponse> {
   const base = getBackendUrl();
+  const url = `${base}/api/prompt/storyboard/script`;
+  const requestBody = {
+    theme_title: themeTitle,
+    r18,
+    panels: panels.map(p => ({
+      panel_number: p.panel_number,
+      scene_description: p.scene_description,
+      image_prompt: p.image_prompt,
+    })),
+    async_mode: asyncMode,
+    // model_order: frontend tells backend which LLM to try first,
+    // and what to fall back to on failure. Backend's call_grok()
+    // implements model-level fallback: any failure (timeout, 5xx,
+    // content refusal) on the primary model automatically retries
+    // with the next one in the list.
+    model_order: modelOrder,
+  };
+  const startTs = Date.now();
+  console.log('[generateVideoScript] → POST', url, {
+    panelCount: panels.length,
+    panelNumbers: panels.map(p => p.panel_number),
+    asyncMode,
+    modelOrder,
+  });
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 300000);
   try {
     const response = await apiRequest<StoryboardScriptResponse>(
-      `${base}/api/prompt/storyboard/script`,
+      url,
       {
         method: 'POST',
         signal: controller.signal as RequestInit['signal'],
-        body: JSON.stringify({
-          theme_title: themeTitle,
-          r18,
-          panels: panels.map(p => ({
-            panel_number: p.panel_number,
-            scene_description: p.scene_description,
-            image_prompt: p.image_prompt,
-          })),
-          async_mode: asyncMode,
-          // model_order: frontend tells backend which LLM to try first,
-          // and what to fall back to on failure. Backend's call_grok()
-          // implements model-level fallback: any failure (timeout, 5xx,
-          // content refusal) on the primary model automatically retries
-          // with the next one in the list.
-          model_order: modelOrder,
-        }),
+        body: JSON.stringify(requestBody),
       },
     );
+    console.log('[generateVideoScript] ← OK', {
+      elapsedMs: Date.now() - startTs,
+      taskId: response.task_id ?? null,
+      panelsCount: response.panels?.length ?? 0,
+      scriptTitle: response.script_title,
+      duration: response.duration,
+    });
     return response;
   } catch (err) {
+    console.error('[generateVideoScript] ← FAIL', {
+      elapsedMs: Date.now() - startTs,
+      errorName: err instanceof Error ? err.name : String(err),
+      errorMessage: err instanceof Error ? err.message : String(err),
+    });
     if (err instanceof Error && err.name === 'AbortError') {
       throw new Error('视频脚本生成超时（5分钟），请重试');
     }

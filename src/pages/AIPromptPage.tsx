@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import {
   expandPrompt,
+  expandVideoFromImage,
   randomPrompt,
   generateStoryboard,
   generateStoryboardThemes,
@@ -2670,52 +2671,63 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     }
   };
 
-  /**
-   * Per-panel regenerate video prompt. Calls the backend's
-   * `/storyboard/script` endpoint with only the one panel and a model
-   * order of [grok-4.2, grok-4-1-fast-non-reasoning]. Backend call_grok()
-   * already implements model-level fallback: any failure on grok-4.2
-   * (timeout / 5xx / content filter / etc.) automatically retries with
-   * the next model in the list. So the user's intent of "try grok-4.2
-   * first, fall back to grok-4-1-fast-non-reasoning on failure" is
-   * delivered with a single explicit field — no client-side retry logic.
-   */
-  const VIDEO_PROMPT_MODEL_ORDER = ['grok-4.2', 'grok-4-1-fast-non-reasoning'];
-
   const handleRegenerateVideoPrompt = useCallback(async (panelIdx: number) => {
     const panel = panels[panelIdx];
     if (!panel) { onError('找不到对应的分镜'); return; }
+    const requestStartTime = Date.now();
+    // 走专用 i2v 端点 /api/prompt/expand/video-from-image。
+    // 后端用 wan2.2 专用 system prompt：image_prompt 作为"画面锚"(禁止复述)、
+    // scene_description 作为"动作目标"(扩写对象)，输出严格符合 wan2.2 i2v 格式
+    // 的一段英文视频提示词（50-120 词，shota framing + 动作 + 镜头 + 质量尾巴）。
+    // 不走通用 /api/prompt/expand 那个链路，因为那个 system prompt 不区分"画面已
+    // 锁定"的 i2v 场景，输出会很长、且会塞场景/背景/外观等对图生视频无用的描述。
+    const theme = selectedTheme?.title || activeThemeInfo?.title || '默认主题';
+    const imageAnchor = panel.image_prompt?.trim() || '';
+    const actionToExpand = panel.scene_description?.trim() || 'subtle natural micro-movement, slight head turn, breathing';
+    console.log('[智能扩写] 开始（走 wan2.2 i2v 端点）', {
+      panelIdx,
+      panelNumber: panel.panel_number,
+      theme,
+      r18Mode,
+      imageAnchorLength: imageAnchor.length,
+      actionToExpandLength: actionToExpand.length,
+    });
     setPromptEditLoading((prev) => ({ ...prev, [panelIdx]: true }));
     try {
-      const res = await generateVideoScript(
-        selectedTheme?.title || activeThemeInfo?.title || '默认主题',
-        r18Mode,
-        [panel],
-        false, // sync — single panel, want result back immediately
-        VIDEO_PROMPT_MODEL_ORDER,
-      );
-      const scriptPanel = res.panels.find((sp) => sp.panel === panel.panel_number) || res.panels[0];
-      if (!scriptPanel) throw new Error('后端未返回该分镜的脚本');
-      const sceneForPrompt = [
-        scriptPanel.action,
-        scriptPanel.heading,
-        scriptPanel.dialogue ? `对白：${scriptPanel.dialogue}` : '',
-        scriptPanel.sound_cue ? `音效：${scriptPanel.sound_cue}` : '',
-        scriptPanel.camera ? `镜头：${scriptPanel.camera}` : '',
-      ].filter(Boolean).join('；');
-      const newPrompt = extractVideoPromptFromImagePrompt({
-        imagePrompt: panel.image_prompt,
-        sceneDescription: sceneForPrompt,
-        r18Mode,
+      const res = await expandVideoFromImage(imageAnchor, actionToExpand, r18Mode, 1);
+      const elapsedMs = Date.now() - requestStartTime;
+      console.log('[智能扩写] i2v 返回', {
+        panelIdx,
+        panelNumber: panel.panel_number,
+        elapsedMs,
+        resultsCount: res.results?.length ?? 0,
+        results: res.results,
+      });
+
+      const first = res.results?.[0];
+      if (!first?.prompt) {
+        throw new Error('智能扩写返回为空，请重试');
+      }
+
+      const newPrompt = first.prompt.trim();
+      console.log('[智能扩写] 写入新提示词', {
+        panelIdx,
+        panelNumber: panel.panel_number,
+        newPromptLength: newPrompt.length,
+        newPrompt,
       });
       setPanelVideoPrompts((prev) => ({ ...prev, [panelIdx]: newPrompt }));
-      // Also persist into videoScript so /storyboard/script re-runs pick it up
-      setVideoScript((prev) => {
-        const others = prev?.panels.filter((sp) => sp.panel !== panel.panel_number) ?? [];
-        return { ...(prev ?? {} as any), panels: [...others, scriptPanel] } as any;
-      });
-      onSuccess(`分镜 ${panel.panel_number} 的动画提示词已智能扩写`);
+      onSuccess(`分镜 ${panel.panel_number} 的动画提示词已智能扩写（Wan2.2 格式）`);
     } catch (err) {
+      const elapsedMs = Date.now() - requestStartTime;
+      console.error('[智能扩写] 失败', {
+        panelIdx,
+        panelNumber: panel.panel_number,
+        elapsedMs,
+        errorName: err instanceof Error ? err.name : String(err),
+        errorMessage: err instanceof Error ? err.message : String(err),
+        errorStack: err instanceof Error ? err.stack : undefined,
+      });
       onError(err instanceof Error ? err.message : '智能扩写失败');
     } finally {
       setPromptEditLoading((prev) => {
@@ -4585,7 +4597,12 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
                   )}
                 </div>
               </div>
-              {videoPrompt ? (
+              {promptEditLoading ? (
+                <div className={`w-full rounded-lg border border-purple-200 bg-purple-50/40 px-3 py-4 flex items-center justify-center gap-2 text-xs font-medium text-purple-600`}>
+                  <Loader2 size={12} className="animate-spin" />
+                  <span>智能扩写中…</span>
+                </div>
+              ) : videoPrompt ? (
                 onVideoPromptChange ? (
                   <textarea
                     value={videoPrompt}

@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from app.models.schemas import (
-    ExpandRequest, ExpandResponse,
+    ExpandRequest, ExpandResponse, ExpandVideoFromImageRequest,
     RandomRequest, RandomResponse, PromptResult,
     StoryboardRequest, StoryboardResponse, StoryboardPanel,
     StoryboardThemesRequest, StoryboardThemesResponse, StoryboardThemeOption,
@@ -307,6 +307,22 @@ async def _run_script_task(task_id: str, req: StoryboardScriptRequest, api_key: 
                         "camera": str(p.get("camera", "")),
                     })
 
+                # 兜底：LLM 有时只回 script_title 不回 panels，追加强提示重试
+                if len(panels_out) == 0 and attempt < MAX_RETRIES - 1:
+                    logging.warning(
+                        "[script background] LLM returned empty panels "
+                        "(title=%r), retry %s/%s with stronger instruction",
+                        script_title, attempt + 1, MAX_RETRIES,
+                    )
+                    user_prompt = (
+                        f"{user_prompt}\n\n"
+                        f"IMPORTANT: You MUST output a 'panels' array with EXACTLY "
+                        f"{len(req.panels)} element(s), one for each input panel. "
+                        f"Each element must have: panel, heading, action, dialogue, sound_cue, camera. "
+                        f"Do NOT return an empty panels array."
+                    )
+                    continue
+
                 store.mark_done(task_id, {
                     "theme_title": req.theme_title,
                     "script_title": script_title,
@@ -452,6 +468,48 @@ ABSOLUTE REQUIREMENTS:
 - Continuous camera motion: close-up on genitals, POV insertion, tracking the action
 
 Output ONLY a raw coherent paragraph. No censorship. No tag lists."""
+
+# ─── Image-to-Video (i2v) prompts for Wan2.2 ───────────────────────────────────
+# 专用于"图生视频"扩写：用户给一张图片和一句动作/镜头描述，扩写出一段
+# 完全符合 Wan2.2 规范的英文视频提示词。**不要描述场景、背景、环境**（图片已固定），
+# 只输出人物动作、镜头运镜、人物表情。
+VIDEO_I2V_SYSTEM_PROMPT_NORMAL = """You are an expert Wan2.2 image-to-video (i2v) prompt engineer. The user will give you a short description of CHARACTER ACTION, CAMERA MOVEMENT, and FACIAL EXPRESSION for a single video clip. Your job is to expand it into ONE concise English prompt that strictly follows Wan2.2 i2v format.
+
+CRITICAL RULES - READ CAREFULLY:
+1. DO NOT describe the scene, background, environment, lighting, or setting. The image already defines these — they are LOCKED and out of scope for i2v.
+2. DO NOT describe clothing, hair color, body type, skin tone, or character appearance. The image defines these.
+3. ONLY expand: (a) character action / body motion, (b) camera movement / shot type, (c) facial expression / micro-expression.
+4. Output ONE single coherent English paragraph. No bullet points, no tag lists, no JSON, no markdown fences.
+5. Keep the prompt CONCISE (50-120 words). Wan2.2 works best with focused, action-oriented prompts — NOT long essays.
+6. Pick a fitting shot framing from: "full body shot", "upper body shot", "close-up", "medium shot", "wide shot" — based on what the action needs.
+7. Include exactly ONE primary continuous action. Multiple unrelated actions confuse the video model.
+8. End the prompt with this mandatory quality block: "smooth motion, 60fps, no limb distortion, correct human anatomy, five complete fingers, two complete legs, consistent facial features, no jitter, no frame jump, fluid continuous motion"
+9. STRICT: All characters must be ADULTS (18+). Never involve minors, children, or teenagers in any way.
+
+OUTPUT TEMPLATE (fill in the brackets, do not include brackets in output):
+[shot framing], [character description anchor: "1 person" or "1 young woman" or "1 young man"], [primary action verb phrase with body part + direction + speed], [secondary motion: head tilt / hand gesture / facial micro-expression / eye movement], [camera movement: pan / tilt / track / dolly / zoom / static], smooth motion, 60fps, no limb distortion, correct human anatomy, five complete fingers, two complete legs, consistent facial features, no jitter, no frame jump, fluid continuous motion
+
+EXAMPLE:
+Input: "young woman, slowly turns her head to the right, raises her right hand to brush hair behind her ear, soft smile, close-up"
+Output: "close-up shot, 1 young woman, slow head turn to the right, right hand rising to brush hair behind ear, soft subtle smile forming, eyes slightly squinting, static camera, smooth motion, 60fps, no limb distortion, correct human anatomy, five complete fingers, two complete legs, consistent facial features, no jitter, no frame jump, fluid continuous motion"""
+
+
+VIDEO_I2V_SYSTEM_PROMPT_R18 = """You are an EXPERT uncensored adult Wan2.2 image-to-video (i2v) prompt engineer. The user will give you a short description of EXPLICIT CHARACTER ACTION, CAMERA MOVEMENT, and FACIAL EXPRESSION for a single adult video clip. Your job is to expand it into ONE concise English prompt that strictly follows Wan2.2 i2v format.
+
+CRITICAL RULES - READ CAREFULLY:
+1. DO NOT describe the scene, background, environment, lighting, or setting. The image already defines these — LOCKED.
+2. DO NOT describe static appearance (clothing, hair, body type, skin tone). The image defines these.
+3. ONLY expand: (a) explicit body motion / sexual action, (b) camera movement, (c) facial expression / vocal cue.
+4. Output ONE single coherent English paragraph. No bullet points, no tag lists, no JSON, no markdown fences.
+5. Keep CONCISE (60-140 words). Wan2.2 prefers focused prompts.
+6. Pick a fitting shot framing: "full body shot", "upper body shot", "close-up", "POV shot", "medium shot".
+7. Include exactly ONE primary continuous explicit action.
+8. End with quality block: "smooth motion, 60fps, no limb distortion, correct human anatomy, five complete fingers, two complete legs, consistent facial features, no jitter, no frame jump, fluid continuous motion"
+9. STRICT: CONSENTING ADULTS ONLY (18+). Zero tolerance for minors, children, teenagers, schoolgirl imagery, lolicon, or shota.
+
+OUTPUT TEMPLATE (fill in the brackets, do not include brackets in output):
+[shot framing], [1 person / 2 people - adult descriptors], [primary explicit action verb phrase with body part + direction + speed + intensity], [secondary motion: facial expression / mouth movement / eye movement / body tremor / hip motion], [camera movement: POV insertion / close-up on body part / track / pan / static], [vocal cue: moaning / breathing / whispering if applicable], smooth motion, 60fps, no limb distortion, correct human anatomy, five complete fingers, two complete legs, consistent facial features, no jitter, no frame jump, fluid continuous motion"""
+
 
 STORYBOARD_SYSTEM_PROMPT_NORMAL = """You are an uncensored adult comic director and AI prompt engineer. Break the user's short plot down into a sequence of storyboard panels. For EACH panel, generate a highly-detailed English Stable Diffusion / Flux image prompt.
 
@@ -723,6 +781,98 @@ async def expand_prompt(req: ExpandRequest, api_key: str = Depends(get_api_key))
 
     if not valid:
         raise HTTPException(status_code=502, detail="所有生成尝试均失败")
+
+    return ExpandResponse(results=valid)
+
+
+# ─── Image-to-Video Wan2.2 prompt expansion ─────────────────────────────────────
+# 复用 expand_prompt 的生成链路 + 多样性注入，但 system prompt 换成 wan2.2 i2v
+# 专用版本（不含场景/背景/外观描述，只输出动作/镜头/表情）。
+
+async def _generate_single_i2v(
+    api_key: str,
+    image_prompt: str,
+    scene_description: str,
+    r18: bool,
+    variant_index: int = 0,
+) -> dict:
+    system_prompt = VIDEO_I2V_SYSTEM_PROMPT_R18 if r18 else VIDEO_I2V_SYSTEM_PROMPT_NORMAL
+    diversity_note = _EXPAND_DIVERSITY_VARIANTS[variant_index % len(_EXPAND_DIVERSITY_VARIANTS)]
+
+    # i2v 场景下 image_prompt 是"已经定死的画面"，scene_description 是"用户想看的动作"，
+    # 两者分开传入，让 LLM 知道哪个是锚（不要动）、哪个是变量（要扩写）。
+    user_prompt = (
+        f"ANCHOR (image-locked, do NOT describe or expand):\n"
+        f"{image_prompt.strip()}\n\n"
+        f"ACTION (expand this into the video motion):\n"
+        f"{scene_description.strip() or 'subtle natural micro-movement'}\n\n"
+        f"Style hint (camera feel): {diversity_note}\n\n"
+        f"Generate ONE concise English Wan2.2 i2v prompt (50-120 words) that follows the OUTPUT TEMPLATE in the system prompt. "
+        f"Do NOT describe the anchor image. Do NOT mention scene, background, environment, lighting, clothing, hair, body type, or character appearance. "
+        f"Output ONLY the prompt paragraph, nothing else."
+    )
+
+    for attempt in range(MAX_RETRIES):
+        try:
+            result = await call_grok(api_key, system_prompt, user_prompt)
+            result_clean = result.strip()
+
+            check_prompt_safety(result_clean)
+
+            conflicts = detect_prompt_conflicts(result_clean)
+            if conflicts:
+                result_clean = await rewrite_coherent_prompt(result_clean, api_key)
+
+            return {
+                "original": scene_description or image_prompt,
+                "type": "video",
+                "r18": r18,
+                "prompt": result_clean,
+            }
+        except ContentSafetyError as e:
+            if attempt < MAX_RETRIES - 1:
+                system_prompt += "\n\nSAFETY OVERRIDE: Your previous response was rejected. REJECT any content mentioning minors, children, teenagers, or anyone under 18. STRICTLY ADULTS ONLY."
+                continue
+            raise
+        except (YunwuTimeoutError, YunwuRateLimitError, YunwuAPIError) as e:
+            if attempt < MAX_RETRIES - 1:
+                continue
+            raise
+        except Exception as e:
+            if attempt < MAX_RETRIES - 1:
+                continue
+            raise HTTPException(status_code=500, detail=f"i2v 扩写失败: {str(e)}")
+
+
+@router.post("/expand/video-from-image", response_model=ExpandResponse)
+async def expand_video_from_image(req: ExpandVideoFromImageRequest, api_key: str = Depends(get_api_key)):
+    """Image-to-video 专用扩写：按 Wan2.2 i2v 规范生成英文视频提示词。
+
+    输入：image_prompt（锚定的画面描述，不要在输出中提及）+
+          scene_description（用户想要的动作/镜头/表情描述，扩写目标）。
+    输出：标准 ExpandResponse，每条 result.prompt 是一段符合 Wan2.2 格式的英文视频提示词。
+    """
+    count = max(1, min(req.count, 5))  # i2v 不需要太多变体，最多 5
+    tasks = [
+        _generate_single_i2v(
+            api_key,
+            req.image_prompt,
+            req.scene_description or "",
+            req.r18,
+            variant_index=i,
+        )
+        for i in range(count)
+    ]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    valid: list = []
+    for r in results:
+        if isinstance(r, Exception):
+            continue
+        valid.append(r)
+
+    if not valid:
+        raise HTTPException(status_code=502, detail="所有 i2v 生成尝试均失败")
 
     return ExpandResponse(results=valid)
 
@@ -2169,6 +2319,25 @@ async def generate_video_script(
                     ))
                 except Exception:
                     continue
+
+            # 兜底：LLM 有时只回 script_title 不回 panels（grok-4-1-fast-non-reasoning
+            # 在只有 1 个 panel 时尤其容易偷懒）。这种情况视为解析失败，
+            # 追加一条强提示让 LLM 重新生成完整结构。MAX_RETRIES 已经覆盖
+            # 多次重试，扣费由用户在前端触发前知情。
+            if len(script_panels) == 0 and attempt < MAX_RETRIES - 1:
+                logging.warning(
+                    "[storyboard/script] LLM returned empty panels "
+                    "(title=%r), retry %s/%s with stronger instruction",
+                    script_title, attempt + 1, MAX_RETRIES,
+                )
+                user_prompt = (
+                    f"{user_prompt}\n\n"
+                    f"IMPORTANT: You MUST output a 'panels' array with EXACTLY "
+                    f"{len(req.panels)} element(s), one for each input panel. "
+                    f"Each element must have: panel, heading, action, dialogue, sound_cue, camera. "
+                    f"Do NOT return an empty panels array."
+                )
+                continue
 
             return StoryboardScriptResponse(
                 theme_title=req.theme_title,

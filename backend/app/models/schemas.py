@@ -28,6 +28,19 @@ class ExpandResponse(BaseModel):
     results: List[ExpandResult]
 
 
+class ExpandVideoFromImageRequest(BaseModel):
+    """Image-to-video (Wan2.2 i2v) prompt expansion.
+
+    image_prompt is the LOCKED visual anchor (the static image) — the LLM
+    must NOT re-describe it. scene_description is the variable to expand
+    into motion / camera / expression in Wan2.2 i2v English format.
+    """
+    image_prompt: str = Field(..., min_length=1, max_length=4000, description="锚定的画面描述，模型不要在输出中复述")
+    scene_description: Optional[str] = Field(default=None, max_length=1000, description="用户希望的视频动作/镜头/表情描述")
+    r18: bool = Field(default=False, description="是否启用 R18 模式")
+    count: int = Field(default=1, ge=1, le=5, description="生成候选数量 1-5，默认 1")
+
+
 # ─── Random ───────────────────────────────────────────────────────────────────
 
 class PromptResult(BaseModel):
