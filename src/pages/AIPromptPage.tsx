@@ -1205,11 +1205,21 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       return;
     }
     setGenStates((prev) => ({ ...prev, [idx]: { loading: true, images: [] } }));
-    // Capture the user-selected theme for the history card label. `theme` is
-    // a THEMES key (e.g. "暗示优雅"); an empty key means "完全随机".
-    // We must NOT fall back to result.theme_label — that's an API-returned
-    // counter like "主题1"/"主题2" that adds no information.
-    const randomTheme = THEMES.find((t) => t.key === theme)?.label || '';
+    // Resolve the user-selected theme for the history card. We check three
+    // sources in priority order because the user can:
+    //   1. Pick a theme in the dropdown and抽卡 — theme state is "暗示优雅",
+    //      results[i].theme is "" (API doesn't echo it back).
+    //   2. 抽卡 then switch the dropdown back to 完全随机 — the dropdown
+    //      state is the source of truth, results[i].theme is stale.
+    //   3. Load a previous抽卡 result from history — results[i].theme is
+    //      populated from the history item; theme state may be "".
+    // We prefer the dropdown state, but fall back to the result's theme so
+    // history-loaded runs still label correctly.
+    const resultForIdx = results[idx];
+    const themeKey = theme || resultForIdx?.theme || '';
+    const randomTheme = (themeKey && THEMES.find((t) => t.key === themeKey)?.label)
+      || (resultForIdx?.theme && resultForIdx.theme !== '' ? resultForIdx.theme : '')
+      || '';
     let imagePath = selectedGirlfriend?.portraitUrl || '';
     let referenceImageUrl = '';
     if (digitalHumanMode && selectedGirlfriend) {
@@ -1298,9 +1308,13 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       }
     }
     const toSubmit = results.slice(0, availableSlots);
-    // Use the user-selected theme (not the per-result theme_label, which is
-    // a counter like "主题1" / "主题2" with no real meaning).
-    const randomTheme = THEMES.find((t) => t.key === theme)?.label || '';
+    // See handleRandomGenerateImage for the priority order. The batch path
+    // sees results[0]..results[N-1] which all share the same抽卡 theme.
+    const firstResult = toSubmit[0];
+    const themeKey = theme || firstResult?.theme || '';
+    const randomTheme = (themeKey && THEMES.find((t) => t.key === themeKey)?.label)
+      || (firstResult?.theme && firstResult.theme !== '' ? firstResult.theme : '')
+      || '';
     const tasks = toSubmit.map(async (result) => {
       if (digitalHumanMode && selectedGirlfriend) {
         const nodes = [

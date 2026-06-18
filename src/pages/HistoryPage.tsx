@@ -201,9 +201,16 @@ export function HistoryPage({ onRegenerate, onSuccess, onError }: HistoryPagePro
     onRegenerate?.(record);
   };
 
-  const handleToggleFavorite = (imageUrl: string, prompt?: string) => {
-    // Use imageRef for lookup since addFavorite stores the URL in imageRef field
-    const existing = favorites.find((f) => f.imageRef === imageUrl);
+  // Toggle favorited state for an image. The caller is responsible for
+  // identifying the right favorite — most callers don't have an id yet
+  // (they only have a generated image URL), so we look up by both
+  // imageRef and imageUrl to catch legacy data and current hashes.
+  // Pass `favoriteId` when the caller already has the id (the favorites
+  // tab passes it directly so we never misidentify a favorite).
+  const handleToggleFavorite = (imageUrl: string, prompt?: string, favoriteId?: string) => {
+    const existing = favoriteId
+      ? favorites.find((f) => f.id === favoriteId)
+      : favorites.find((f) => f.imageRef === imageUrl || f.imageUrl === imageUrl);
     if (existing) {
       removeFavorite(existing.id);
       setFavorites(getFavorites());
@@ -224,6 +231,18 @@ export function HistoryPage({ onRegenerate, onSuccess, onError }: HistoryPagePro
       clearFavorites();
       setFavorites([]);
     }
+  };
+
+  // Delete a single favorite by id. Used by the per-card X button so users
+  // can clear bad/expired entries without going through the bulk clear.
+  const handleDeleteFavorite = (id: string) => {
+    removeFavorite(id);
+    setFavorites(getFavorites());
+    // Close the lightbox if the deleted favorite was open.
+    if (lightboxFavoriteIndex !== null && favorites[lightboxFavoriteIndex]?.id === id) {
+      closeLightbox();
+    }
+    onSuccess?.('已删除收藏');
   };
 
   // Use imageRef for lookup since addFavorite stores the URL in imageRef field
@@ -575,12 +594,22 @@ export function HistoryPage({ onRegenerate, onSuccess, onError }: HistoryPagePro
                       <span className="text-[9px] mt-1 opacity-60">图片已失效</span>
                     </div>
                   )}
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleToggleFavorite(item.imageUrl ?? ""); }}
-                    className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 transition-colors"
-                  >
-                    <Heart size={14} className="fill-red-500 text-red-500" />
-                  </button>
+                  <div className="absolute top-1 right-1 flex items-center gap-1">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleToggleFavorite(item.imageUrl ?? "", item.prompt, item.id); }}
+                      className="w-7 h-7 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 transition-colors"
+                      title="取消收藏"
+                    >
+                      <Heart size={14} className="fill-red-500 text-red-500" />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDeleteFavorite(item.id); }}
+                      className="w-7 h-7 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 transition-colors text-white"
+                      title="删除收藏"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
                   <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2">
                     {item.prompt && (
                       <p className="text-[10px] text-white/80 line-clamp-1">{item.prompt}</p>
