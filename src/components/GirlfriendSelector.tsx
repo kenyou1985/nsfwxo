@@ -21,17 +21,14 @@ import {
   type CustomGirlfriend,
 } from '../services/girlfriendStorage';
 import { DEFAULT_GIRLFRIEND_PRESETS } from '../data/girlfriendPresets';
-import { uploadImage } from '../services/runninghub';
 
 interface GirlfriendSelectorProps {
-  apiKey: string;
   selectedId: string | null;
   onSelect: (girlfriend: GirlfriendPreset) => void;
   disabled?: boolean;
 }
 
 export function GirlfriendSelector({
-  apiKey,
   selectedId,
   onSelect,
   disabled,
@@ -51,27 +48,30 @@ export function GirlfriendSelector({
   const [saveError, setSaveError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingPreview, setUploadingPreview] = useState<string | null>(null);
-  const [uploadingPath, setUploadingPath] = useState<string | null>(null);
   const [uploadingError, setUploadingError] = useState('');
 
   const customPresets: GirlfriendPreset[] = customGirlfriends.map(toPreset);
 
-  const handleFileUpload = useCallback(
-    async (file: File) => {
-      setUploadingError('');
-      setSaveError('');
-      try {
-        const objectUrl = URL.createObjectURL(file);
-        setUploadingPreview(objectUrl);
-        const { imagePath } = await uploadImage(apiKey, file);
-        setUploadingPath(imagePath);
-      } catch (err) {
-        setUploadingError(err instanceof Error ? err.message : '上传失败');
-        throw err;
-      }
-    },
-    [apiKey]
-  );
+  /** 将 File 转成 data URL（base64），用于本地持久化存储 */
+  const fileToDataUrl = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(new Error('文件读取失败'));
+      reader.readAsDataURL(file);
+    });
+
+  const handleFileUpload = useCallback(async (file: File) => {
+    setUploadingError('');
+    setSaveError('');
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      setUploadingPreview(dataUrl);
+    } catch (err) {
+      setUploadingError(err instanceof Error ? err.message : '读取文件失败');
+      throw err;
+    }
+  }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -87,7 +87,7 @@ export function GirlfriendSelector({
   };
 
   const handleSaveGirlfriend = async () => {
-    if (!uploadingPreview || !uploadingPath) {
+    if (!uploadingPreview) {
       setSaveError('请先上传图片');
       return;
     }
@@ -115,7 +115,6 @@ export function GirlfriendSelector({
       setCustomGirlfriends(getCustomGirlfriends());
       setShowSaveModal(false);
       setUploadingPreview(null);
-      setUploadingPath(null);
       onSelect(preset);
       setActiveTab('custom');
     } catch (err) {
@@ -134,7 +133,6 @@ export function GirlfriendSelector({
   const handleCloseModal = () => {
     setShowSaveModal(false);
     setUploadingPreview(null);
-    setUploadingPath(null);
     setSaveError('');
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -259,18 +257,26 @@ export function GirlfriendSelector({
             <div className="p-4 space-y-3 max-h-[70vh] overflow-y-auto">
               {/* Preview */}
               {uploadingPreview ? (
-                <div className="relative rounded-xl overflow-hidden bg-bg-elevated border border-border">
+                <div
+                  className="relative rounded-xl overflow-hidden bg-bg-elevated border border-border cursor-pointer hover:border-red-400 transition-colors"
+                  onClick={() => fileInputRef.current?.click()}
+                >
                   <img
                     src={uploadingPreview}
                     alt="预览"
                     className="w-full object-cover"
                     style={{ aspectRatio: '9/16', maxHeight: 220 }}
                   />
-                  {uploadingPath && (
-                    <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-green-500 text-white text-[10px] font-medium">
-                      已上传
-                    </div>
-                  )}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleFileChange}
+                  />
+                  <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-green-500 text-white text-[10px] font-medium">
+                    已就绪
+                  </div>
                 </div>
               ) : (
                 <div
@@ -360,9 +366,9 @@ export function GirlfriendSelector({
               </button>
               <button
                 onClick={handleSaveGirlfriend}
-                disabled={saveLoading || !uploadingPath}
+                disabled={saveLoading || !uploadingPreview}
                 className={`flex-1 py-2 rounded-xl text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
-                  saveLoading || !uploadingPath
+                  saveLoading || !uploadingPreview
                     ? 'bg-bg-elevated text-text-secondary cursor-not-allowed'
                     : 'bg-gradient-to-r from-red-500 to-pink-500 text-white hover:opacity-90 active:scale-[0.98]'
                 }`}

@@ -167,16 +167,31 @@ export function ImageToImagePage({
       setUploadError(null);
       setGirlfriendUploading(true);
       try {
-        const res = await fetch(gf.portraitUrl);
-        const blob = await res.blob();
-        const file = new File([blob], `${gf.id}.jpg`, { type: 'image/jpeg' });
-        const objectUrl = URL.createObjectURL(file);
-        setPreviewUrl(objectUrl);
+        let file: File;
+        let preview: string;
+
+        if (gf.portraitUrl.startsWith('data:')) {
+          // data URL: fetch 可以直接转换 data URL 为 blob
+          const res = await fetch(gf.portraitUrl);
+          const blob = await res.blob();
+          file = new File([blob], `${gf.id}.jpg`, { type: blob.type || 'image/jpeg' });
+          preview = gf.portraitUrl;
+          setPreviewUrl(preview);
+        } else {
+          // 外部 URL: 走原逻辑
+          const res = await fetch(gf.portraitUrl);
+          const blob = await res.blob();
+          file = new File([blob], `${gf.id}.jpg`, { type: blob.type || 'image/jpeg' });
+          preview = URL.createObjectURL(file);
+          setPreviewUrl(preview);
+        }
+
         const { imagePath } = await uploadImage(apiKey, file);
         updateParam('uploadedImagePath', imagePath);
         onSuccess(`已选择女友「${gf.nameZh || gf.name}」作为参考`);
       } catch (err) {
-        onError('女友图片上传失败，请重试');
+        const msg = err instanceof Error ? err.message : '未知错误';
+        onError(`女友图片上传失败: ${msg}`);
         setSelectedGirlfriend(null);
         setPreviewUrl('');
       } finally {
@@ -684,7 +699,6 @@ export function ImageToImagePage({
 
       {/* Girlfriend Selector */}
       <GirlfriendSelector
-        apiKey={apiKey}
         selectedId={selectedGirlfriend ? (selectedGirlfriend.isCustom ? `custom_${selectedGirlfriend.id}` : selectedGirlfriend.id) : null}
         onSelect={handleGirlfriendSelect}
         disabled={girlfriendUploading || taskManager.isFull}

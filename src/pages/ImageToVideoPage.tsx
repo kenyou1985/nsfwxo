@@ -962,16 +962,31 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
       setUploadError(null);
       setGirlfriendUploading(true);
       try {
-        const res = await fetch(gf.portraitUrl);
-        const blob = await res.blob();
-        const file = new File([blob], `${gf.id}.jpg`, { type: 'image/jpeg' });
-        const objectUrl = URL.createObjectURL(file);
-        setImagePreview(objectUrl);
+        let file: File;
+        let objectUrl: string;
+
+        if (gf.portraitUrl.startsWith('data:')) {
+          // data URL: fetch 可以直接转换 data URL 为 blob
+          const res = await fetch(gf.portraitUrl);
+          const blob = await res.blob();
+          file = new File([blob], `${gf.id}.jpg`, { type: blob.type || 'image/jpeg' });
+          objectUrl = gf.portraitUrl;
+          setImagePreview(objectUrl);
+        } else {
+          // 外部 URL: 走原逻辑
+          const res = await fetch(gf.portraitUrl);
+          const blob = await res.blob();
+          file = new File([blob], `${gf.id}.jpg`, { type: blob.type || 'image/jpeg' });
+          objectUrl = URL.createObjectURL(file);
+          setImagePreview(objectUrl);
+        }
+
         const { imagePath: path } = await uploadImage(apiKey, file);
         setImagePath(path);
         onSuccess(`已选择女友「${gf.nameZh || gf.name}」作为视频主角`);
-      } catch {
-        onError('女友图片上传失败，请重试');
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : '未知错误';
+        onError(`女友图片上传失败: ${msg}`);
         setSelectedGirlfriend(null);
         setImagePreview('');
         setImagePath('');
@@ -1112,7 +1127,6 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
 
       {/* Girlfriend 选择器 */}
       <GirlfriendSelector
-        apiKey={apiKey}
         selectedId={selectedGirlfriend ? (selectedGirlfriend.isCustom ? `custom_${selectedGirlfriend.id}` : selectedGirlfriend.id) : null}
         onSelect={handleGirlfriendSelect}
         disabled={girlfriendUploading || isSubmitting}

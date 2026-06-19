@@ -48,6 +48,16 @@ import type { QueuedTask, TabType, NodeInfo } from '../types';
 import { DEFAULT_TXT2IMG_PARAMS, QUALITY_BOOST_PROMPT } from '../constants';
 import { WORKFLOW, getWorkflowFormat, uploadImage, ensureDataUrl } from '../services/runninghub';
 
+/**
+ * 将 GirlfriendPreset.portraitUrl 转为 File 对象用于上传。
+ * fetch 支持 data: / blob: / http: 等各类 URL 类型。
+ */
+async function gfUrlToFile(portraitUrl: string, id: string): Promise<File> {
+  const res = await fetch(portraitUrl);
+  const blob = await res.blob();
+  return new File([blob], `${id}.jpg`, { type: blob.type || 'image/jpeg' });
+}
+
 type PromptMode = 'expand' | 'random' | 'storyboard';
 
 interface AIPromptPageProps {
@@ -154,7 +164,6 @@ export function AIPromptPage({ onError, onSuccess, onOpenSettings, taskManager, 
               </div>
             ) : (
               <GirlfriendSelector
-                apiKey={apiKey}
                 selectedId={null}
                 onSelect={(gf) => setSelectedGirlfriend(gf)}
               />
@@ -357,9 +366,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       if (digitalHumanMode && selectedGirlfriend) {
         setGirlfriendUploading(true);
         try {
-          const res = await fetch(selectedGirlfriend.portraitUrl);
-          const blob = await res.blob();
-          const file = new File([blob], `${selectedGirlfriend.id}.jpg`, { type: blob.type || 'image/jpeg' });
+          const file = await gfUrlToFile(selectedGirlfriend.portraitUrl, selectedGirlfriend.id);
           const result = await uploadImage(apiKey, file);
           imagePath = result.imagePath;
         } catch {
@@ -409,9 +416,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     let imagePath = selectedGirlfriend?.portraitUrl || '';
     if (digitalHumanMode && selectedGirlfriend) {
       try {
-        const res = await fetch(selectedGirlfriend.portraitUrl);
-        const blob = await res.blob();
-        const file = new File([blob], `${selectedGirlfriend.id}.jpg`, { type: blob.type || 'image/jpeg' });
+        const file = await gfUrlToFile(selectedGirlfriend.portraitUrl, selectedGirlfriend.id);
         const uploadResult = await uploadImage(apiKey, file);
         imagePath = uploadResult.imagePath;
       } catch {
@@ -480,9 +485,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     let imagePath = selectedGirlfriend?.portraitUrl || '';
     if (digitalHumanMode && selectedGirlfriend) {
       try {
-        const res = await fetch(selectedGirlfriend.portraitUrl);
-        const blob = await res.blob();
-        const file = new File([blob], `${selectedGirlfriend.id}.jpg`, { type: blob.type || 'image/jpeg' });
+        const file = await gfUrlToFile(selectedGirlfriend.portraitUrl, selectedGirlfriend.id);
         const uploadResult = await uploadImage(apiKey, file);
         imagePath = uploadResult.imagePath;
       } catch {
@@ -557,9 +560,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     let imagePath = selectedGirlfriend?.portraitUrl || '';
     if (digitalHumanMode && selectedGirlfriend) {
       try {
-        const res = await fetch(selectedGirlfriend.portraitUrl);
-        const blob = await res.blob();
-        const file = new File([blob], `${selectedGirlfriend.id}.jpg`, { type: blob.type || 'image/jpeg' });
+        const file = await gfUrlToFile(selectedGirlfriend.portraitUrl, selectedGirlfriend.id);
         const uploadResult = await uploadImage(apiKey, file);
         imagePath = uploadResult.imagePath;
       } catch {
@@ -693,9 +694,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     let imagePath = selectedGirlfriend?.portraitUrl || '';
     if (digitalHumanMode && selectedGirlfriend) {
       try {
-        const res = await fetch(selectedGirlfriend.portraitUrl);
-        const blob = await res.blob();
-        const file = new File([blob], `${selectedGirlfriend.id}.jpg`, { type: blob.type || 'image/jpeg' });
+        const file = await gfUrlToFile(selectedGirlfriend.portraitUrl, selectedGirlfriend.id);
         const uploadResult = await uploadImage(apiKey, file);
         imagePath = uploadResult.imagePath;
       } catch {
@@ -1246,9 +1245,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     let referenceImageUrl = '';
     if (digitalHumanMode && selectedGirlfriend) {
       try {
-        const res = await fetch(selectedGirlfriend.portraitUrl);
-        const blob = await res.blob();
-        const file = new File([blob], `${selectedGirlfriend.id}.jpg`, { type: blob.type || 'image/jpeg' });
+        const file = await gfUrlToFile(selectedGirlfriend.portraitUrl, selectedGirlfriend.id);
         const uploadResult = await uploadImage(apiKey, file);
         imagePath = uploadResult.imagePath;
         referenceImageUrl = imagePath;
@@ -1318,9 +1315,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     let imagePath = selectedGirlfriend?.portraitUrl || '';
     if (digitalHumanMode && selectedGirlfriend) {
       try {
-        const res = await fetch(selectedGirlfriend.portraitUrl);
-        const blob = await res.blob();
-        const file = new File([blob], `${selectedGirlfriend.id}.jpg`, { type: blob.type || 'image/jpeg' });
+        const file = await gfUrlToFile(selectedGirlfriend.portraitUrl, selectedGirlfriend.id);
         const uploadResult = await uploadImage(apiKey, file);
         imagePath = uploadResult.imagePath;
       } catch {
@@ -2856,9 +2851,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     let imagePath = selectedGirlfriend?.portraitUrl || '';
     if (digitalHumanMode && selectedGirlfriend) {
       try {
-        const res = await fetch(selectedGirlfriend.portraitUrl);
-        const blob = await res.blob();
-        const file = new File([blob], `${selectedGirlfriend.id}.jpg`, { type: blob.type || 'image/jpeg' });
+        const file = await gfUrlToFile(selectedGirlfriend.portraitUrl, selectedGirlfriend.id);
         const uploadResult = await uploadImage(apiKey, file);
         imagePath = uploadResult.imagePath;
       } catch {
@@ -3155,9 +3148,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     let imagePath = selectedGirlfriend?.portraitUrl || '';
     if (digitalHumanMode && selectedGirlfriend) {
       try {
-        const res = await fetch(selectedGirlfriend.portraitUrl);
-        const blob = await res.blob();
-        const file = new File([blob], `${selectedGirlfriend.id}.jpg`, { type: blob.type || 'image/jpeg' });
+        const file = await gfUrlToFile(selectedGirlfriend.portraitUrl, selectedGirlfriend.id);
         const uploadResult = await uploadImage(apiKey, file);
         imagePath = uploadResult.imagePath;
       } catch {
