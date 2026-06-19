@@ -8,12 +8,13 @@ import {
   X,
   Loader2,
   Download,
-  Plus,
   Palette,
   ImagePlus,
+  Loader,
 } from 'lucide-react';
 import { GirlfriendSelector } from '../components/GirlfriendSelector';
 import { generateImage, editImage, girlfriendToFile, type GptImageQuality, type GptImageSize } from '../services/gptImage2Api';
+import { expandPrompt } from '../services/promptApi';
 import type { GirlfriendPreset } from '../data/girlfriendPresets';
 import { downloadImage } from '../services/runninghub';
 
@@ -74,6 +75,9 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess }: GPTImage2PagePro
   const [selectedGirlfriend, setSelectedGirlfriend] = useState<GirlfriendPreset | null>(null);
   const [gfImageFile, setGfImageFile] = useState<File | null>(null);
 
+  // ── Smart expand ──────────────────────────────────────────────────────────
+  const [isExpanding, setIsExpanding] = useState(false);
+
   // ── Results ───────────────────────────────────────────────────────────────
   const [results, setResults] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -111,6 +115,40 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess }: GPTImage2PagePro
     }
   }, [onSuccess, onError]);
 
+  // ── Smart expand ──────────────────────────────────────────────────────────
+  const handleExpand = useCallback(async () => {
+    if (!prompt.trim()) {
+      onError('请先输入提示词内容');
+      return;
+    }
+
+    setIsExpanding(true);
+    try {
+      const res = await expandPrompt(
+        prompt.trim(),
+        'image',
+        false,
+        1,
+        0,
+        selectedGirlfriend?.portraitUrl,
+        mode === 'edit',
+        selectedGirlfriend?.characterPrompt,
+      );
+
+      if (res.results.length === 0 || !res.results[0].prompt) {
+        onError('智能扩写返回为空，请重试');
+        return;
+      }
+
+      setPrompt(res.results[0].prompt.trim());
+      onSuccess('智能扩写完成');
+    } catch (err) {
+      onError(err instanceof Error ? err.message : '智能扩写失败');
+    } finally {
+      setIsExpanding(false);
+    }
+  }, [prompt, selectedGirlfriend, mode, onError, onSuccess]);
+
   const buildPrompt = useCallback((): string => {
     const parts: string[] = [prompt.trim()];
     if (style) {
@@ -144,7 +182,6 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess }: GPTImage2PagePro
           onSuccess(`生成成功，获得 ${imgs.length} 张图片`);
         }
       } else {
-        // edit mode: needs an image
         const imageToEdit = editImageFile || gfImageFile;
         if (!imageToEdit) {
           onError('请上传要编辑的图片，或选择一个数字人女友作为参考');
@@ -233,6 +270,28 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess }: GPTImage2PagePro
                 {selectedGirlfriend.nameZh || selectedGirlfriend.name}
               </span>
             )}
+            <button
+              onClick={handleExpand}
+              disabled={isExpanding || !prompt.trim()}
+              title="智能扩写：先用 grok-4.2，失败自动用 grok-4-1-fast"
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                isExpanding || !prompt.trim()
+                  ? 'bg-bg-elevated text-text-secondary cursor-not-allowed'
+                  : 'bg-gradient-to-r from-primary to-pink-500 text-white hover:opacity-90 active:scale-[0.97]'
+              }`}
+            >
+              {isExpanding ? (
+                <>
+                  <Loader size={11} className="animate-spin" />
+                  扩写中...
+                </>
+              ) : (
+                <>
+                  <Wand2 size={11} />
+                  智能扩写
+                </>
+              )}
+            </button>
           </div>
         </div>
         <textarea
