@@ -216,6 +216,7 @@ function App() {
             onSuccess={toast.success}
             historyRefreshKey={historyRefreshKey}
             onGenerate={() => setHistoryRefreshKey((k) => k + 1)}
+            onNavigate={(tab: 'txt2img' | 'img2img' | 'img2vid' | 'aiprompt' | 'history') => setActiveTab(tab)}
           />
         );
       default:

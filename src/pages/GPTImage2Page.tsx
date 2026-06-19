@@ -12,6 +12,7 @@ import {
   ImagePlus,
   Loader,
   Heart,
+  Video,
 } from 'lucide-react';
 import { GirlfriendSelector } from '../components/GirlfriendSelector';
 import { generateImage, editImage, girlfriendToFile, type GptImageQuality, type GptImageSize, type GptImageResult } from '../services/gptImage2Api';
@@ -25,10 +26,12 @@ interface GPTImage2PageProps {
   yunwuKey: string | null;
   onError: (msg: string) => void;
   onSuccess: (msg: string) => void;
-  /** 通知 HistoryPage 刷新的版本号 */
+  /** 通知 HistoryPage 刷新版本号 */
   historyRefreshKey?: number;
   /** 通知 HistoryPage 刷新（生成新记录后调用） */
   onGenerate?: () => void;
+  /** 跳转到其他 tab */
+  onNavigate?: (tab: 'txt2img' | 'img2img' | 'img2vid' | 'aiprompt' | 'history') => void;
 }
 
 type SubMode = 'txt2img' | 'edit';
@@ -65,7 +68,7 @@ const STYLE_PRESETS = [
   'cinematic',
 ];
 
-export function GPTImage2Page({ yunwuKey, onError, onSuccess, onGenerate }: GPTImage2PageProps) {
+export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey, onGenerate, onNavigate }: GPTImage2PageProps) {
   const [mode, setMode] = useState<SubMode>('txt2img');
 
   // ── Shared params ─────────────────────────────────────────────────────────
@@ -110,6 +113,15 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, onGenerate }: GPTI
 
   const openLightbox = (idx: number) => setLightboxIdx(idx);
   const closeLightbox = () => setLightboxIdx(null);
+
+  // ── Jump to img2vid with the selected image ─────────────────────────────────
+  const handleGenerateVideoFromImage = (url: string) => {
+    if (!onNavigate) return;
+    try {
+      sessionStorage.setItem('history_img2vid', JSON.stringify({ imageUrl: url }));
+    } catch {}
+    onNavigate('img2vid');
+  };
 
   // ── Reference image handlers ───────────────────────────────────────────────
   const handleRefImageChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -656,9 +668,17 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, onGenerate }: GPTI
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                       />
                       {/* Hover overlay */}
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex flex-col items-center justify-center gap-2">
-                        <ImageIcon size={22} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex flex-col items-center justify-center gap-1.5">
+                        <ImageIcon size={20} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                         <span className="text-white text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">点击预览</span>
+                        {onNavigate && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleGenerateVideoFromImage(item.url); }}
+                            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-purple-500 text-white text-[10px] font-medium opacity-0 group-hover:opacity-100 transition-opacity hover:bg-purple-600"
+                          >
+                            <Video size={10} />生视频
+                          </button>
+                        )}
                       </div>
                       {/* Top-right actions */}
                       <div className="absolute top-1.5 right-1.5 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -694,7 +714,7 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, onGenerate }: GPTI
         >
           {/* Top bar */}
           <div
-            className="absolute top-0 left-0 right-0 flex items-center justify-between p-4 z-10"
+            className="flex-shrink-0 flex items-center justify-between px-4 py-3 z-10"
             onClick={(e) => e.stopPropagation()}
           >
             <span className="text-sm text-white/70">
@@ -737,7 +757,7 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, onGenerate }: GPTI
 
           {/* Image */}
           <div
-            className="flex-1 flex items-center justify-center p-16"
+            className="flex-1 flex items-center justify-center overflow-hidden p-4 pb-16"
             onClick={(e) => e.stopPropagation()}
           >
             <img

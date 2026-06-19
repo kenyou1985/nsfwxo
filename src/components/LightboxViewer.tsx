@@ -42,7 +42,7 @@ export function LightboxViewer({
     >
       {/* Top bar */}
       <div
-        className="absolute top-0 left-0 right-0 flex items-center justify-between p-4 z-10"
+        className="flex-shrink-0 flex items-center justify-between px-4 py-3 z-10"
         onClick={(e) => e.stopPropagation()}
       >
         <span className="text-sm text-white/70">{counterText}</span>
@@ -76,7 +76,7 @@ export function LightboxViewer({
 
       {/* Image */}
       <div
-        className="flex-1 flex items-center justify-center p-16"
+        className="flex-1 flex items-center justify-center overflow-hidden p-4 pb-16"
         onClick={(e) => e.stopPropagation()}
       >
         <img
