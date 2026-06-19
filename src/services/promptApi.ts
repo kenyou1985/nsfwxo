@@ -188,26 +188,33 @@ export async function expandPrompt(
   characterPrompt?: string,
 ): Promise<ExpandResponse> {
   const base = getBackendUrl();
+  const url = `${base}/api/prompt/expand`;
+  const body = {
+    user_input: userInput,
+    type,
+    r18,
+    count,
+    variant_index: variantIndex,
+    reference_image_url: referenceImageUrl || undefined,
+    img2img_mode: img2imgMode || undefined,
+    character_prompt: characterPrompt || undefined,
+  };
+
+  console.log(`[expandPrompt] ➤ POST ${url}`);
+  console.log(`[expandPrompt] body:`, JSON.stringify(body, null, 2));
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 300000); // 5 min
   try {
     const response = await apiRequest<ExpandResponse>(
-      `${base}/api/prompt/expand`,
+      url,
       {
         method: 'POST',
         signal: controller.signal as RequestInit['signal'],
-        body: JSON.stringify({
-          user_input: userInput,
-          type,
-          r18,
-          count,
-          variant_index: variantIndex,
-          reference_image_url: referenceImageUrl || undefined,
-          img2img_mode: img2imgMode || undefined,
-          character_prompt: characterPrompt || undefined,
-        } satisfies ExpandRequest),
+        body: JSON.stringify(body satisfies ExpandRequest),
       },
     );
+    console.log(`[expandPrompt] ✔ response:`, response);
     return response;
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {

@@ -13,7 +13,7 @@ import {
   Loader,
 } from 'lucide-react';
 import { GirlfriendSelector } from '../components/GirlfriendSelector';
-import { generateImage, editImage, girlfriendToFile, type GptImageQuality, type GptImageSize } from '../services/gptImage2Api';
+import { generateImage, editImage, girlfriendToFile, type GptImageQuality, type GptImageSize, type GptImageResult } from '../services/gptImage2Api';
 import { expandPrompt } from '../services/promptApi';
 import type { GirlfriendPreset } from '../data/girlfriendPresets';
 import { downloadImage } from '../services/runninghub';
@@ -79,7 +79,7 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess }: GPTImage2PagePro
   const [isExpanding, setIsExpanding] = useState(false);
 
   // ── Results ───────────────────────────────────────────────────────────────
-  const [results, setResults] = useState<string[]>([]);
+  const [results, setResults] = useState<GptImageResult[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
 
   // ── Reference image handlers ───────────────────────────────────────────────
@@ -143,6 +143,7 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess }: GPTImage2PagePro
       setPrompt(res.results[0].prompt.trim());
       onSuccess('智能扩写完成');
     } catch (err) {
+      console.error('[GPTImage2Page] handleExpand failed:', err);
       onError(err instanceof Error ? err.message : '智能扩写失败');
     } finally {
       setIsExpanding(false);
@@ -177,7 +178,7 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess }: GPTImage2PagePro
     try {
       if (mode === 'txt2img') {
         const imgs = await generateImage(yunwuKey, finalPrompt, { n, size, quality });
-        setResults(imgs.map((i) => i.url));
+        setResults(imgs);
         if (imgs.length > 0) {
           onSuccess(`生成成功，获得 ${imgs.length} 张图片`);
         }
@@ -194,13 +195,15 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess }: GPTImage2PagePro
           quality,
           maskFile: maskFile || undefined,
         });
-        setResults(imgs.map((i) => i.url));
+        setResults(imgs);
         if (imgs.length > 0) {
           onSuccess(`编辑成功，获得 ${imgs.length} 张图片`);
         }
       }
     } catch (err) {
-      onError(err instanceof Error ? err.message : '生成失败');
+      const msg = err instanceof Error ? err.message : '生成失败';
+      setResults([{ url: '', error: msg }]);
+      onError(msg);
     } finally {
       setIsGenerating(false);
     }
@@ -583,28 +586,39 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess }: GPTImage2PagePro
             <span className="text-[10px] text-text-tertiary">{results.length} 张</span>
           </div>
           <div className="p-4 grid grid-cols-2 gap-3">
-            {results.map((url, idx) => (
-              <div key={idx} className="relative group rounded-xl overflow-hidden border border-border">
-                <img
-                  src={url}
-                  alt={`生成结果 ${idx + 1}`}
-                  className="w-full object-cover"
-                  style={{ aspectRatio: size === 'auto' ? '1' : size.replace('x', '/') }}
-                />
-                {/* Overlay */}
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-end justify-center pb-3 opacity-0 group-hover:opacity-100">
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleDownload(url, idx)}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white/90 text-text-primary text-xs font-medium hover:bg-white transition-colors"
-                    >
-                      <Download size={11} />
-                      下载
-                    </button>
+            {results.map((item, idx) =>
+              item.error ? (
+                <div
+                  key={idx}
+                  className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-red-200 bg-red-50 p-4 text-center"
+                >
+                  <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                    <X size={18} className="text-red-400" />
+                  </div>
+                  <p className="text-xs font-medium text-red-500 leading-snug">{item.error}</p>
+                </div>
+              ) : item.url ? (
+                <div key={idx} className="relative group rounded-xl overflow-hidden border border-border">
+                  <img
+                    src={item.url}
+                    alt={`生成结果 ${idx + 1}`}
+                    className="w-full object-cover"
+                    style={{ aspectRatio: size === 'auto' ? '1' : size.replace('x', '/') }}
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-end justify-center pb-3 opacity-0 group-hover:opacity-100">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleDownload(item.url, idx)}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white/90 text-text-primary text-xs font-medium hover:bg-white transition-colors"
+                      >
+                        <Download size={11} />
+                        下载
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ) : null
+            )}
           </div>
         </div>
       )}
