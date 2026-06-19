@@ -1,10 +1,19 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Trash2, Image as ImageIcon, Clock, X, RotateCcw, Loader2, Video, Heart, Download, AlertTriangle, HardDrive, Bookmark, Layers, Check, Circle } from 'lucide-react';
+import { Trash2, Image as ImageIcon, Clock, X, RotateCcw, Loader2, Video, Heart, Download, AlertTriangle, HardDrive, Bookmark, Layers, Check, Circle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getRecords, deleteRecord, clearAllHistory, type HistoryRecord } from '../services/historyService';
 import { loadCachedOrExtractedImages } from '../services/imageCacheService';
 import { extractImagesFromZipAsDataUrls } from '../services/runninghub';
 import { getFavorites, addFavorite, removeFavorite, clearFavorites, type FavoriteItem } from '../services/storage';
 import { getStorageStats, getLocalStorageStats, getUnifiedCacheStats } from '../services/storageQuota';
+import { LightboxViewer } from '../components/LightboxViewer';
+import {
+  getRecords as getGpt2Records,
+  deleteRecord as deleteGpt2Record,
+  clearAllRecords as clearGpt2Records,
+  toggleFavorite as toggleGpt2Favorite,
+  getCachedImageDataUrls,
+  type GptImage2Record,
+} from '../services/gptImage2HistoryService';
 
 function formatDate(ts: number): string {
   const d = new Date(ts);
@@ -46,10 +55,12 @@ interface HistoryPageProps {
   onSuccess?: (msg: string) => void;
   onError?: (msg: string) => void;
   onNavigate?: (tab: 'txt2img' | 'img2img' | 'img2vid' | 'aiprompt' | 'history') => void;
+  /** Increment to force-refresh GPT Image 2 history records */
+  refreshKey?: number;
 }
 
-export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate }: HistoryPageProps) {
-  const [activeTab, setActiveTab] = useState<'image' | 'video' | 'favorites'>('image');
+export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refreshKey }: HistoryPageProps) {
+  const [activeTab, setActiveTab] = useState<'image' | 'video' | 'favorites' | 'gpt-image-2'>('image');
   const [records, setRecords] = useState<HistoryRecord[]>([]);
   const [videoRecords, setVideoRecords] = useState<VideoHistoryRecord[]>([]);
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
@@ -63,6 +74,13 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate }: Hi
   const [lightboxFavoriteIndex, setLightboxFavoriteIndex] = useState<number | null>(null);
   // 每条历史记录"生视频"按钮使用的图片索引（默认 0 = 第一张）。
   const [selectedImg2vidIndex, setSelectedImg2vidIndex] = useState<Record<string, number>>({});
+
+  // ── GPT Image 2 ────────────────────────────────────────────────────────
+  const [gpt2Records, setGpt2Records] = useState<GptImage2Record[]>([]);
+  const [gpt2LightboxIdx, setGpt2LightboxIdx] = useState<number | null>(null);
+  const [gpt2LightboxImgIdx, setGpt2LightboxImgIdx] = useState<number>(0);
+  // GPT Image 2 缓存图片（keyed by record.id）
+  const [gpt2CachedImages, setGpt2CachedImages] = useState<Record<string, string[]>>({});
 
   const [storageStats, setStorageStats] = useState<{
     localStorageMB: number; cacheMB: number; itemCount: number;
@@ -129,8 +147,17 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate }: Hi
     });
     loadVideoHistory();
     setFavorites(getFavorites());
+
+    // GPT Image 2 历史记录（GPTImage2Page 生成后通过 refreshKey 触发刷新）
+    const gpt2 = getGpt2Records();
+    setGpt2Records(gpt2);
+    const cached: Record<string, string[]> = {};
+    for (const r of gpt2) {
+      cached[r.id] = getCachedImageDataUrls(r.cacheKey, r.n);
+    }
+    setGpt2CachedImages(cached);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [refreshKey]);
 
   // Load images for any new records added after mount
   useEffect(() => {
@@ -143,11 +170,31 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate }: Hi
     const recs = getRecords();
     setRecords(recs);
     loadVideoHistory();
+
+    const gpt2 = getGpt2Records();
+    setGpt2Records(gpt2);
+    const cached: Record<string, string[]> = {};
+    for (const r of gpt2) {
+      cached[r.id] = getCachedImageDataUrls(r.cacheKey, r.n);
+    }
+    setGpt2CachedImages(cached);
   }, []);
 
   const handleDelete = useCallback((id: string) => {
     deleteRecord(id);
     refreshRecords();
+  }, [refreshRecords]);
+
+  const handleDeleteGpt2 = useCallback((id: string) => {
+    deleteGpt2Record(id);
+    refreshRecords();
+  }, [refreshRecords]);
+
+  const handleClearGpt2 = useCallback(() => {
+    if (confirm('确定清除 GPT Image 2 全部历史记录？')) {
+      clearGpt2Records();
+      refreshRecords();
+    }
   }, [refreshRecords]);
 
   const handleDeleteVideo = useCallback((id: string) => {
@@ -324,6 +371,17 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate }: Hi
           >
             <Heart size={14} />
             收藏 ({favorites.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('gpt-image-2')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              activeTab === 'gpt-image-2'
+                ? 'bg-primary text-white'
+                : 'text-text-secondary hover:text-text-primary'
+            }`}
+          >
+            <ImageIcon size={14} />
+            GPT Image 2 ({gpt2Records.length})
           </button>
         </div>
         {hasAnyRecords && (
@@ -807,6 +865,167 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate }: Hi
             </button>
           )}
         </div>
+      )}
+
+      {/* ── GPT Image 2 历史 ── */}
+      {activeTab === 'gpt-image-2' && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-end">
+            {gpt2Records.length > 0 && (
+              <button
+                onClick={handleClearGpt2}
+                className="text-xs text-red-400 hover:text-red-300 transition-colors"
+              >
+                清除全部
+              </button>
+            )}
+          </div>
+
+          {gpt2Records.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-text-secondary">
+              <ImageIcon size={48} className="mb-4 opacity-30" />
+              <p className="text-sm">暂无 GPT Image 2 历史记录</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {gpt2Records.map((record) => {
+                const cached = gpt2CachedImages[record.id] || [];
+                const images = cached.filter(Boolean);
+                return (
+                  <div
+                    key={record.id}
+                    className="rounded-xl bg-bg-surface border border-border p-4"
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-primary/20 text-primary text-[10px]">
+                            GPT Image 2
+                          </span>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-500 text-[10px]">
+                            {record.mode === 'edit' ? '图片编辑' : '文生图'}
+                          </span>
+                          {record.style && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-500 text-[10px]">
+                              {record.style}
+                            </span>
+                          )}
+                          <span className="text-xs text-text-secondary flex items-center gap-1">
+                            <Clock size={11} />
+                            {formatDate(record.createdAt)}
+                          </span>
+                        </div>
+                        {record.prompt && (
+                          <p className="text-sm text-text-primary line-clamp-2 mt-1">
+                            {record.prompt}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          onClick={() => handleDeleteGpt2(record.id)}
+                          className="w-7 h-7 rounded-lg hover:bg-red-500/20 flex items-center justify-center text-text-secondary hover:text-red-400 transition-colors"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {images.length > 0 && (
+                      <div className="flex gap-2 overflow-x-auto pb-1">
+                        {images.map((url, imgIndex) => (
+                          <div
+                            key={imgIndex}
+                            className="relative flex-shrink-0 rounded-lg overflow-hidden bg-bg-elevated cursor-pointer group hover:ring-2 hover:ring-primary transition-all"
+                            style={{
+                              aspectRatio: record.size === 'auto' ? '1' : record.size.replace('x', '/'),
+                              height: 120,
+                            }}
+                            onClick={() => {
+                              const flatIdx = gpt2Records
+                                .slice(0, gpt2Records.findIndex((r) => r.id === record.id))
+                                .reduce((sum, r) => sum + (gpt2CachedImages[r.id] || []).filter(Boolean).length, 0) + imgIndex;
+                              setGpt2LightboxIdx(gpt2Records.findIndex((r) => r.id === record.id));
+                              setGpt2LightboxImgIdx(imgIndex);
+                            }}
+                          >
+                            <img
+                              src={url}
+                              alt={`图片 ${imgIndex + 1}`}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                            />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                              <ImageIcon size={18} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="mt-2 text-xs text-text-secondary">
+                      {images.length > 0 ? `${images.length} 张图片 · ${record.quality} · ${record.size}` : '暂无图片'}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── GPT Image 2 Lightbox ── */}
+      {activeTab === 'gpt-image-2' && gpt2LightboxIdx !== null && (
+        <LightboxViewer
+          images={(() => {
+            const rec = gpt2Records[gpt2LightboxIdx];
+            if (!rec) return [];
+            return (gpt2CachedImages[rec.id] || []).filter(Boolean);
+          })()}
+          currentIndex={gpt2LightboxImgIdx}
+          onClose={() => setGpt2LightboxIdx(null)}
+          onPrev={() => {
+            if (gpt2LightboxImgIdx > 0) {
+              setGpt2LightboxImgIdx((i) => i - 1);
+            } else if (gpt2LightboxIdx > 0) {
+              const prevRec = gpt2Records[gpt2LightboxIdx - 1];
+              const prevImages = (gpt2CachedImages[prevRec.id] || []).filter(Boolean);
+              setGpt2LightboxIdx((i) => (i ?? 0) - 1);
+              setGpt2LightboxImgIdx(prevImages.length - 1);
+            }
+          }}
+          onNext={() => {
+            const rec = gpt2Records[gpt2LightboxIdx];
+            const images = (gpt2CachedImages[rec?.id ?? ''] || []).filter(Boolean);
+            if (gpt2LightboxImgIdx < images.length - 1) {
+              setGpt2LightboxImgIdx((i) => i + 1);
+            } else if (gpt2LightboxIdx !== null && gpt2LightboxIdx < gpt2Records.length - 1) {
+              setGpt2LightboxIdx((i) => (i ?? 0) + 1);
+              setGpt2LightboxImgIdx(0);
+            }
+          }}
+          onToggleFavorite={(url) => {
+            const rec = gpt2Records[gpt2LightboxIdx];
+            toggleGpt2Favorite(url, rec?.prompt);
+            setFavorites(getFavorites());
+          }}
+          onDownload={(url) => {
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `gpt-image-2-${Date.now()}.png`;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.click();
+          }}
+          isFavorite={(url) => favorites.some((f) => f.imageUrl === url)}
+          globalIndex={(() => {
+            let idx = 0;
+            for (let i = 0; i < gpt2LightboxIdx; i++) {
+              idx += (gpt2CachedImages[gpt2Records[i].id] || []).filter(Boolean).length;
+            }
+            return idx + gpt2LightboxImgIdx + 1;
+          })()}
+          globalTotal={gpt2Records.reduce((sum, r) => sum + (gpt2CachedImages[r.id] || []).filter(Boolean).length, 0)}
+        />
       )}
     </div>
   );

@@ -496,7 +496,7 @@ export interface FavoriteItem {
   /** Always empty in storage (avoids quota overflow). Resolved at read-time. */
   imageUrl?: string;
   prompt?: string;
-  source: 'expand' | 'random' | 'storyboard' | 'batch' | 'history';
+  source: 'expand' | 'random' | 'storyboard' | 'batch' | 'history' | 'gpt-image-2';
   sourceId?: string;
   tags?: Record<string, string[]>;
   r18: boolean;

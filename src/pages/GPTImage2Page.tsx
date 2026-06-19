@@ -11,10 +11,13 @@ import {
   Palette,
   ImagePlus,
   Loader,
+  Heart,
 } from 'lucide-react';
 import { GirlfriendSelector } from '../components/GirlfriendSelector';
 import { generateImage, editImage, girlfriendToFile, type GptImageQuality, type GptImageSize, type GptImageResult } from '../services/gptImage2Api';
 import { expandPrompt } from '../services/promptApi';
+import { saveGeneratedImages, toggleFavorite } from '../services/gptImage2HistoryService';
+import { getFavorites } from '../services/storage';
 import type { GirlfriendPreset } from '../data/girlfriendPresets';
 import { downloadImage } from '../services/runninghub';
 
@@ -22,6 +25,10 @@ interface GPTImage2PageProps {
   yunwuKey: string | null;
   onError: (msg: string) => void;
   onSuccess: (msg: string) => void;
+  /** 通知 HistoryPage 刷新的版本号 */
+  historyRefreshKey?: number;
+  /** 通知 HistoryPage 刷新（生成新记录后调用） */
+  onGenerate?: () => void;
 }
 
 type SubMode = 'txt2img' | 'edit';
@@ -50,7 +57,7 @@ const STYLE_PRESETS = [
   'cinematic',
 ];
 
-export function GPTImage2Page({ yunwuKey, onError, onSuccess }: GPTImage2PageProps) {
+export function GPTImage2Page({ yunwuKey, onError, onSuccess, onGenerate }: GPTImage2PageProps) {
   const [mode, setMode] = useState<SubMode>('txt2img');
 
   // ── Shared params ─────────────────────────────────────────────────────────
@@ -81,6 +88,20 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess }: GPTImage2PagePro
   // ── Results ───────────────────────────────────────────────────────────────
   const [results, setResults] = useState<GptImageResult[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // ── Lightbox ─────────────────────────────────────────────────────────────
+  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
+  const [favorites, setFavorites] = useState(() => getFavorites());
+
+  const successImages = results.filter((r) => !r.error && r.url);
+
+  const handleFavoriteToggle = useCallback((url: string, recordPrompt?: string) => {
+    toggleFavorite(url, recordPrompt ?? prompt);
+    setFavorites(getFavorites());
+  }, [prompt]);
+
+  const openLightbox = (idx: number) => setLightboxIdx(idx);
+  const closeLightbox = () => setLightboxIdx(null);
 
   // ── Reference image handlers ───────────────────────────────────────────────
   const handleRefImageChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -181,6 +202,10 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess }: GPTImage2PagePro
         setResults(imgs);
         if (imgs.length > 0) {
           onSuccess(`生成成功，获得 ${imgs.length} 张图片`);
+          // 持久化到历史记录
+          const dataUrls = imgs.map((i) => i.url);
+          await saveGeneratedImages(dataUrls, finalPrompt, style, size, quality, n, 'txt2img');
+          onGenerate?.();
         }
       } else {
         const imageToEdit = editImageFile || gfImageFile;
@@ -198,6 +223,9 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess }: GPTImage2PagePro
         setResults(imgs);
         if (imgs.length > 0) {
           onSuccess(`编辑成功，获得 ${imgs.length} 张图片`);
+          const dataUrls = imgs.map((i) => i.url);
+          await saveGeneratedImages(dataUrls, finalPrompt, style, size, quality, n, 'edit');
+          onGenerate?.();
         }
       }
     } catch (err) {
@@ -207,7 +235,7 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess }: GPTImage2PagePro
     } finally {
       setIsGenerating(false);
     }
-  }, [mode, yunwuKey, buildPrompt, n, size, quality, editImageFile, gfImageFile, maskFile, onError, onSuccess]);
+  }, [mode, yunwuKey, buildPrompt, n, size, quality, style, editImageFile, gfImageFile, maskFile, onError, onSuccess, onGenerate]);
 
   const handleReset = () => {
     setPrompt('');
@@ -583,43 +611,153 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess }: GPTImage2PagePro
               <ImageIcon size={12} className="text-green-500" />
               <span className="text-xs font-medium text-text-primary">生成结果</span>
             </div>
-            <span className="text-[10px] text-text-tertiary">{results.length} 张</span>
+            <span className="text-[10px] text-text-tertiary">{successImages.length} 张</span>
           </div>
-          <div className="p-4 grid grid-cols-2 gap-3">
-            {results.map((item, idx) =>
-              item.error ? (
-                <div
-                  key={idx}
-                  className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-red-200 bg-red-50 p-4 text-center"
-                >
-                  <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
-                    <X size={18} className="text-red-400" />
-                  </div>
-                  <p className="text-xs font-medium text-red-500 leading-snug">{item.error}</p>
+          <div className="p-4">
+            {/* 错误卡片 */}
+            {results.some((r) => r.error) && (
+              <div className="mb-4 flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-red-200 bg-red-50 p-5 text-center">
+                <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+                  <X size={22} className="text-red-400" />
                 </div>
-              ) : item.url ? (
-                <div key={idx} className="relative group rounded-xl overflow-hidden border border-border">
-                  <img
-                    src={item.url}
-                    alt={`生成结果 ${idx + 1}`}
-                    className="w-full object-cover"
-                    style={{ aspectRatio: size === 'auto' ? '1' : size.replace('x', '/') }}
-                  />
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-end justify-center pb-3 opacity-0 group-hover:opacity-100">
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleDownload(item.url, idx)}
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white/90 text-text-primary text-xs font-medium hover:bg-white transition-colors"
-                      >
-                        <Download size={11} />
-                        下载
-                      </button>
+                <p className="text-sm font-medium text-red-500 leading-snug">
+                  {results.find((r) => r.error)?.error}
+                </p>
+              </div>
+            )}
+            {/* 成功图片网格 — 水平滚动，原比例缩略图 */}
+            {successImages.length > 0 && (
+              <div className="flex gap-3 overflow-x-auto pb-2">
+                {successImages.map((item, idx) => {
+                  const isFav = favorites.some((f) => f.imageUrl === item.url);
+                  return (
+                    <div
+                      key={idx}
+                      className="relative flex-shrink-0 rounded-xl overflow-hidden border border-border bg-bg-elevated cursor-pointer group hover:ring-2 hover:ring-primary transition-all"
+                      style={{ width: 160, height: 160 }}
+                      onClick={() => {
+                        const globalIdx = results.filter((r) => r.url && !r.error).findIndex((r) => r.url === item.url);
+                        openLightbox(globalIdx);
+                      }}
+                    >
+                      <img
+                        src={item.url}
+                        alt={`生成结果 ${idx + 1}`}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                      />
+                      {/* Hover overlay */}
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex flex-col items-center justify-center gap-2">
+                        <ImageIcon size={22} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <span className="text-white text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">点击预览</span>
+                      </div>
+                      {/* Top-right actions */}
+                      <div className="absolute top-1.5 right-1.5 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleFavoriteToggle(item.url); }}
+                          className="w-7 h-7 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 transition-colors"
+                          title="收藏"
+                        >
+                          <Heart size={13} className={isFav ? 'fill-red-500 text-red-500' : 'text-white'} />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDownload(item.url, idx); }}
+                          className="w-7 h-7 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 transition-colors"
+                          title="下载"
+                        >
+                          <Download size={13} className="text-white" />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              ) : null
+                  );
+                })}
+              </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ── Lightbox ── */}
+      {lightboxIdx !== null && successImages[lightboxIdx] && (
+        <div
+          className="fixed inset-0 z-50 bg-black/95 flex flex-col"
+          onClick={closeLightbox}
+        >
+          {/* Top bar */}
+          <div
+            className="absolute top-0 left-0 right-0 flex items-center justify-between p-4 z-10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span className="text-sm text-white/70">
+              {lightboxIdx + 1} / {successImages.length}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const url = successImages[lightboxIdx].url;
+                  handleFavoriteToggle(url);
+                }}
+                className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
+                title="收藏"
+              >
+                <Heart
+                  size={18}
+                  className={favorites.some((f) => f.imageUrl === successImages[lightboxIdx].url) ? 'fill-red-500 text-red-500' : 'text-white'}
+                />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDownload(successImages[lightboxIdx].url, lightboxIdx);
+                }}
+                className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
+                title="下载"
+              >
+                <Download size={18} className="text-white" />
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); closeLightbox(); }}
+                className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
+                title="关闭"
+              >
+                <X size={18} className="text-white" />
+              </button>
+            </div>
+          </div>
+
+          {/* Image */}
+          <div
+            className="flex-1 flex items-center justify-center p-16"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={successImages[lightboxIdx].url}
+              alt={`图片 ${lightboxIdx + 1}`}
+              className="max-w-full max-h-full object-contain"
+            />
+          </div>
+
+          {/* Prev */}
+          {lightboxIdx > 0 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setLightboxIdx((i) => (i ?? 0) - 1); }}
+              className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition-colors text-2xl z-10"
+              title="上一张"
+            >
+              ‹
+            </button>
+          )}
+
+          {/* Next */}
+          {lightboxIdx < successImages.length - 1 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setLightboxIdx((i) => (i ?? 0) + 1); }}
+              className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition-colors text-2xl z-10"
+              title="下一张"
+            >
+              ›
+            </button>
+          )}
         </div>
       )}
     </div>

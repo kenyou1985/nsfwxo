@@ -29,6 +29,7 @@ function App() {
   const { backendUrl, saveBackendUrl, resetBackendUrl, defaultUrl } = useBackendUrl();
   const toast = useToast();
   const [activeTab, setActiveTab] = useState<TabType>('txt2img');
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [img2imgPendingPrompt, setImg2imgPendingPrompt] = useState<string>('');
   const [regenerateWithGirlfriendId, setRegenerateWithGirlfriendId] = useState<string>('');
@@ -195,7 +196,7 @@ function App() {
           />
         );
       case 'history':
-        return <HistoryPage onRegenerate={handleRegenerateFromHistory} onSuccess={toast.success} onError={toast.error} onNavigate={(tab) => setActiveTab(tab)} />;
+        return <HistoryPage onRegenerate={handleRegenerateFromHistory} onSuccess={toast.success} onError={toast.error} onNavigate={(tab) => setActiveTab(tab)} refreshKey={historyRefreshKey} />;
       case 'aiprompt':
         return (
           <AIPromptPage
@@ -213,6 +214,8 @@ function App() {
             yunwuKey={yunwuKey}
             onError={toast.error}
             onSuccess={toast.success}
+            historyRefreshKey={historyRefreshKey}
+            onGenerate={() => setHistoryRefreshKey((k) => k + 1)}
           />
         );
       default:

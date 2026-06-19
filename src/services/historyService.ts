@@ -17,7 +17,7 @@ export interface HistoryRecord {
   /** Which UI module produced this record — used to render a source badge
    * (e.g. "智能扩写", "随机抽卡", "剧情分镜") on the history page card.
    * Falls back to workflowType-derived label when missing. */
-  source?: 'expand' | 'random' | 'smart-storyboard' | 'storyboard' | 'txt2img' | 'img2img' | 'img2vid';
+  source?: 'expand' | 'random' | 'smart-storyboard' | 'storyboard' | 'txt2img' | 'img2img' | 'img2vid' | 'gpt-image-2';
   /** Storyboard / random theme title. Rendered as a "剧情: xxx" badge
    * alongside the source tag on the history card so the user can identify
    * which story/theme the image belongs to. */
