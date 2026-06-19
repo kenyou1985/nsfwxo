@@ -20,7 +20,7 @@ import { expandPrompt } from '../services/promptApi';
 import { saveGeneratedImages, toggleFavorite } from '../services/gptImage2HistoryService';
 import { getFavorites } from '../services/storage';
 import type { GirlfriendPreset } from '../data/girlfriendPresets';
-import { downloadImage } from '../services/runninghub';
+import { downloadImage, fetchImageAsDataUrl } from '../services/runninghub';
 
 interface GPTImage2PageProps {
   yunwuKey: string | null;
@@ -222,9 +222,12 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
         setResults(imgs);
         if (imgs.length > 0) {
           onSuccess(`生成成功，获得 ${imgs.length} 张图片`);
-          // 持久化到历史记录
-          const dataUrls = imgs.map((i) => i.url);
-          await saveGeneratedImages(dataUrls, finalPrompt, style, size, quality, n, 'txt2img');
+          // 立即将 blob URL 转成 data URL 再持久化（blob URL 刷新后即失效）
+          const permanentDataUrls = await Promise.all(
+            imgs.filter((i) => i.url).map((i) => fetchImageAsDataUrl(i.url))
+          );
+          const validUrls = permanentDataUrls.filter((u): u is string => Boolean(u));
+          await saveGeneratedImages(validUrls, finalPrompt, style, size, quality, n, 'txt2img');
           onGenerate?.();
         }
       } else {
@@ -243,8 +246,11 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
         setResults(imgs);
         if (imgs.length > 0) {
           onSuccess(`编辑成功，获得 ${imgs.length} 张图片`);
-          const dataUrls = imgs.map((i) => i.url);
-          await saveGeneratedImages(dataUrls, finalPrompt, style, size, quality, n, 'edit');
+          const permanentDataUrls = await Promise.all(
+            imgs.filter((i) => i.url).map((i) => fetchImageAsDataUrl(i.url))
+          );
+          const validUrls = permanentDataUrls.filter((u): u is string => Boolean(u));
+          await saveGeneratedImages(validUrls, finalPrompt, style, size, quality, n, 'edit');
           onGenerate?.();
         }
       }
