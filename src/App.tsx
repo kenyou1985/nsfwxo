@@ -7,6 +7,7 @@ import { ImageToImagePage } from './pages/ImageToImagePage';
 import { ImageToVideoPage } from './pages/ImageToVideoPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { AIPromptPage } from './pages/AIPromptPage';
+import { GPTImage2Page } from './pages/GPTImage2Page';
 import { useApiKey } from './hooks/useApiKey';
 import { useYunwuKey } from './hooks/useYunwuKey';
 import { useBackendUrl } from './hooks/useBackendUrl';
@@ -204,6 +205,14 @@ function App() {
             taskManager={taskManager}
             apiKey={apiKey}
             onNavigate={(tab) => setActiveTab(tab)}
+          />
+        );
+      case 'gptimg2':
+        return (
+          <GPTImage2Page
+            yunwuKey={yunwuKey}
+            onError={toast.error}
+            onSuccess={toast.success}
           />
         );
       default:
