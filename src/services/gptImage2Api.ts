@@ -3,7 +3,8 @@ import type { GirlfriendPreset } from '../data/girlfriendPresets';
 const YUNWU_BASE = 'https://yunwu.ai/v1';
 
 export type GptImageQuality = 'low' | 'medium' | 'high';
-export type GptImageSize = '1024x1024' | '1536x1024' | '1024x1536' | 'auto';
+/** gpt-image-2 支持任意尺寸（最大边 ≤ 3840px，两边 16 的倍数，比例 ≤ 3:1） */
+export type GptImageSize = '1024x1024' | '1536x1024' | '1024x1536' | '1024x768' | '768x1024' | '1024x1792' | '1792x1024' | '1024x2048' | '2048x1024' | '2048x1152' | '1152x2048' | 'auto' | string;
 
 export interface GptImageResult {
   url: string;

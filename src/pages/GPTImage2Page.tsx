@@ -39,11 +39,19 @@ const QUALITY_OPTIONS: { value: GptImageQuality; label: string; desc: string }[]
   { value: 'high', label: '高清', desc: '最高质量' },
 ];
 
-const SIZE_OPTIONS: { value: GptImageSize; label: string; ratio: string }[] = [
-  { value: '1024x1024', label: '1:1', ratio: '正方形' },
-  { value: '1536x1024', label: '3:2', ratio: '横版' },
-  { value: '1024x1536', label: '2:3', ratio: '竖版' },
-  { value: 'auto', label: '自动', ratio: '由模型决定' },
+const SIZE_OPTIONS: { value: GptImageSize; label: string; ratio: string; tier: '1k' | '2k' | 'auto' }[] = [
+  { value: '1024x1024', label: '1:1', ratio: '正方形', tier: '1k' },
+  { value: '1536x1024', label: '3:2', ratio: '横版 3:2', tier: '1k' },
+  { value: '1024x1536', label: '2:3', ratio: '竖版 2:3', tier: '1k' },
+  { value: '1536x864', label: '16:9', ratio: '横版 16:9', tier: '1k' },
+  { value: '1024x768', label: '4:3', ratio: '横版 4:3', tier: '1k' },
+  { value: '864x1536', label: '9:16', ratio: '竖版 9:16', tier: '1k' },
+  { value: '768x1024', label: '3:4', ratio: '竖版 3:4', tier: '1k' },
+  { value: '2048x1152', label: '16:9', ratio: '横版 16:9', tier: '2k' },
+  { value: '2048x1536', label: '4:3', ratio: '横版 4:3', tier: '2k' },
+  { value: '1152x2048', label: '9:16', ratio: '竖版 9:16', tier: '2k' },
+  { value: '1536x2048', label: '3:4', ratio: '竖版 3:4', tier: '2k' },
+  { value: 'auto', label: '自动', ratio: '由模型决定', tier: 'auto' },
 ];
 
 const STYLE_PRESETS = [
@@ -528,19 +536,21 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, onGenerate }: GPTI
           <div className="px-3 py-2 border-b border-border bg-bg-elevated">
             <span className="text-[10px] font-medium text-text-primary">尺寸</span>
           </div>
-          <div className="p-2 grid grid-cols-2 gap-1">
+          <div className="p-2 grid grid-cols-4 gap-1">
             {SIZE_OPTIONS.map((s) => (
               <button
                 key={s.value}
                 onClick={() => setSize(s.value)}
-                className={`flex flex-col items-center justify-center px-2 py-2 rounded-lg text-xs transition-all ${
+                className={`flex flex-col items-center justify-center px-1 py-1.5 rounded-lg text-[10px] transition-all leading-tight ${
                   size === s.value
-                    ? 'bg-primary/10 text-primary font-medium'
+                    ? 'bg-primary/10 text-primary font-semibold'
                     : 'text-text-tertiary hover:bg-bg-elevated'
                 }`}
               >
                 <span>{s.label}</span>
-                <span className="text-[9px] opacity-60">{s.ratio}</span>
+                <span className={`text-[9px] ${s.tier === '2k' ? 'text-orange-400' : 'opacity-50'}`}>
+                  {s.tier === '2k' ? '2K' : s.ratio}
+                </span>
               </button>
             ))}
           </div>
