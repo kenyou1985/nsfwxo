@@ -106,29 +106,47 @@ export async function generateImage(
     quality = 'medium',
   }: { n?: number; size?: GptImageSize; quality?: GptImageQuality } = {}
 ): Promise<GptImageResult[]> {
-  const res = await fetch(`${YUNWU_BASE}/images/generations`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({ model: 'gpt-image-2', prompt, n, size, quality }),
-  });
+  // Yunwu API / OpenAI images/generations 对 n 参数的支持不稳定，
+  // 传 n>1 时可能只返回 1 张。改为并发调用 n 次，每次 n=1，确保拿到所有图片。
+  const CONCURRENCY = 3;
+  const DELAY_MS = 800;
 
-  const data = await parseResponse<{
-    created: number;
-    data: Array<{ url?: string; b64_json?: string }>;
-  }>(res);
+  const results: GptImageResult[] = [];
 
-  return data.data.map((item) => {
-    if (item.b64_json) {
-      return { url: `data:image/png;base64,${item.b64_json}` };
+  const doOne = async (): Promise<void> => {
+    const res = await fetch(`${YUNWU_BASE}/images/generations`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({ model: 'gpt-image-2', prompt, n: 1, size, quality }),
+    });
+    const data = await parseResponse<{
+      created: number;
+      data: Array<{ url?: string; b64_json?: string }>;
+    }>(res);
+    for (const item of data.data) {
+      if (item.b64_json) {
+        results.push({ url: `data:image/png;base64,${item.b64_json}` });
+      } else if (item.url) {
+        results.push({ url: item.url });
+      }
     }
-    if (item.url) {
-      return { url: item.url };
+  };
+
+  const batches: Promise<void>[] = [];
+  for (let i = 0; i < n; i += CONCURRENCY) {
+    const batch = Array.from({ length: Math.min(CONCURRENCY, n - i) }, () =>
+      doOne().catch(() => {/* 吞掉单次失败 */})
+    );
+    batches.push(Promise.all(batch).then(() => {/* resolve to void */}));
+    if (i + CONCURRENCY < n) {
+      await new Promise<void>((r) => setTimeout(r, DELAY_MS));
     }
-    return { url: '' };
-  });
+  }
+  await Promise.all(batches);
+  return results;
 }
 
 /** Image-to-image (edit) via GPT Image 2 */
@@ -148,37 +166,53 @@ export async function editImage(
     maskFile?: File;
   } = {}
 ): Promise<GptImageResult[]> {
-  const form = new FormData();
-  form.append('model', 'gpt-image-2');
-  form.append('prompt', prompt);
-  form.append('n', String(n));
-  form.append('size', size);
-  form.append('quality', quality);
-  form.append('image', imageFile);
-  if (maskFile) {
-    form.append('mask', maskFile);
+  // 图片编辑接口同样可能只返回 1 张图片，改用逐张并发调用。
+  const CONCURRENCY = 3;
+  const DELAY_MS = 800;
+  const results: GptImageResult[] = [];
+
+  const doOne = async (): Promise<void> => {
+    const form = new FormData();
+    form.append('model', 'gpt-image-2');
+    form.append('prompt', prompt);
+    form.append('n', '1');
+    form.append('size', size);
+    form.append('quality', quality);
+    form.append('image', imageFile);
+    if (maskFile) {
+      form.append('mask', maskFile);
+    }
+
+    const res = await fetch(`${YUNWU_BASE}/images/edits`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: form,
+    });
+    const data = await parseResponse<{
+      created: number;
+      data: Array<{ url?: string; b64_json?: string; revised_prompt?: string }>;
+    }>(res);
+    for (const item of data.data) {
+      if (item.b64_json) {
+        results.push({ url: `data:image/png;base64,${item.b64_json}`, revisedPrompt: item.revised_prompt });
+      } else if (item.url) {
+        results.push({ url: item.url, revisedPrompt: item.revised_prompt });
+      }
+    }
+  };
+
+  const batches: Promise<void>[] = [];
+  for (let i = 0; i < n; i += CONCURRENCY) {
+    const batch = Array.from({ length: Math.min(CONCURRENCY, n - i) }, () =>
+      doOne().catch(() => {/* 吞掉单次失败 */})
+    );
+    batches.push(Promise.all(batch).then(() => {/* resolve to void */}));
+    if (i + CONCURRENCY < n) {
+      await new Promise<void>((r) => setTimeout(r, DELAY_MS));
+    }
   }
-
-  const res = await fetch(`${YUNWU_BASE}/images/edits`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}` },
-    body: form,
-  });
-
-  const data = await parseResponse<{
-    created: number;
-    data: Array<{ url?: string; b64_json?: string; revised_prompt?: string }>;
-  }>(res);
-
-  return data.data.map((item) => {
-    if (item.b64_json) {
-      return { url: `data:image/png;base64,${item.b64_json}`, revisedPrompt: item.revised_prompt };
-    }
-    if (item.url) {
-      return { url: item.url, revisedPrompt: item.revised_prompt };
-    }
-    return { url: '', revisedPrompt: item.revised_prompt };
-  });
+  await Promise.all(batches);
+  return results;
 }
 
 /** 将 GirlfriendPreset 的 portraitUrl 转成 File */

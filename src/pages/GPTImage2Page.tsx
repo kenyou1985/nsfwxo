@@ -13,6 +13,7 @@ import {
   Loader,
   Heart,
   Video,
+  History,
 } from 'lucide-react';
 import { GirlfriendSelector } from '../components/GirlfriendSelector';
 import { generateImage, editImage, girlfriendToFile, type GptImageQuality, type GptImageSize, type GptImageResult } from '../services/gptImage2Api';
@@ -576,8 +577,18 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
 
         {/* Count */}
         <div className="flex-1 rounded-xl bg-white border border-border overflow-hidden">
-          <div className="px-3 py-2 border-b border-border bg-bg-elevated">
+          <div className="px-3 py-2 border-b border-border bg-bg-elevated flex items-center justify-between">
             <span className="text-[10px] font-medium text-text-primary">数量</span>
+            {onNavigate && (
+              <button
+                onClick={() => onNavigate('history')}
+                className="flex items-center gap-1 text-[10px] text-text-tertiary hover:text-primary transition-colors"
+                title="查看历史记录"
+              >
+                <History size={10} />
+                历史
+              </button>
+            )}
           </div>
           <div className="p-2 flex items-center justify-center gap-3">
             <button
@@ -639,7 +650,19 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
               <ImageIcon size={12} className="text-green-500" />
               <span className="text-xs font-medium text-text-primary">生成结果</span>
             </div>
-            <span className="text-[10px] text-text-tertiary">{successImages.length} 张</span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-text-tertiary">{successImages.length} 张</span>
+              {onNavigate && (
+                <button
+                  onClick={() => onNavigate('history')}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-bg-elevated text-text-secondary hover:text-primary border border-border transition-colors"
+                  title="查看历史记录"
+                >
+                  <History size={11} />
+                  历史
+                </button>
+              )}
+            </div>
           </div>
           <div className="p-4">
             {/* 错误卡片 */}
