@@ -17,6 +17,7 @@ import {
   saveCustomGirlfriend,
   removeCustomGirlfriend,
   createThumbnail,
+  compressImageForStorage,
   toPreset,
   type CustomGirlfriend,
 } from '../services/girlfriendStorage';
@@ -97,8 +98,11 @@ export function GirlfriendSelector({
     }
     setSaveLoading(true);
     try {
-      const thumb = await createThumbnail(uploadingPreview);
-      const saved = saveCustomGirlfriend({
+      const [thumb, compressed] = await Promise.all([
+        createThumbnail(uploadingPreview),
+        compressImageForStorage(uploadingPreview),
+      ]);
+      const result = saveCustomGirlfriend({
         name: saveName.trim(),
         nameZh: saveNameZh.trim() || saveName.trim(),
         description: saveDesc.trim(),
@@ -107,11 +111,15 @@ export function GirlfriendSelector({
           .split(',')
           .map((t) => t.trim())
           .filter(Boolean),
-        imageDataUrl: uploadingPreview,
+        imageDataUrl: compressed,
         thumbnailDataUrl: thumb,
         aspectRatio: '9:16',
       });
-      const preset = toPreset(saved);
+      if (!result.success || !result.data) {
+        setSaveError(result.error || '保存失败');
+        return;
+      }
+      const preset = toPreset(result.data);
       setCustomGirlfriends(getCustomGirlfriends());
       setShowSaveModal(false);
       setUploadingPreview(null);

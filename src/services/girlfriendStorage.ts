@@ -43,16 +43,36 @@ export function getCustomGirlfriends(): CustomGirlfriend[] {
   return loadCustom();
 }
 
-export function saveCustomGirlfriend(data: Omit<CustomGirlfriend, 'id' | 'createdAt'>): CustomGirlfriend {
-  const list = loadCustom();
-  const item: CustomGirlfriend = {
-    ...data,
-    id: genId(),
-    createdAt: Date.now(),
-  };
-  list.unshift(item);
-  saveCustom(list);
-  return item;
+export interface SaveCustomGirlfriendResult {
+  success: boolean;
+  data?: CustomGirlfriend;
+  error?: string;
+}
+
+export function saveCustomGirlfriend(
+  data: Omit<CustomGirlfriend, 'id' | 'createdAt'>
+): SaveCustomGirlfriendResult {
+  try {
+    const list = loadCustom();
+    const item: CustomGirlfriend = {
+      ...data,
+      id: genId(),
+      createdAt: Date.now(),
+    };
+    list.unshift(item);
+
+    const serialized = JSON.stringify(list.slice(0, MAX_CUSTOM));
+    try {
+      localStorage.setItem(STORAGE_KEY, serialized);
+    } catch (quotaErr) {
+      const msg = quotaErr instanceof Error ? quotaErr.message : String(quotaErr);
+      return { success: false, error: `存储失败（配额不足）：${msg}` };
+    }
+    return { success: true, data: item };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { success: false, error: `保存失败：${msg}` };
+  }
 }
 
 export function removeCustomGirlfriend(id: string): void {
@@ -105,6 +125,33 @@ export function createThumbnail(dataUrl: string, maxWidth = 300, maxHeight = 533
       const ctx = canvas.getContext('2d')!;
       ctx.drawImage(img, 0, 0, w, h);
       resolve(canvas.toDataURL('image/jpeg', 0.7));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
+/**
+ * Compress image before localStorage storage.
+ * localStorage on mobile is often limited to ~5MB; compress full-size
+ * images to JPEG ~80% quality at max 1024px wide to stay well under quota.
+ */
+export async function compressImageForStorage(dataUrl: string, maxWidth = 1024): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new window.Image();
+    img.onload = () => {
+      let w = img.width;
+      let h = img.height;
+      if (w > maxWidth) {
+        h = Math.round((h * maxWidth) / w);
+        w = maxWidth;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', 0.8));
     };
     img.onerror = () => resolve(dataUrl);
     img.src = dataUrl;
