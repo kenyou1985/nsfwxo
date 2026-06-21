@@ -16,7 +16,6 @@ import {
   getCustomGirlfriends,
   saveCustomGirlfriend,
   removeCustomGirlfriend,
-  createThumbnail,
   compressImageForStorage,
   toPreset,
   type CustomGirlfriend,
@@ -98,9 +97,9 @@ export function GirlfriendSelector({
     }
     setSaveLoading(true);
     try {
-      const [thumb, compressed] = await Promise.all([
-        createThumbnail(uploadingPreview),
+      const [compressed, thumb] = await Promise.all([
         compressImageForStorage(uploadingPreview),
+        compressImageForStorage(uploadingPreview, 300),
       ]);
       const result = saveCustomGirlfriend({
         name: saveName.trim(),

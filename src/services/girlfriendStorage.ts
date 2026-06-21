@@ -133,10 +133,11 @@ export function createThumbnail(dataUrl: string, maxWidth = 300, maxHeight = 533
 
 /**
  * Compress image before localStorage storage.
- * localStorage on mobile is often limited to ~5MB; compress full-size
- * images to JPEG ~80% quality at max 1024px wide to stay well under quota.
+ * localStorage on mobile is often limited to ~5MB; store a single
+ * compressed image (max 800px, JPEG 60%) at ~80-200KB per entry,
+ * leaving room for ~30+ custom girlfriends in the 5MB quota.
  */
-export async function compressImageForStorage(dataUrl: string, maxWidth = 1024): Promise<string> {
+export async function compressImageForStorage(dataUrl: string, maxWidth = 800): Promise<string> {
   return new Promise((resolve) => {
     const img = new window.Image();
     img.onload = () => {
@@ -151,7 +152,7 @@ export async function compressImageForStorage(dataUrl: string, maxWidth = 1024):
       canvas.height = h;
       const ctx = canvas.getContext('2d')!;
       ctx.drawImage(img, 0, 0, w, h);
-      resolve(canvas.toDataURL('image/jpeg', 0.8));
+      resolve(canvas.toDataURL('image/jpeg', 0.6));
     };
     img.onerror = () => resolve(dataUrl);
     img.src = dataUrl;
