@@ -33,6 +33,7 @@ function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [img2imgPendingPrompt, setImg2imgPendingPrompt] = useState<string>('');
   const [regenerateWithGirlfriendId, setRegenerateWithGirlfriendId] = useState<string>('');
+  const [img2imgInitialImageUrl, setImg2imgInitialImageUrl] = useState<string>('');
 
   // One-time migration: strip legacy data URLs from favorites and storyboard history
   useEffect(() => {
@@ -41,6 +42,23 @@ function App() {
       console.log('[App] Legacy storage migration complete:', result);
     }
   }, []);
+
+  // Read history_img2edit from sessionStorage when navigating to img2img tab
+  useEffect(() => {
+    if (activeTab !== 'img2img') return;
+    try {
+      const raw = sessionStorage.getItem('history_img2edit');
+      if (raw) {
+        const { imageUrl } = JSON.parse(raw);
+        if (imageUrl) {
+          setImg2imgInitialImageUrl(imageUrl);
+          sessionStorage.removeItem('history_img2edit');
+        }
+      }
+    } catch {
+      // ignore corrupt data
+    }
+  }, [activeTab]);
 
   // ── Finished task images registry ──
   // Updated whenever any task completes, so pages can subscribe and cache images
@@ -185,6 +203,8 @@ function App() {
             onPromptConsumed={() => setImg2imgPendingPrompt('')}
             regenerateWithGirlfriendId={regenerateWithGirlfriendId}
             onRegenerateConsumed={() => setRegenerateWithGirlfriendId('')}
+            initialImageUrl={img2imgInitialImageUrl}
+            onImageUrlConsumed={() => setImg2imgInitialImageUrl('')}
           />
         );
       case 'img2vid':

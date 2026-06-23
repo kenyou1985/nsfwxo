@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Trash2, Image as ImageIcon, Clock, X, RotateCcw, Loader2, Video, Heart, Download, AlertTriangle, HardDrive, Bookmark, Layers, Check, Circle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Trash2, Image as ImageIcon, Clock, X, RotateCcw, Loader2, Video, Heart, Download, AlertTriangle, HardDrive, Bookmark, Layers, Check, Circle, Palette } from 'lucide-react';
 import { getRecords, deleteRecord, clearAllHistory, type HistoryRecord } from '../services/historyService';
 import { loadCachedOrExtractedImages } from '../services/imageCacheService';
 import { extractImagesFromZipAsDataUrls } from '../services/runninghub';
@@ -54,7 +54,7 @@ interface HistoryPageProps {
   onRegenerate?: (record: HistoryRecord) => void;
   onSuccess?: (msg: string) => void;
   onError?: (msg: string) => void;
-  onNavigate?: (tab: 'txt2img' | 'img2img' | 'img2vid' | 'aiprompt' | 'history') => void;
+  onNavigate?: (tab: 'txt2img' | 'img2img' | 'img2vid' | 'aiprompt' | 'history' | 'gptimg2') => void;
   /** Increment to force-refresh GPT Image 2 history records */
   refreshKey?: number;
 }
@@ -74,6 +74,8 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
   const [lightboxFavoriteIndex, setLightboxFavoriteIndex] = useState<number | null>(null);
   // 每条历史记录"生视频"按钮使用的图片索引（默认 0 = 第一张）。
   const [selectedImg2vidIndex, setSelectedImg2vidIndex] = useState<Record<string, number>>({});
+  // 每条历史记录"编辑图片"使用的图片索引
+  const [selectedImg2EditIndex, setSelectedImg2EditIndex] = useState<Record<string, number>>({});
 
   // ── GPT Image 2 ────────────────────────────────────────────────────────
   const [gpt2Records, setGpt2Records] = useState<GptImage2Record[]>([]);
@@ -81,6 +83,10 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
   const [gpt2LightboxImgIdx, setGpt2LightboxImgIdx] = useState<number>(0);
   // GPT Image 2 缓存图片（keyed by record.id）
   const [gpt2CachedImages, setGpt2CachedImages] = useState<Record<string, string[]>>({});
+  // GPT Image 2 图生视频选中的图片索引（keyed by record.id）
+  const [selectedGpt2Img2vidIdx, setSelectedGpt2Img2vidIdx] = useState<Record<string, number>>({});
+  // GPT Image 2 编辑图片选中的图片索引（keyed by record.id）
+  const [selectedGpt2EditIdx, setSelectedGpt2EditIdx] = useState<Record<string, number>>({});
 
   const [storageStats, setStorageStats] = useState<{
     localStorageMB: number; cacheMB: number; itemCount: number;
@@ -140,22 +146,24 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
   }, []);
 
   useEffect(() => {
-    const recs = getRecords();
-    setRecords(recs);
-    recs.forEach((record) => {
-      loadImagesForRecord(record);
-    });
-    loadVideoHistory();
-    setFavorites(getFavorites());
+    (async () => {
+      const recs = getRecords();
+      setRecords(recs);
+      recs.forEach((record) => {
+        loadImagesForRecord(record);
+      });
+      loadVideoHistory();
+      setFavorites(getFavorites());
 
-    // GPT Image 2 历史记录（GPTImage2Page 生成后通过 refreshKey 触发刷新）
-    const gpt2 = getGpt2Records();
-    setGpt2Records(gpt2);
-    const cached: Record<string, string[]> = {};
-    for (const r of gpt2) {
-      cached[r.id] = getCachedImageDataUrls(r.cacheKey, r.n);
-    }
-    setGpt2CachedImages(cached);
+      // GPT Image 2 历史记录（GPTImage2Page 生成后通过 refreshKey 触发刷新）
+      const gpt2 = getGpt2Records();
+      setGpt2Records(gpt2);
+      const cached: Record<string, string[]> = {};
+      for (const r of gpt2) {
+        cached[r.id] = await getCachedImageDataUrls(r.id, r.n);
+      }
+      setGpt2CachedImages(cached);
+    })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
 
@@ -166,7 +174,7 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
     });
   }, [records, loadImagesForRecord]);
 
-  const refreshRecords = useCallback(() => {
+  const refreshRecords = useCallback(async () => {
     const recs = getRecords();
     setRecords(recs);
     loadVideoHistory();
@@ -175,7 +183,7 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
     setGpt2Records(gpt2);
     const cached: Record<string, string[]> = {};
     for (const r of gpt2) {
-      cached[r.id] = getCachedImageDataUrls(r.cacheKey, r.n);
+      cached[r.id] = await getCachedImageDataUrls(r.id, r.n);
     }
     setGpt2CachedImages(cached);
   }, []);
@@ -189,6 +197,95 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
     deleteGpt2Record(id);
     refreshRecords();
   }, [refreshRecords]);
+
+  const handleRegenerateGpt2 = useCallback((record: GptImage2Record) => {
+    if (!onNavigate) {
+      onError?.('当前页面无法重新生成');
+      return;
+    }
+    if (!record.prompt?.trim()) {
+      onError?.('该记录没有提示词，无法重新生成');
+      return;
+    }
+    try {
+      sessionStorage.setItem('gpt2_regenerate', JSON.stringify({
+        prompt: record.prompt,
+        style: record.style,
+        size: record.size,
+        quality: record.quality,
+        n: record.n,
+        mode: record.mode,
+      }));
+    } catch (err) {
+      console.error('[HistoryPage] failed to set sessionStorage for gpt2 regenerate', err);
+      onError?.('保存参数失败');
+      return;
+    }
+    onNavigate('gptimg2');
+  }, [onNavigate, onError]);
+
+  const handleGpt2Video = useCallback((record: GptImage2Record, imgIndex: number) => {
+    if (!onNavigate) {
+      onError?.('当前页面无法跳转到图生视频');
+      return;
+    }
+    const cached = gpt2CachedImages[record.id];
+    const url = cached?.[imgIndex];
+    if (!url) {
+      onError?.('图片尚未加载完成');
+      return;
+    }
+    try {
+      sessionStorage.setItem('history_img2vid', JSON.stringify({ imageUrl: url }));
+    } catch (err) {
+      console.error('[HistoryPage] failed to set sessionStorage', err);
+      onError?.('保存图片失败');
+      return;
+    }
+    onNavigate('img2vid');
+  }, [onNavigate, onError, gpt2CachedImages]);
+
+  const handleGpt2Edit = useCallback((record: GptImage2Record, imgIndex: number) => {
+    if (!onNavigate) {
+      onError?.('当前页面无法跳转到图生图');
+      return;
+    }
+    const cached = gpt2CachedImages[record.id];
+    const url = cached?.[imgIndex];
+    if (!url) {
+      onError?.('图片尚未加载完成');
+      return;
+    }
+    try {
+      sessionStorage.setItem('history_img2edit', JSON.stringify({ imageUrl: url }));
+    } catch (err) {
+      console.error('[HistoryPage] failed to set sessionStorage for img2edit', err);
+      onError?.('保存图片失败');
+      return;
+    }
+    onNavigate('img2img');
+  }, [onNavigate, onError, gpt2CachedImages]);
+
+  const handleImg2Edit = useCallback((record: HistoryRecord, imgIndex: number) => {
+    if (!onNavigate) {
+      onError?.('当前页面无法跳转到图生图');
+      return;
+    }
+    const images = getRecordImages(record);
+    const url = images[imgIndex];
+    if (!url) {
+      onError?.('图片尚未加载完成');
+      return;
+    }
+    try {
+      sessionStorage.setItem('history_img2edit', JSON.stringify({ imageUrl: url }));
+    } catch (err) {
+      console.error('[HistoryPage] failed to set sessionStorage for img2edit', err);
+      onError?.('保存图片失败');
+      return;
+    }
+    onNavigate('img2img');
+  }, [onNavigate, onError]);
 
   const handleClearGpt2 = useCallback(() => {
     if (confirm('确定清除 GPT Image 2 全部历史记录？')) {
@@ -332,7 +429,7 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
     ? records.reduce((sum, r) => sum + getRecordImages(r).length, 0)
     : videoRecords.reduce((sum, r) => sum + (r.images?.length || 0), 0);
 
-  const hasAnyRecords = records.length > 0 || videoRecords.length > 0;
+  const hasAnyRecords = records.length > 0 || videoRecords.length > 0 || gpt2Records.length > 0;
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -503,14 +600,22 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
                 ) : images.length > 0 ? (
                   <div className="flex gap-2 overflow-x-auto pb-1">
                     {images.map((url, imgIndex) => {
-                      const selectedIdx = selectedImg2vidIndex[record.id] ?? 0;
-                      const isSelected = selectedIdx === imgIndex;
+                      const selectedVidIdx = selectedImg2vidIndex[record.id] ?? 0;
+                      const selectedEditIdx = selectedImg2EditIndex[record.id] ?? 0;
+                      const isVidSelected = selectedVidIdx === imgIndex;
+                      const isEditSelected = selectedEditIdx === imgIndex;
                       return (
                       <div
                         key={imgIndex}
-                        className={`relative flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-bg-elevated cursor-pointer group ${isSelected ? 'ring-2 ring-purple-500' : ''}`}
-                        onClick={() => openLightbox(recordIndex, imgIndex)}
-                        title={isSelected ? '已选为生视频图片（点击缩略图查看大图）' : '点击查看大图'}
+                        className={`relative flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-bg-elevated cursor-pointer group ${isVidSelected || isEditSelected ? 'ring-2 ring-purple-500' : ''}`}
+                        onClick={() => {
+                          if (images.length > 1) {
+                            setSelectedImg2vidIndex(prev => ({ ...prev, [record.id]: imgIndex }));
+                            setSelectedImg2EditIndex(prev => ({ ...prev, [record.id]: imgIndex }));
+                          }
+                          openLightbox(recordIndex, imgIndex);
+                        }}
+                        title={images.length === 1 ? '点击查看大图' : `已选第 ${imgIndex + 1} 张`}
                       >
                         <img
                           src={url}
@@ -525,19 +630,36 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
                         >
                           <Heart size={11} className={isFav(url) ? 'fill-red-500 text-red-500' : 'text-white opacity-0 group-hover:opacity-100 transition-opacity'} />
                         </button>
-                        {/* 选中"生视频"：左下，点击切换本张为生视频目标图。stopPropagation 避免触发 lightbox。 */}
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setSelectedImg2vidIndex(prev => ({ ...prev, [record.id]: imgIndex })); }}
-                          className={`absolute bottom-0.5 left-0.5 w-5 h-5 rounded-full flex items-center justify-center transition-all ${
-                            isSelected
-                              ? 'bg-purple-500 text-white shadow-md'
-                              : 'bg-black/40 text-white opacity-0 group-hover:opacity-100 hover:bg-black/60'
-                          }`}
-                          title={isSelected ? '已选为生视频图片' : '选为生视频图片'}
-                          aria-label={isSelected ? '已选为生视频图片' : '选为生视频图片'}
-                        >
-                          {isSelected ? <Check size={11} /> : <Circle size={11} />}
-                        </button>
+                        {/* 编辑选中指示器：左上 */}
+                        {images.length > 1 && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setSelectedImg2EditIndex(prev => ({ ...prev, [record.id]: imgIndex })); }}
+                            className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full flex items-center justify-center transition-all ${
+                              isEditSelected
+                                ? 'bg-blue-500 text-white shadow-md'
+                                : 'bg-black/40 text-white opacity-0 group-hover:opacity-100 hover:bg-black/60'
+                            }`}
+                            title={isEditSelected ? '已选为编辑图片' : '选为编辑图片'}
+                            aria-label={isEditSelected ? '已选为编辑图片' : '选为编辑图片'}
+                          >
+                            <Palette size={11} />
+                          </button>
+                        )}
+                        {/* 生视频选中指示器：左下 */}
+                        {images.length > 1 && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setSelectedImg2vidIndex(prev => ({ ...prev, [record.id]: imgIndex })); }}
+                            className={`absolute bottom-0.5 left-0.5 w-5 h-5 rounded-full flex items-center justify-center transition-all ${
+                              isVidSelected
+                                ? 'bg-purple-500 text-white shadow-md'
+                                : 'bg-black/40 text-white opacity-0 group-hover:opacity-100 hover:bg-black/60'
+                            }`}
+                            title={isVidSelected ? '已选为生视频图片' : '选为生视频图片'}
+                            aria-label={isVidSelected ? '已选为生视频图片' : '选为生视频图片'}
+                          >
+                            {isVidSelected ? <Check size={11} /> : <Circle size={11} />}
+                          </button>
+                        )}
                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center pointer-events-none">
                           <ImageIcon size={14} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                         </div>
@@ -553,17 +675,29 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
                     {record.coins && ` · ${record.coins} RH币`}
                   </span>
                   {images.length > 0 && onNavigate && (
-                    <button
-                      onClick={() => {
-                        const selectedIdx = selectedImg2vidIndex[record.id] ?? 0;
-                        const url = images[selectedIdx] ?? images[0];
-                        handleGenerateVideoFromImage(url);
-                      }}
-                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90 transition-all"
-                      title={`使用第 ${(selectedImg2vidIndex[record.id] ?? 0) + 1} 张图片作为参考图，跳转到图生视频页面`}
-                    >
-                      <Video size={11} />生视频
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => {
+                          const idx = selectedImg2EditIndex[record.id] ?? 0;
+                          handleImg2Edit(record, idx);
+                        }}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-blue-500 text-white hover:bg-blue-600 transition-all"
+                        title={`使用第 ${(selectedImg2EditIndex[record.id] ?? 0) + 1} 张图片编辑`}
+                      >
+                        <Palette size={11} />编辑
+                      </button>
+                      <button
+                        onClick={() => {
+                          const selectedIdx = selectedImg2vidIndex[record.id] ?? 0;
+                          const url = images[selectedIdx] ?? images[0];
+                          handleGenerateVideoFromImage(url);
+                        }}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90 transition-all"
+                        title={`使用第 ${(selectedImg2vidIndex[record.id] ?? 0) + 1} 张图片作为参考图，跳转到图生视频页面`}
+                      >
+                        <Video size={11} />生视频
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -922,6 +1056,15 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
                         )}
                       </div>
                       <div className="flex items-center gap-1 flex-shrink-0">
+                        {record.prompt?.trim() && onNavigate && (
+                          <button
+                            onClick={() => handleRegenerateGpt2(record)}
+                            className="w-7 h-7 rounded-lg hover:bg-primary/20 flex items-center justify-center text-text-secondary hover:text-primary transition-colors"
+                            title="重新生成"
+                          >
+                            <RotateCcw size={14} />
+                          </button>
+                        )}
                         <button
                           onClick={() => handleDeleteGpt2(record.id)}
                           className="w-7 h-7 rounded-lg hover:bg-red-500/20 flex items-center justify-center text-text-secondary hover:text-red-400 transition-colors"
@@ -933,18 +1076,28 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
 
                     {images.length > 0 && (
                       <div className="flex gap-2 overflow-x-auto pb-1">
-                        {images.map((url, imgIndex) => (
+                        {images.map((url, imgIndex) => {
+                          const selectedVidIdx = selectedGpt2Img2vidIdx[record.id] ?? 0;
+                          const selectedEditIdx = selectedGpt2EditIdx[record.id] ?? 0;
+                          const isVidSelected = selectedVidIdx === imgIndex;
+                          const isEditSelected = selectedEditIdx === imgIndex;
+                          return (
                           <div
                             key={imgIndex}
-                            className="relative flex-shrink-0 rounded-lg overflow-hidden bg-bg-elevated cursor-pointer group hover:ring-2 hover:ring-primary transition-all"
+                            className={`relative flex-shrink-0 rounded-lg overflow-hidden bg-bg-elevated cursor-pointer group transition-all ${
+                              images.length > 1
+                                ? `hover:ring-2 hover:ring-blue-400 ${isVidSelected || isEditSelected ? 'ring-2 ring-purple-500' : ''}`
+                                : 'hover:ring-2 hover:ring-primary'
+                            }`}
                             style={{
                               aspectRatio: record.size === 'auto' ? '1' : record.size.replace('x', '/'),
                               height: 120,
                             }}
                             onClick={() => {
-                              const flatIdx = gpt2Records
-                                .slice(0, gpt2Records.findIndex((r) => r.id === record.id))
-                                .reduce((sum, r) => sum + (gpt2CachedImages[r.id] || []).filter(Boolean).length, 0) + imgIndex;
+                              if (images.length > 1) {
+                                setSelectedGpt2Img2vidIdx(prev => ({ ...prev, [record.id]: imgIndex }));
+                                setSelectedGpt2EditIdx(prev => ({ ...prev, [record.id]: imgIndex }));
+                              }
                               setGpt2LightboxIdx(gpt2Records.findIndex((r) => r.id === record.id));
                               setGpt2LightboxImgIdx(imgIndex);
                             }}
@@ -954,16 +1107,65 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
                               alt={`图片 ${imgIndex + 1}`}
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                             />
+                            {/* 编辑选中指示器 — 左上角 */}
+                            {images.length > 1 && (
+                              <div
+                                className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full flex items-center justify-center transition-all ${
+                                  isEditSelected
+                                    ? 'bg-blue-500 text-white shadow-md'
+                                    : 'bg-black/40 text-white opacity-0 group-hover:opacity-100 hover:bg-black/60'
+                                }`}
+                                onClick={(e) => { e.stopPropagation(); setSelectedGpt2EditIdx(prev => ({ ...prev, [record.id]: imgIndex })); }}
+                                title={isEditSelected ? '已选为编辑图片' : '选为编辑图片'}
+                              >
+                                <Palette size={11} />
+                              </div>
+                            )}
+                            {/* 生视频选中指示器 — 左下角 */}
+                            {images.length > 1 && (
+                              <div
+                                className={`absolute bottom-0.5 left-0.5 w-5 h-5 rounded-full flex items-center justify-center transition-all ${
+                                  isVidSelected
+                                    ? 'bg-purple-500 text-white shadow-md'
+                                    : 'bg-black/40 text-white opacity-0 group-hover:opacity-100 hover:bg-black/60'
+                                }`}
+                                onClick={(e) => { e.stopPropagation(); setSelectedGpt2Img2vidIdx(prev => ({ ...prev, [record.id]: imgIndex })); }}
+                                title={isVidSelected ? '已选为生视频图片' : '选为生视频图片'}
+                              >
+                                {isVidSelected ? <Check size={11} /> : <Circle size={11} />}
+                              </div>
+                            )}
                             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
                               <ImageIcon size={18} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                             </div>
                           </div>
-                        ))}
+                        );
+                        })}
                       </div>
                     )}
 
-                    <div className="mt-2 text-xs text-text-secondary">
-                      {images.length > 0 ? `${images.length} 张图片 · ${record.quality} · ${record.size}` : '暂无图片'}
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <span className="text-xs text-text-secondary">
+                        {images.length > 0 ? `${images.length} 张图片 · ${record.quality} · ${record.size}` : '暂无图片'}
+                      </span>
+                      {images.length > 0 && onNavigate && (
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => handleGpt2Edit(record, selectedGpt2EditIdx[record.id] ?? 0)}
+                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-blue-500 text-white hover:bg-blue-600 transition-all"
+                            title={`使用第 ${(selectedGpt2EditIdx[record.id] ?? 0) + 1} 张图片编辑`}
+                          >
+                            <Palette size={11} />编辑
+                          </button>
+                          <button
+                            onClick={() => handleGpt2Video(record, selectedGpt2Img2vidIdx[record.id] ?? 0)}
+                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90 transition-all"
+                            title={`使用第 ${(selectedGpt2Img2vidIdx[record.id] ?? 0) + 1} 张图片生视频`}
+                          >
+                            <Video size={11} />生视频
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );

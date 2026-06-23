@@ -41,6 +41,9 @@ interface ImageToImagePageProps {
   onPromptConsumed?: () => void;
   regenerateWithGirlfriendId?: string;
   onRegenerateConsumed?: () => void;
+  /** 从历史记录跳转过来时，预填充一张图片作为参考图（data URL） */
+  initialImageUrl?: string;
+  onImageUrlConsumed?: () => void;
 }
 
 export function ImageToImagePage({
@@ -52,6 +55,8 @@ export function ImageToImagePage({
   onPromptConsumed,
   regenerateWithGirlfriendId,
   onRegenerateConsumed,
+  initialImageUrl,
+  onImageUrlConsumed,
 }: ImageToImagePageProps) {
   const [params, setParams] = useState<ImageToImageParams>({
     prompt: '',
@@ -89,6 +94,40 @@ export function ImageToImagePage({
 
   // Auto-select girlfriend and trigger generation when navigating from history with anchor
   useEffect(() => {
+    if (!initialImageUrl) return;
+
+    let cancelled = false;
+
+    const doUpload = async () => {
+      try {
+        const res = await fetch(initialImageUrl);
+        const blob = await res.blob();
+        const file = new File([blob], 'history_edit.jpg', { type: blob.type || 'image/jpeg' });
+        const objectUrl = URL.createObjectURL(file);
+        setPreviewUrl(objectUrl);
+        const { imagePath } = await uploadImage(apiKey, file);
+        if (cancelled) return;
+        updateParam('uploadedImagePath', imagePath);
+        onSuccess?.('参考图已上传，请输入提示词后点击生成');
+      } catch (err) {
+        if (cancelled) return;
+        onError?.('历史图片上传失败，请重试');
+      } finally {
+        if (!cancelled) {
+          setGirlfriendUploading(false);
+          onImageUrlConsumed?.();
+        }
+      }
+    };
+
+    setGirlfriendUploading(true);
+    doUpload();
+
+    return () => { cancelled = true; };
+  }, [initialImageUrl]);
+
+  // Auto-select girlfriend and trigger generation when navigating from history with anchor
+  useEffect(() => {
     if (!regenerateWithGirlfriendId) return;
 
     const gf = DEFAULT_GIRLFRIEND_PRESETS.find((g) => g.id === regenerateWithGirlfriendId);
@@ -112,12 +151,10 @@ export function ImageToImagePage({
         const { imagePath } = await uploadImage(apiKey, file);
         if (cancelled) return;
 
-        // Update state for UI
         updateParam('uploadedImagePath', imagePath);
 
         if (cancelled) return;
 
-        // Build prompt: character prompt (from gf) + history prompt (initialPrompt) + quality boost
         const parts: string[] = [];
         if (gf.characterPrompt) parts.push(gf.characterPrompt);
         if (initialPrompt?.trim()) parts.push(initialPrompt.trim());

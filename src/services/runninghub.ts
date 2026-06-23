@@ -564,6 +564,8 @@ export async function extractImagesFromZip(zipUrl: string, retries = 3): Promise
 }
 
 export async function fetchImageAsDataUrl(url: string): Promise<string | null> {
+  // data URL already contains the full content — return as-is
+  if (url.startsWith('data:')) return url;
   try {
     const response = await fetch(url);
     if (!response.ok) return null;

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   Sparkles,
   Upload,
@@ -9,11 +9,11 @@ import {
   Loader2,
   Download,
   Palette,
-  ImagePlus,
   Loader,
   Heart,
   Video,
   History,
+  Plus,
 } from 'lucide-react';
 import { GirlfriendSelector } from '../components/GirlfriendSelector';
 import { generateImage, editImage, girlfriendToFile, type GptImageQuality, type GptImageSize, type GptImageResult } from '../services/gptImage2Api';
@@ -27,15 +27,18 @@ interface GPTImage2PageProps {
   yunwuKey: string | null;
   onError: (msg: string) => void;
   onSuccess: (msg: string) => void;
-  /** 通知 HistoryPage 刷新版本号 */
   historyRefreshKey?: number;
-  /** 通知 HistoryPage 刷新（生成新记录后调用） */
   onGenerate?: () => void;
-  /** 跳转到其他 tab */
   onNavigate?: (tab: 'txt2img' | 'img2img' | 'img2vid' | 'aiprompt' | 'history') => void;
 }
 
 type SubMode = 'txt2img' | 'edit';
+
+interface EditImageEntry {
+  file: File;
+  preview: string;
+  name: string;
+}
 
 const QUALITY_OPTIONS: { value: GptImageQuality; label: string; desc: string }[] = [
   { value: 'low', label: '快速', desc: '草稿预览' },
@@ -69,6 +72,8 @@ const STYLE_PRESETS = [
   'cinematic',
 ];
 
+const MAX_EDIT_IMAGES = 16;
+
 export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey, onGenerate, onNavigate }: GPTImage2PageProps) {
   const [mode, setMode] = useState<SubMode>('txt2img');
 
@@ -79,18 +84,14 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
   const [n, setN] = useState(1);
   const [style, setStyle] = useState('');
 
-  // ── Reference / edit image ────────────────────────────────────────────────
-  const [refImageFile, setRefImageFile] = useState<File | null>(null);
-  const [refImagePreview, setRefImagePreview] = useState('');
+  // ── Edit image (supports up to 16) ──────────────────────────────────────
+  const [editImageEntries, setEditImageEntries] = useState<EditImageEntry[]>([]);
   const [maskFile, setMaskFile] = useState<File | null>(null);
   const [maskPreview, setMaskPreview] = useState('');
-  const [editImageFile, setEditImageFile] = useState<File | null>(null);
-  const [editImagePreview, setEditImagePreview] = useState('');
-  const refInputRef = useRef<HTMLInputElement>(null);
-  const maskInputRef = useRef<HTMLInputElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
+  const maskInputRef = useRef<HTMLInputElement>(null);
 
-  // ── Girlfriend ────────────────────────────────────────────────────────────
+  // ── Girlfriend ───────────────────────────────────────────────────────────
   const [selectedGirlfriend, setSelectedGirlfriend] = useState<GirlfriendPreset | null>(null);
   const [gfImageFile, setGfImageFile] = useState<File | null>(null);
 
@@ -100,6 +101,31 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
   // ── Results ───────────────────────────────────────────────────────────────
   const [results, setResults] = useState<GptImageResult[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // ── Restore from history "重新生成" ─────────────────────────────────────
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem('gpt2_regenerate');
+      if (!raw) return;
+      const params = JSON.parse(raw) as {
+        prompt: string;
+        style: string;
+        size: string;
+        quality: string;
+        n: number;
+        mode: 'txt2img' | 'edit';
+      };
+      setPrompt(params.prompt || '');
+      setStyle(params.style || '');
+      setSize((params.size || '1024x1024') as GptImageSize);
+      setQuality((params.quality || 'medium') as GptImageQuality);
+      setN(params.n || 1);
+      setMode(params.mode || 'txt2img');
+      sessionStorage.removeItem('gpt2_regenerate');
+    } catch {
+      // ignore corrupt data
+    }
+  }, []);
 
   // ── Lightbox ─────────────────────────────────────────────────────────────
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
@@ -124,12 +150,49 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
     onNavigate('img2vid');
   };
 
-  // ── Reference image handlers ───────────────────────────────────────────────
-  const handleRefImageChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setRefImageFile(file);
-    setRefImagePreview(URL.createObjectURL(file));
+  // ── Edit image handlers ─────────────────────────────────────────────────
+  const handleEditImageChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
+
+    const remaining = MAX_EDIT_IMAGES - editImageEntries.length;
+    const toAdd = files.slice(0, remaining);
+
+    const newEntries: EditImageEntry[] = toAdd.map((file, i) => ({
+      file,
+      preview: URL.createObjectURL(file),
+      name: `图${editImageEntries.length + i + 1}`,
+    }));
+
+    setEditImageEntries((prev) => {
+      const updated = [...prev, ...newEntries];
+      // Rebuild names to be sequential
+      return updated.map((entry, idx) => ({ ...entry, name: `图${idx + 1}` }));
+    });
+
+    // Auto-append @图N anchors to prompt for each newly added image
+    const count = toAdd.length;
+    const startIdx = editImageEntries.length + 1;
+    const newAnchors = Array.from({ length: count }, (_, i) => `@图${startIdx + i}`).join(' ');
+    setPrompt((prev) => {
+      if (prev.includes(newAnchors.trim())) return prev;
+      return prev.trim() ? `${prev.trim()} ${newAnchors}` : newAnchors;
+    });
+  }, [editImageEntries.length]);
+
+  const handleRemoveEditImage = useCallback((idx: number) => {
+    setEditImageEntries((prev) => {
+      const removedEntry = prev[idx];
+      const updated = prev.filter((_, i) => i !== idx);
+      // Rebuild names to be sequential
+      const renamed = updated.map((entry, i) => ({ ...entry, name: `图${i + 1}` }));
+      // Remove @图N anchor from prompt
+      if (removedEntry) {
+        const anchor = `@${removedEntry.name}`;
+        setPrompt((p) => p.replace(new RegExp(`\\s*${anchor.replace(/[图]/g, (c) => (c === '图' ? '图' : '\\' + c))}`, 'g'), '').trim());
+      }
+      return renamed;
+    });
   }, []);
 
   const handleMaskChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -139,13 +202,7 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
     setMaskPreview(URL.createObjectURL(file));
   }, []);
 
-  const handleEditImageChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setEditImageFile(file);
-    setEditImagePreview(URL.createObjectURL(file));
-  }, []);
-
+  // ── Girlfriend handlers ──────────────────────────────────────────────────
   const handleGirlfriendSelect = useCallback(async (gf: GirlfriendPreset) => {
     setSelectedGirlfriend(gf);
     try {
@@ -155,7 +212,40 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
     } catch {
       onError('加载女友图片失败');
     }
+    // Auto-append anchor to prompt
+    setPrompt((prev) => {
+      const anchor = `@数字人:${gf.nameZh || gf.name}`;
+      if (prev.includes(anchor)) return prev;
+      return prev.trim() ? `${prev.trim()} ${anchor}` : anchor;
+    });
   }, [onSuccess, onError]);
+
+  const handleGirlfriendDeselect = useCallback(() => {
+    setSelectedGirlfriend(null);
+    setGfImageFile(null);
+    setPrompt((p) => {
+      return p.replace(/\s*@数字人:[^\s\[\]]+/g, '').trim();
+    });
+  }, []);
+
+  // ── Auto-append @ anchors when images / girlfriend change ───────────────
+  const buildAnchor = useCallback((): string => {
+    const anchors: string[] = [];
+    if (selectedGirlfriend) {
+      anchors.push(`@数字人:${selectedGirlfriend.nameZh || selectedGirlfriend.name}`);
+    }
+    if (editImageEntries.length > 0) {
+      anchors.push(...editImageEntries.map((e) => `@${e.name}`));
+    }
+    return anchors.length > 0 ? ` [${anchors.join(' ')}]` : '';
+  }, [selectedGirlfriend, editImageEntries]);
+
+  const syncPromptAnchors = useCallback((newPrompt: string) => {
+    const anchor = buildAnchor();
+    // Strip existing @anchors from prompt
+    const stripped = newPrompt.replace(/\s*\[[\s\S]*?@[\s\S]*?\]/g, '').trim();
+    return stripped + anchor;
+  }, [buildAnchor]);
 
   // ── Smart expand ──────────────────────────────────────────────────────────
   const handleExpand = useCallback(async () => {
@@ -223,7 +313,6 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
         setResults(imgs);
         if (imgs.length > 0) {
           onSuccess(`生成成功，获得 ${imgs.length} 张图片`);
-          // 立即将 blob URL 转成 data URL 再持久化（blob URL 刷新后即失效）
           const permanentDataUrls = await Promise.all(
             imgs.filter((i) => i.url).map((i) => fetchImageAsDataUrl(i.url))
           );
@@ -232,13 +321,18 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
           onGenerate?.();
         }
       } else {
-        const imageToEdit = editImageFile || gfImageFile;
-        if (!imageToEdit) {
+        // edit mode: collect all image files
+        const imageFiles: File[] = [];
+        if (gfImageFile) imageFiles.push(gfImageFile);
+        for (const entry of editImageEntries) {
+          imageFiles.push(entry.file);
+        }
+        if (imageFiles.length === 0) {
           onError('请上传要编辑的图片，或选择一个数字人女友作为参考');
           setIsGenerating(false);
           return;
         }
-        const imgs = await editImage(yunwuKey, finalPrompt, imageToEdit, {
+        const imgs = await editImage(yunwuKey, finalPrompt, imageFiles, {
           n,
           size,
           quality,
@@ -262,16 +356,13 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
     } finally {
       setIsGenerating(false);
     }
-  }, [mode, yunwuKey, buildPrompt, n, size, quality, style, editImageFile, gfImageFile, maskFile, onError, onSuccess, onGenerate]);
+  }, [mode, yunwuKey, buildPrompt, n, size, quality, style, gfImageFile, editImageEntries, maskFile, onError, onSuccess, onGenerate]);
 
   const handleReset = () => {
     setPrompt('');
-    setRefImageFile(null);
-    setRefImagePreview('');
+    setEditImageEntries([]);
     setMaskFile(null);
     setMaskPreview('');
-    setEditImageFile(null);
-    setEditImagePreview('');
     setSelectedGirlfriend(null);
     setGfImageFile(null);
     setResults([]);
@@ -281,6 +372,9 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
     const ext = url.startsWith('data:') ? 'png' : 'jpg';
     downloadImage(url, `gpt-image-2-${Date.now()}-${idx + 1}.${ext}`);
   };
+
+  const activeAnchors = buildAnchor();
+  const hasImages = editImageEntries.length > 0 || selectedGirlfriend !== null;
 
   return (
     <div className="space-y-4">
@@ -316,6 +410,9 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
           <div className="flex items-center gap-2">
             <Sparkles size={12} className="text-primary" />
             <span className="text-xs font-medium text-text-primary">提示词</span>
+            {mode === 'edit' && hasImages && (
+              <span className="text-[10px] text-text-tertiary">（提示词中的 @图1 等锚定了参考图）</span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {style && (
@@ -357,101 +454,129 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
           onChange={(e) => setPrompt(e.target.value)}
           placeholder={mode === 'txt2img'
             ? '描述你想生成的图片内容...'
-            : '描述你想对图片做的修改...'}
+            : '描述你想对图片做的修改...（配合 @图1 @图2 等锚定参考图）'}
           rows={4}
           className="w-full px-4 py-3 text-sm text-text-primary placeholder:text-text-secondary resize-none focus:outline-none"
         />
-      </div>
-
-      {/* ── Reference image (txt2img mode) ── */}
-      {mode === 'txt2img' && (
-        <div className="rounded-xl bg-white border border-border overflow-hidden">
-          <div className="px-4 py-2.5 border-b border-border bg-bg-elevated">
-            <div className="flex items-center gap-2">
-              <ImagePlus size={12} className="text-text-tertiary" />
-              <span className="text-xs font-medium text-text-primary">参考图片（可选）</span>
-              <span className="text-[10px] text-text-tertiary">用作角色/风格参考</span>
-            </div>
-          </div>
-          <div className="p-4">
-            {refImagePreview ? (
-              <div className="relative rounded-xl overflow-hidden">
-                <img src={refImagePreview} alt="参考" className="w-full object-contain max-h-48" />
+        {/* Active anchors bar */}
+        {activeAnchors && (
+          <div className="px-4 pb-2.5 flex flex-wrap gap-1.5">
+            {selectedGirlfriend && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 border border-red-200 text-red-400 text-[10px] font-medium">
+                <span className="text-red-400">@</span>
+                数字人:{selectedGirlfriend.nameZh || selectedGirlfriend.name}
                 <button
-                  onClick={() => { setRefImageFile(null); setRefImagePreview(''); }}
-                  className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 transition-colors"
+                  onClick={handleGirlfriendDeselect}
+                  className="ml-0.5 hover:text-red-600"
                 >
-                  <X size={12} className="text-white" />
+                  <X size={8} />
                 </button>
-              </div>
-            ) : (
-              <label className="flex flex-col items-center justify-center gap-2 py-8 rounded-xl border-2 border-dashed border-border hover:border-primary transition-colors cursor-pointer">
-                <Upload size={20} className="text-text-tertiary" />
-                <span className="text-xs text-text-tertiary">点击上传参考图片</span>
-                <input
-                  ref={refInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleRefImageChange}
-                />
-              </label>
+              </span>
             )}
+            {editImageEntries.map((entry, idx) => (
+              <span
+                key={idx}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-400 text-[10px] font-medium"
+              >
+                <span className="text-blue-400">@</span>
+                {entry.name}
+                <button
+                  onClick={() => handleRemoveEditImage(idx)}
+                  className="ml-0.5 hover:text-blue-600"
+                >
+                  <X size={8} />
+                </button>
+              </span>
+            ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* ── Edit image (edit mode) ── */}
       {mode === 'edit' && (
         <div className="rounded-xl bg-white border border-border overflow-hidden">
           <div className="px-4 py-2.5 border-b border-border bg-bg-elevated">
-            <div className="flex items-center gap-2">
-              <ImageIcon size={12} className="text-text-tertiary" />
-              <span className="text-xs font-medium text-text-primary">待编辑图片</span>
-              {editImageFile && (
-                <button
-                  onClick={() => { setEditImageFile(null); setEditImagePreview(''); }}
-                  className="ml-auto text-[10px] text-red-400 hover:text-red-500"
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ImageIcon size={12} className="text-text-tertiary" />
+                <span className="text-xs font-medium text-text-primary">参考图片</span>
+                <span className="text-[10px] text-text-tertiary">最多 {MAX_EDIT_IMAGES} 张</span>
+              </div>
+              <div className="flex items-center gap-2">
+                {editImageEntries.length > 0 && (
+                  <span className="text-[10px] text-text-tertiary">{editImageEntries.length} / {MAX_EDIT_IMAGES}</span>
+                )}
+                <label
+                  className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium cursor-pointer transition-all ${
+                    editImageEntries.length >= MAX_EDIT_IMAGES
+                      ? 'bg-bg-elevated text-text-secondary cursor-not-allowed'
+                      : 'bg-primary text-white hover:opacity-90 active:scale-95'
+                  }`}
                 >
-                  清除
-                </button>
-              )}
+                  <Plus size={10} />
+                  <span>添加图片</span>
+                  <input
+                    ref={editInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={handleEditImageChange}
+                    disabled={editImageEntries.length >= MAX_EDIT_IMAGES}
+                  />
+                </label>
+              </div>
             </div>
           </div>
-          <div className="p-4">
-            {editImagePreview || selectedGirlfriend ? (
-              <div className="relative rounded-xl overflow-hidden">
-                <img
-                  src={editImagePreview || selectedGirlfriend!.portraitUrl}
-                  alt="编辑"
-                  className="w-full object-contain max-h-64"
-                />
-                <button
-                  onClick={() => {
-                    setEditImageFile(null);
-                    setEditImagePreview('');
-                    setSelectedGirlfriend(null);
-                    setGfImageFile(null);
-                  }}
-                  className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 transition-colors"
-                >
-                  <X size={12} className="text-white" />
-                </button>
+
+          {/* Images grid */}
+          {editImageEntries.length > 0 ? (
+            <div className="p-4">
+              <div className="grid grid-cols-4 gap-3">
+                {editImageEntries.map((entry, idx) => (
+                  <div key={idx} className="relative rounded-xl overflow-hidden border border-border bg-bg-elevated group">
+                    <img
+                      src={entry.preview}
+                      alt={entry.name}
+                      className="w-full object-cover"
+                      style={{ aspectRatio: '1', height: 80 }}
+                    />
+                    {/* Name badge */}
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-1.5 py-1.5">
+                      <span className="text-white text-[10px] font-medium">{entry.name}</span>
+                    </div>
+                    {/* Remove button */}
+                    <button
+                      onClick={() => handleRemoveEditImage(idx)}
+                      className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-black/70 transition-all"
+                    >
+                      <X size={10} className="text-white" />
+                    </button>
+                    {/* Number indicator */}
+                    <div className="absolute top-1 left-1 w-4 h-4 rounded-full bg-black/50 flex items-center justify-center">
+                      <span className="text-white text-[9px] font-bold">{idx + 1}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ) : (
-              <label className="flex flex-col items-center justify-center gap-2 py-8 rounded-xl border-2 border-dashed border-border hover:border-primary transition-colors cursor-pointer">
+            </div>
+          ) : (
+            <div className="p-4 flex flex-col items-center justify-center">
+              <label className="flex flex-col items-center justify-center gap-2 py-8 w-full rounded-xl border-2 border-dashed border-border hover:border-primary transition-colors cursor-pointer">
                 <Upload size={20} className="text-text-tertiary" />
-                <span className="text-xs text-text-tertiary">点击上传要编辑的图片</span>
+                <span className="text-xs text-text-tertiary">点击添加参考图片（最多 {MAX_EDIT_IMAGES} 张）</span>
+                <span className="text-[10px] text-text-tertiary/60">支持 JPG / PNG / WEBP</span>
                 <input
                   ref={editInputRef}
                   type="file"
                   accept="image/*"
+                  multiple
                   className="hidden"
                   onChange={handleEditImageChange}
                 />
               </label>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Mask upload */}
           <div className="px-4 pb-4">

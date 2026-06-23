@@ -1,8 +1,8 @@
 import { fetchImageAsDataUrl, extractImagesFromZipAsDataUrls } from './runninghub';
 import { getStorageQuota } from './storageQuota';
+import { openDB, idbGet, idbGetAll, idbPut, idbDelete, idbClear, idbCount } from './idb';
 
 const IMAGE_CACHE_PREFIX = 'img_cache_';
-const UNIFIED_CACHE_PREFIX = 'uni_cache_';
 
 /** Fallback constants used until quota is detected. */
 const FALLBACK_MAX_CACHE_MB = 100;
@@ -119,9 +119,9 @@ function evictLRU(targetBytes: number): void {
 
   let freed = 0;
   for (const [key, entry] of sorted) {
-    if (getTotalCacheSize() - freed <= targetBytes) break;
     freed += entry.sizeBytes;
     localStorage.removeItem(key);
+    if (getTotalCacheSize() <= targetBytes) break;
   }
 }
 
@@ -400,11 +400,34 @@ export async function getOrFetchTaskImages(zipUrl: string, blobUrls: string[]): 
 }
 
 // ─── Unified Image Cache (shared across all features) ──────────────────────────
-// Uses content-based hashing so identical images share the same entry regardless of source.
+// Uses IndexedDB so images are not limited by localStorage's 5MB quota.
+// A synchronous in-memory copy is kept for fast resolveImageRef / storeImageSync reads.
 
-const UNIFIED_CACHE_STORE_KEY = 'uni_img_store_v2'; // v2 format — do NOT change, or existing cache entries become unreadable
+const UNIFIED_DB_NAME = 'nsfwxo_unified_img';
+const UNIFIED_DB_VERSION = 1;
+const UNIFIED_STORE_NAME = 'images';
+
+// In-memory snapshot of the unified cache for synchronous reads.
+// Updated whenever IndexedDB is written.
+let _memStore: Record<string, UnifiedImageEntry> = {};
+let _db: IDBDatabase | null = null;
+/** Resolves when the in-memory store is first loaded from IndexedDB. */
+let _syncReady: Promise<void> | null = null;
+
+async function getUnifiedDB(): Promise<IDBDatabase> {
+  if (_db) return _db;
+  _db = await openDB(UNIFIED_DB_NAME, UNIFIED_DB_VERSION, (db) => {
+    if (!db.objectStoreNames.contains(UNIFIED_STORE_NAME)) {
+      const store = db.createObjectStore(UNIFIED_STORE_NAME, { keyPath: 'key' });
+      store.createIndex('cachedAt', 'cachedAt');
+      store.createIndex('refCount', 'refCount');
+    }
+  });
+  return _db;
+}
 
 interface UnifiedImageEntry {
+  key: string;
   dataUrl: string;
   cachedAt: number;
   sizeBytes: number;
@@ -420,48 +443,61 @@ export function hashString(input: string): string {
   return (hash >>> 0).toString(36);
 }
 
-export function getUnifiedStore(): Record<string, UnifiedImageEntry> {
+/** Load from IndexedDB into memory. Called once on startup and after each write. */
+async function _syncMemStore(): Promise<void> {
   try {
-    const raw = localStorage.getItem(UNIFIED_CACHE_STORE_KEY);
-    if (!raw) return {};
-    return JSON.parse(raw) as Record<string, UnifiedImageEntry>;
-  } catch {
-    return {};
+    const db = await getUnifiedDB();
+    const all = await idbGetAll(db, UNIFIED_STORE_NAME) as UnifiedImageEntry[];
+    _memStore = {};
+    for (const entry of all) {
+      _memStore[entry.key] = entry;
+    }
+  } catch (e) {
+    console.error('[imageCache] _syncMemStore failed:', e);
   }
 }
 
-function saveUnifiedStore(store: Record<string, UnifiedImageEntry>): void {
-  try {
-    localStorage.setItem(UNIFIED_CACHE_STORE_KEY, JSON.stringify(store));
-  } catch {}
+/** Bootstrap: load IndexedDB into memory on first import. Other modules must call
+ *  _ensureSync() before reading _memStore to avoid races on cold start. */
+_syncReady = _syncMemStore().catch((e) => {
+  console.error('[imageCache] initial _syncMemStore failed:', e);
+});
+
+export function getUnifiedStore(): Record<string, UnifiedImageEntry> {
+  return _memStore;
+}
+
+function _persistToIDB(entry: UnifiedImageEntry): Promise<void> {
+  return getUnifiedDB().then((db) => {
+    return idbPut(db, UNIFIED_STORE_NAME, entry).catch((e) => console.error('[imageCache] idbPut failed:', e));
+  });
+}
+
+function _removeFromIDB(key: string): Promise<void> {
+  return getUnifiedDB().then((db) => {
+    return idbDelete(db, UNIFIED_STORE_NAME, key).catch((e) => console.error('[imageCache] idbDelete failed:', e));
+  });
 }
 
 function getUnifiedCacheSize(): number {
-  const store = getUnifiedStore();
-  return Object.values(store).reduce((sum, e) => sum + e.sizeBytes, 0);
+  return Object.values(_memStore).reduce((sum, e) => sum + e.sizeBytes, 0);
 }
 
-function evictUnifiedCache(targetBytes: number): void {
-  const store = getUnifiedStore();
-  const entries = Object.entries(store)
+async function evictUnifiedCache(targetBytes: number): Promise<void> {
+  const entries = Object.entries(_memStore)
     .filter(([, e]) => e.refCount <= 0)
     .sort(([, a], [, b]) => a.cachedAt - b.cachedAt);
 
   let freed = 0;
   for (const [key, entry] of entries) {
-    if (getUnifiedCacheSize() - freed <= targetBytes) break;
     freed += entry.sizeBytes;
-    delete store[key];
+    delete _memStore[key];
+    await _removeFromIDB(key);
+    if (getUnifiedCacheSize() <= targetBytes) break;
   }
-  saveUnifiedStore(store);
 }
 
 export function computeImageHash(dataUrl: string): string {
-  // Hash the full data URL. Truncating to the first 2048 chars (the PNG/JPEG
-  // header + start of pixel data) caused hash collisions across distinct
-  // images that share an identical header, which led to the unified cache
-  // returning the same ref for different panels — `<img src="abc123">` then
-  // fell through to the raw ref string and the image failed to render.
   return hashString(dataUrl);
 }
 
@@ -475,44 +511,36 @@ async function ensureUnifiedLimits(): Promise<number> {
  */
 export async function storeImage(dataUrl: string): Promise<string> {
   await ensureLimits();
-  const store = getUnifiedStore();
   const key = computeImageHash(dataUrl);
   const now = Date.now();
 
-  if (store[key]) {
-    store[key].cachedAt = now;
-    store[key].refCount += 1;
+  if (_memStore[key]) {
+    _memStore[key].cachedAt = now;
+    _memStore[key].refCount += 1;
+    await _persistToIDB(_memStore[key]);
   } else {
     const sizeBytes = dataUrl.length * 2;
     const maxBytes = await ensureUnifiedLimits();
     const currentSize = getUnifiedCacheSize();
     if (currentSize + sizeBytes > maxBytes) {
-      evictUnifiedCache(maxBytes - sizeBytes);
+      await evictUnifiedCache(maxBytes - sizeBytes);
     }
-    store[key] = { dataUrl, cachedAt: now, sizeBytes, refCount: 1 };
+    _memStore[key] = { key, dataUrl, cachedAt: now, sizeBytes, refCount: 1 };
+    await _persistToIDB(_memStore[key]);
   }
-  saveUnifiedStore(store);
   return key;
 }
 
 /**
  * Synchronous variant of storeImage. Used by paths (e.g. addFavorite) that
- * must return a ref the caller can read back IMMEDIATELY — otherwise the
- * favorites tab reads localStorage before this async write finishes and
- * resolveImageRef returns "" for the brand-new ref, showing a broken
- * `<img src="">` until the async resolution swaps it in.
- *
- * The async storeImage still runs after this and does the size/LRU
- * enforcement; on dedup hits it just increments refCount, so the sync
- * version's write doesn't cause double-counting.
+ * must return a ref the caller can read back IMMEDIATELY.
  */
 export function storeImageSync(dataUrl: string): string {
   const key = computeImageHash(dataUrl);
   const now = Date.now();
-  const store = getUnifiedStore();
-  if (!store[key]) {
-    store[key] = { dataUrl, cachedAt: now, sizeBytes: dataUrl.length * 2, refCount: 1 };
-    saveUnifiedStore(store);
+  if (!_memStore[key]) {
+    _memStore[key] = { key, dataUrl, cachedAt: now, sizeBytes: dataUrl.length * 2, refCount: 1 };
+    _persistToIDB(_memStore[key]).catch(() => {});
   }
   return key;
 }
@@ -520,14 +548,19 @@ export function storeImageSync(dataUrl: string): string {
 /**
  * Resolve a content hash reference back to the actual data URL.
  */
+export async function _ensureSync(): Promise<void> {
+  if (_syncReady) await _syncReady;
+}
+
 export function resolveImageRef(ref: string): string {
   if (!ref) return '';
   if (ref.startsWith('data:') || ref.startsWith('blob:') || ref.startsWith('http')) return ref;
-  const store = getUnifiedStore();
-  // If the ref resolves in the unified store, return the data URL.
-  // Otherwise return an empty string so consumers can filter it out
-  // (avoids `<img src="abc123">` silently failing to load).
-  return store[ref]?.dataUrl || '';
+  if (ref.startsWith('FALLBACK:')) return ref.replace('FALLBACK:', '');
+  const entry = _memStore[ref];
+  if (!entry) {
+    console.warn('[resolveImageRef] ref not found in cache:', ref, '(store has', Object.keys(_memStore).length, 'entries)');
+  }
+  return entry?.dataUrl || '';
 }
 
 /**
@@ -535,10 +568,9 @@ export function resolveImageRef(ref: string): string {
  */
 function touchImage(ref: string): void {
   if (!ref || ref.startsWith('data:')) return;
-  const store = getUnifiedStore();
-  if (store[ref]) {
-    store[ref].cachedAt = Date.now();
-    saveUnifiedStore(store);
+  if (_memStore[ref]) {
+    _memStore[ref].cachedAt = Date.now();
+    _persistToIDB(_memStore[ref]).catch(() => {});
   }
 }
 
@@ -547,10 +579,9 @@ function touchImage(ref: string): void {
  */
 function releaseImage(ref: string): void {
   if (!ref || ref.startsWith('data:')) return;
-  const store = getUnifiedStore();
-  if (store[ref]) {
-    store[ref].refCount = Math.max(0, store[ref].refCount - 1);
-    saveUnifiedStore(store);
+  if (_memStore[ref]) {
+    _memStore[ref].refCount = Math.max(0, _memStore[ref].refCount - 1);
+    _persistToIDB(_memStore[ref]).catch(() => {});
   }
 }
 
@@ -596,9 +627,8 @@ export async function cacheStoryboardPanelImages(
     localStorage.setItem(cacheKey, JSON.stringify(entry));
   } catch {
     evictUnifiedCache(entry.refs.reduce((s, r) => {
-      const store = getUnifiedStore();
-      return s + (store[r]?.sizeBytes || 0);
-    }, 0));
+      return s + (_memStore[r]?.sizeBytes || 0);
+    }, 0)).catch(() => {});
     try { localStorage.setItem(cacheKey, JSON.stringify(entry)); } catch {}
   }
 }
@@ -622,9 +652,6 @@ export function getCachedStoryboardPanelImages(historyId: string, panelIdx: numb
     return [];
   }
 
-  // Resolve refs → data URLs. resolveImageRef returns '' for refs whose
-  // body was evicted from the unified cache; filter those out so callers
-  // see a hit only when there's actually a usable image.
   const resolved = entry.refs.map((r) => resolveImageRef(r)).filter(Boolean);
   if (resolved.length === 0) {
     console.debug(`[Cache] hit panel ${cacheKey} but ${entry.refs.length} refs all unresolved (unified cache miss)`);
@@ -669,28 +696,26 @@ async function ensureDataUrlInternal(url: string): Promise<string> {
     const dataUrl = await fetchImageAsDataUrl(url);
     return dataUrl || '';
   }
-  // Bare hash refs (e.g. "abc123") are NOT valid <img src> — they only
-  // resolve inside the unified cache via resolveImageRef. Return empty so
-  // callers can filter them out instead of writing a bad src to genStates.
   return '';
 }
 
 // ─── Export unified cache stats for debugging ───────────────────────────────────
 
-export function getUnifiedCacheStats(): { count: number; sizeMB: number } {
-  const store = getUnifiedStore();
-  const count = Object.keys(store).length;
-  const sizeBytes = Object.values(store).reduce((s, e) => s + e.sizeBytes, 0);
-  return { count, sizeMB: sizeBytes / (1024 * 1024) };
+export function getUnifiedCacheStats(): Promise<{ count: number; sizeMB: number }> {
+  return _syncMemStore().then(() => {
+    const count = Object.keys(_memStore).length;
+    const sizeBytes = Object.values(_memStore).reduce((s, e) => s + e.sizeBytes, 0);
+    return { count, sizeMB: sizeBytes / (1024 * 1024) };
+  });
 }
 
 export function clearUnifiedImageCache(): void {
-  const keys: string[] = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key?.startsWith(UNIFIED_CACHE_STORE_KEY) || key?.startsWith(PANEL_IMAGE_CACHE_PREFIX)) {
-      keys.push(key);
-    }
-  }
-  keys.forEach((k) => localStorage.removeItem(k));
+  _memStore = {};
+  localStorage.removeItem('uni_img_store_v2'); // legacy key cleanup
+  getUnifiedDB().then((db) => {
+    idbClear(db, UNIFIED_STORE_NAME).catch(() => {});
+  });
 }
+
+// ─── Bootstrap: load IndexedDB into memory on first import ─────────────────────
+_syncMemStore().catch(console.error);

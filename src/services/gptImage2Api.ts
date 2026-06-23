@@ -106,12 +106,11 @@ export async function generateImage(
     quality = 'medium',
   }: { n?: number; size?: GptImageSize; quality?: GptImageQuality } = {}
 ): Promise<GptImageResult[]> {
-  // Yunwu API / OpenAI images/generations 对 n 参数的支持不稳定，
-  // 传 n>1 时可能只返回 1 张。改为并发调用 n 次，每次 n=1，确保拿到所有图片。
   const CONCURRENCY = 3;
   const DELAY_MS = 800;
 
   const results: GptImageResult[] = [];
+  const errors: string[] = [];
 
   const doOne = async (): Promise<void> => {
     const res = await fetch(`${YUNWU_BASE}/images/generations`, {
@@ -135,25 +134,38 @@ export async function generateImage(
     }
   };
 
-  const batches: Promise<void>[] = [];
   for (let i = 0; i < n; i += CONCURRENCY) {
-    const batch = Array.from({ length: Math.min(CONCURRENCY, n - i) }, () =>
-      doOne().catch(() => {/* 吞掉单次失败 */})
-    );
-    batches.push(Promise.all(batch).then(() => {/* resolve to void */}));
+    const batchSize = Math.min(CONCURRENCY, n - i);
+    const batch: Promise<void>[] = [];
+    for (let j = 0; j < batchSize; j++) {
+      batch.push(
+        doOne().catch((err) => {
+          errors.push(err instanceof Error ? err.message : String(err));
+        })
+      );
+    }
+    await Promise.all(batch);
     if (i + CONCURRENCY < n) {
       await new Promise<void>((r) => setTimeout(r, DELAY_MS));
     }
   }
-  await Promise.all(batches);
+
+  if (results.length === 0 && errors.length > 0) {
+    const uniqueErrors = [...new Set(errors)];
+    const msg = uniqueErrors.length === 1
+      ? uniqueErrors[0]
+      : `${uniqueErrors.length} 个请求全部失败：${uniqueErrors[0]}`;
+    throw new Error(msg);
+  }
+
   return results;
 }
 
-/** Image-to-image (edit) via GPT Image 2 */
+/** Image-to-image (edit) via GPT Image 2 — supports multiple reference images */
 export async function editImage(
   apiKey: string,
   prompt: string,
-  imageFile: File,
+  imageFiles: File | File[],
   {
     n = 1,
     size = '1024x1024',
@@ -166,6 +178,8 @@ export async function editImage(
     maskFile?: File;
   } = {}
 ): Promise<GptImageResult[]> {
+  const files = Array.isArray(imageFiles) ? imageFiles : [imageFiles];
+
   // 图片编辑接口同样可能只返回 1 张图片，改用逐张并发调用。
   const CONCURRENCY = 3;
   const DELAY_MS = 800;
@@ -178,7 +192,10 @@ export async function editImage(
     form.append('n', '1');
     form.append('size', size);
     form.append('quality', quality);
-    form.append('image', imageFile);
+    // Append each image file — the API accepts multiple image files for multi-reference
+    for (const file of files) {
+      form.append('image', file);
+    }
     if (maskFile) {
       form.append('mask', maskFile);
     }
@@ -201,17 +218,31 @@ export async function editImage(
     }
   };
 
-  const batches: Promise<void>[] = [];
+  const errors: string[] = [];
   for (let i = 0; i < n; i += CONCURRENCY) {
-    const batch = Array.from({ length: Math.min(CONCURRENCY, n - i) }, () =>
-      doOne().catch(() => {/* 吞掉单次失败 */})
-    );
-    batches.push(Promise.all(batch).then(() => {/* resolve to void */}));
+    const batchSize = Math.min(CONCURRENCY, n - i);
+    const batch: Promise<void>[] = [];
+    for (let j = 0; j < batchSize; j++) {
+      batch.push(
+        doOne().catch((err) => {
+          errors.push(err instanceof Error ? err.message : String(err));
+        })
+      );
+    }
+    await Promise.all(batch);
     if (i + CONCURRENCY < n) {
       await new Promise<void>((r) => setTimeout(r, DELAY_MS));
     }
   }
-  await Promise.all(batches);
+
+  if (results.length === 0 && errors.length > 0) {
+    const uniqueErrors = [...new Set(errors)];
+    const msg = uniqueErrors.length === 1
+      ? uniqueErrors[0]
+      : `${uniqueErrors.length} 个请求全部失败：${uniqueErrors[0]}`;
+    throw new Error(msg);
+  }
+
   return results;
 }
 

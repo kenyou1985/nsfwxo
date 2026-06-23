@@ -452,6 +452,7 @@ export function TextToImagePage({
                       const preset = LORA_PRESETS.find((p) => p.name === name);
                       if (preset) updateParam('lora1Weight', preset.defaultWeight);
                     }}
+                    onClick={(e) => e.stopPropagation()}
                     disabled={taskManager.isFull}
                     className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-primary transition-colors cursor-pointer"
                   >
@@ -488,6 +489,7 @@ export function TextToImagePage({
                       const preset = LORA_PRESETS.find((p) => p.name === name);
                       if (preset) updateParam('lora2Weight', preset.defaultWeight);
                     }}
+                    onClick={(e) => e.stopPropagation()}
                     disabled={taskManager.isFull}
                     className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-primary transition-colors cursor-pointer"
                   >
@@ -524,6 +526,7 @@ export function TextToImagePage({
                       const preset = LORA_PRESETS.find((p) => p.name === name);
                       if (preset) updateParam('lora3Weight', preset.defaultWeight);
                     }}
+                    onClick={(e) => e.stopPropagation()}
                     disabled={taskManager.isFull}
                     className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-primary transition-colors cursor-pointer"
                   >
@@ -663,6 +666,7 @@ export function TextToImagePage({
                   const preset = LORA_PRESETS.find((p) => p.name === name);
                   if (preset) updateParam('lora1Weight', preset.defaultWeight);
                 }}
+                onClick={(e) => e.stopPropagation()}
                 disabled={taskManager.isFull}
                 className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-primary transition-colors cursor-pointer"
               >
@@ -684,6 +688,7 @@ export function TextToImagePage({
                   const preset = LORA_PRESETS.find((p) => p.name === name);
                   if (preset) updateParam('lora2Weight', preset.defaultWeight);
                 }}
+                onClick={(e) => e.stopPropagation()}
                 disabled={taskManager.isFull}
                 className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-primary transition-colors cursor-pointer"
               >
@@ -705,6 +710,7 @@ export function TextToImagePage({
                   const preset = LORA_PRESETS.find((p) => p.name === name);
                   if (preset) updateParam('lora3Weight', preset.defaultWeight);
                 }}
+                onClick={(e) => e.stopPropagation()}
                 disabled={taskManager.isFull}
                 className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-primary transition-colors cursor-pointer"
               >
