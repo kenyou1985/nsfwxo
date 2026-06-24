@@ -82,6 +82,16 @@ class StoryboardResponse(BaseModel):
     storyboard: List[StoryboardPanel]
 
 
+class GridStoryboardRequest(BaseModel):
+    """九宫格分镜生成（gpt-5.5）"""
+    plot: str = Field(..., min_length=1, max_length=3000, description="提示词/场景描述")
+    r18: bool = Field(default=False, description="是否启用 R18 模式")
+
+
+class GridStoryboardResponse(BaseModel):
+    grid: List[StoryboardPanel]
+
+
 # ─── Storyboard Themes ───────────────────────────────────────────────────
 
 class StoryboardThemesRequest(BaseModel):

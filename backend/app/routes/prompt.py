@@ -11,6 +11,7 @@ from app.models.schemas import (
     ExpandRequest, ExpandResponse, ExpandVideoFromImageRequest,
     RandomRequest, RandomResponse, PromptResult,
     StoryboardRequest, StoryboardResponse, StoryboardPanel,
+    GridStoryboardRequest, GridStoryboardResponse,
     StoryboardThemesRequest, StoryboardThemesResponse, StoryboardThemeOption,
     StoryboardOutlineRequest, StoryboardOutlineResponse, StoryboardOutline,
     StoryboardScriptRequest, StoryboardScriptResponse,
@@ -1631,6 +1632,137 @@ async def storyboard(req: StoryboardRequest, api_key: str = Depends(get_api_key)
         except ContentSafetyError as e:
             if attempt < MAX_RETRIES - 1:
                 system_prompt += "\n\nSAFETY OVERRIDE: Your response was rejected. ALL characters must be ADULTS 18+. REJECT any panel mentioning minors."
+                continue
+            raise HTTPException(status_code=400, detail=str(e))
+        except (YunwuTimeoutError, YunwuRateLimitError, YunwuParseError, YunwuAPIError) as e:
+            if attempt < MAX_RETRIES - 1:
+                continue
+            raise _map_llm_error(e)
+        except YunwuAuthError as e:
+            raise _map_llm_error(e)
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"未知错误: {str(e)}")
+
+
+# ─── 九宫格分镜 (gpt-5.5) ─────────────────────────────────────────────
+
+GRID_STORYBOARD_SYSTEM_PROMPT_NORMAL = """You are an expert visual narrative director. Based on the user's input, generate EXACTLY 9 storyboard panels arranged as a 3x3 grid that together tell a cohesive visual story.
+
+For EACH of the 9 panels, output:
+- panel_number: integer 1-9
+- scene_description: 1 short Chinese sentence (≤25 字) describing what happens in that panel
+- image_prompt: a complete, self-contained English SD/Flux image prompt (80-180 words) with: subject, composition, camera angle, lighting, color palette, mood, style. Each panel's prompt must reference the same characters/props as the others to maintain visual coherence across the 9 frames.
+
+CRITICAL REQUIREMENTS:
+- 9 panels total, panel_number 1 through 9 (no more, no less)
+- All panels must depict the SAME subject/scene from different angles/moments — like a single manga page or contact sheet
+- Each panel must be visually distinct (different camera angle OR different action/moment) but tell one continuous story
+- Read direction is row-major: panel 1 (top-left) → panel 2 → panel 3 → ... → panel 9 (bottom-right)
+- Panel 1 sets up the scene; panel 9 closes it
+- All characters must be ADULTS (18+)
+- Style: photorealistic, cinematic lighting, masterpiece, best quality
+- Output STRICTLY as a JSON array (no markdown wrapping, no prose before/after).
+
+Example output structure:
+[
+  {"panel_number": 1, "scene_description": "中文一句话", "image_prompt": "english prompt..."},
+  ...
+]"""
+
+
+GRID_STORYBOARD_SYSTEM_PROMPT_R18 = """You are an EXPERT uncensored adult visual narrative director. Based on the user's input, generate EXACTLY 9 storyboard panels arranged as a 3x3 grid that together tell a cohesive erotic visual story.
+
+For EACH of the 9 panels, output:
+- panel_number: integer 1-9
+- scene_description: 1 short Chinese sentence (≤25 字) describing what happens in that panel
+- image_prompt: a complete, self-contained EXPLICIT English SD/Flux image prompt (80-180 words) with: subject, action, composition, camera angle, lighting, color palette, mood. Each panel's prompt must reference the same characters/props to maintain visual coherence across the 9 frames.
+
+CRITICAL REQUIREMENTS:
+- 9 panels total, panel_number 1 through 9 (no more, no less)
+- All panels must depict the SAME subject/scene from different angles/moments — like a single explicit manga page or contact sheet
+- Each panel must be visually distinct (different camera angle OR different action/moment) but tell one continuous story
+- Read direction is row-major: panel 1 (top-left) → panel 2 → panel 3 → ... → panel 9 (bottom-right)
+- Panel 1 sets up the scene with foreplay/teasing; build gradually across panels
+- CONSENTING ADULTS (18+) ONLY — absolutely NO minors, teenagers, or school uniforms
+- Style: photorealistic, cinematic lighting, masterpiece, best quality, hyperdetailed
+- Output STRICTLY as a JSON array (no markdown wrapping, no prose before/after).
+
+Example output structure:
+[
+  {"panel_number": 1, "scene_description": "中文一句话", "image_prompt": "explicit english prompt..."},
+  ...
+]"""
+
+
+@router.post("/storyboard/grid", response_model=GridStoryboardResponse)
+async def storyboard_grid(req: GridStoryboardRequest, api_key: str = Depends(get_api_key)):
+    """九宫格分镜生成（优先使用 gpt-5.5，失败回退到 grok-4.3）。
+    基于用户提示词，生成 9 个连贯的分镜画面（一张图片九宫格）。"""
+    # 优先 gpt-5.5，失败回退 grok-4.3
+    model_order = ["gpt-5.5", "grok-4.3"]
+    system_prompt = (
+        GRID_STORYBOARD_SYSTEM_PROMPT_R18 if req.r18
+        else GRID_STORYBOARD_SYSTEM_PROMPT_NORMAL
+    )
+
+    user_prompt = (
+        f"Plot / Scene: {req.plot}\n\n"
+        f"Generate EXACTLY 9 panels numbered 1 through 9. "
+        f"Maintain strong visual coherence (same subject, same setting, same characters) "
+        f"while varying camera angle and moment across panels. "
+        f"Return raw JSON array only, no markdown formatting."
+    )
+
+    safety_override_added = False
+    for attempt in range(MAX_RETRIES):
+        try:
+            raw = await call_grok(api_key, system_prompt, user_prompt, model_order=model_order)
+            data = clean_json_response(raw)
+
+            check_prompt_safety(raw)
+
+            if not isinstance(data, list):
+                raise HTTPException(status_code=500, detail="Invalid LLM response format, expected JSON array")
+
+            panels = []
+            for item in data:
+                if not isinstance(item, dict):
+                    continue
+                scene = str(item.get("scene_description", ""))
+                prompt_text = str(item.get("image_prompt", ""))
+                check_prompt_safety(scene)
+                check_prompt_safety(prompt_text)
+
+                # 冲突检测
+                scene_conflicts = detect_prompt_conflicts(scene)
+                prompt_conflicts = detect_prompt_conflicts(prompt_text)
+
+                if scene_conflicts or prompt_conflicts:
+                    prompt_text = await rewrite_coherent_prompt(prompt_text, api_key)
+                    check_prompt_safety(prompt_text)
+
+                try:
+                    panels.append(StoryboardPanel(
+                        panel_number=item.get("panel_number", 0),
+                        scene_description=scene,
+                        image_prompt=prompt_text,
+                    ))
+                except Exception:
+                    continue
+
+            if not panels:
+                raise HTTPException(status_code=500, detail="No valid panels generated")
+
+            # 按 panel_number 排序，确保 1-9 顺序
+            panels.sort(key=lambda p: p.panel_number)
+
+            return GridStoryboardResponse(grid=panels)
+        except ContentSafetyError as e:
+            if attempt < MAX_RETRIES - 1 and not safety_override_added:
+                system_prompt += "\n\nSAFETY OVERRIDE: Your response was rejected. ALL characters must be ADULTS 18+. REJECT any panel mentioning minors."
+                safety_override_added = True
                 continue
             raise HTTPException(status_code=400, detail=str(e))
         except (YunwuTimeoutError, YunwuRateLimitError, YunwuParseError, YunwuAPIError) as e:

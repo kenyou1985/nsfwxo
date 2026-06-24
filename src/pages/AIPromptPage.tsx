@@ -2615,11 +2615,11 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     if (panels.length === 0) { onError('先生成分镜'); return; }
     setGeneratingScript(true);
     try {
-      // Explicit model order: try grok-4.2 first; if it fails (timeout,
+      // Explicit model order: try grok-4.3 first; if it fails (timeout,
       // 5xx, content filter, etc.) backend's call_grok() automatically
       // falls back to grok-4-1-fast-non-reasoning. Same chain used for
       // per-panel regen below.
-      const modelOrder = ['grok-4.2', 'grok-4-1-fast-non-reasoning'];
+      const modelOrder = ['grok-4.3', 'grok-4-1-fast-non-reasoning'];
       const res = await generateVideoScript(selectedTheme?.title || '默认主题', r18Mode, panels, true, modelOrder);
 
       // Async mode: track for polling
@@ -4338,7 +4338,7 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
   videoGenLoading?: boolean;
   onDirectGenerateVideo?: (imageUrl: string, prompt: string) => void;
   themeTitle?: string;
-  /** Trigger a single-panel video-prompt "智能扩写" via backend grok-4.2 → grok-4-1-fast-non-reasoning */
+  /** Trigger a single-panel video-prompt "智能扩写" via backend grok-4.3 → grok-4-1-fast-non-reasoning */
   onRegenerateVideoPrompt?: () => void;
   /** Spinner state for the smart-expand button */
   promptEditLoading?: boolean;
@@ -4545,7 +4545,7 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
                     <button
                       onClick={onRegenerateVideoPrompt}
                       disabled={promptEditLoading}
-                      title="智能扩写：先用 grok-4.2，失败自动用 grok-4-1-fast-non-reasoning"
+                      title="智能扩写：先用 grok-4.3，失败自动用 grok-4-1-fast-non-reasoning"
                       className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
                         promptEditLoading
                           ? 'bg-bg-elevated text-text-secondary cursor-not-allowed'

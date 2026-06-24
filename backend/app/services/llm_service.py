@@ -10,7 +10,7 @@ from openai import AsyncOpenAI, APIError, AuthenticationError, RateLimitError
 logger = logging.getLogger(__name__)
 
 YUNWU_BASE_URL = "https://api.yunwu.ai/v1"
-MODEL_NAME = "grok-4.2"
+MODEL_NAME = "grok-4.3"
 MODEL_FALLBACK = "grok-4-1-fast-non-reasoning"
 REQUEST_TIMEOUT = 90
 MAX_RETRIES = 3

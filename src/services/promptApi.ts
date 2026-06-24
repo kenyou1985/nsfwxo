@@ -326,6 +326,43 @@ export async function generateStoryboard(
   }
 }
 
+export interface GridPanel {
+  panel_number: number;
+  scene_description: string;
+  image_prompt: string;
+}
+
+export interface GridStoryboardResponse {
+  grid: GridPanel[];
+}
+
+export async function generateGridStoryboard(
+  plot: string,
+  r18: boolean = false,
+): Promise<GridStoryboardResponse> {
+  const base = getBackendUrl();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 300000); // 5 min
+  try {
+    const response = await apiRequest<GridStoryboardResponse>(
+      `${base}/api/prompt/storyboard/grid`,
+      {
+        method: 'POST',
+        signal: controller.signal as RequestInit['signal'],
+        body: JSON.stringify({ plot, r18 }),
+      },
+    );
+    return response;
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error('九宫格分镜生成超时（5分钟），请重试');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function generateStoryboardThemes(
   r18: boolean = false,
   count: number = 10,

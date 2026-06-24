@@ -14,10 +14,11 @@ import {
   Video,
   History,
   Plus,
+  Grid,
 } from 'lucide-react';
 import { GirlfriendSelector } from '../components/GirlfriendSelector';
 import { generateImage, editImage, girlfriendToFile, type GptImageQuality, type GptImageSize, type GptImageResult } from '../services/gptImage2Api';
-import { expandPrompt } from '../services/promptApi';
+import { expandPrompt, generateGridStoryboard, type GridPanel } from '../services/promptApi';
 import { saveGeneratedImages, toggleFavorite } from '../services/gptImage2HistoryService';
 import { getFavorites } from '../services/storage';
 import type { GirlfriendPreset } from '../data/girlfriendPresets';
@@ -97,6 +98,10 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
 
   // ── Smart expand ──────────────────────────────────────────────────────────
   const [isExpanding, setIsExpanding] = useState(false);
+
+  // ── Grid storyboard ──────────────────────────────────────────────────────
+  const [isGeneratingGrid, setIsGeneratingGrid] = useState(false);
+  const [gridPanels, setGridPanels] = useState<GridPanel[]>([]);
 
   // ── Results ───────────────────────────────────────────────────────────────
   const [results, setResults] = useState<GptImageResult[]>([]);
@@ -282,6 +287,37 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
     }
   }, [prompt, selectedGirlfriend, mode, onError, onSuccess]);
 
+  // ── Grid storyboard ───────────────────────────────────────────────────────
+  const handleGenerateGrid = useCallback(async () => {
+    if (!prompt.trim()) {
+      onError('请先输入提示词内容');
+      return;
+    }
+
+    setIsGeneratingGrid(true);
+    setGridPanels([]);
+    try {
+      const res = await generateGridStoryboard(prompt.trim(), false);
+      if (!res.grid || res.grid.length === 0) {
+        onError('九宫格分镜生成返回为空，请重试');
+        return;
+      }
+      setGridPanels(res.grid);
+      onSuccess('九宫格分镜生成完成');
+    } catch (err) {
+      console.error('[GPTImage2Page] handleGenerateGrid failed:', err);
+      onError(err instanceof Error ? err.message : '九宫格分镜生成失败');
+    } finally {
+      setIsGeneratingGrid(false);
+    }
+  }, [prompt, onError, onSuccess]);
+
+  const handleApplyGridPrompt = useCallback((panel: GridPanel) => {
+    setPrompt(panel.image_prompt.trim());
+    setGridPanels([]);
+    onSuccess(`已应用第 ${panel.panel_number} 格分镜提示词`);
+  }, [onSuccess]);
+
   const buildPrompt = useCallback((): string => {
     const parts: string[] = [prompt.trim()];
     if (style) {
@@ -428,7 +464,7 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
             <button
               onClick={handleExpand}
               disabled={isExpanding || !prompt.trim()}
-              title="智能扩写：先用 grok-4.2，失败自动用 grok-4-1-fast"
+              title="智能扩写：先用 grok-4.3，失败自动用 grok-4-1-fast"
               className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
                 isExpanding || !prompt.trim()
                   ? 'bg-bg-elevated text-text-secondary cursor-not-allowed'
@@ -444,6 +480,28 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
                 <>
                   <Wand2 size={11} />
                   智能扩写
+                </>
+              )}
+            </button>
+            <button
+              onClick={handleGenerateGrid}
+              disabled={isGeneratingGrid || !prompt.trim()}
+              title="九宫格分镜：基于提示词生成9个连贯的分镜画面"
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                isGeneratingGrid || !prompt.trim()
+                  ? 'bg-bg-elevated text-text-secondary cursor-not-allowed'
+                  : 'bg-blue-500 text-white hover:bg-blue-600 active:scale-[0.97]'
+              }`}
+            >
+              {isGeneratingGrid ? (
+                <>
+                  <Loader size={11} className="animate-spin" />
+                  生成中...
+                </>
+              ) : (
+                <>
+                  <Grid size={11} />
+                  九宫格
                 </>
               )}
             </button>
@@ -856,6 +914,87 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
                 })}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Grid Storyboard ── */}
+      {gridPanels.length > 0 && (
+        <div className="rounded-xl bg-white border border-border overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-border bg-bg-elevated flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Grid size={12} className="text-blue-500" />
+              <span className="text-xs font-medium text-text-primary">九宫格分镜</span>
+              <span className="text-[10px] text-text-tertiary">点击任意格子可应用其提示词</span>
+            </div>
+            <button
+              onClick={() => setGridPanels([])}
+              className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-bg-elevated text-text-secondary hover:text-text-primary transition-colors"
+            >
+              <X size={10} />关闭
+            </button>
+          </div>
+          <div className="p-4">
+            {/* 3x3 Grid */}
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              {gridPanels.map((panel) => (
+                <div
+                  key={panel.panel_number}
+                  className="relative rounded-xl overflow-hidden border border-border bg-bg-elevated group cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all"
+                  style={{ aspectRatio: '1' }}
+                  onClick={() => handleApplyGridPrompt(panel)}
+                  title={`应用第 ${panel.panel_number} 格提示词`}
+                >
+                  {/* Placeholder gradient per panel */}
+                  <div
+                    className="absolute inset-0 flex items-center justify-center"
+                    style={{
+                      background: `linear-gradient(135deg,
+                        hsl(${(panel.panel_number - 1) * 40}, 60%, 85%) 0%,
+                        hsl(${(panel.panel_number - 1) * 40 + 30}, 50%, 75%) 100%)`,
+                    }}
+                  >
+                    <span className="text-3xl font-bold text-white/60">
+                      {panel.panel_number}
+                    </span>
+                  </div>
+                  {/* Number badge */}
+                  <div className="absolute top-1 left-1 w-5 h-5 rounded-full bg-black/50 flex items-center justify-center">
+                    <span className="text-white text-[10px] font-bold">{panel.panel_number}</span>
+                  </div>
+                  {/* Apply hint overlay */}
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                    <span className="text-white text-[10px] font-medium opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 px-2 py-1 rounded-lg">
+                      应用
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* Panel details */}
+            <div className="space-y-2">
+              {gridPanels.map((panel) => (
+                <div
+                  key={panel.panel_number}
+                  className="flex items-start gap-2 p-2 rounded-lg bg-bg-elevated hover:bg-border/30 transition-colors cursor-pointer group"
+                  onClick={() => handleApplyGridPrompt(panel)}
+                >
+                  <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center text-white text-[10px] font-bold">
+                    {panel.panel_number}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] text-text-tertiary mb-0.5">{panel.scene_description}</p>
+                    <p className="text-xs text-text-primary leading-snug line-clamp-2">{panel.image_prompt}</p>
+                  </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleApplyGridPrompt(panel); }}
+                    className="flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-blue-500 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-blue-600"
+                  >
+                    <Sparkles size={9} />应用
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
