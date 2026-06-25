@@ -1758,6 +1758,17 @@ async def storyboard_grid(req: GridStoryboardRequest, api_key: str = Depends(get
             # 按 panel_number 排序，确保 1-9 顺序
             panels.sort(key=lambda p: p.panel_number)
 
+            # 补齐缺失的格子（LLM 有时不严格返回 9 个）
+            existing_numbers = {p.panel_number for p in panels}
+            for num in range(1, 10):
+                if num not in existing_numbers:
+                    panels.append(StoryboardPanel(
+                        panel_number=num,
+                        scene_description=f"分镜 {num}",
+                        image_prompt=panels[0].image_prompt if panels else "",
+                    ))
+            panels.sort(key=lambda p: p.panel_number)
+
             return GridStoryboardResponse(grid=panels)
         except ContentSafetyError as e:
             if attempt < MAX_RETRIES - 1 and not safety_override_added:

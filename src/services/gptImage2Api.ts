@@ -181,11 +181,11 @@ export async function editImage(
   const files = Array.isArray(imageFiles) ? imageFiles : [imageFiles];
 
   // 图片编辑接口同样可能只返回 1 张图片，改用逐张并发调用。
-  const CONCURRENCY = 3;
-  const DELAY_MS = 800;
+  const CONCURRENCY = 1;
+  const DELAY_MS = 1500;
   const results: GptImageResult[] = [];
 
-  const doOne = async (): Promise<void> => {
+  const doOne = async (retries = 2): Promise<void> => {
     const form = new FormData();
     form.append('model', 'gpt-image-2');
     form.append('prompt', prompt);
@@ -205,6 +205,16 @@ export async function editImage(
       headers: { Authorization: `Bearer ${apiKey}` },
       body: form,
     });
+
+    if (!res.ok) {
+      const bodyText = await res.text().catch(() => '');
+      if ((res.status === 429 || res.status === 502 || res.status === 503) && retries > 0) {
+        await new Promise(r => setTimeout(r, (3 - retries) * 3000 + 2000));
+        return doOne(retries - 1);
+      }
+      throw parseYunwuError(res, bodyText);
+    }
+
     const data = await parseResponse<{
       created: number;
       data: Array<{ url?: string; b64_json?: string; revised_prompt?: string }>;
