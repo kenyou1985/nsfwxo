@@ -93,6 +93,8 @@ export interface TextToImageParams {
   modelPose: string;
   props: string[];
   cameraAngle: string;
+  /** RunningHub workflow ID override — empty uses the default workflow */
+  workflowId: string;
 }
 
 export interface ImageToImageParams {

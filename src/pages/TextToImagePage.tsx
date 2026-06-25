@@ -8,6 +8,7 @@ import { TaskList } from '../components/TaskList';
 import type { TextToImageParams, QueuedTask } from '../types';
 import { MAX_TASKS, type TaskManagerReturn } from '../hooks/useTaskManager';
 import { DEFAULT_TXT2IMG_PARAMS, QUALITY_BOOST_PROMPT, LORA_PRESETS } from '../constants';
+import { WORKFLOW } from '../services/runninghub';
 import type { WeightMode } from '../components/PromptEditor';
 import { buildTxt2ImgNodeList } from '../utils/txt2imgNodeBuilder';
 import { expandPrompt } from '../services/promptApi';
@@ -309,7 +310,7 @@ export function TextToImagePage({
     try {
       const nodeList = buildNodeList();
       const combinedPrompt = customPrompt || params.prompt || finalPrompt;
-      await taskManager.addTask('txt2img', nodeList, combinedPrompt);
+      await taskManager.addTask('txt2img', nodeList, combinedPrompt, params.workflowId || undefined);
       onSuccess('任务已提交');
     } catch (err) {
       onError(err instanceof Error ? err.message : '提交失败');
@@ -720,6 +721,19 @@ export function TextToImagePage({
                 ))}
               </select>
               <ParameterSlider label="权重" value={params.lora3Weight} min={0} max={2} step={0.05} onChange={(v) => updateParam('lora3Weight', v)} disabled={taskManager.isFull} />
+            </div>
+            <div className="border-t border-border/50 pt-3 space-y-2">
+              <label className="block text-xs text-text-secondary">RunningHub 模型</label>
+              <select
+                value={params.workflowId || ''}
+                onChange={(e) => updateParam('workflowId', e.target.value)}
+                disabled={taskManager.isFull}
+                className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-primary transition-colors cursor-pointer"
+              >
+                <option value="">默认（真实系批量文生图）</option>
+                <option value={WORKFLOW.RANDOM_PROMPT}>随机提示词模型</option>
+                <option value={WORKFLOW.REALISTIC_V3}>真实 V3 模型</option>
+              </select>
             </div>
             <div className="border-t border-border/50 pt-3">
               <label className="block text-xs text-text-secondary mb-1">Checkpoint 模型</label>

@@ -880,4 +880,5 @@ export const DEFAULT_TXT2IMG_PARAMS = {
   modelPose: '-',
   props: [],
   cameraAngle: '-',
+  workflowId: '',
 };
