@@ -1651,23 +1651,35 @@ async def storyboard(req: StoryboardRequest, api_key: str = Depends(get_api_key)
 GRID_STORYBOARD_SYSTEM_PROMPT_NORMAL = """You are an expert visual narrative director. Based on the user's input, generate EXACTLY 9 storyboard panels arranged as a 3x3 grid that together tell a cohesive visual story.
 
 For EACH of the 9 panels, output:
-- panel_number: integer 1-9
-- scene_description: 1 short Chinese sentence (≤25 字) describing what happens in that panel
-- image_prompt: a complete, self-contained English SD/Flux image prompt (80-180 words) with: subject, composition, camera angle, lighting, color palette, mood, style. Each panel's prompt must reference the same characters/props as the others to maintain visual coherence across the 9 frames.
+- panel_number: integer 1-9 (top-left=1, top-center=2, top-right=3, middle-left=4, middle-center=5, middle-right=6, bottom-left=7, bottom-center=8, bottom-right=9)
+- scene_description: 1 short Chinese sentence (≤25 characters) describing what SPECIFICALLY happens in that panel. PANELS 1-9 MUST ALL BE DIFFERENT scenes.
+- image_prompt: a unique, self-contained English SD/Flux image prompt (80-180 words). Each panel's prompt MUST describe a DIFFERENT visual moment with a DIFFERENT camera angle, action, or composition. The same subject/setting may appear across panels but each panel must be visually distinct from all other panels.
 
-CRITICAL REQUIREMENTS:
-- 9 panels total, panel_number 1 through 9 (no more, no less)
-- All panels must depict the SAME subject/scene from different angles/moments — like a single manga page or contact sheet
-- Each panel must be visually distinct (different camera angle OR different action/moment) but tell one continuous story
+STRICT DIVERSITY RULES:
+1. Panel 1: Wide establishing shot, sets the scene and mood from a distance
+2. Panel 2: Medium shot, subject enters or begins action
+3. Panel 3: Close-up or detail shot of a specific element (face, hands, object)
+4. Panel 4: Medium shot from a DIFFERENT angle than panels 1-3
+5. Panel 5: Full body shot or wide shot of subject in action
+6. Panel 6: Medium close-up, emotional reaction or key moment
+7. Panel 7: Wide shot with environment, different framing than panel 1
+8. Panel 8: Detail or partial shot (e.g., movement blur, fabric, light)
+9. Panel 9: Wide or medium closing shot, completes the story arc
+
+- Each panel must be DISTINCT from all others — NO two panels may share the same camera angle, framing, or action description
+- All 9 scene_description fields must be UNIQUE and different from each other
+- All 9 image_prompt fields must be UNIQUE and different from each other
 - Read direction is row-major: panel 1 (top-left) → panel 2 → panel 3 → ... → panel 9 (bottom-right)
-- Panel 1 sets up the scene; panel 9 closes it
+- Panel 1 sets up; panel 9 closes it with a sense of resolution or climax
 - All characters must be ADULTS (18+)
 - Style: photorealistic, cinematic lighting, masterpiece, best quality
-- Output STRICTLY as a JSON array (no markdown wrapping, no prose before/after).
+- Output STRICTLY as a raw JSON array — NO markdown code fences, NO markdown formatting, NO prose before or after the JSON array
 
-Example output structure:
+Example output (note all 9 panels are different):
 [
-  {"panel_number": 1, "scene_description": "中文一句话", "image_prompt": "english prompt..."},
+  {"panel_number": 1, "scene_description": "女主角在公园小径起点", "image_prompt": "Wide establishing shot of a beautiful adult woman..."},
+  {"panel_number": 2, "scene_description": "她开始沿着小路慢跑", "image_prompt": "Medium shot of the same woman jogging forward..."},
+  {"panel_number": 3, "scene_description": "晨光洒在她的侧脸", "image_prompt": "Close-up of her face with golden hour light..."},
   ...
 ]"""
 
@@ -1675,25 +1687,28 @@ Example output structure:
 GRID_STORYBOARD_SYSTEM_PROMPT_R18 = """You are an EXPERT uncensored adult visual narrative director. Based on the user's input, generate EXACTLY 9 storyboard panels arranged as a 3x3 grid that together tell a cohesive erotic visual story.
 
 For EACH of the 9 panels, output:
-- panel_number: integer 1-9
-- scene_description: 1 short Chinese sentence (≤25 字) describing what happens in that panel
-- image_prompt: a complete, self-contained EXPLICIT English SD/Flux image prompt (80-180 words) with: subject, action, composition, camera angle, lighting, color palette, mood. Each panel's prompt must reference the same characters/props to maintain visual coherence across the 9 frames.
+- panel_number: integer 1-9 (top-left=1, top-center=2, top-right=3, middle-left=4, middle-center=5, middle-right=6, bottom-left=7, bottom-center=8, bottom-right=9)
+- scene_description: 1 short Chinese sentence (≤25 characters). PANELS 1-9 MUST ALL BE DIFFERENT scenes — NO repeated descriptions.
+- image_prompt: a unique, self-contained EXPLICIT English SD/Flux image prompt (80-180 words). Each panel's prompt MUST describe a DIFFERENT visual moment with a DIFFERENT camera angle, action, or composition. NO two panels may share the same angle or framing.
 
-CRITICAL REQUIREMENTS:
-- 9 panels total, panel_number 1 through 9 (no more, no less)
-- All panels must depict the SAME subject/scene from different angles/moments — like a single explicit manga page or contact sheet
-- Each panel must be visually distinct (different camera angle OR different action/moment) but tell one continuous story
-- Read direction is row-major: panel 1 (top-left) → panel 2 → panel 3 → ... → panel 9 (bottom-right)
-- Panel 1 sets up the scene with foreplay/teasing; build gradually across panels
+STRICT DIVERSITY RULES:
+1. Panel 1: Wide establishing shot, sets the scene and mood
+2. Panel 2: Medium shot, subject enters or begins action
+3. Panel 3: Close-up or detail shot (face, body detail, object)
+4. Panel 4: Medium shot from a DIFFERENT angle than panels 1-3
+5. Panel 5: Full body shot or wide shot of subject in action
+6. Panel 6: Medium close-up, emotional reaction or key erotic moment
+7. Panel 7: Wide shot with environment, different framing than panel 1
+8. Panel 8: Detail or partial shot (movement, fabric, lighting detail)
+9. Panel 9: Wide or medium closing shot, completes the erotic story arc
+
+- Each panel must be DISTINCT from all others — NO two panels may share the same camera angle, framing, or action
+- All 9 scene_description fields must be UNIQUE and different from each other
+- All 9 image_prompt fields must be UNIQUE and different from each other
+- Panel 1 sets up with teasing; build gradually across panels 1→9 toward climax
 - CONSENTING ADULTS (18+) ONLY — absolutely NO minors, teenagers, or school uniforms
 - Style: photorealistic, cinematic lighting, masterpiece, best quality, hyperdetailed
-- Output STRICTLY as a JSON array (no markdown wrapping, no prose before/after).
-
-Example output structure:
-[
-  {"panel_number": 1, "scene_description": "中文一句话", "image_prompt": "explicit english prompt..."},
-  ...
-]"""
+- Output STRICTLY as a raw JSON array — NO markdown code fences, NO markdown formatting, NO prose before or after the JSON array"""
 
 
 @router.post("/storyboard/grid", response_model=GridStoryboardResponse)
@@ -1757,6 +1772,15 @@ async def storyboard_grid(req: GridStoryboardRequest, api_key: str = Depends(get
 
             # 按 panel_number 排序，确保 1-9 顺序
             panels.sort(key=lambda p: p.panel_number)
+
+            # 多样性校验：9个格子的 image_prompt 不能全相同（LLM偷懒时会出现）
+            unique_prompts = set(p.image_prompt.lower().strip() for p in panels)
+            if len(unique_prompts) < 3:
+                logging.warning(
+                    "[storyboard/grid] detected duplicate-heavy panels (%d/%d unique), retrying...",
+                    len(unique_prompts), len(panels)
+                )
+                raise HTTPException(status_code=500, detail="Panels lack diversity, retrying...")
 
             # 补齐缺失的格子（LLM 有时不严格返回 9 个）
             existing_numbers = {p.panel_number for p in panels}
