@@ -727,6 +727,7 @@ export function TextToImagePage({
               <select
                 value={params.workflowId || ''}
                 onChange={(e) => updateParam('workflowId', e.target.value)}
+                onClick={(e) => e.stopPropagation()}
                 disabled={taskManager.isFull}
                 className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-primary transition-colors cursor-pointer"
               >
