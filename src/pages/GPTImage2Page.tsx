@@ -533,57 +533,46 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
     setPrompt(panel.image_prompt.trim());
 
     try {
-      // 高清放大：优先 editImage（保持构图），429 后降级为 generateImage（用原始提示词重新生成）
-      const upscale = async (): Promise<{ url: string; mode: 'edit' | 'txt2img' }> => {
-        const croppedPanel = await cropPanelFromGrid(panelNum);
+      const croppedPanel = await cropPanelFromGrid(panelNum);
+      let finalUrl: string;
 
-        if (croppedPanel) {
-          const blob = await (await fetch(croppedPanel)).blob();
-          const file = new File([blob], `panel-${panelNum}.png`, { type: 'image/png' });
-          try {
-            const imgs = await editImage(yunwuKey, '', file, {
-              n: 1,
-              size: '1024x1792',
-              quality: 'medium',
-            });
-            if (imgs.length > 0 && imgs[0].url) {
-              return { url: imgs[0].url, mode: 'edit' };
-            }
-          } catch (e) {
-            console.warn(`[GPTImage2Page] editImage failed, falling back to generateImage:`, e);
-          }
+      if (croppedPanel) {
+        const blob = await (await fetch(croppedPanel)).blob();
+        const file = new File([blob], `panel-${panelNum}.png`, { type: 'image/png' });
+        const imgs = await editImage(yunwuKey, panel.image_prompt.trim(), file, {
+          n: 1,
+          size: '1024x1792',
+          quality: 'medium',
+        });
+        if (!imgs.length || !imgs[0].url) {
+          throw new Error(`第 ${panelNum} 格图片放大失败，请稍后重试`);
         }
-        // 降级文生图：用原始分镜提示词生成（构图可能略有不同）
+        finalUrl = imgs[0].url;
+        await saveGeneratedImages([finalUrl], panel.image_prompt, '', '1024x1792', 'medium', 1, 'edit');
+        onSuccess(`第 ${panelNum} 格图片高清放大完成`);
+      } else {
         const imgs = await generateImage(yunwuKey, panel.image_prompt.trim(), {
           n: 1,
           size: '1024x1792',
           quality: 'medium',
         });
-        if (imgs.length > 0 && imgs[0].url) {
-          return { url: imgs[0].url, mode: 'txt2img' };
+        if (!imgs.length || !imgs[0].url) {
+          throw new Error(`第 ${panelNum} 格图片生成失败`);
         }
-        throw new Error(`第 ${panelNum} 格图片生成失败`);
-      };
+        finalUrl = imgs[0].url;
+        await saveGeneratedImages([finalUrl], panel.image_prompt, '', '1024x1792', 'medium', 1, 'txt2img');
+        onSuccess(`第 ${panelNum} 格图片生成完成`);
+      }
 
-      const { url: resultUrl, mode: generateMode } = await upscale();
-      const dataUrl = await fetchImageAsDataUrl(resultUrl);
-      const finalUrl = dataUrl || resultUrl;
-
+      const dataUrl = await fetchImageAsDataUrl(finalUrl);
+      const resolvedUrl = dataUrl || finalUrl;
       const currentPanelImages = gridPanelsMap[selectedGridIndex] ?? {};
       setGridPanelsMap(prev => ({
         ...prev,
-        [selectedGridIndex]: { ...currentPanelImages, [panelNum]: finalUrl },
+        [selectedGridIndex]: { ...currentPanelImages, [panelNum]: resolvedUrl },
       }));
-
-      setResults(prev => [...prev, { url: finalUrl, error: false, revised_prompt: null }]);
-      await saveGeneratedImages(
-        [finalUrl], panel.image_prompt, '',
-        '1024x1792', 'medium', 1, generateMode
-      );
+      setResults(prev => [...prev, { url: resolvedUrl, error: false, revised_prompt: null }]);
       onGenerate?.();
-      onSuccess(generateMode === 'edit'
-        ? `第 ${panelNum} 格图片高清放大完成`
-        : `第 ${panelNum} 格图片生成完成`);
 
     } catch (err) {
       console.error('[GPTImage2Page] handleGeneratePanelImage failed:', err);
