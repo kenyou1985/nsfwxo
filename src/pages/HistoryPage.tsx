@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Trash2, Image as ImageIcon, Clock, X, RotateCcw, Loader2, Video, Heart, Download, AlertTriangle, HardDrive, Bookmark, Layers, Check, Circle, Palette } from 'lucide-react';
+import { Trash2, Image as ImageIcon, Clock, X, RotateCcw, Loader2, Video, Heart, Download, AlertTriangle, HardDrive, Bookmark, Layers, Check, Circle, Palette, Copy } from 'lucide-react';
 import { getRecords, deleteRecord, clearAllHistory, type HistoryRecord } from '../services/historyService';
 import { loadCachedOrExtractedImages } from '../services/imageCacheService';
 import { extractImagesFromZipAsDataUrls } from '../services/runninghub';
@@ -197,6 +197,14 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
     deleteGpt2Record(id);
     refreshRecords();
   }, [refreshRecords]);
+
+  const handleCopyPrompt = useCallback((prompt: string) => {
+    navigator.clipboard.writeText(prompt).then(() => {
+      onSuccess?.('提示词已复制');
+    }).catch(() => {
+      onError?.('复制失败');
+    });
+  }, [onSuccess, onError]);
 
   const handleRegenerateGpt2 = useCallback((record: GptImage2Record) => {
     if (!onNavigate) {
@@ -582,6 +590,15 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
                     >
                       <RotateCcw size={14} />
                     </button>
+                    {record.prompt?.trim() && (
+                      <button
+                        onClick={() => handleCopyPrompt(record.prompt!)}
+                        className="w-7 h-7 rounded-lg hover:bg-blue-500/20 flex items-center justify-center text-text-secondary hover:text-blue-400 transition-colors"
+                        title="复制提示词"
+                      >
+                        <Copy size={14} />
+                      </button>
+                    )}
                     <button
                       onClick={() => handleDelete(record.id)}
                       className="w-7 h-7 rounded-lg hover:bg-red-500/20 flex items-center justify-center text-text-secondary hover:text-red-400 transition-colors"
@@ -1063,6 +1080,15 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
                             title="重新生成"
                           >
                             <RotateCcw size={14} />
+                          </button>
+                        )}
+                        {record.prompt?.trim() && (
+                          <button
+                            onClick={() => handleCopyPrompt(record.prompt!)}
+                            className="w-7 h-7 rounded-lg hover:bg-blue-500/20 flex items-center justify-center text-text-secondary hover:text-blue-400 transition-colors"
+                            title="复制提示词"
+                          >
+                            <Copy size={14} />
                           </button>
                         )}
                         <button
