@@ -571,7 +571,7 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
         ...prev,
         [selectedGridIndex]: { ...currentPanelImages, [panelNum]: resolvedUrl },
       }));
-      setResults(prev => [...prev, { url: resolvedUrl, error: false, revised_prompt: null }]);
+      setResults(prev => [...prev, { url: resolvedUrl, revisedPrompt: undefined }]);
       onGenerate?.();
 
     } catch (err) {
@@ -1339,7 +1339,7 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
                             className="absolute inset-0 w-full h-full object-contain"
                             onClick={() => {
                               const idx = results.length;
-                              setResults(prev => [...prev, { url: currentUrl, error: false, revised_prompt: null }]);
+                              setResults(prev => [...prev, { url: currentUrl, revisedPrompt: undefined }]);
                               openLightbox(idx);
                             }}
                           />
@@ -1376,7 +1376,7 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       const globalIdx = results.length;
-                                      setResults(prev => [...prev, { url: upscaleUrl, error: false, revised_prompt: null }]);
+                                      setResults(prev => [...prev, { url: upscaleUrl, revisedPrompt: undefined }]);
                                       openLightbox(globalIdx);
                                     }}
                                   />
@@ -1401,7 +1401,7 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
                                           onClick={(e) => {
                                             e.stopPropagation();
                                             const globalIdx = results.length;
-                                            setResults(prev => [...prev, { url: upscaleUrl, error: false, revised_prompt: null }]);
+                                            setResults(prev => [...prev, { url: upscaleUrl, revisedPrompt: undefined }]);
                                             openLightbox(globalIdx);
                                           }}
                                           className="px-1.5 py-0.5 rounded bg-blue-600 text-white text-[9px] hover:bg-blue-700"

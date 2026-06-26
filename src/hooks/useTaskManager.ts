@@ -613,6 +613,7 @@ export function useTaskManager({
         id,
         taskId: null,
         workflowType,
+        workflowIdOverride,
         status: 'QUEUEING',
         prompt,
         zipUrl: null,

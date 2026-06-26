@@ -1,10 +1,12 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { Settings2, ChevronDown, ChevronUp, Sparkles, LayoutTemplate } from 'lucide-react';
+import { Settings2, Sparkles, LayoutTemplate } from 'lucide-react';
 import { TagPanel } from '../components/TagPanel';
 import { ParameterSlider } from '../components/ParameterSlider';
+import { ParameterSelect } from '../components/ParameterSelect';
 import { GenerateButton } from '../components/GenerateButton';
 import { ImageGrid } from '../components/ImageGrid';
 import { TaskList } from '../components/TaskList';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import type { TextToImageParams, QueuedTask } from '../types';
 import { MAX_TASKS, type TaskManagerReturn } from '../hooks/useTaskManager';
 import { DEFAULT_TXT2IMG_PARAMS, QUALITY_BOOST_PROMPT, LORA_PRESETS } from '../constants';
@@ -14,6 +16,7 @@ import { buildTxt2ImgNodeList } from '../utils/txt2imgNodeBuilder';
 import { expandPrompt } from '../services/promptApi';
 import { PosePresetSelector } from '../components/PosePresetSelector';
 import { addFavorite, removeFavorite, getFavorites } from '../services/storage';
+import { logger } from '../utils/clientLogger';
 
 interface SelectedTag {
   tag: string;
@@ -255,6 +258,7 @@ export function TextToImagePage({
       const negPrompt = buildNegativePrompt();
       const prompt = `${textToUse}, ${QUALITY_BOOST_PROMPT}`;
       const nodeList = buildTxt2ImgNodeList({
+        workflowId: params.workflowId || WORKFLOW.TEXT_TO_IMAGE,
         width: params.width,
         height: params.height,
         imageCount: params.imageCount,
@@ -268,7 +272,7 @@ export function TextToImagePage({
         lora3Weight: params.lora3Weight,
         checkpoint: params.checkpoint || undefined,
       });
-      await taskManager.addTask('txt2img', nodeList, textToUse);
+      await taskManager.addTask('txt2img', nodeList, textToUse, params.workflowId || undefined);
       onSuccess('任务已提交');
     } catch (err) {
       onError(err instanceof Error ? err.message : '提交失败');
@@ -282,6 +286,7 @@ export function TextToImagePage({
     const negPrompt = buildNegativePrompt();
 
     return buildTxt2ImgNodeList({
+      workflowId: params.workflowId || WORKFLOW.TEXT_TO_IMAGE,
       width: params.width,
       height: params.height,
       imageCount: params.imageCount,
@@ -321,40 +326,6 @@ export function TextToImagePage({
   const allImages = txt2imgTasks.flatMap((t: QueuedTask) => t.images);
 
   const totalSelected = positiveTags.length + negativeTags.length;
-
-  const Section = ({
-    title,
-    isOpen,
-    onToggle,
-    children,
-    icon,
-    count,
-  }: {
-    title: string;
-    isOpen: boolean;
-    onToggle: () => void;
-    children: React.ReactNode;
-    icon?: React.ReactNode;
-    count?: number;
-  }) => (
-    <div className="rounded-2xl bg-white border border-border shadow-card overflow-hidden">
-      <div
-        className="flex items-center justify-between py-3 px-4 text-sm font-medium text-text-primary hover:bg-bg-hover transition-colors cursor-pointer select-none"
-        onClick={onToggle}
-        role="presentation"
-      >
-        <div className="flex items-center gap-2">
-          {icon}
-          {title}
-          {count !== undefined && count > 0 && (
-            <span className="px-1.5 py-0.5 rounded-full bg-primary-light text-primary text-xs">{count}</span>
-          )}
-        </div>
-        {isOpen ? <ChevronUp size={16} className="text-text-tertiary" /> : <ChevronDown size={16} className="text-text-tertiary" />}
-      </div>
-      {isOpen && <div className="px-4 pb-4 space-y-4">{children}</div>}
-    </div>
-  );
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -432,139 +403,140 @@ export function TextToImagePage({
         {/* 预设姿势 */}
         <PosePresetSelector type="image" onSelect={handlePoseSelect} disabled={taskManager.isFull} forceUnlock={true} />
 
-        {/* LoRA & Advanced */}
-        <Section
-          title="LoRA 参数"
-          isOpen={advancedOpen}
-          onToggle={() => setAdvancedOpen((v) => !v)}
-          icon={<Settings2 size={14} className="text-text-tertiary" />}
-        >
-          <div className="grid grid-cols-1 gap-4">
-            {/* LoRA 1 */}
-            <div className="space-y-2">
-              <div className="text-xs text-text-tertiary font-medium">LoRA 1</div>
-              <div className="flex gap-3">
-                <div className="flex-1">
-                  <select
-                    value={params.lora1Name || ''}
-                    onChange={(e) => {
-                      const name = e.target.value;
-                      updateParam('lora1Name', name);
-                      const preset = LORA_PRESETS.find((p) => p.name === name);
-                      if (preset) updateParam('lora1Weight', preset.defaultWeight);
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                    disabled={taskManager.isFull}
-                    className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-primary transition-colors cursor-pointer"
-                  >
-                    <option value="">不使用</option>
-                    {LORA_PRESETS.map((p) => (
-                      <option key={p.name} value={p.name}>{p.label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="w-28">
-                  <ParameterSlider
-                    label="权重"
-                    value={params.lora1Weight}
-                    min={0}
-                    max={2}
-                    step={0.05}
-                    onChange={(v) => updateParam('lora1Weight', v)}
-                    disabled={taskManager.isFull}
-                  />
-                </div>
-              </div>
+        {/* LoRA & Advanced — 直接复用 PosePresetSelector 的折叠面板模式 */}
+        <div className="border border-border rounded-xl bg-white overflow-hidden">
+          <div
+            onClick={() => { logger.logSectionToggle('LoRA 参数', !advancedOpen); setAdvancedOpen((v) => !v); }}
+            className="w-full px-4 py-3 flex items-center justify-between bg-bg-elevated hover:bg-bg-hover transition-colors cursor-pointer select-none disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <div className="flex items-center gap-2">
+              <Settings2 size={14} className="text-text-tertiary" />
+              <span className="text-sm font-medium text-text-primary">LoRA 参数</span>
             </div>
-
-            {/* LoRA 2 */}
-            <div className="space-y-2">
-              <div className="text-xs text-text-tertiary font-medium">LoRA 2</div>
-              <div className="flex gap-3">
-                <div className="flex-1">
-                  <select
-                    value={params.lora2Name || ''}
-                    onChange={(e) => {
-                      const name = e.target.value;
-                      updateParam('lora2Name', name);
-                      const preset = LORA_PRESETS.find((p) => p.name === name);
-                      if (preset) updateParam('lora2Weight', preset.defaultWeight);
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                    disabled={taskManager.isFull}
-                    className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-primary transition-colors cursor-pointer"
-                  >
-                    <option value="">不使用</option>
-                    {LORA_PRESETS.map((p) => (
-                      <option key={p.name} value={p.name}>{p.label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="w-28">
-                  <ParameterSlider
-                    label="权重"
-                    value={params.lora2Weight}
-                    min={0}
-                    max={2}
-                    step={0.05}
-                    onChange={(v) => updateParam('lora2Weight', v)}
-                    disabled={taskManager.isFull}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* LoRA 3 */}
-            <div className="space-y-2">
-              <div className="text-xs text-text-tertiary font-medium">LoRA 3</div>
-              <div className="flex gap-3">
-                <div className="flex-1">
-                  <select
-                    value={params.lora3Name || ''}
-                    onChange={(e) => {
-                      const name = e.target.value;
-                      updateParam('lora3Name', name);
-                      const preset = LORA_PRESETS.find((p) => p.name === name);
-                      if (preset) updateParam('lora3Weight', preset.defaultWeight);
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                    disabled={taskManager.isFull}
-                    className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-primary transition-colors cursor-pointer"
-                  >
-                    <option value="">不使用</option>
-                    {LORA_PRESETS.map((p) => (
-                      <option key={p.name} value={p.name}>{p.label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="w-28">
-                  <ParameterSlider
-                    label="权重"
-                    value={params.lora3Weight}
-                    min={0}
-                    max={2}
-                    step={0.05}
-                    onChange={(v) => updateParam('lora3Weight', v)}
-                    disabled={taskManager.isFull}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Checkpoint */}
-            <div>
-              <label className="block text-xs text-text-secondary mb-1">Checkpoint 模型</label>
-              <input
-                type="text"
-                value={params.checkpoint}
-                onChange={(e) => updateParam('checkpoint', e.target.value)}
-                placeholder="留空使用默认模型"
-                disabled={taskManager.isFull}
-                className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-primary transition-colors"
-              />
-            </div>
+            <svg
+              className={`w-4 h-4 text-text-tertiary transition-transform ${advancedOpen ? 'rotate-180' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
           </div>
-        </Section>
+
+          {advancedOpen && (
+            <div className="p-3 border-t border-border">
+              <ErrorBoundary name="LoRA参数">
+                <div className="grid grid-cols-1 gap-4">
+                  {/* LoRA 1 */}
+                  <div className="space-y-2">
+                    <div className="text-xs text-text-tertiary font-medium">LoRA 1</div>
+                    <div className="flex gap-3">
+                      <div className="flex-1">
+                        <ParameterSelect
+                          label="LoRA 1"
+                          value={params.lora1Name || ''}
+                          options={[{ value: '', label: '不使用' }, ...LORA_PRESETS.map((p) => ({ value: p.name, label: p.label }))]}
+                          onChange={(name) => {
+                            updateParam('lora1Name', name);
+                            const preset = LORA_PRESETS.find((p) => p.name === name);
+                            if (preset) updateParam('lora1Weight', preset.defaultWeight);
+                          }}
+                          disabled={taskManager.isFull}
+                        />
+                      </div>
+                      <div className="w-28">
+                        <ParameterSlider
+                          label="权重"
+                          value={params.lora1Weight}
+                          min={0}
+                          max={2}
+                          step={0.05}
+                          onChange={(v) => updateParam('lora1Weight', v)}
+                          disabled={taskManager.isFull}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* LoRA 2 */}
+                  <div className="space-y-2">
+                    <div className="text-xs text-text-tertiary font-medium">LoRA 2</div>
+                    <div className="flex gap-3">
+                      <div className="flex-1">
+                        <ParameterSelect
+                          label="LoRA 2"
+                          value={params.lora2Name || ''}
+                          options={[{ value: '', label: '不使用' }, ...LORA_PRESETS.map((p) => ({ value: p.name, label: p.label }))]}
+                          onChange={(name) => {
+                            updateParam('lora2Name', name);
+                            const preset = LORA_PRESETS.find((p) => p.name === name);
+                            if (preset) updateParam('lora2Weight', preset.defaultWeight);
+                          }}
+                          disabled={taskManager.isFull}
+                        />
+                      </div>
+                      <div className="w-28">
+                        <ParameterSlider
+                          label="权重"
+                          value={params.lora2Weight}
+                          min={0}
+                          max={2}
+                          step={0.05}
+                          onChange={(v) => updateParam('lora2Weight', v)}
+                          disabled={taskManager.isFull}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* LoRA 3 */}
+                  <div className="space-y-2">
+                    <div className="text-xs text-text-tertiary font-medium">LoRA 3</div>
+                    <div className="flex gap-3">
+                      <div className="flex-1">
+                        <ParameterSelect
+                          label="LoRA 3"
+                          value={params.lora3Name || ''}
+                          options={[{ value: '', label: '不使用' }, ...LORA_PRESETS.map((p) => ({ value: p.name, label: p.label }))]}
+                          onChange={(name) => {
+                            updateParam('lora3Name', name);
+                            const preset = LORA_PRESETS.find((p) => p.name === name);
+                            if (preset) updateParam('lora3Weight', preset.defaultWeight);
+                          }}
+                          disabled={taskManager.isFull}
+                        />
+                      </div>
+                      <div className="w-28">
+                        <ParameterSlider
+                          label="权重"
+                          value={params.lora3Weight}
+                          min={0}
+                          max={2}
+                          step={0.05}
+                          onChange={(v) => updateParam('lora3Weight', v)}
+                          disabled={taskManager.isFull}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Checkpoint */}
+                  <div>
+                    <label className="block text-xs text-text-secondary mb-1">Checkpoint 模型</label>
+                    <input
+                      type="text"
+                      value={params.checkpoint}
+                      onChange={(e) => updateParam('checkpoint', e.target.value)}
+                      placeholder="留空使用默认模型"
+                      disabled={taskManager.isFull}
+                      className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-primary transition-colors"
+                    />
+                  </div>
+                </div>
+              </ErrorBoundary>
+            </div>
+          )}
+        </div>
 
         {/* Desktop: Generate button at bottom */}
         <div className="pt-2 pb-4">
@@ -579,44 +551,61 @@ export function TextToImagePage({
 
       {/* Mobile/Tablet: Single column layout */}
       <div className="xl:hidden space-y-3">
-        {/* Size controls */}
-        <Section
-          title="尺寸设置"
-          isOpen={basicOpen}
-          onToggle={() => setBasicOpen((v) => !v)}
-          icon={<LayoutTemplate size={14} className="text-text-tertiary" />}
-        >
-          <div className="space-y-4">
-            <ParameterSlider
-              label="宽度"
-              value={params.width}
-              min={512}
-              max={2048}
-              step={64}
-              onChange={(v) => updateParam('width', v)}
-              unit="px"
-              disabled={taskManager.isFull}
-            />
-            <ParameterSlider
-              label="高度"
-              value={params.height}
-              min={512}
-              max={2048}
-              step={64}
-              onChange={(v) => updateParam('height', v)}
-              unit="px"
-              disabled={taskManager.isFull}
-            />
-            <ParameterSlider
-              label="图片数量"
-              value={params.imageCount}
-              min={1}
-              max={6}
-              onChange={(v) => updateParam('imageCount', v)}
-              disabled={taskManager.isFull}
-            />
+        {/* Size controls — 直接复用 PosePresetSelector 的折叠面板模式 */}
+        <div className="border border-border rounded-xl bg-white overflow-hidden">
+          <div
+            onClick={() => setBasicOpen((v) => !v)}
+            className="w-full px-4 py-3 flex items-center justify-between bg-bg-elevated hover:bg-bg-hover transition-colors cursor-pointer select-none"
+          >
+            <div className="flex items-center gap-2">
+              <LayoutTemplate size={14} className="text-text-tertiary" />
+              <span className="text-sm font-medium text-text-primary">尺寸设置</span>
+            </div>
+            <svg
+              className={`w-4 h-4 text-text-tertiary transition-transform ${basicOpen ? 'rotate-180' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
           </div>
-        </Section>
+
+          {basicOpen && (
+            <div className="p-3 border-t border-border">
+              <div className="space-y-4">
+                <ParameterSlider
+                  label="宽度"
+                  value={params.width}
+                  min={512}
+                  max={2048}
+                  step={64}
+                  onChange={(v) => updateParam('width', v)}
+                  unit="px"
+                  disabled={taskManager.isFull}
+                />
+                <ParameterSlider
+                  label="高度"
+                  value={params.height}
+                  min={512}
+                  max={2048}
+                  step={64}
+                  onChange={(v) => updateParam('height', v)}
+                  unit="px"
+                  disabled={taskManager.isFull}
+                />
+                <ParameterSlider
+                  label="图片数量"
+                  value={params.imageCount}
+                  min={1}
+                  max={6}
+                  onChange={(v) => updateParam('imageCount', v)}
+                  disabled={taskManager.isFull}
+                />
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Tag Panel — full width on mobile, stacked with editor inline */}
         <TagPanel
@@ -648,107 +637,112 @@ export function TextToImagePage({
         {/* 预设姿势 */}
         <PosePresetSelector type="image" onSelect={handlePoseSelect} disabled={taskManager.isFull} forceUnlock={true} />
 
-        {/* Advanced */}
-        <Section
-          title="高级选项"
-          isOpen={advancedOpen}
-          onToggle={() => setAdvancedOpen((v) => !v)}
-          icon={<Settings2 size={14} className="text-text-tertiary" />}
-        >
-          <div className="space-y-4">
-            {/* LoRA 1 */}
-            <div className="space-y-2">
-              <div className="text-xs text-text-tertiary font-medium">LoRA 1</div>
-              <select
-                value={params.lora1Name || ''}
-                onChange={(e) => {
-                  const name = e.target.value;
-                  updateParam('lora1Name', name);
-                  const preset = LORA_PRESETS.find((p) => p.name === name);
-                  if (preset) updateParam('lora1Weight', preset.defaultWeight);
-                }}
-                onClick={(e) => e.stopPropagation()}
-                disabled={taskManager.isFull}
-                className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-primary transition-colors cursor-pointer"
-              >
-                <option value="">不使用</option>
-                {LORA_PRESETS.map((p) => (
-                  <option key={p.name} value={p.name}>{p.label}</option>
-                ))}
-              </select>
-              <ParameterSlider label="权重" value={params.lora1Weight} min={0} max={2} step={0.05} onChange={(v) => updateParam('lora1Weight', v)} disabled={taskManager.isFull} />
+        {/* Advanced — 直接复用 PosePresetSelector 的折叠面板模式 */}
+        <div className="border border-border rounded-xl bg-white overflow-hidden">
+          <div
+            onClick={() => { logger.logSectionToggle('高级选项', !advancedOpen); setAdvancedOpen((v) => !v); }}
+            className="w-full px-4 py-3 flex items-center justify-between bg-bg-elevated hover:bg-bg-hover transition-colors cursor-pointer select-none disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <div className="flex items-center gap-2">
+              <Settings2 size={14} className="text-text-tertiary" />
+              <span className="text-sm font-medium text-text-primary">高级选项</span>
             </div>
-            {/* LoRA 2 */}
-            <div className="border-t border-border/50 pt-3 space-y-2">
-              <div className="text-xs text-text-tertiary font-medium">LoRA 2</div>
-              <select
-                value={params.lora2Name || ''}
-                onChange={(e) => {
-                  const name = e.target.value;
-                  updateParam('lora2Name', name);
-                  const preset = LORA_PRESETS.find((p) => p.name === name);
-                  if (preset) updateParam('lora2Weight', preset.defaultWeight);
-                }}
-                onClick={(e) => e.stopPropagation()}
-                disabled={taskManager.isFull}
-                className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-primary transition-colors cursor-pointer"
-              >
-                <option value="">不使用</option>
-                {LORA_PRESETS.map((p) => (
-                  <option key={p.name} value={p.name}>{p.label}</option>
-                ))}
-              </select>
-              <ParameterSlider label="权重" value={params.lora2Weight} min={0} max={2} step={0.05} onChange={(v) => updateParam('lora2Weight', v)} disabled={taskManager.isFull} />
-            </div>
-            {/* LoRA 3 */}
-            <div className="border-t border-border/50 pt-3 space-y-2">
-              <div className="text-xs text-text-tertiary font-medium">LoRA 3</div>
-              <select
-                value={params.lora3Name || ''}
-                onChange={(e) => {
-                  const name = e.target.value;
-                  updateParam('lora3Name', name);
-                  const preset = LORA_PRESETS.find((p) => p.name === name);
-                  if (preset) updateParam('lora3Weight', preset.defaultWeight);
-                }}
-                onClick={(e) => e.stopPropagation()}
-                disabled={taskManager.isFull}
-                className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-primary transition-colors cursor-pointer"
-              >
-                <option value="">不使用</option>
-                {LORA_PRESETS.map((p) => (
-                  <option key={p.name} value={p.name}>{p.label}</option>
-                ))}
-              </select>
-              <ParameterSlider label="权重" value={params.lora3Weight} min={0} max={2} step={0.05} onChange={(v) => updateParam('lora3Weight', v)} disabled={taskManager.isFull} />
-            </div>
-            <div className="border-t border-border/50 pt-3 space-y-2">
-              <label className="block text-xs text-text-secondary">RunningHub 模型</label>
-              <select
-                value={params.workflowId || ''}
-                onChange={(e) => updateParam('workflowId', e.target.value)}
-                onClick={(e) => e.stopPropagation()}
-                disabled={taskManager.isFull}
-                className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-primary transition-colors cursor-pointer"
-              >
-                <option value="">默认（真实系批量文生图）</option>
-                <option value={WORKFLOW.RANDOM_PROMPT}>随机提示词模型</option>
-                <option value={WORKFLOW.REALISTIC_V3}>真实 V3 模型</option>
-              </select>
-            </div>
-            <div className="border-t border-border/50 pt-3">
-              <label className="block text-xs text-text-secondary mb-1">Checkpoint 模型</label>
-              <input
-                type="text"
-                value={params.checkpoint}
-                onChange={(e) => updateParam('checkpoint', e.target.value)}
-                placeholder="留空使用默认模型"
-                disabled={taskManager.isFull}
-                className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-primary transition-colors"
-              />
-            </div>
+            <svg
+              className={`w-4 h-4 text-text-tertiary transition-transform ${advancedOpen ? 'rotate-180' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
           </div>
-        </Section>
+
+          {advancedOpen && (
+            <div className="p-3 border-t border-border">
+              <ErrorBoundary name="高级选项">
+                <div className="space-y-4">
+                  {/* LoRA 1 */}
+                  <div className="space-y-2">
+                    <div className="text-xs text-text-tertiary font-medium">LoRA 1</div>
+                    <ParameterSelect
+                      label="LoRA 1"
+                      value={params.lora1Name || ''}
+                      options={[{ value: '', label: '不使用' }, ...LORA_PRESETS.map((p) => ({ value: p.name, label: p.label }))]}
+                      onChange={(name) => {
+                        updateParam('lora1Name', name);
+                        const preset = LORA_PRESETS.find((p) => p.name === name);
+                        if (preset) updateParam('lora1Weight', preset.defaultWeight);
+                      }}
+                      disabled={taskManager.isFull}
+                    />
+                    <ParameterSlider label="权重" value={params.lora1Weight} min={0} max={2} step={0.05} onChange={(v) => updateParam('lora1Weight', v)} disabled={taskManager.isFull} />
+                  </div>
+                  {/* LoRA 2 */}
+                  <div className="border-t border-border/50 pt-3 space-y-2">
+                    <div className="text-xs text-text-tertiary font-medium">LoRA 2</div>
+                    <ParameterSelect
+                      label="LoRA 2"
+                      value={params.lora2Name || ''}
+                      options={[{ value: '', label: '不使用' }, ...LORA_PRESETS.map((p) => ({ value: p.name, label: p.label }))]}
+                      onChange={(name) => {
+                        updateParam('lora2Name', name);
+                        const preset = LORA_PRESETS.find((p) => p.name === name);
+                        if (preset) updateParam('lora2Weight', preset.defaultWeight);
+                      }}
+                      disabled={taskManager.isFull}
+                    />
+                    <ParameterSlider label="权重" value={params.lora2Weight} min={0} max={2} step={0.05} onChange={(v) => updateParam('lora2Weight', v)} disabled={taskManager.isFull} />
+                  </div>
+                  {/* LoRA 3 */}
+                  <div className="border-t border-border/50 pt-3 space-y-2">
+                    <div className="text-xs text-text-tertiary font-medium">LoRA 3</div>
+                    <ParameterSelect
+                      label="LoRA 3"
+                      value={params.lora3Name || ''}
+                      options={[{ value: '', label: '不使用' }, ...LORA_PRESETS.map((p) => ({ value: p.name, label: p.label }))]}
+                      onChange={(name) => {
+                        updateParam('lora3Name', name);
+                        const preset = LORA_PRESETS.find((p) => p.name === name);
+                        if (preset) updateParam('lora3Weight', preset.defaultWeight);
+                      }}
+                      disabled={taskManager.isFull}
+                    />
+                    <ParameterSlider label="权重" value={params.lora3Weight} min={0} max={2} step={0.05} onChange={(v) => updateParam('lora3Weight', v)} disabled={taskManager.isFull} />
+                  </div>
+                  {/* RunningHub 模型 */}
+                  <div className="border-t border-border/50 pt-3 space-y-2">
+                    <div className="text-xs text-text-tertiary font-medium">RunningHub 模型</div>
+                    <ParameterSelect
+                      label="RunningHub 模型"
+                      value={params.workflowId || ''}
+                      options={[
+                        { value: '', label: '默认（真实系批量文生图）' },
+                        { value: WORKFLOW.RANDOM_PROMPT, label: '随机提示词模型' },
+                        { value: WORKFLOW.REALISTIC_V3, label: '真实 V3 模型' },
+                      ]}
+                      onChange={(val) => {
+                        updateParam('workflowId', val);
+                      }}
+                      disabled={taskManager.isFull}
+                    />
+                  </div>
+                  {/* Checkpoint 模型 */}
+                  <div className="border-t border-border/50 pt-3">
+                    <label className="block text-xs text-text-secondary mb-1">Checkpoint 模型</label>
+                    <input
+                      type="text"
+                      value={params.checkpoint}
+                      onChange={(e) => updateParam('checkpoint', e.target.value)}
+                      placeholder="留空使用默认模型"
+                      disabled={taskManager.isFull}
+                      className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-primary transition-colors"
+                    />
+                  </div>
+                </div>
+              </ErrorBoundary>
+            </div>
+          )}
+        </div>
 
         {/* Generate button at bottom of mobile */}
         <div className="pt-1 pb-2">
