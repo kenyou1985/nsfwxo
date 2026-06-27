@@ -46,6 +46,8 @@ export function TextToImagePage({
     ...DEFAULT_TXT2IMG_PARAMS,
     enableRandomPrompt: true,
     threeLoraRandomPrompt: false,
+    // 默认运行模式：3LoRA 模型
+    workflowId: WORKFLOW.THREE_LORA,
   });
 
   // Tag management
