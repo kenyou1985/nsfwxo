@@ -489,7 +489,7 @@ export function useTaskManager({
       const taskSource = task.source;
 
       const resolvedWorkflowId = workflowIdOverride
-        || (workflowType === 'txt2img' ? WORKFLOW.TEXT_TO_IMAGE
+        || (workflowType === 'txt2img' ? WORKFLOW.THREE_LORA
           : workflowType === 'img2img' ? WORKFLOW.IMAGE_TO_IMAGE
           : WORKFLOW.IMAGE_TO_VIDEO);
 
@@ -733,7 +733,7 @@ export function useTaskManager({
       const currentApiKey = apiKeyRef.current;
       if (currentApiKey) {
         const resolvedWorkflowId = task.workflowIdOverride
-          || (task.workflowType === 'txt2img' ? WORKFLOW.TEXT_TO_IMAGE
+          || (task.workflowType === 'txt2img' ? WORKFLOW.THREE_LORA
             : task.workflowType === 'img2img' ? WORKFLOW.IMAGE_TO_IMAGE
             : WORKFLOW.IMAGE_TO_VIDEO);
         runTask(currentApiKey, resolvedWorkflowId, task.nodeInfoList)

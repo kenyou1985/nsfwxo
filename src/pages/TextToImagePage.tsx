@@ -289,7 +289,7 @@ export function TextToImagePage({
       const negPrompt = buildNegativePrompt();
       const prompt = `${textToUse}, ${QUALITY_BOOST_PROMPT}`;
       const nodeList = buildTxt2ImgNodeList({
-        workflowId: params.workflowId || WORKFLOW.TEXT_TO_IMAGE,
+        workflowId: params.workflowId || WORKFLOW.THREE_LORA,
         width: params.width,
         height: params.height,
         imageCount: params.imageCount,
@@ -318,7 +318,7 @@ export function TextToImagePage({
     const negPrompt = buildNegativePrompt();
 
     return buildTxt2ImgNodeList({
-      workflowId: params.workflowId || WORKFLOW.TEXT_TO_IMAGE,
+      workflowId: params.workflowId || WORKFLOW.THREE_LORA,
       width: params.width,
       height: params.height,
       imageCount: params.imageCount,
@@ -718,7 +718,7 @@ export function TextToImagePage({
                       label="RunningHub 模型"
                       value={params.workflowId || ''}
                       options={[
-                        { value: '', label: '默认（真实系批量文生图）' },
+                        { value: '', label: '默认（3LoRA 模型）' },
                         { value: WORKFLOW.THREE_LORA, label: '3LoRA 模型' },
                         { value: WORKFLOW.REALISTIC_V3, label: '真实 V3 模型' },
                       ]}

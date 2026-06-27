@@ -1,3 +1,5 @@
+import { WORKFLOW } from './services/runninghub';
+
 export const BODY_TYPE_OPTIONS = [
   { value: 'Beefy', label: 'Beefy (肌肉型)' },
   { value: 'Buff', label: 'Buff (健壮)' },
@@ -868,6 +870,8 @@ export const DEFAULT_TXT2IMG_PARAMS = {
   enableRandomPrompt: true,
   checkpoint: '',
   threeLoraRandomPrompt: false,
+  // 默认运行模式：3LoRA 模型（所有涉及文生图的模块均使用此默认）
+  workflowId: WORKFLOW.THREE_LORA,
   bodyType: '-',
   facialExpression: '-',
   hairColor: '-',
@@ -881,5 +885,4 @@ export const DEFAULT_TXT2IMG_PARAMS = {
   modelPose: '-',
   props: [],
   cameraAngle: '-',
-  workflowId: '',
 };

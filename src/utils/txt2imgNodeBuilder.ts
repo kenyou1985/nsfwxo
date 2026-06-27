@@ -137,7 +137,7 @@ export function buildTxt2ImgNodeList(options: Txt2ImgNodeOptions): NodeInfo[] {
     threeLoraRandomPrompt = false,
   } = options;
 
-  const ids = getNodeIds(workflowId || WORKFLOW.TEXT_TO_IMAGE);
+  const ids = getNodeIds(workflowId || WORKFLOW.THREE_LORA);
 
   // Helper to format float weights to a clean decimal string (avoid JS float precision issues like 0.7500000000000001)
   const fmt = (n: number) => {
