@@ -203,11 +203,11 @@ export function buildTxt2ImgNodeList(options: Txt2ImgNodeOptions): NodeInfo[] {
     }
   }
 
-  // Checkpoint — 3LoRA 模型默认使用 Illustrious_nsfw_v10.safetensors
+  // Checkpoint — 3LoRA 模型默认使用 cyberrealistic_v110.safetensors
   if (ids.checkpoint) {
     let ckptValue = checkpoint || '';
     if (!ckptValue && workflowId === WORKFLOW.THREE_LORA) {
-      ckptValue = 'Illustrious_nsfw_v10.safetensors';
+      ckptValue = 'cyberrealistic_v110.safetensors';
     }
     if (ckptValue) {
       nodes.push({ nodeId: ids.checkpoint, fieldName: 'ckpt_name', fieldValue: ckptValue, description: 'Checkpoint模型' });
