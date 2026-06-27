@@ -1,5 +1,5 @@
 import React from 'react';
-import { Image, Type, Video, History, Wand2, Sparkles } from 'lucide-react';
+import { Image, Type, Video, History, Wand2, Sparkles, Library } from 'lucide-react';
 import type { TabType } from '../types';
 
 interface TabNavigationProps {
@@ -11,6 +11,7 @@ const TABS: { id: TabType; label: string; icon: React.ReactNode }[] = [
   { id: 'txt2img', label: '文生图', icon: <Type size={13} /> },
   { id: 'img2img', label: '图生图', icon: <Image size={13} /> },
   { id: 'img2vid', label: '图生视频', icon: <Video size={13} /> },
+  { id: 'models', label: '模型库', icon: <Library size={13} /> },
   { id: 'aiprompt', label: 'AI 提示词', icon: <Wand2 size={13} /> },
   { id: 'gptimg2', label: 'GPT Image 2', icon: <Sparkles size={13} /> },
   { id: 'history', label: '历史记录', icon: <History size={13} /> },

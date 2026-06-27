@@ -19,6 +19,21 @@ export const MAX_TASKS = 100;
 export const MAX_CONCURRENT = 5;
 export const TASK_PERSIST_KEY = 'ai_task_persist';
 
+// Returns true if the ComfyUI error is a kernel-size mismatch, which can be
+// worked around by reducing batch_size to 1 on SDXL-based workflows.
+function isKernelSizeError(failedReason: Record<string, unknown>): boolean {
+  const msg = (failedReason.exception_message as string | undefined) || '';
+  return msg.includes('Kernel size') && msg.includes('input size');
+}
+
+// Finds the batch_size node in the list and updates its value to "1".
+// Returns a new array; the original is not mutated.
+function forceBatchSizeOne(nodes: NodeInfo[]): NodeInfo[] {
+  return nodes.map((n) =>
+    n.description === '数量' ? { ...n, fieldValue: '1' } : n
+  );
+}
+
 // Persisted task entry (without ephemeral fields)
 export interface PersistedTaskEntry {
   id: string;
@@ -341,16 +356,50 @@ export function useTaskManager({
       }
 
       if (newStatus === 'FAILED') {
-        unpersistTask(task.id);
-        inFlightRef.current.delete(task.id);
-        drainPendingQueueRef.current();
         let errorMsg = '任务失败';
+        let failedReason: Record<string, unknown> = {};
         try {
           const resultsResponse = await getTaskResults(currentApiKey, task.taskId);
           if (resultsResponse.errorMessage) {
             errorMsg = resultsResponse.errorMessage;
           }
+          failedReason = resultsResponse.failedReason || {};
         } catch { /* ignore */ }
+
+        // Detect kernel-size error on SDXL models — retry once with batch_size=1
+        const KERNEL_ERROR_RETRIES = 1;
+        const kernelRetryKey = `kernel_retry_${task.id}`;
+        const priorRetries = parseInt(sessionStorage.getItem(kernelRetryKey) || '0', 10);
+
+        if (isKernelSizeError(failedReason) && priorRetries < KERNEL_ERROR_RETRIES) {
+          console.warn(`[pollTask] Kernel-size error on task ${task.id}, retrying with batch_size=1 (attempt ${priorRetries + 1}/${KERNEL_ERROR_RETRIES})`);
+          sessionStorage.setItem(kernelRetryKey, String(priorRetries + 1));
+          unpersistTask(task.id);
+          setTasks((prev) =>
+            prev.map((t) =>
+              t.id === task.id
+                ? { ...t, status: 'QUEUING' as TaskStatus, taskId: null, error: null, nodeInfoList: forceBatchSizeOne(t.nodeInfoList) }
+                : t
+            )
+          );
+          // Also update the synchronous tasksRef so drainPendingQueue reads the new nodeInfoList
+          tasksRef.current = tasksRef.current.map((t) =>
+            t.id === task.id
+              ? { ...t, status: 'QUEUING' as TaskStatus, taskId: null, error: null, nodeInfoList: forceBatchSizeOne(t.nodeInfoList) }
+              : t
+          );
+          // Re-submit through the normal queue drain
+          pendingQueueRef.current = pendingQueueRef.current.filter((qid) => qid !== task.id);
+          pendingQueueRef.current = [task.id, ...pendingQueueRef.current];
+          drainPendingQueueRef.current();
+          delete pollingRef.current[task.id];
+          return;
+        }
+
+        sessionStorage.removeItem(kernelRetryKey);
+        unpersistTask(task.id);
+        inFlightRef.current.delete(task.id);
+        drainPendingQueueRef.current();
         setTasks((prev) =>
           prev.map((t) =>
             t.id === task.id ? { ...t, error: errorMsg } : t

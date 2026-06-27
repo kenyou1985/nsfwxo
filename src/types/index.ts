@@ -58,7 +58,7 @@ export interface UploadResponse {
   };
 }
 
-export type TabType = 'txt2img' | 'img2img' | 'img2vid' | 'aiprompt' | 'gptimg2' | 'history';
+export type TabType = 'txt2img' | 'img2img' | 'img2vid' | 'aiprompt' | 'gptimg2' | 'history' | 'models';
 
 export interface ToastMessage {
   id: string;
@@ -80,6 +80,8 @@ export interface TextToImageParams {
   lora3Weight: number;
   enableRandomPrompt: boolean;
   checkpoint: string;
+  /** 3LoRA 模型专用：随机提示词开关（独立于 enableRandomPrompt，UI 显示时可为空） */
+  threeLoraRandomPrompt: boolean;
   bodyType: string;
   facialExpression: string;
   hairColor: string;

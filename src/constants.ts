@@ -867,6 +867,7 @@ export const DEFAULT_TXT2IMG_PARAMS = {
   lora3Weight: 1.0,
   enableRandomPrompt: true,
   checkpoint: '',
+  threeLoraRandomPrompt: false,
   bodyType: '-',
   facialExpression: '-',
   hairColor: '-',

@@ -1,15 +1,16 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Settings2, Sparkles, LayoutTemplate } from 'lucide-react';
 import { TagPanel } from '../components/TagPanel';
 import { ParameterSlider } from '../components/ParameterSlider';
 import { ParameterSelect } from '../components/ParameterSelect';
+import { RunningHubModelPicker } from '../components/RunningHubModelPicker';
 import { GenerateButton } from '../components/GenerateButton';
 import { ImageGrid } from '../components/ImageGrid';
 import { TaskList } from '../components/TaskList';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import type { TextToImageParams, QueuedTask } from '../types';
 import { MAX_TASKS, type TaskManagerReturn } from '../hooks/useTaskManager';
-import { DEFAULT_TXT2IMG_PARAMS, QUALITY_BOOST_PROMPT, LORA_PRESETS } from '../constants';
+import { DEFAULT_TXT2IMG_PARAMS, QUALITY_BOOST_PROMPT } from '../constants';
 import { WORKFLOW } from '../services/runninghub';
 import type { WeightMode } from '../components/PromptEditor';
 import { buildTxt2ImgNodeList } from '../utils/txt2imgNodeBuilder';
@@ -29,6 +30,8 @@ interface TextToImagePageProps {
   onError: (msg: string) => void;
   onSuccess: (msg: string) => void;
   taskManager: TaskManagerReturn;
+  pendingModelPick?: { name: string; label: string; kind: 'checkpoint' | 'lora'; ts: number } | null;
+  onPendingModelPickConsumed?: () => void;
 }
 
 export function TextToImagePage({
@@ -36,10 +39,13 @@ export function TextToImagePage({
   onError,
   onSuccess,
   taskManager,
+  pendingModelPick,
+  onPendingModelPickConsumed,
 }: TextToImagePageProps) {
   const [params, setParams] = useState<TextToImageParams>({
     ...DEFAULT_TXT2IMG_PARAMS,
     enableRandomPrompt: true,
+    threeLoraRandomPrompt: false,
   });
 
   // Tag management
@@ -65,6 +71,29 @@ export function TextToImagePage({
   ) => {
     setParams((prev) => ({ ...prev, [key]: value }));
   };
+
+  // 模型库 → 文生图：收到 pendingModelPick 后写入对应的参数
+  useEffect(() => {
+    if (!pendingModelPick) return;
+    if (pendingModelPick.kind === 'checkpoint') {
+      updateParam('checkpoint', pendingModelPick.name);
+    } else {
+      // LoRA：填到第一个空位
+      setParams((prev) => {
+        if (!prev.lora1Name) return { ...prev, lora1Name: pendingModelPick.name };
+        if (!prev.lora2Name) return { ...prev, lora2Name: pendingModelPick.name };
+        if (!prev.lora3Name) return { ...prev, lora3Name: pendingModelPick.name };
+        // 三个都占满了 → 替换 LoRA 3
+        return { ...prev, lora3Name: pendingModelPick.name };
+      });
+    }
+    onSuccess?.(`已应用模型：${pendingModelPick.label || pendingModelPick.name}`);
+    onPendingModelPickConsumed?.();
+    // 滚动到文生图面板（让用户看到应用结果）
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  }, [pendingModelPick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Build tag-only prompt (for expand API — excludes customPrompt to avoid duplication)
   const buildTagPrompt = useCallback((): string => {
@@ -271,6 +300,7 @@ export function TextToImagePage({
         lora3Name: params.lora3Name || undefined,
         lora3Weight: params.lora3Weight,
         checkpoint: params.checkpoint || undefined,
+        threeLoraRandomPrompt: params.threeLoraRandomPrompt,
       });
       await taskManager.addTask('txt2img', nodeList, textToUse, params.workflowId || undefined);
       onSuccess('任务已提交');
@@ -299,6 +329,7 @@ export function TextToImagePage({
       lora3Name: params.lora3Name || undefined,
       lora3Weight: params.lora3Weight,
       checkpoint: params.checkpoint || undefined,
+      threeLoraRandomPrompt: params.threeLoraRandomPrompt,
     });
   }, [params, buildFinalPrompt, buildNegativePrompt]);
 
@@ -430,106 +461,84 @@ export function TextToImagePage({
                   {/* LoRA 1 */}
                   <div className="space-y-2">
                     <div className="text-xs text-text-tertiary font-medium">LoRA 1</div>
-                    <div className="flex gap-3">
-                      <div className="flex-1">
-                        <ParameterSelect
-                          label="LoRA 1"
-                          value={params.lora1Name || ''}
-                          options={[{ value: '', label: '不使用' }, ...LORA_PRESETS.map((p) => ({ value: p.name, label: p.label }))]}
-                          onChange={(name) => {
-                            updateParam('lora1Name', name);
-                            const preset = LORA_PRESETS.find((p) => p.name === name);
-                            if (preset) updateParam('lora1Weight', preset.defaultWeight);
-                          }}
-                          disabled={taskManager.isFull}
-                        />
-                      </div>
-                      <div className="w-28">
-                        <ParameterSlider
-                          label="权重"
-                          value={params.lora1Weight}
-                          min={0}
-                          max={2}
-                          step={0.05}
-                          onChange={(v) => updateParam('lora1Weight', v)}
-                          disabled={taskManager.isFull}
-                        />
-                      </div>
+                    <RunningHubModelPicker
+                      label="LoRA 1"
+                      kind="lora"
+                      value={params.lora1Name || ''}
+                      onChange={(name) => updateParam('lora1Name', name)}
+                      onSelectWithDefaults={(entry) => updateParam('lora1Weight', entry.defaultWeight)}
+                      disabled={taskManager.isFull}
+                    />
+                    <div className="w-32">
+                      <ParameterSlider
+                        label="权重"
+                        value={params.lora1Weight}
+                        min={0}
+                        max={2}
+                        step={0.05}
+                        onChange={(v) => updateParam('lora1Weight', v)}
+                        disabled={taskManager.isFull}
+                      />
                     </div>
                   </div>
 
                   {/* LoRA 2 */}
                   <div className="space-y-2">
                     <div className="text-xs text-text-tertiary font-medium">LoRA 2</div>
-                    <div className="flex gap-3">
-                      <div className="flex-1">
-                        <ParameterSelect
-                          label="LoRA 2"
-                          value={params.lora2Name || ''}
-                          options={[{ value: '', label: '不使用' }, ...LORA_PRESETS.map((p) => ({ value: p.name, label: p.label }))]}
-                          onChange={(name) => {
-                            updateParam('lora2Name', name);
-                            const preset = LORA_PRESETS.find((p) => p.name === name);
-                            if (preset) updateParam('lora2Weight', preset.defaultWeight);
-                          }}
-                          disabled={taskManager.isFull}
-                        />
-                      </div>
-                      <div className="w-28">
-                        <ParameterSlider
-                          label="权重"
-                          value={params.lora2Weight}
-                          min={0}
-                          max={2}
-                          step={0.05}
-                          onChange={(v) => updateParam('lora2Weight', v)}
-                          disabled={taskManager.isFull}
-                        />
-                      </div>
+                    <RunningHubModelPicker
+                      label="LoRA 2"
+                      kind="lora"
+                      value={params.lora2Name || ''}
+                      onChange={(name) => updateParam('lora2Name', name)}
+                      onSelectWithDefaults={(entry) => updateParam('lora2Weight', entry.defaultWeight)}
+                      disabled={taskManager.isFull}
+                    />
+                    <div className="w-32">
+                      <ParameterSlider
+                        label="权重"
+                        value={params.lora2Weight}
+                        min={0}
+                        max={2}
+                        step={0.05}
+                        onChange={(v) => updateParam('lora2Weight', v)}
+                        disabled={taskManager.isFull}
+                      />
                     </div>
                   </div>
 
                   {/* LoRA 3 */}
                   <div className="space-y-2">
                     <div className="text-xs text-text-tertiary font-medium">LoRA 3</div>
-                    <div className="flex gap-3">
-                      <div className="flex-1">
-                        <ParameterSelect
-                          label="LoRA 3"
-                          value={params.lora3Name || ''}
-                          options={[{ value: '', label: '不使用' }, ...LORA_PRESETS.map((p) => ({ value: p.name, label: p.label }))]}
-                          onChange={(name) => {
-                            updateParam('lora3Name', name);
-                            const preset = LORA_PRESETS.find((p) => p.name === name);
-                            if (preset) updateParam('lora3Weight', preset.defaultWeight);
-                          }}
-                          disabled={taskManager.isFull}
-                        />
-                      </div>
-                      <div className="w-28">
-                        <ParameterSlider
-                          label="权重"
-                          value={params.lora3Weight}
-                          min={0}
-                          max={2}
-                          step={0.05}
-                          onChange={(v) => updateParam('lora3Weight', v)}
-                          disabled={taskManager.isFull}
-                        />
-                      </div>
+                    <RunningHubModelPicker
+                      label="LoRA 3"
+                      kind="lora"
+                      value={params.lora3Name || ''}
+                      onChange={(name) => updateParam('lora3Name', name)}
+                      onSelectWithDefaults={(entry) => updateParam('lora3Weight', entry.defaultWeight)}
+                      disabled={taskManager.isFull}
+                    />
+                    <div className="w-32">
+                      <ParameterSlider
+                        label="权重"
+                        value={params.lora3Weight}
+                        min={0}
+                        max={2}
+                        step={0.05}
+                        onChange={(v) => updateParam('lora3Weight', v)}
+                        disabled={taskManager.isFull}
+                      />
                     </div>
                   </div>
 
                   {/* Checkpoint */}
                   <div>
-                    <label className="block text-xs text-text-secondary mb-1">Checkpoint 模型</label>
-                    <input
-                      type="text"
-                      value={params.checkpoint}
-                      onChange={(e) => updateParam('checkpoint', e.target.value)}
-                      placeholder="留空使用默认模型"
+                    <RunningHubModelPicker
+                      label="Checkpoint 模型"
+                      kind="checkpoint"
+                      value={params.checkpoint || ''}
+                      onChange={(name) => updateParam('checkpoint', name)}
+                      placeholder={params.workflowId === WORKFLOW.THREE_LORA ? '默认 Illustrious NSFW v10' : '留空使用默认模型'}
                       disabled={taskManager.isFull}
-                      className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-primary transition-colors"
                     />
                   </div>
                 </div>
@@ -664,15 +673,12 @@ export function TextToImagePage({
                   {/* LoRA 1 */}
                   <div className="space-y-2">
                     <div className="text-xs text-text-tertiary font-medium">LoRA 1</div>
-                    <ParameterSelect
+                    <RunningHubModelPicker
                       label="LoRA 1"
+                      kind="lora"
                       value={params.lora1Name || ''}
-                      options={[{ value: '', label: '不使用' }, ...LORA_PRESETS.map((p) => ({ value: p.name, label: p.label }))]}
-                      onChange={(name) => {
-                        updateParam('lora1Name', name);
-                        const preset = LORA_PRESETS.find((p) => p.name === name);
-                        if (preset) updateParam('lora1Weight', preset.defaultWeight);
-                      }}
+                      onChange={(name) => updateParam('lora1Name', name)}
+                      onSelectWithDefaults={(entry) => updateParam('lora1Weight', entry.defaultWeight)}
                       disabled={taskManager.isFull}
                     />
                     <ParameterSlider label="权重" value={params.lora1Weight} min={0} max={2} step={0.05} onChange={(v) => updateParam('lora1Weight', v)} disabled={taskManager.isFull} />
@@ -680,15 +686,12 @@ export function TextToImagePage({
                   {/* LoRA 2 */}
                   <div className="border-t border-border/50 pt-3 space-y-2">
                     <div className="text-xs text-text-tertiary font-medium">LoRA 2</div>
-                    <ParameterSelect
+                    <RunningHubModelPicker
                       label="LoRA 2"
+                      kind="lora"
                       value={params.lora2Name || ''}
-                      options={[{ value: '', label: '不使用' }, ...LORA_PRESETS.map((p) => ({ value: p.name, label: p.label }))]}
-                      onChange={(name) => {
-                        updateParam('lora2Name', name);
-                        const preset = LORA_PRESETS.find((p) => p.name === name);
-                        if (preset) updateParam('lora2Weight', preset.defaultWeight);
-                      }}
+                      onChange={(name) => updateParam('lora2Name', name)}
+                      onSelectWithDefaults={(entry) => updateParam('lora2Weight', entry.defaultWeight)}
                       disabled={taskManager.isFull}
                     />
                     <ParameterSlider label="权重" value={params.lora2Weight} min={0} max={2} step={0.05} onChange={(v) => updateParam('lora2Weight', v)} disabled={taskManager.isFull} />
@@ -696,15 +699,12 @@ export function TextToImagePage({
                   {/* LoRA 3 */}
                   <div className="border-t border-border/50 pt-3 space-y-2">
                     <div className="text-xs text-text-tertiary font-medium">LoRA 3</div>
-                    <ParameterSelect
+                    <RunningHubModelPicker
                       label="LoRA 3"
+                      kind="lora"
                       value={params.lora3Name || ''}
-                      options={[{ value: '', label: '不使用' }, ...LORA_PRESETS.map((p) => ({ value: p.name, label: p.label }))]}
-                      onChange={(name) => {
-                        updateParam('lora3Name', name);
-                        const preset = LORA_PRESETS.find((p) => p.name === name);
-                        if (preset) updateParam('lora3Weight', preset.defaultWeight);
-                      }}
+                      onChange={(name) => updateParam('lora3Name', name)}
+                      onSelectWithDefaults={(entry) => updateParam('lora3Weight', entry.defaultWeight)}
                       disabled={taskManager.isFull}
                     />
                     <ParameterSlider label="权重" value={params.lora3Weight} min={0} max={2} step={0.05} onChange={(v) => updateParam('lora3Weight', v)} disabled={taskManager.isFull} />
@@ -717,7 +717,7 @@ export function TextToImagePage({
                       value={params.workflowId || ''}
                       options={[
                         { value: '', label: '默认（真实系批量文生图）' },
-                        { value: WORKFLOW.RANDOM_PROMPT, label: '随机提示词模型' },
+                        { value: WORKFLOW.THREE_LORA, label: '3LoRA 模型' },
                         { value: WORKFLOW.REALISTIC_V3, label: '真实 V3 模型' },
                       ]}
                       onChange={(val) => {
@@ -728,16 +728,40 @@ export function TextToImagePage({
                   </div>
                   {/* Checkpoint 模型 */}
                   <div className="border-t border-border/50 pt-3">
-                    <label className="block text-xs text-text-secondary mb-1">Checkpoint 模型</label>
-                    <input
-                      type="text"
-                      value={params.checkpoint}
-                      onChange={(e) => updateParam('checkpoint', e.target.value)}
-                      placeholder="留空使用默认模型"
+                    <RunningHubModelPicker
+                      label="Checkpoint 模型"
+                      kind="checkpoint"
+                      value={params.checkpoint || ''}
+                      onChange={(name) => updateParam('checkpoint', name)}
+                      placeholder={params.workflowId === WORKFLOW.THREE_LORA ? '默认 Illustrious NSFW v10' : '留空使用默认模型'}
                       disabled={taskManager.isFull}
-                      className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-primary transition-colors"
                     />
                   </div>
+                  {/* 3LoRA 专用：随机提示词开关 */}
+                  {params.workflowId === WORKFLOW.THREE_LORA && (
+                    <div className="border-t border-border/50 pt-3">
+                      <label className="flex items-center justify-between cursor-pointer">
+                        <span className="text-xs text-text-secondary">随机提示词</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-text-tertiary">{params.threeLoraRandomPrompt ? '开启' : '关闭'}</span>
+                          <div
+                            onClick={() => updateParam('threeLoraRandomPrompt', !params.threeLoraRandomPrompt)}
+                            className={`
+                              relative w-9 h-5 rounded-full transition-colors
+                              ${params.threeLoraRandomPrompt ? 'bg-primary/60' : 'bg-bg-elevated border border-border'}
+                            `}
+                          >
+                            <div
+                              className={`
+                                absolute top-0.5 w-4 h-4 rounded-full transition-all shadow
+                                ${params.threeLoraRandomPrompt ? 'left-[18px] bg-primary' : 'left-0.5 bg-slate-500'}
+                              `}
+                            />
+                          </div>
+                        </div>
+                      </label>
+                    </div>
+                  )}
                 </div>
               </ErrorBoundary>
             </div>

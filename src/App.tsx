@@ -8,6 +8,7 @@ import { ImageToVideoPage } from './pages/ImageToVideoPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { AIPromptPage } from './pages/AIPromptPage';
 import { GPTImage2Page } from './pages/GPTImage2Page';
+import { ModelLibraryPage } from './pages/ModelLibraryPage';
 import { useApiKey } from './hooks/useApiKey';
 import { useYunwuKey } from './hooks/useYunwuKey';
 import { useBackendUrl } from './hooks/useBackendUrl';
@@ -34,6 +35,19 @@ function App() {
   const [img2imgPendingPrompt, setImg2imgPendingPrompt] = useState<string>('');
   const [regenerateWithGirlfriendId, setRegenerateWithGirlfriendId] = useState<string>('');
   const [img2imgInitialImageUrl, setImg2imgInitialImageUrl] = useState<string>('');
+  // 模型库 → 文生图的"待应用模型"通道（点击 Send 后写入，TextToImagePage 读取并清除）
+  const [pendingModelPick, setPendingModelPick] = useState<{ name: string; label: string; kind: 'checkpoint' | 'lora'; ts: number } | null>(null);
+
+  // 监听 ModelLibraryPage 的"发送到文生图"事件
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<{ name: string; label: string; kind: 'checkpoint' | 'lora'; ts: number }>;
+      setPendingModelPick(ce.detail);
+      setActiveTab('txt2img');
+    };
+    window.addEventListener('rh:sendModelToTxt2Img', handler);
+    return () => window.removeEventListener('rh:sendModelToTxt2Img', handler);
+  }, []);
 
   // One-time migration: strip legacy data URLs from favorites and storyboard history
   useEffect(() => {
@@ -190,6 +204,8 @@ function App() {
             onError={toast.error}
             onSuccess={toast.success}
             taskManager={taskManager}
+            pendingModelPick={pendingModelPick}
+            onPendingModelPickConsumed={() => setPendingModelPick(null)}
           />
         );
       case 'img2img':
@@ -237,6 +253,14 @@ function App() {
             historyRefreshKey={historyRefreshKey}
             onGenerate={() => setHistoryRefreshKey((k) => k + 1)}
             onNavigate={(tab: 'txt2img' | 'img2img' | 'img2vid' | 'aiprompt' | 'history') => setActiveTab(tab)}
+          />
+        );
+      case 'models':
+        return (
+          <ModelLibraryPage
+            onNavigate={(tab) => setActiveTab(tab)}
+            onSuccess={toast.success}
+            onError={toast.error}
           />
         );
       default:
