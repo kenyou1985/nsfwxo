@@ -395,6 +395,8 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
           lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
           lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
+          workflowId: WORKFLOW.THREE_LORA,
+          checkpoint: 'Illustrious_nsfw_v10.safetensors',
         });
         await taskManager.addTask('txt2img', nodes, outputText, undefined, undefined, undefined, 'expand');
         onSuccess('任务已提交，请到文生图查看生成结果');
@@ -457,6 +459,8 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
         lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
         lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
+        workflowId: WORKFLOW.THREE_LORA,
+        checkpoint: 'Illustrious_nsfw_v10.safetensors',
       });
       try {
         await taskManager.addTask('txt2img', nodes, result.prompt, undefined, undefined, undefined, 'expand');
@@ -513,6 +517,8 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
           lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
           lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
+          workflowId: WORKFLOW.THREE_LORA,
+          checkpoint: 'Illustrious_nsfw_v10.safetensors',
         });
         await taskManager.addTask('txt2img', nodes, result.prompt, undefined, undefined, undefined, 'expand');
       }
@@ -595,6 +601,8 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
         lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
         lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
+        workflowId: WORKFLOW.THREE_LORA,
+        checkpoint: 'Illustrious_nsfw_v10.safetensors',
       });
       try {
         await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, storyboardInfo, 'smart-storyboard', context?.themeTitle, context?.panelNumber);
@@ -728,6 +736,8 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
           lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
           lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
+          workflowId: WORKFLOW.THREE_LORA,
+          checkpoint: 'Illustrious_nsfw_v10.safetensors',
         });
         await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, panelStoryboardInfo, 'storyboard', sceneName || undefined, panelNum);
       }
@@ -1287,6 +1297,8 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
         lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
         lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
+        workflowId: WORKFLOW.THREE_LORA,
+        checkpoint: 'Illustrious_nsfw_v10.safetensors',
       });
       try {
         await taskManager.addTask('txt2img', nodes, prompt, undefined, undefined, undefined, 'random', randomTheme || undefined);
@@ -1350,6 +1362,8 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
           lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
           lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
+          workflowId: WORKFLOW.THREE_LORA,
+          checkpoint: 'Illustrious_nsfw_v10.safetensors',
         });
         await taskManager.addTask('txt2img', nodes, result.prompt, undefined, undefined, undefined, 'random', perTaskTheme || undefined);
       }
@@ -2886,6 +2900,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
         lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
         lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
+        workflowId: WORKFLOW.THREE_LORA,
+        checkpoint: 'Illustrious_nsfw_v10.safetensors',
       });
       try {
         await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, storyboardInfo, 'storyboard', activeThemeInfo?.title || plot || undefined, panelIdx + 1);
@@ -3190,6 +3206,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
             lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
             lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
             lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
+            workflowId: WORKFLOW.THREE_LORA,
+            checkpoint: 'Illustrious_nsfw_v10.safetensors',
           });
           await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, panelStoryboardInfo, 'storyboard', themeForTask, panelNum);
         }

@@ -720,6 +720,7 @@ export function TextToImagePage({
                       options={[
                         { value: '', label: '默认（3LoRA 模型）' },
                         { value: WORKFLOW.THREE_LORA, label: '3LoRA 模型' },
+                        { value: WORKFLOW.REALISTIC_BATCH, label: '真实系批量文生图' },
                         { value: WORKFLOW.REALISTIC_V3, label: '真实 V3 模型' },
                       ]}
                       onChange={(val) => {

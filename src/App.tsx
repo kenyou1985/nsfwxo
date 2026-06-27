@@ -148,6 +148,8 @@ function App() {
           lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
           lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
           lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
+          workflowId: WORKFLOW.THREE_LORA,
+          checkpoint: 'Illustrious_nsfw_v10.safetensors',
         });
         taskManager.addTaskWithNodeList('txt2img', nodes, prompt, WORKFLOW.THREE_LORA);
         toast.success('任务已提交，请到文生图查看生成结果');
