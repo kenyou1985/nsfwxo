@@ -14,6 +14,12 @@ import {
   subscribeModelFavorites,
   type ModelFavorite,
 } from '../services/modelFavoritesService';
+import {
+  setLoraDefault, setCheckpointDefault,
+  isLoraDefault, isCheckpointDefault,
+  subscribeModelDefaults,
+} from '../services/modelDefaultsService';
+import { WORKFLOW } from '../services/runninghub';
 
 interface RunningHubModelPickerProps {
   label: string;
@@ -23,6 +29,10 @@ interface RunningHubModelPickerProps {
   onSelectWithDefaults?: (entry: RunningHubModelEntry) => void;
   placeholder?: string;
   disabled?: boolean;
+  /** 设为默认：lora 槽位 */
+  loraSlot?: 'lora1' | 'lora2' | 'lora3';
+  /** 设为默认：当前工作流 id（仅 checkpoint） */
+  workflowId?: string;
 }
 
 const ROW_HEIGHT = 56; // 48 cover + py-2
@@ -43,6 +53,8 @@ export function RunningHubModelPicker({
   onSelectWithDefaults,
   placeholder = '不使用',
   disabled = false,
+  loraSlot,
+  workflowId,
 }: RunningHubModelPickerProps) {
   const [expanded, setExpanded] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string>('all');
@@ -57,7 +69,53 @@ export function RunningHubModelPicker({
   const [editFavDialog, setEditFavDialog] = useState<ModelFavorite | null>(null);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [selectedFavCategory, setSelectedFavCategory] = useState('all');
+  const [isDefault, setIsDefault] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // 计算当前 picker 是否处于"默认"状态（用于 ⭐ 按钮的高亮）
+  const recomputeIsDefault = useCallback(() => {
+    if (kind === 'lora' && loraSlot) {
+      setIsDefault(isLoraDefault(loraSlot, value));
+    } else if (kind === 'checkpoint') {
+      setIsDefault(isCheckpointDefault(workflowId, value));
+    } else {
+      setIsDefault(false);
+    }
+  }, [kind, loraSlot, workflowId, value]);
+
+  useEffect(() => {
+    recomputeIsDefault();
+  }, [recomputeIsDefault]);
+
+  useEffect(() => {
+    const unsub = subscribeModelDefaults(() => recomputeIsDefault());
+    return unsub;
+  }, [recomputeIsDefault]);
+
+  const handleToggleDefault = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (disabled) return;
+    if (!value) return; // 未选中模型时无意义
+    const labelText = selectedMeta?.label || selectedMeta?.name || value;
+    if (kind === 'lora' && loraSlot) {
+      if (isLoraDefault(loraSlot, value)) {
+        setLoraDefault(loraSlot, null);
+      } else {
+        const w = onSelectWithDefaults ? selectedMeta?.defaultWeight : undefined;
+        setLoraDefault(loraSlot, { name: value, label: labelText, weight: w });
+      }
+    } else if (kind === 'checkpoint') {
+      const wf = workflowId || WORKFLOW.THREE_LORA;
+      if (isCheckpointDefault(wf, value)) {
+        setCheckpointDefault(wf, null);
+      } else {
+        setCheckpointDefault(wf, { name: value, label: labelText });
+      }
+    }
+    recomputeIsDefault();
+  };
+
+  const showDefaultButton = (kind === 'lora' && !!loraSlot) || kind === 'checkpoint';
 
   // 懒加载数据库（首次展开时）
   useEffect(() => {
@@ -242,8 +300,27 @@ export function RunningHubModelPicker({
           {value && isModelFavorited(kind, value) && (
             <span className="text-yellow-500 flex-shrink-0" title="已收藏">★</span>
           )}
+          {value && isDefault && (
+            <span className="text-primary flex-shrink-0" title="已设为默认">📌</span>
+          )}
         </div>
         <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+          {value && showDefaultButton && (
+            <button
+              type="button"
+              onClick={handleToggleDefault}
+              disabled={disabled}
+              className={`w-5 h-5 rounded flex items-center justify-center text-[11px] transition-colors ${
+                isDefault
+                  ? 'bg-primary/10 text-primary hover:bg-primary/20'
+                  : 'text-text-tertiary hover:bg-bg-hover hover:text-primary'
+              }`}
+              title={isDefault ? '取消默认' : '设为默认'}
+              aria-label={isDefault ? '取消默认' : '设为默认'}
+            >
+              📌
+            </button>
+          )}
           {value && (
             <button
               type="button"

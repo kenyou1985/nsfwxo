@@ -18,6 +18,7 @@ import { expandPrompt } from '../services/promptApi';
 import { PosePresetSelector } from '../components/PosePresetSelector';
 import { addFavorite, removeFavorite, getFavorites } from '../services/storage';
 import { logger } from '../utils/clientLogger';
+import { getLoraDefault, getCheckpointDefault } from '../services/modelDefaultsService';
 
 interface SelectedTag {
   tag: string;
@@ -42,12 +43,26 @@ export function TextToImagePage({
   pendingModelPick,
   onPendingModelPickConsumed,
 }: TextToImagePageProps) {
-  const [params, setParams] = useState<TextToImageParams>({
-    ...DEFAULT_TXT2IMG_PARAMS,
-    enableRandomPrompt: true,
-    threeLoraRandomPrompt: false,
-    // 默认运行模式：3LoRA 模型
-    workflowId: WORKFLOW.THREE_LORA,
+  // 启动时：合并用户保存的"默认模型"覆盖硬编码 DEFAULT_TXT2IMG_PARAMS
+  const [params, setParams] = useState<TextToImageParams>(() => {
+    const l1 = getLoraDefault('lora1');
+    const l2 = getLoraDefault('lora2');
+    const l3 = getLoraDefault('lora3');
+    const wf = WORKFLOW.THREE_LORA;
+    const ckpt = getCheckpointDefault(wf);
+    return {
+      ...DEFAULT_TXT2IMG_PARAMS,
+      enableRandomPrompt: true,
+      threeLoraRandomPrompt: false,
+      workflowId: wf,
+      lora1Name: l1?.name ?? DEFAULT_TXT2IMG_PARAMS.lora1Name,
+      lora1Weight: l1?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora1Weight,
+      lora2Name: l2?.name ?? DEFAULT_TXT2IMG_PARAMS.lora2Name,
+      lora2Weight: l2?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora2Weight,
+      lora3Name: l3?.name ?? DEFAULT_TXT2IMG_PARAMS.lora3Name,
+      lora3Weight: l3?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora3Weight,
+      checkpoint: ckpt?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
+    };
   });
 
   // Tag management
@@ -678,6 +693,7 @@ export function TextToImagePage({
                     <RunningHubModelPicker
                       label="LoRA 1"
                       kind="lora"
+                      loraSlot="lora1"
                       value={params.lora1Name || ''}
                       onChange={(name) => updateParam('lora1Name', name)}
                       onSelectWithDefaults={(entry) => updateParam('lora1Weight', entry.defaultWeight)}
@@ -691,6 +707,7 @@ export function TextToImagePage({
                     <RunningHubModelPicker
                       label="LoRA 2"
                       kind="lora"
+                      loraSlot="lora2"
                       value={params.lora2Name || ''}
                       onChange={(name) => updateParam('lora2Name', name)}
                       onSelectWithDefaults={(entry) => updateParam('lora2Weight', entry.defaultWeight)}
@@ -704,6 +721,7 @@ export function TextToImagePage({
                     <RunningHubModelPicker
                       label="LoRA 3"
                       kind="lora"
+                      loraSlot="lora3"
                       value={params.lora3Name || ''}
                       onChange={(name) => updateParam('lora3Name', name)}
                       onSelectWithDefaults={(entry) => updateParam('lora3Weight', entry.defaultWeight)}
@@ -734,9 +752,10 @@ export function TextToImagePage({
                     <RunningHubModelPicker
                       label="Checkpoint 模型"
                       kind="checkpoint"
+                      workflowId={params.workflowId || WORKFLOW.THREE_LORA}
                       value={params.checkpoint || ''}
                       onChange={(name) => updateParam('checkpoint', name)}
-                      placeholder={params.workflowId === WORKFLOW.THREE_LORA ? '默认 Illustrious NSFW v10' : '留空使用默认模型'}
+                      placeholder="留空使用工作流默认模型"
                       disabled={taskManager.isFull}
                     />
                   </div>

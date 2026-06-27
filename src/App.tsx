@@ -10,6 +10,7 @@ import { AIPromptPage } from './pages/AIPromptPage';
 import { GPTImage2Page } from './pages/GPTImage2Page';
 import { ModelLibraryPage } from './pages/ModelLibraryPage';
 import { useApiKey } from './hooks/useApiKey';
+import { getCheckpointDefault, getLoraDefault } from './services/modelDefaultsService';
 import { useYunwuKey } from './hooks/useYunwuKey';
 import { useBackendUrl } from './hooks/useBackendUrl';
 import { useToast } from './hooks/useToast';
@@ -144,12 +145,12 @@ function App() {
           height: DEFAULT_TXT2IMG_PARAMS.height,
           imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
           prompt,
-          lora1Name: DEFAULT_TXT2IMG_PARAMS.lora1Name,
-          lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
-          lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
-          lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
+          lora1Name: getLoraDefault('lora1')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora1Name,
+          lora1Weight: getLoraDefault('lora1')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora1Weight,
+          lora2Name: getLoraDefault('lora2')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora2Name,
+          lora2Weight: getLoraDefault('lora2')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora2Weight,
           workflowId: WORKFLOW.THREE_LORA,
-          checkpoint: 'cyberrealistic_v110.safetensors',
+          checkpoint: getCheckpointDefault(WORKFLOW.THREE_LORA)?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
         });
         taskManager.addTaskWithNodeList('txt2img', nodes, prompt, WORKFLOW.THREE_LORA);
         toast.success('任务已提交，请到文生图查看生成结果');

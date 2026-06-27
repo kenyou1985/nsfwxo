@@ -47,6 +47,7 @@ import { buildTxt2ImgNodeList } from '../utils/txt2imgNodeBuilder';
 import type { QueuedTask, TabType, NodeInfo } from '../types';
 import { DEFAULT_TXT2IMG_PARAMS, QUALITY_BOOST_PROMPT } from '../constants';
 import { WORKFLOW, getWorkflowFormat, uploadImage, ensureDataUrl } from '../services/runninghub';
+import { getCheckpointDefault, getLoraDefault } from '../services/modelDefaultsService';
 
 /**
  * 将 GirlfriendPreset.portraitUrl 转为 File 对象用于上传。
@@ -391,12 +392,12 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           height: DEFAULT_TXT2IMG_PARAMS.height,
           imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
           prompt: outputText,
-          lora1Name: DEFAULT_TXT2IMG_PARAMS.lora1Name,
-          lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
-          lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
-          lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
+          lora1Name: getLoraDefault('lora1')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora1Name,
+          lora1Weight: getLoraDefault('lora1')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora1Weight,
+          lora2Name: getLoraDefault('lora2')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora2Name,
+          lora2Weight: getLoraDefault('lora2')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora2Weight,
           workflowId: WORKFLOW.THREE_LORA,
-          checkpoint: 'cyberrealistic_v110.safetensors',
+          checkpoint: getCheckpointDefault(WORKFLOW.THREE_LORA)?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
         });
         await taskManager.addTask('txt2img', nodes, outputText, undefined, undefined, undefined, 'expand');
         onSuccess('任务已提交，请到文生图查看生成结果');
@@ -455,12 +456,12 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         height: DEFAULT_TXT2IMG_PARAMS.height,
         imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
         prompt: result.prompt,
-        lora1Name: DEFAULT_TXT2IMG_PARAMS.lora1Name,
-        lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
-        lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
-        lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
+        lora1Name: getLoraDefault('lora1')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora1Name,
+        lora1Weight: getLoraDefault('lora1')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora1Weight,
+        lora2Name: getLoraDefault('lora2')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora2Name,
+        lora2Weight: getLoraDefault('lora2')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora2Weight,
         workflowId: WORKFLOW.THREE_LORA,
-        checkpoint: 'cyberrealistic_v110.safetensors',
+        checkpoint: getCheckpointDefault(WORKFLOW.THREE_LORA)?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
       });
       try {
         await taskManager.addTask('txt2img', nodes, result.prompt, undefined, undefined, undefined, 'expand');
@@ -513,12 +514,12 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           height: DEFAULT_TXT2IMG_PARAMS.height,
           imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
           prompt: result.prompt,
-          lora1Name: DEFAULT_TXT2IMG_PARAMS.lora1Name,
-          lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
-          lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
-          lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
+          lora1Name: getLoraDefault('lora1')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora1Name,
+          lora1Weight: getLoraDefault('lora1')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora1Weight,
+          lora2Name: getLoraDefault('lora2')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora2Name,
+          lora2Weight: getLoraDefault('lora2')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora2Weight,
           workflowId: WORKFLOW.THREE_LORA,
-          checkpoint: 'cyberrealistic_v110.safetensors',
+          checkpoint: getCheckpointDefault(WORKFLOW.THREE_LORA)?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
         });
         await taskManager.addTask('txt2img', nodes, result.prompt, undefined, undefined, undefined, 'expand');
       }
@@ -597,12 +598,12 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         height: DEFAULT_TXT2IMG_PARAMS.height,
         imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
         prompt: finalPrompt,
-        lora1Name: DEFAULT_TXT2IMG_PARAMS.lora1Name,
-        lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
-        lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
-        lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
+        lora1Name: getLoraDefault('lora1')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora1Name,
+        lora1Weight: getLoraDefault('lora1')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora1Weight,
+        lora2Name: getLoraDefault('lora2')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora2Name,
+        lora2Weight: getLoraDefault('lora2')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora2Weight,
         workflowId: WORKFLOW.THREE_LORA,
-        checkpoint: 'cyberrealistic_v110.safetensors',
+        checkpoint: getCheckpointDefault(WORKFLOW.THREE_LORA)?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
       });
       try {
         await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, storyboardInfo, 'smart-storyboard', context?.themeTitle, context?.panelNumber);
@@ -732,12 +733,12 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           height: DEFAULT_TXT2IMG_PARAMS.height,
           imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
           prompt: finalPrompt,
-          lora1Name: DEFAULT_TXT2IMG_PARAMS.lora1Name,
-          lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
-          lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
-          lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
+          lora1Name: getLoraDefault('lora1')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora1Name,
+          lora1Weight: getLoraDefault('lora1')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora1Weight,
+          lora2Name: getLoraDefault('lora2')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora2Name,
+          lora2Weight: getLoraDefault('lora2')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora2Weight,
           workflowId: WORKFLOW.THREE_LORA,
-          checkpoint: 'cyberrealistic_v110.safetensors',
+          checkpoint: getCheckpointDefault(WORKFLOW.THREE_LORA)?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
         });
         await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, panelStoryboardInfo, 'storyboard', sceneName || undefined, panelNum);
       }
@@ -1293,12 +1294,12 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         height: DEFAULT_TXT2IMG_PARAMS.height,
         imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
         prompt: prompt,
-        lora1Name: DEFAULT_TXT2IMG_PARAMS.lora1Name,
-        lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
-        lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
-        lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
+        lora1Name: getLoraDefault('lora1')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora1Name,
+        lora1Weight: getLoraDefault('lora1')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora1Weight,
+        lora2Name: getLoraDefault('lora2')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora2Name,
+        lora2Weight: getLoraDefault('lora2')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora2Weight,
         workflowId: WORKFLOW.THREE_LORA,
-        checkpoint: 'cyberrealistic_v110.safetensors',
+        checkpoint: getCheckpointDefault(WORKFLOW.THREE_LORA)?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
       });
       try {
         await taskManager.addTask('txt2img', nodes, prompt, undefined, undefined, undefined, 'random', randomTheme || undefined);
@@ -1358,12 +1359,12 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           height: DEFAULT_TXT2IMG_PARAMS.height,
           imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
           prompt: result.prompt,
-          lora1Name: DEFAULT_TXT2IMG_PARAMS.lora1Name,
-          lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
-          lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
-          lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
+          lora1Name: getLoraDefault('lora1')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora1Name,
+          lora1Weight: getLoraDefault('lora1')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora1Weight,
+          lora2Name: getLoraDefault('lora2')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora2Name,
+          lora2Weight: getLoraDefault('lora2')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora2Weight,
           workflowId: WORKFLOW.THREE_LORA,
-          checkpoint: 'cyberrealistic_v110.safetensors',
+          checkpoint: getCheckpointDefault(WORKFLOW.THREE_LORA)?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
         });
         await taskManager.addTask('txt2img', nodes, result.prompt, undefined, undefined, undefined, 'random', perTaskTheme || undefined);
       }
@@ -2896,12 +2897,12 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         height: DEFAULT_TXT2IMG_PARAMS.height,
         imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
         prompt: finalPrompt,
-        lora1Name: DEFAULT_TXT2IMG_PARAMS.lora1Name,
-        lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
-        lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
-        lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
+        lora1Name: getLoraDefault('lora1')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora1Name,
+        lora1Weight: getLoraDefault('lora1')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora1Weight,
+        lora2Name: getLoraDefault('lora2')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora2Name,
+        lora2Weight: getLoraDefault('lora2')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora2Weight,
         workflowId: WORKFLOW.THREE_LORA,
-        checkpoint: 'cyberrealistic_v110.safetensors',
+        checkpoint: getCheckpointDefault(WORKFLOW.THREE_LORA)?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
       });
       try {
         await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, storyboardInfo, 'storyboard', activeThemeInfo?.title || plot || undefined, panelIdx + 1);
@@ -3202,12 +3203,12 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
             height: DEFAULT_TXT2IMG_PARAMS.height,
             imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
             prompt: finalPrompt,
-            lora1Name: DEFAULT_TXT2IMG_PARAMS.lora1Name,
-            lora1Weight: DEFAULT_TXT2IMG_PARAMS.lora1Weight,
-            lora2Name: DEFAULT_TXT2IMG_PARAMS.lora2Name,
-            lora2Weight: DEFAULT_TXT2IMG_PARAMS.lora2Weight,
+            lora1Name: getLoraDefault('lora1')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora1Name,
+            lora1Weight: getLoraDefault('lora1')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora1Weight,
+            lora2Name: getLoraDefault('lora2')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora2Name,
+            lora2Weight: getLoraDefault('lora2')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora2Weight,
             workflowId: WORKFLOW.THREE_LORA,
-            checkpoint: 'cyberrealistic_v110.safetensors',
+            checkpoint: getCheckpointDefault(WORKFLOW.THREE_LORA)?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
           });
           await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, panelStoryboardInfo, 'storyboard', themeForTask, panelNum);
         }

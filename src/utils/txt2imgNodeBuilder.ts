@@ -203,15 +203,9 @@ export function buildTxt2ImgNodeList(options: Txt2ImgNodeOptions): NodeInfo[] {
     }
   }
 
-  // Checkpoint — 3LoRA 模型默认使用 cyberrealistic_v110.safetensors
-  if (ids.checkpoint) {
-    let ckptValue = checkpoint || '';
-    if (!ckptValue && workflowId === WORKFLOW.THREE_LORA) {
-      ckptValue = 'cyberrealistic_v110.safetensors';
-    }
-    if (ckptValue) {
-      nodes.push({ nodeId: ids.checkpoint, fieldName: 'ckpt_name', fieldValue: ckptValue, description: 'Checkpoint模型' });
-    }
+  // Checkpoint — 用户未设置时直接不推 ckpt_name 节点（让 RunningHub 工作流使用自身默认）
+  if (checkpoint && ids.checkpoint) {
+    nodes.push({ nodeId: ids.checkpoint, fieldName: 'ckpt_name', fieldValue: checkpoint, description: 'Checkpoint模型' });
   }
 
   return nodes;
