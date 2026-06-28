@@ -1814,6 +1814,30 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       } else if (taskType === 'outline' && res?.storyboard) {
         const panels = res.storyboard;
         const themeKey = res.theme_id;
+        // CRITICAL: if the LLM returned ZERO panels (all were filtered by
+        // safety / coherence / placeholder checks), DON'T push an empty
+        // storyboard into history. Doing so left the previous round's
+        // panels visible behind an empty record, which is exactly what the
+        // user saw in the screenshots ("5 panels all identical, prompt
+        // template leak like '身体部位，体液等描写'"). Treat this as a
+        // failed task and surface an error instead.
+        if (!Array.isArray(panels) || panels.length === 0) {
+          console.error('[outline] backend returned 0 panels for themeKey=', themeKey, res);
+          onErrorRef.current?.(`「${res.theme_title ?? '主题'}」的大纲生成失败：返回的 panels 为空`);
+          // Clear generating flag for this theme so the UI stops showing "生成中"
+          if (themeKey !== undefined && themeKey !== null) {
+            setThemeOutlineStates((prev) => ({
+              ...prev,
+              [themeKey]: {
+                ...(prev[themeKey] || {}),
+                generating: false,
+                error: 'panels 为空，请重试',
+              },
+            }));
+          }
+          setPendingPromptTasks((prev) => { const n = { ...prev }; delete n[taskId]; return n; });
+          return;
+        }
         // Idempotency guard: the polling loop can deliver the same DONE
         // status multiple times after a page refresh, and React strict mode
         // can also double-invoke effects in dev. Without this guard we'd
@@ -1890,6 +1914,25 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       setPendingPromptTasks((prev) => { const n = { ...prev }; delete n[taskId]; return n; });
     } else if (status.status === 'FAILED') {
       onErrorRef.current(status.error ?? '任务失败');
+      // Clear the per-theme "generating" flag so the UI stops showing
+      // "生成中" on a failed outline task. Without this, a theme tab that
+      // failed in the background would stay stuck in the loading state
+      // forever even though the user had navigated away.
+      setThemeOutlineStates((prev) => {
+        const next: Record<number, any> = { ...prev };
+        for (const k of Object.keys(next)) {
+          const numKey = Number(k);
+          const state = next[numKey];
+          if (state?.generating) {
+            next[numKey] = {
+              ...(state || {}),
+              generating: false,
+              error: status.error ?? '任务失败',
+            };
+          }
+        }
+        return next;
+      });
       setPendingPromptTasks((prev) => { const n = { ...prev }; delete n[taskId]; return n; });
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps

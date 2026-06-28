@@ -1518,6 +1518,28 @@ async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key
                         continue
                     scene = str(item.get("scene_description", ""))
                     prompt_text = str(item.get("image_prompt", ""))
+
+                    # ── Drop panel placeholders that are clearly the LLM parroting
+                    # back the system/user prompt instructions instead of writing
+                    # actual content. Things like "身体部位", "体液等描写", "等描写"
+                    # appearing verbatim in the scene_description or image_prompt
+                    # indicate a broken generation. Treat it as a safety violation
+                    # so the panel is skipped (consistent with how other broken
+                    # outputs are handled in this loop).
+                    _PLACEHOLDER_TOKENS = (
+                        "身体部位", "体液等描写", "体液等", "等描写",
+                        "亚洲的约会装", "迷你裙身体部位",
+                    )
+                    combined = scene + "\n" + prompt_text
+                    if any(tok in combined for tok in _PLACEHOLDER_TOKENS):
+                        logging.warning(
+                            "[outline] dropping panel with prompt-template leak: theme=%s panel=%s sample=%s",
+                            theme_name,
+                            item.get("panel_number", "?"),
+                            (scene or prompt_text)[:80],
+                        )
+                        continue
+
                     try:
                         check_prompt_safety(scene)
                         check_prompt_safety(prompt_text)
@@ -1611,7 +1633,34 @@ async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key
                             "; ".join(drifts[:3]),
                         )
 
+                # ── Debug log: record what the LLM actually returned ──
+                # This is critical for diagnosing "theme doesn't match the
+                # generated prompts" reports. Dump the raw LLM output, the
+                # # of panels the parser kept, and a short sample of each
+                # panel so we can see what the LLM thinks the theme is.
+                logging.info(
+                    "[outline] theme=%s panels_kept=%d panels_raw=%d theme_coherence_used=%s",
+                    theme_name,
+                    len(panels),
+                    len(panels_raw) if isinstance(panels_raw, list) else 0,
+                    "yes" if selected_theme else "no",
+                )
+                for _dbg_p in panels[:5]:
+                    logging.info(
+                        "[outline]   panel %s scene=%s image_prompt=%s",
+                        _dbg_p.get("panel_number"),
+                        (_dbg_p.get("scene_description") or "")[:80],
+                        (_dbg_p.get("image_prompt") or "")[:80],
+                    )
+
                 if not panels:
+                    logging.error(
+                        "[outline] No valid panels generated for theme=%s id=%s — "
+                        "raw LLM output was: %s",
+                        theme_name,
+                        req.theme_id,
+                        raw[:1500] if 'raw' in locals() else "(unknown)",
+                    )
                     raise ValueError("No valid panels generated")
 
                 store.mark_done(task_id, {
@@ -3792,6 +3841,24 @@ async def generate_storyboard_outline(
                     continue
                 scene = str(item.get("scene_description", ""))
                 prompt_text = str(item.get("image_prompt", ""))
+
+                # Drop panels that are clearly the LLM parroting the prompt
+                # instructions back as content (e.g. "在公园长椅，亚洲的
+                # 约会装迷你裙，身体部位，体液等描写"). Same heuristic as
+                # the async runner so behavior is consistent.
+                _PLACEHOLDER_TOKENS = (
+                    "身体部位", "体液等描写", "体液等", "等描写",
+                    "亚洲的约会装", "迷你裙身体部位",
+                )
+                _combined = scene + "\n" + prompt_text
+                if any(tok in _combined for tok in _PLACEHOLDER_TOKENS):
+                    logging.warning(
+                        "[storyboard/outline] dropping prompt-template-leak panel: theme=%s panel=%s sample=%s",
+                        theme_name,
+                        item.get("panel_number", "?"),
+                        (scene or prompt_text)[:80],
+                    )
+                    continue
 
                 try:
                     check_prompt_safety(scene)
