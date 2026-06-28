@@ -3597,8 +3597,20 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                   </button>
                   <button
                     onClick={() => {
-                      // Keep modal open, user can continue adjusting selections
-                      // Only close if they click "确定" or manually close
+                      if (selectedThemes.length === 0) {
+                        // No selection — treat "确定" as "select all" so the
+                        // button is still useful even before the user clicks
+                        // any individual card.
+                        setSelectedThemes([...themeOptions]);
+                        onSuccess(`已全选 ${themeOptions.length} 个主题，可继续筛选`);
+                        return;
+                      }
+                      // Close the modal and proceed to outline generation.
+                      // The "为已选主题生成大纲" panel below is always visible
+                      // when selectedThemes.length > 0, so the user just
+                      // needs to click that button next.
+                      setThemeLibraryOpen(false);
+                      onSuccess(`已选定 ${selectedThemes.length} 个主题，下一步点击「为 ${selectedThemes.length} 个主题生成大纲」`);
                     }}
                     className={`px-4 py-2 rounded-lg text-xs font-medium transition-all ${
                       selectedThemes.length > 0

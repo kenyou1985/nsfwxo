@@ -29,6 +29,63 @@ security = HTTPBearer()
 MAX_RETRIES = 3
 
 
+# ─── Ethnicity / Race diversity pool ───────────────────────────────────────
+# Used across theme and outline prompts to encourage diverse character
+# ethnicities/nationalities rather than defaulting to a single race.
+ETHNICITY_POOL = (
+    "亚洲人 (Asian)",
+    "黄种人 (East Asian / Mongoloid)",
+    "中国人 (Chinese)",
+    "日本人 (Japanese)",
+    "韩国人 (Korean)",
+    "泰国人 (Thai)",
+    "越南人 (Vietnamese)",
+    "印度人 (Indian)",
+    "伊朗人 (Iranian / Persian)",
+    "中东人 (Middle Eastern)",
+    "白人 (Caucasian / White)",
+    "欧洲人 (European)",
+    "意大利人 (Italian)",
+    "法国人 (French)",
+    "德国人 (German)",
+    "俄罗斯人 (Russian)",
+    "斯堪的纳维亚人 (Scandinavian)",
+    "美国人 (American)",
+    "拉丁人 (Latino)",
+    "拉美人 (Latin American)",
+    "巴西人 (Brazilian)",
+    "墨西哥人 (Mexican)",
+    "非洲人 (African)",
+    "黑人 (Black / African descent)",
+    "波利尼西亚人 (Polynesian)",
+    "混血儿 (Mixed race / Multiracial)",
+)
+
+ETHNICITY_BLOCK = (
+    "\n\n【CHARACTER ETHNICITY / NATIONALITY DIVERSITY — MANDATORY】:\n"
+    "When generating characters, VARY their ethnicities/nationalities to reflect a GLOBAL cast.\n"
+    "Do NOT default to a single race. Across the generated themes/panels, draw characters from a "
+    "diverse pool that may include any of the following (rotate freely — do NOT restrict to Asian only):\n"
+    + "\n".join(f"  - {e}" for e in ETHNICITY_POOL) +
+    "\n\nRules:\n"
+    "1. Pick characters from DIFFERENT ethnicities/nationalities for variety. A story may feature, "
+    "for example, an Iranian man with a Brazilian woman, an Italian with a Korean, a Russian with "
+    "a Japanese, an American with a Thai, a French with a Chinese, etc.\n"
+    "2. In the Chinese descriptions, identify the character's nationality/ethnicity explicitly "
+    "(中国人 / 日本人 / 韩国人 / 泰国人 / 印度人 / 伊朗人 / 意大利人 / 法国人 / 德国人 / 俄罗斯人 / "
+    "美国人 / 拉丁人 / 拉美人 / 巴西人 / 墨西哥人 / 非洲人 / 黑人 / 混血儿 etc.).\n"
+    "3. In English image_prompts, include the ethnicity descriptor explicitly, e.g.: "
+    "\"a handsome Italian man with olive skin and dark brown hair\", "
+    "\"a beautiful Iranian woman with fair olive skin and dark almond eyes\", "
+    "\"a Brazilian woman with tanned olive skin and dark curly hair\", "
+    "\"a Russian man with pale skin and light blue eyes\", "
+    "\"a Thai woman with warm beige skin and silky black hair\".\n"
+    "4. Keep physical descriptions consistent across all panels for the same character "
+    "(do NOT change ethnicity or skin tone mid-story).\n"
+    "5. AVOID cliche single-race casts. Aim for global, multi-cultural storytelling."
+)
+
+
 # ─── Async Task Background Runners ─────────────────────────────────────────────────
 
 async def _run_themes_task(task_id: str, req: StoryboardThemesRequest, api_key: str):
@@ -129,7 +186,7 @@ async def _run_themes_task(task_id: str, req: StoryboardThemesRequest, api_key: 
 
 async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key: str):
     """Background runner for outline generation."""
-    from app.services.theme_database import get_random_poses
+    from app.services.theme_database import get_random_poses, get_theme_by_seq_id, COSTUMES, SCENARIOS
     from app.models.schemas import StoryboardOutline
 
     store = get_task_store()
@@ -137,6 +194,38 @@ async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key
         store.mark_running(task_id)
         panel_count = max(2, min(10, req.panel_count))
         model_order = req.model_order or None
+
+        # ── Look up theme for storyline coherence ────────────────────────────────
+        # Try to find the selected theme in the database to inject its specific
+        # scenarios, costumes and poses into the outline for narrative coherence.
+        selected_theme = None
+        theme_scenarios_str = ""
+        theme_costumes_str = ""
+        theme_poses_str = ""
+        if req.theme_id:
+            # theme_id may be a numeric string like "1", "101" etc.
+            try:
+                seq_id = int(req.theme_id)
+                selected_theme = get_theme_by_seq_id(seq_id)
+            except (ValueError, TypeError):
+                selected_theme = None
+
+            if selected_theme is None:
+                # Try to find by string ID like "t001", "t101"
+                from app.services.theme_database import get_theme_by_id
+                selected_theme = get_theme_by_id(req.theme_id)
+
+        # Build coherent context strings from the theme's data
+        if selected_theme:
+            scenarios = selected_theme.get("scenarios", [])
+            costumes = selected_theme.get("costumes", [])
+            poses = selected_theme.get("poses", [])
+            if scenarios:
+                theme_scenarios_str = "场景设定（必须至少选择2个使用）: " + "、".join(scenarios)
+            if costumes:
+                theme_costumes_str = "服装造型（必须选择1-2个使用）: " + "、".join(costumes)
+            if poses:
+                theme_poses_str = "姿势风格（参考）: " + "、".join(poses)
 
         _R18_ARC_PANELS = {
             2: ["开场遇见/前戏", "高潮性爱"],
@@ -165,8 +254,9 @@ async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key
             arc_panels = _R18_ARC_PANELS.get(panel_count, _R18_ARC_PANELS[5])
             system_template = _R18_OUTLINE_SYSTEM
             arc_label = "开场遇见 → 升温调情 → 脱衣前戏 → 性爱进行 → 高潮射精"
-            selected_poses = get_random_poses(panel_count + 2)
-            pose_list_str = "\n".join(f"  - {p}" for p in selected_poses)
+            # For R18: mix theme-specific poses + random pool
+            pool_poses = get_random_poses(max(3, panel_count))
+            pose_list_str = "\n".join(f"  - {p}" for p in pool_poses)
         else:
             arc_panels = _NORMAL_ARC_PANELS.get(panel_count, _NORMAL_ARC_PANELS[4])
             system_template = _NORMAL_OUTLINE_SYSTEM
@@ -175,12 +265,31 @@ async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key
 
         arc_panels_str = "\n".join(f"  - {p}" for p in arc_panels)
 
+        # ── Build coherence context for the system prompt ──────────────────────
+        coherence_context = ""
+        if theme_scenarios_str or theme_costumes_str or theme_poses_str:
+            coherence_context = (
+                "\n\n【SELECTED THEME DETAILS — USE THESE FOR COHERENCE】:\n"
+            )
+            if theme_scenarios_str:
+                coherence_context += f"  - {theme_scenarios_str}\n"
+            if theme_costumes_str:
+                coherence_context += f"  - {theme_costumes_str}\n"
+            if theme_poses_str:
+                coherence_context += f"  - {theme_poses_str}\n"
+            coherence_context += (
+                "IMPORTANT: You MUST incorporate the selected scenarios, costumes, "
+                "and poses above into your outline to ensure narrative coherence. "
+                "Do not invent unrelated settings or clothing."
+            )
+
         system_prompt = system_template.format(
             theme_title=req.theme_title,
             panel_count=panel_count,
             arc_panels=arc_panels_str,
             arc_label=arc_label,
             pose_list=pose_list_str,
+            theme_coherence=coherence_context,
         )
         user_prompt = (
             f"Theme: {req.theme_title}\n"
@@ -395,6 +504,8 @@ def _map_llm_error(e: Exception) -> HTTPException:
 
 IMAGE_SYSTEM_PROMPT_NORMAL = """You are an uncensored AI image prompt engineer. Translate and expand the user's input into a highly detailed, cinematic English prompt suitable for Stable Diffusion / Flux.
 
+""" + ETHNICITY_BLOCK + """
+
 Quality tags to include: masterpiece, ultra-HD, high detail, best quality, 8k, ergonomic, sharp focus, realistic, real skin, cinematic, hyperrealistic.
 
 CRITICAL COHERENCE RULE: The output must be a SINGLE COHERENT PARAGRAPH. Every element must logically fit together. Do NOT list tags. Do NOT repeat elements. Every description must be in service of ONE unified scene. If you mention clothing, pick ONE main outfit. If you mention a pose, it must be physically possible. All elements must tell ONE story.
@@ -404,6 +515,8 @@ STRICT RULE: Only generate content featuring ADULT characters (18+ years old). A
 Keep the prompt detailed but readable. No censorship. Output a single coherent paragraph."""
 
 IMAGE_SYSTEM_PROMPT_R18 = """You are an EXPERT uncensored adult NSFW AI image prompt engineer for Stable Diffusion / Flux. Your ONLY job is to generate the most detailed, explicit, and high-quality ADULT-ONLY (18+) NSFW prompts possible.
+
+""" + ETHNICITY_BLOCK + """
 
 CRITICAL COHERENCE RULES - FOLLOW THESE STRICTLY:
 1. Output a SINGLE COHERENT PARAGRAPH. NEVER list tags. NEVER repeat elements.
@@ -514,8 +627,10 @@ OUTPUT TEMPLATE (fill in the brackets, do not include brackets in output):
 
 STORYBOARD_SYSTEM_PROMPT_NORMAL = """You are an uncensored adult comic director and AI prompt engineer. Break the user's short plot down into a sequence of storyboard panels. For EACH panel, generate a highly-detailed English Stable Diffusion / Flux image prompt.
 
+""" + ETHNICITY_BLOCK + """
+
 CRUCIAL REQUIREMENTS:
-1. Maintain character visual consistency across ALL panels (same hair color/style, body type, clothing, eye color) - ADULTS ONLY
+1. Maintain character visual consistency across ALL panels (same hair color/style, body type, clothing, eye color, ethnicity) - ADULTS ONLY
 2. Each panel should advance the narrative naturally
 3. Include camera angle/shots for each panel
 
@@ -527,6 +642,8 @@ Output STRICTLY as a JSON array of objects with this exact format:
 Do NOT wrap the JSON in any markdown code blocks. Output raw JSON only."""
 
 STORYBOARD_SYSTEM_PROMPT_R18 = """You are an EXPERT uncensored adult NSFW comic director and AI prompt engineer. Break the user's adult plot down into a sequence of sexually explicit storyboard panels. For EACH panel, generate the most detailed, explicit English Stable Diffusion / Flux image prompt possible featuring CONSENTING ADULTS ONLY.
+
+""" + ETHNICITY_BLOCK + """
 
 CRITICAL COHERENCE RULES FOR EACH PANEL:
 1. Each panel prompt must be ONE COHERENT PARAGRAPH. No tag lists. No bullet points.
@@ -947,7 +1064,7 @@ async def _generate_single_prompt(
 GUIDE: Write as a flowing paragraph describing character beauty, expression, outfit, setting, and mood. Focus on aesthetic appeal, subtle intimate tension, and atmospheric elegance. Do NOT describe explicit sexual acts or penetration. Keep it artistic and refined.
 
 RULES:
-1. Character: detailed appearance, ethnicity, expression, posture
+1. Character: detailed appearance, ethnicity (rotate among 亚洲人 / 黄种人 / 中国人 / 日本人 / 韩国人 / 泰国人 / 越南人 / 印度人 / 伊朗人 / 中东人 / 白人 / 欧洲人 / 意大利人 / 法国人 / 德国人 / 俄罗斯人 / 美国人 / 拉丁人 / 拉美人 / 巴西人 / 墨西哥人 / 非洲人 / 混血儿 — match skin tone + facial features to chosen ethnicity), expression, posture
 2. Setting: elegant environment, props, lighting
 3. Mood: subtle intimate tension, emotional depth
 4. ONE cohesive artistic scene
@@ -999,7 +1116,7 @@ RULES:
 GUIDE: Write a flowing paragraph featuring character in fantasy costume or roleplay outfit (maid, nurse, police, school-adjacent professional, secretary, cat ears, etc.). Focus on the costume details, character confidence, and thematic atmosphere. Combine elegance with the fantasy element.
 
 RULES:
-1. Character: detailed appearance, specific costume/outfit with accessories
+1. Character: detailed appearance, specific costume/outfit with accessories, ethnicity (rotate among 亚洲人 / 黄种人 / 中国人 / 日本人 / 韩国人 / 泰国人 / 越南人 / 印度人 / 伊朗人 / 中东人 / 白人 / 欧洲人 / 意大利人 / 法国人 / 德国人 / 俄罗斯人 / 美国人 / 拉丁人 / 拉美人 / 巴西人 / 墨西哥人 / 非洲人 / 混血儿 — match skin tone + facial features to chosen ethnicity)
 2. Roleplay theme: clear fantasy context and setting
 3. Expression: confident, playful, or seductive
 4. ONE cohesive themed scene
@@ -1025,7 +1142,7 @@ RULES:
 GUIDE: Write a flowing paragraph about an attractive professional in a workplace setting. Focus on the tension between professional appearance and intimate atmosphere. Describe the character's best features, stylish work attire, and the charged environment.
 
 RULES:
-1. Character: attractive professional, detailed appearance, confident posture
+1. Character: attractive professional, detailed appearance (with ethnicity — rotate among 亚洲人 / 黄种人 / 中国人 / 日本人 / 韩国人 / 泰国人 / 越南人 / 印度人 / 伊朗人 / 中东人 / 白人 / 欧洲人 / 意大利人 / 法国人 / 德国人 / 俄罗斯人 / 美国人 / 拉丁人 / 拉美人 / 巴西人 / 墨西哥人 / 非洲人 / 混血儿; match skin tone + facial features to chosen ethnicity), confident posture
 2. Setting: office, clinic, studio, or other professional environment
 3. Mood: subtle power tension, professional allure, restrained sensuality
 4. ONE cohesive workplace scene
@@ -1077,7 +1194,7 @@ RULES:
 GUIDE: Write a flowing paragraph featuring a character in a mysterious, forbidden, or taboo setting. Focus on danger, mystery, forbidden desire, and dark allure. Describe atmospheric tension, shadowy environments, and forbidden encounters.
 
 RULES:
-1. Character: mysterious figure, alluring and dangerous energy
+1. Character: mysterious figure (with ethnicity — rotate among 亚洲人 / 黄种人 / 中国人 / 日本人 / 韩国人 / 泰国人 / 越南人 / 印度人 / 伊朗人 / 中东人 / 白人 / 欧洲人 / 意大利人 / 法国人 / 德国人 / 俄罗斯人 / 美国人 / 拉丁人 / 拉美人 / 巴西人 / 墨西哥人 / 非洲人 / 混血儿), alluring and dangerous energy
 2. Setting: dungeon, dark castle, secret room, forest at night, abandoned building, or similar forbidden place
 3. Mood: forbidden desire, mystery, danger, dark romance
 4. ONE cohesive dark atmospheric scene
@@ -1103,7 +1220,7 @@ RULES:
 GUIDE: Write a flowing paragraph about a character in alluring sleepwear, lingerie, or home clothing. Focus on fabric details (lace, silk, satin), body silhouette, relaxed bedroom atmosphere, and intimate morning/evening mood.
 
 RULES:
-1. Character: detailed appearance, attractive sleepwear/lingerie
+1. Character: detailed appearance (with ethnicity — rotate among 亚洲人 / 黄种人 / 中国人 / 日本人 / 韩国人 / 泰国人 / 越南人 / 印度人 / 伊朗人 / 中东人 / 白人 / 欧洲人 / 意大利人 / 法国人 / 德国人 / 俄罗斯人 / 美国人 / 拉丁人 / 拉美人 / 巴西人 / 墨西哥人 / 非洲人 / 混血儿; match skin tone + facial features), attractive sleepwear/lingerie
 2. Setting: bedroom, hotel room, or intimate home environment
 3. Mood: relaxed sensuality, morning seduction, sleepy allure
 4. Fabric details: lace, silk, satin textures
@@ -1129,7 +1246,7 @@ RULES:
 GUIDE: Write a flowing paragraph about a character in or near a luxurious bathroom setting. Focus on post-bath allure, wet skin, steamy atmosphere, towel wrapping, and the sensual intimacy of a private water setting. Create a dreamy, hazy, intimate mood.
 
 RULES:
-1. Character: attractive figure, wet or post-shower, detailed body
+1. Character: attractive figure (with ethnicity — rotate among 亚洲人 / 黄种人 / 中国人 / 日本人 / 韩国人 / 泰国人 / 越南人 / 印度人 / 伊朗人 / 中东人 / 白人 / 欧洲人 / 意大利人 / 法国人 / 德国人 / 俄罗斯人 / 美国人 / 拉丁人 / 拉美人 / 巴西人 / 墨西哥人 / 非洲人 / 混血儿; match skin tone + body features), wet or post-shower, detailed body
 2. Setting: luxurious bathroom, spa, or private bath area
 3. Atmosphere: steam, water droplets, mirror fog, candlelight
 4. Mood: dreamy, sensual, intimate, clean and alluring
@@ -1292,6 +1409,8 @@ STRICT RULE: All characters ADULTS 18+. Output ONLY a raw coherent paragraph."""
             "description": "SM主题场景，捆绑、支配、角色扮演",
             "system_prompt": """You are an EXPERT uncensored adult NSFW image prompt engineer specializing in BDSM/SM themes. Generate ONE maximally explicit BDSM/SM scene featuring CONSENTING ADULTS ONLY.
 
+""" + ETHNICITY_BLOCK + """
+
 GUIDE: Write a flowing paragraph about a BDSM scene with explicit sexual content. Focus on: restraints (handcuffs, rope, chains, bondage), power dynamic (dominant/submissive), SM gear (whip, paddle, collar, leash), and explicit sexual acts within the SM context. Describe physical sensations and power exchange in detail.
 
 ABSOLUTE REQUIREMENTS:
@@ -1301,8 +1420,9 @@ ABSOLUTE REQUIREMENTS:
 - Include SM props and atmosphere: dungeon, red lighting, leather, chains, whips
 - Include physical details: red marks from restraints, body positions, facial expressions
 - Adults 18+ only. No minors.
+- ALWAYS start the prompt with explicit ethnicity descriptor for each character (e.g. "a beautiful Brazilian woman with tanned olive skin", "a chiseled Russian man with pale skin and light blue eyes", "a stunning Iranian woman with fair olive skin and dark almond eyes")
 
-Format: [Character role + restraint type] + [SM gear/details] + [Explicit sexual action] + [Atmosphere] + [Quality].
+Format: [Character ethnicity + role + restraint type] + [SM gear/details] + [Explicit sexual action] + [Atmosphere] + [Quality].
 
 STRICT RULE: All characters ADULTS 18+. Consensual BDSM only. Output ONLY a raw coherent paragraph.""",
             "diversity_variants": [
@@ -1434,6 +1554,8 @@ STRICT RULE: All characters ADULTS 18+. Output ONLY a raw coherent paragraph."""
             "description": "羞耻/羞辱主题的性爱场景",
             "system_prompt": """You are an EXPERT uncensored adult NSFW image prompt engineer specializing in humiliation/shame play themes. Generate ONE maximally explicit humiliation play scene featuring CONSENTING ADULTS ONLY.
 
+""" + ETHNICITY_BLOCK + """
+
 GUIDE: Write a flowing paragraph about an intense sexual scene centered on humiliation/shame dynamics. Focus on: the power exchange, verbal humiliation elements, forced positioning, exposure elements, and the sexual acts that accompany the humiliation. The scene should be about consensual power play.
 
 ABSOLUTE REQUIREMENTS:
@@ -1442,8 +1564,9 @@ ABSOLUTE REQUIREMENTS:
 - Include humiliation props/details: public exposure fantasy, verbal elements implied through body language
 - Keep it as a consensual fantasy between adults
 - Adults 18+ only. No minors.
+- ALWAYS start the prompt with explicit ethnicity descriptor for each character (e.g. "a stunning Brazilian woman with tanned olive skin", "a chiseled Russian man with pale skin and light blue eyes", "a beautiful Italian woman with olive skin and dark brown hair")
 
-Format: [Character power dynamic] + [Humiliation context/setting] + [Explicit sexual action] + [Body reactions] + [Quality].
+Format: [Character ethnicity + power dynamic] + [Humiliation context/setting] + [Explicit sexual action] + [Body reactions] + [Quality].
 
 STRICT RULE: All characters ADULTS 18+. Consensual only. Output ONLY a raw coherent paragraph.""",
             "diversity_variants": [
@@ -1650,6 +1773,8 @@ async def storyboard(req: StoryboardRequest, api_key: str = Depends(get_api_key)
 
 GRID_STORYBOARD_SYSTEM_PROMPT_NORMAL = """You are an expert visual narrative director. Based on the user's input, generate EXACTLY 9 storyboard panels arranged as a 3x3 grid that together tell a cohesive visual story.
 
+""" + ETHNICITY_BLOCK + """
+
 For EACH of the 9 panels, output:
 - panel_number: integer 1-9 (top-left=1, top-center=2, top-right=3, middle-left=4, middle-center=5, middle-right=6, bottom-left=7, bottom-center=8, bottom-right=9)
 - scene_description: 1 short Chinese sentence (≤25 characters) describing what SPECIFICALLY happens in that panel. PANELS 1-9 MUST ALL BE DIFFERENT scenes.
@@ -1685,6 +1810,8 @@ Example output (note all 9 panels are different):
 
 
 GRID_STORYBOARD_SYSTEM_PROMPT_R18 = """You are an EXPERT uncensored adult visual narrative director. Based on the user's input, generate EXACTLY 9 storyboard panels arranged as a 3x3 grid that together tell a cohesive erotic visual story.
+
+""" + ETHNICITY_BLOCK + """
 
 For EACH of the 9 panels, output:
 - panel_number: integer 1-9 (top-left=1, top-center=2, top-right=3, middle-left=4, middle-center=5, middle-right=6, bottom-left=7, bottom-center=8, bottom-right=9)
@@ -1822,6 +1949,7 @@ IMPORTANT:
 - Each description must be 2-3 sentences in Chinese, vivid and exciting
 - Each tags array must contain ONLY Chinese keywords (3-5 tags)
 - All characters must be ADULTS 18+
+""" + ETHNICITY_BLOCK + """
 
 Output STRICTLY as raw JSON array (no markdown):
 [{{"id": 1, "title": "中文标题", "description": "中文描述2-3句", "tags": ["中文标签1", "中文标签2", "标签3"], "r18_level": "soft", "category": "分类"}}, ...]
@@ -1842,6 +1970,7 @@ IMPORTANT - DIVERSITY RULES - CRITICAL:
 - Each tags array MUST contain ONLY Chinese keywords (3-5 tags)
 - R18 level: 'soft', 'medium', or 'hard'
 - Theme titles should be creative and specific, not generic
+""" + ETHNICITY_BLOCK + """
 
 DIVERSITY STRATEGY - generate {count} themes with MAXIMUM variety:
 1. AVOID repetitive patterns - each title must have a unique hook
@@ -1854,6 +1983,7 @@ DIVERSITY STRATEGY - generate {count} themes with MAXIMUM variety:
 8. Include themes with VARIED POSES: standing, lying, sitting, bending, kneeling, crawling, suspended, etc.
 9. Include themes with VARIED SETTINGS: daytime, nighttime, indoor, outdoor, public, private, exotic locations
 10. Include themes with VARIED EMOTIONS: romantic, dominant, submissive, playful, tense, mysterious
+11. Include themes with VARIED ETHNICITIES: Chinese, Japanese, Korean, Thai, Vietnamese, Indian, Iranian, Italian, French, German, Russian, Brazilian, Mexican, American, African, Latino, Middle Eastern, Polynesian, multiracial — show a GLOBAL cast, NOT a single-race cast.
 
 ABSOLUTE REQUIREMENTS:
 - Themes must be genuinely different from each other - NO similar titles
@@ -2129,8 +2259,10 @@ _R18_ARC_PANELS = {
 
 
 _NORMAL_OUTLINE_SYSTEM = """You are an expert adult comic director. A user selected theme: "{theme_title}".
+{theme_coherence}
 
 Generate a COMPLETELY UNIQUE and CREATIVE narrative outline and {panel_count} storyboard panels for a 15-30 second short video.
+""" + ETHNICITY_BLOCK + """
 
 【CREATIVITY REQUIREMENTS - CRITICAL】:
 - Use your CREATIVE IMAGINATION - do NOT repeat common tropes or overused descriptions
@@ -2150,10 +2282,11 @@ Panel requirements:
 - All characters are ADULTS 18+
 - No minors
 - Be CREATIVE and UNIQUE in every detail
+- Include the character's ethnicity/nationality in BOTH scene_description (Chinese) AND image_prompt (English, with skin tone + facial features specific to that ethnicity)
 
 For EACH panel provide:
 - scene_description: What happens in this panel (emotions, actions, setting) - make it UNIQUE and interesting
-- image_prompt: Stable Diffusion / Flux image prompt (detailed, cinematic, UNIQUE)
+- image_prompt: Stable Diffusion / Flux image prompt (detailed, cinematic, UNIQUE). MUST start with explicit ethnicity descriptor (e.g. "a beautiful Iranian woman with fair olive skin and dark almond eyes", "a handsome Italian man with olive skin and dark brown hair", "a Brazilian woman with tanned olive skin and dark curly hair", "a Russian man with pale skin and light blue eyes", "a Chinese woman with warm beige skin and silky black hair").
 
 Output as raw JSON:
 {{"outline": {{"arc": "{arc_label}", "scenes": ["场景1描述", "场景2描述", ...]}}, "storyboard": [{{"panel_number": 1, "scene_description": "...", "image_prompt": "..."}}, ...]}}
@@ -2162,6 +2295,8 @@ Do NOT wrap in markdown. Output raw JSON only."""
 
 
 _R18_OUTLINE_SYSTEM = """You are an EXPERT adult comic director specializing in EXPLICIT sexual content. User selected theme: "{theme_title}".
+{theme_coherence}
+""" + ETHNICITY_BLOCK + """
 
 【POSE RANDOMIZATION - ABSOLUTELY MANDATORY】:
 You MUST select EXPLICITLY DIFFERENT sexual positions for each panel from the following 105-pose pool. NO TWO panels may share the same position category (e.g. doggy, cowgirl, missionary, 69, etc.). Variety is CRITICAL.
@@ -2182,7 +2317,7 @@ STRICT PACING - Each panel MUST follow this general arc (NO skipping to sex in P
 {arc_panels}
 
 CRITICAL PACING RULES:
-- Panel 1: NO explicit sex. Focus on: character intro, costume, setting, building sexual tension, eye contact, clothing, atmosphere. TENSION first.
+- Panel 1: NO explicit sex. Focus on: character intro (with ethnicity), costume, setting, building sexual tension, eye contact, clothing, atmosphere. TENSION first.
 - Panel 2: Clothes start coming off. Kissing, foreplay begins. Still building.
 - Panel 3+: ONLY THEN show explicit sexual acts. Use a DIFFERENT position from Panel 1's vibe.
 - Each panel must ADVANCE the sexual narrative naturally
@@ -2195,6 +2330,7 @@ EXPLICIT CONTENT requirements for Panel 3+:
 - Describe body fluids: saliva, precum, cum, vaginal fluids
 - Describe camera angles: POV, close-up on genitals, spread shot, cum shot, POV insertion
 - Be CREATIVE in how characters express pleasure and interact
+- ALWAYS start image_prompt with explicit ethnicity descriptor (e.g. "a beautiful Thai woman with warm beige skin and silky black hair,", "a handsome Brazilian man with tanned olive skin and dark brown eyes,", "a stunning Iranian woman with fair olive skin and dark almond eyes,", "a chiseled Russian man with pale skin and light blue eyes,"). Skin tone/facial features must MATCH the chosen ethnicity.
 
 CRITICAL: ALL characters 18+. NO minors. NO non-consent. NO animals.
 
@@ -2229,6 +2365,49 @@ async def generate_storyboard_outline(
         asyncio.create_task(_run_outline_task(task.task_id, req, api_key))
         return StoryboardOutlineResponse(task_id=task.task_id, theme_id=req.theme_id, theme_title=req.theme_title, outline=StoryboardOutline(arc="", scenes=[]), storyboard=[])
 
+    # ── Look up theme for storyline coherence ────────────────────────────────
+    selected_theme = None
+    theme_scenarios_str = ""
+    theme_costumes_str = ""
+    theme_poses_str = ""
+    if req.theme_id:
+        try:
+            seq_id = int(req.theme_id)
+            from app.services.theme_database import get_theme_by_seq_id
+            selected_theme = get_theme_by_seq_id(seq_id)
+        except (ValueError, TypeError):
+            selected_theme = None
+        if selected_theme is None:
+            from app.services.theme_database import get_theme_by_id
+            selected_theme = get_theme_by_id(req.theme_id)
+    if selected_theme:
+        scenarios = selected_theme.get("scenarios", [])
+        costumes = selected_theme.get("costumes", [])
+        poses = selected_theme.get("poses", [])
+        if scenarios:
+            theme_scenarios_str = "场景设定（必须至少选择2个使用）: " + "、".join(scenarios)
+        if costumes:
+            theme_costumes_str = "服装造型（必须选择1-2个使用）: " + "、".join(costumes)
+        if poses:
+            theme_poses_str = "姿势风格（参考）: " + "、".join(poses)
+
+    coherence_context = ""
+    if theme_scenarios_str or theme_costumes_str or theme_poses_str:
+        coherence_context = (
+            "\n\n【SELECTED THEME DETAILS — USE THESE FOR COHERENCE】:\n"
+        )
+        if theme_scenarios_str:
+            coherence_context += f"  - {theme_scenarios_str}\n"
+        if theme_costumes_str:
+            coherence_context += f"  - {theme_costumes_str}\n"
+        if theme_poses_str:
+            coherence_context += f"  - {theme_poses_str}\n"
+        coherence_context += (
+            "IMPORTANT: You MUST incorporate the selected scenarios, costumes, "
+            "and poses above into your outline to ensure narrative coherence. "
+            "Do not invent unrelated settings or clothing."
+        )
+
     if req.r18:
         arc_panels = _R18_ARC_PANELS.get(panel_count, _R18_ARC_PANELS[5])
         system_template = _R18_OUTLINE_SYSTEM
@@ -2250,6 +2429,7 @@ async def generate_storyboard_outline(
         arc_panels=arc_panels_str,
         arc_label=arc_label,
         pose_list=pose_list_str,
+        theme_coherence=coherence_context,
     )
 
     user_prompt = (
