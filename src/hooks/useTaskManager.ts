@@ -243,11 +243,12 @@ export function useTaskManager({
 
     if (zipUrl) {
       try {
-        const [blobUrls, dataUrls] = await Promise.all([
-          extractImagesFromZip(zipUrl),
-          extractImagesFromZipAsDataUrls(zipUrl),
-        ]);
-        // Use dataUrls as the source of truth — stored in cache and task.images
+        // Only fetch data-URLs — they're the source of truth for both the
+        // cache and the task.images array. The redundant parallel
+        // extractImagesFromZip() call used to double-hit the CDN and cause
+        // "Failed to fetch" / "Corrupted zip" errors when several tasks
+        // finished at the same time.
+        const dataUrls = await extractImagesFromZipAsDataUrls(zipUrl);
         const finalImages = dataUrls;
         await cacheImages(zipUrl, dataUrls);
         setTasks((prev) =>
@@ -261,7 +262,9 @@ export function useTaskManager({
         return { updatedTask };
       } catch (err) {
         console.error('[extractFinishedTaskImages] Failed to extract images:', err);
-        // Still try to recover blob URLs through cache
+        // Last-resort fallback: serve blob URLs through the cache layer.
+        // These will be displayed as <img src="blob:..."> and are usually
+        // recoverable on the next refresh once the CDN settles down.
         const blobUrls = await extractImagesFromZip(zipUrl).catch(() => []);
         const finalImages = await getOrFetchTaskImages(zipUrl, blobUrls);
         setTasks((prev) =>

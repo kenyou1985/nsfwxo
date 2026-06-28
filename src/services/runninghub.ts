@@ -482,63 +482,80 @@ export function mapTaskStatus(status: string): TaskStatus {
   }
 }
 
-export async function extractImagesFromZip(zipUrl: string, retries = 3): Promise<string[]> {
-  let lastError: Error | null = null;
+// In-flight de-duplication for the blob-URL variant. Shares the same
+// underlying network fetch with extractImagesFromZipAsDataUrls so callers
+// requesting both forms for the same URL don't double-hit the CDN.
+const _zipBlobInflight = new Map<string, Promise<string[]>>();
 
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    if (attempt > 0) {
-      await new Promise((r) => setTimeout(r, 2000 * attempt));
-    }
+export async function extractImagesFromZip(zipUrl: string, retries = 2): Promise<string[]> {
+  const pending = _zipBlobInflight.get(zipUrl);
+  if (pending) {
+    return pending;
+  }
 
-    try {
-      console.log('[extractImagesFromZip] Fetching zip from:', zipUrl, 'attempt:', attempt);
+  const promise = (async () => {
+    let lastError: Error | null = null;
 
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 60000);
-
-      const response = await fetch(zipUrl, { signal: controller.signal });
-      clearTimeout(timeout);
-
-      console.log('[extractImagesFromZip] Response status:', response.status);
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch zip: ${response.status}`);
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      if (attempt > 0) {
+        await new Promise((r) => setTimeout(r, 3000 * attempt));
       }
 
-      let arrayBuffer: ArrayBuffer;
       try {
-        arrayBuffer = await response.arrayBuffer();
-      } catch (err) {
-        throw new Error('读取 ZIP 数据失败: ' + (err instanceof Error ? err.message : String(err)));
-      }
+        console.log('[extractImagesFromZip] Fetching zip from:', zipUrl, 'attempt:', attempt);
 
-      console.log('[extractImagesFromZip] Downloaded zip, size:', arrayBuffer.byteLength);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 180000);
 
-      if (arrayBuffer.byteLength === 0) {
-        throw new Error('ZIP 文件为空');
-      }
+        const response = await fetch(zipUrl, {
+          signal: controller.signal,
+          cache: 'force-cache',
+          // @ts-ignore — keepalive is widely supported but not in older lib defs
+          keepalive: true,
+        });
+        clearTimeout(timeout);
 
-      let zip: JSZip;
-      try {
-        zip = await JSZip.loadAsync(arrayBuffer);
-        console.log('[extractImagesFromZip] Zip loaded successfully');
-      } catch (err) {
-        throw new Error('解析 ZIP 文件失败: ' + (err instanceof Error ? err.message : String(err)));
-      }
+        console.log('[extractImagesFromZip] Response status:', response.status);
 
-      const imageExtensions = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
-      const imageUrls: string[] = [];
+        if (!response.ok) {
+          throw new Error(`Failed to fetch zip: ${response.status}`);
+        }
 
-      const fileEntries = Object.entries(zip.files);
-      console.log('[extractImagesFromZip] Total files in zip:', fileEntries.length);
+        let arrayBuffer: ArrayBuffer;
+        try {
+          arrayBuffer = await response.arrayBuffer();
+        } catch (err) {
+          throw new Error('读取 ZIP 数据失败: ' + (err instanceof Error ? err.message : String(err)));
+        }
 
-      const nonDirFiles = fileEntries.filter(([, f]) => !f.dir);
-      console.log('[extractImagesFromZip] Non-directory files:', nonDirFiles.length);
-      console.log('[extractImagesFromZip] File names:', nonDirFiles.map(([name]) => name).join(', '));
+        console.log('[extractImagesFromZip] Downloaded zip, size:', arrayBuffer.byteLength);
 
-      for (const [filename, file] of nonDirFiles) {
-        const ext = filename.toLowerCase();
-        if (imageExtensions.some((e) => ext.endsWith(e))) {
+        if (arrayBuffer.byteLength === 0) {
+          throw new Error('ZIP 文件为空');
+        }
+
+        let zip: JSZip;
+        try {
+          zip = await JSZip.loadAsync(arrayBuffer);
+          console.log('[extractImagesFromZip] Zip loaded successfully');
+        } catch (err) {
+          throw new Error('解析 ZIP 文件失败: ' + (err instanceof Error ? err.message : String(err)));
+        }
+
+        const imageExtensions = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
+        const imageUrls: string[] = [];
+
+        const fileEntries = Object.entries(zip.files);
+        console.log('[extractImagesFromZip] Total files in zip:', fileEntries.length);
+
+        const nonDirFiles = fileEntries.filter(([, f]) => !f.dir);
+        console.log('[extractImagesFromZip] Non-directory files:', nonDirFiles.length);
+        console.log('[extractImagesFromZip] File names:', nonDirFiles.map(([name]) => name).join(', '));
+
+        for (const [, file] of nonDirFiles) {
+          const filename = file.name;
+          const ext = filename.toLowerCase();
+          if (!imageExtensions.some((e) => ext.endsWith(e))) continue;
           console.log('[extractImagesFromZip] Found image:', filename);
           try {
             const blob = await file.async('blob');
@@ -553,20 +570,29 @@ export async function extractImagesFromZip(zipUrl: string, retries = 3): Promise
             console.error('[extractImagesFromZip] Failed to extract file:', filename, err);
           }
         }
-      }
 
-      console.log('[extractImagesFromZip] Extracted images count:', imageUrls.length);
-      if (imageUrls.length === 0) {
-        throw new Error('ZIP 中未找到图片文件');
+        console.log('[extractImagesFromZip] Extracted images count:', imageUrls.length);
+        if (imageUrls.length === 0) {
+          throw new Error('ZIP 中未找到图片文件');
+        }
+        return imageUrls;
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        console.warn('[extractImagesFromZip] Attempt', attempt, 'failed:', lastError.message);
       }
-      return imageUrls;
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-      console.warn('[extractImagesFromZip] Attempt', attempt, 'failed:', lastError.message);
     }
-  }
 
-  throw lastError || new Error('解压 ZIP 文件失败');
+    throw lastError || new Error('解压 ZIP 文件失败');
+  })();
+
+  _zipBlobInflight.set(zipUrl, promise);
+  promise.finally(() => {
+    if (_zipBlobInflight.get(zipUrl) === promise) {
+      _zipBlobInflight.delete(zipUrl);
+    }
+  });
+
+  return promise;
 }
 
 export async function fetchImageAsDataUrl(url: string): Promise<string | null> {
@@ -596,59 +622,109 @@ export async function ensureDataUrl(url: string): Promise<string> {
   return url;
 }
 
-export async function extractImagesFromZipAsDataUrls(zipUrl: string, retries = 3): Promise<string[]> {
-  let lastError: Error | null = null;
+// In-flight de-duplication for concurrent callers requesting the same zip URL.
+// When several tasks (or the same task being restored + polled) need to extract
+// the same zip, share a single network fetch + data-URL conversion to avoid
+// hammering the CDN with redundant downloads (which manifests as
+// "Failed to fetch" / "Corrupted zip" / "signal is aborted without reason").
+const _zipDataUrlInflight = new Map<string, Promise<string[]>>();
 
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    if (attempt > 0) {
-      await new Promise((r) => setTimeout(r, 2000 * attempt));
-    }
-
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 60000);
-
-      const response = await fetch(zipUrl, { signal: controller.signal });
-      clearTimeout(timeout);
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch zip: ${response.status}`);
-      }
-      const arrayBuffer = await response.arrayBuffer();
-      if (arrayBuffer.byteLength === 0) {
-        throw new Error('ZIP 文件为空');
-      }
-      const zip = await JSZip.loadAsync(arrayBuffer);
-
-      const imageExtensions = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
-      const dataUrls: string[] = [];
-
-      const nonDirFiles = Object.entries(zip.files).filter(([, f]) => !f.dir);
-      console.log('[extractImagesFromZipAsDataUrls] Files:', nonDirFiles.map(([name]) => name).join(', '));
-
-      for (const [filename, file] of nonDirFiles) {
-        const ext = filename.toLowerCase();
-        if (imageExtensions.some((e) => ext.endsWith(e))) {
-        const blob = await file.async('blob');
-        if (blob.size === 0) continue;
-        const dataUrl = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
-        dataUrls.push(dataUrl);
-      }
-    }
-
-      return dataUrls;
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-      console.warn('[extractImagesFromZipAsDataUrls] Attempt', attempt, 'failed:', lastError.message);
-    }
+export async function extractImagesFromZipAsDataUrls(zipUrl: string, retries = 2): Promise<string[]> {
+  // If a fetch is already in progress for this URL, share it.
+  const pending = _zipDataUrlInflight.get(zipUrl);
+  if (pending) {
+    return pending;
   }
 
-  throw lastError || new Error('解压 ZIP 文件失败');
+  const promise = (async () => {
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      if (attempt > 0) {
+        // 3s, 6s, 9s — give the CDN time to recover and the browser time
+        // to free up a connection slot from the previous cancelled request.
+        await new Promise((r) => setTimeout(r, 3000 * attempt));
+      }
+
+      try {
+        const controller = new AbortController();
+        // Data-URL conversion (FileReader.readAsDataURL on multi-MB blobs) is
+        // CPU-bound. 180s gives plenty of headroom for slow machines under load.
+        const timeout = setTimeout(() => controller.abort(), 180000);
+
+        const response = await fetch(zipUrl, {
+          signal: controller.signal,
+          // Hint to the browser that this response may be used for a long-lived
+          // download. Some CDNs need this to avoid premature connection drops.
+          cache: 'force-cache',
+          // @ts-ignore — keepalive is widely supported but not in older lib defs
+          keepalive: true,
+        });
+        clearTimeout(timeout);
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch zip: ${response.status}`);
+        }
+        const arrayBuffer = await response.arrayBuffer();
+        if (arrayBuffer.byteLength === 0) {
+          throw new Error('ZIP 文件为空');
+        }
+
+        let zip: JSZip;
+        try {
+          zip = await JSZip.loadAsync(arrayBuffer);
+        } catch (err) {
+          throw new Error('解析 ZIP 文件失败: ' + (err instanceof Error ? err.message : String(err)));
+        }
+
+        const imageExtensions = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
+        const dataUrls: string[] = [];
+
+        const nonDirFiles = Object.entries(zip.files).filter(([, f]) => !f.dir);
+        console.log('[extractImagesFromZipAsDataUrls] Files:', nonDirFiles.map(([name]) => name).join(', '));
+
+        for (const [, file] of nonDirFiles) {
+          const filename = file.name;
+          const ext = filename.toLowerCase();
+          if (!imageExtensions.some((e) => ext.endsWith(e))) continue;
+          try {
+            const blob = await file.async('blob');
+            if (blob.size === 0) continue;
+            const dataUrl = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+            });
+            dataUrls.push(dataUrl);
+          } catch (err) {
+            console.warn('[extractImagesFromZipAsDataUrls] Failed to convert', filename, err);
+          }
+        }
+
+        if (dataUrls.length === 0) {
+          throw new Error('ZIP 中未找到图片文件');
+        }
+        return dataUrls;
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        console.warn('[extractImagesFromZipAsDataUrls] Attempt', attempt, 'failed:', lastError.message);
+      }
+    }
+
+    throw lastError || new Error('解压 ZIP 文件失败');
+  })();
+
+  // Track in-flight; remove on settle (success or failure).
+  _zipDataUrlInflight.set(zipUrl, promise);
+  promise.finally(() => {
+    // Only delete if still pointing to us (defensive — same promise is cached).
+    if (_zipDataUrlInflight.get(zipUrl) === promise) {
+      _zipDataUrlInflight.delete(zipUrl);
+    }
+  });
+
+  return promise;
 }
 
 export async function uploadImage(
