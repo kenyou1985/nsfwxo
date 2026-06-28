@@ -19,7 +19,7 @@ from app.models.schemas import (
 from app.services.llm_service import call_grok, clean_json_response, YunwuAuthError, YunwuRateLimitError, YunwuTimeoutError, YunwuParseError, YunwuAPIError
 from app.services.gacha_service import generate_random_tags
 from app.services.safety_filter import check_prompt_safety, check_tags_safety, ContentSafetyError
-from app.services.prompt_coherence import detect_prompt_conflicts, rewrite_coherent_prompt
+from app.services.prompt_coherence import detect_prompt_conflicts, rewrite_coherent_prompt, detect_outfit_color_drift
 from app.services.theme_database import get_random_poses
 from app.services.prompt_task_store import get_task_store, TaskStatus
 
@@ -86,6 +86,1146 @@ ETHNICITY_BLOCK = (
 )
 
 
+# ════════════════════════════════════════════════════════════════════════════════
+# THEME-AWARE PANEL ENFORCEMENT (post-processing layer)
+# ════════════════════════════════════════════════════════════════════════════════
+# The user repeatedly complained: 主题=修女 生成的 panel 是白色连衣裙/迷你裙/比基尼;
+# 主题=法官 panel 出现 晚礼服/高跟鞋/咖啡厅; 主题=保龄球馆 全部场景在卧室/厨房.
+# Even with detailed prompt instructions, the LLM still drifts.
+#
+# This module FORCES theme consistency post-generation:
+#   1. Detects ALL outfit words in scene_description / image_prompt (200+ vocabulary)
+#   2. Detects ALL location words (100+ vocabulary)
+#   3. Replaces off-theme outfits/locations with the theme's CANONICAL outfit/location
+#   4. For panel 1 specifically, ENFORCES a theme-setup opening (保龄球 → 打球, 修女 → 祈祷)
+#   5. Works on ALL panels in non-R18 mode, and panels 1-3 in R18 mode
+#
+# Strategy: when outfit is detected, check if it's COMPATIBLE with the theme's
+# costume keywords. If not, REPLACE.
+# ════════════════════════════════════════════════════════════════════════════════
+
+import re as _re_consist
+from typing import Optional, List, Tuple, Dict
+
+# ─── Massive Chinese outfit vocabulary (200+ terms) ─────────────────────────────
+# All terms the LLM is likely to use, sorted by length descending so longer terms
+# match first when overlapping (e.g. "白色连衣裙" matches before "连衣裙").
+_OUTFIT_WORDS_ZH = sorted([
+    # ── 修女系 ──
+    "修女服", "修女袍", "修女头巾", "修女帽", "念珠", "圣经",
+    "黑色修女服", "白色修女服", "灰色修女服",
+    # ── 法官 / 律师 ──
+    "法官袍", "黑色法官袍", "银色假发", "法槌", "法袍", "假发",
+    "律师套装", "律师服", "律师袍", "辩护律师服",
+    # ── 护士 / 医生 ──
+    "护士服", "白色护士服", "护士帽", "护士鞋", "听诊器",
+    "医生袍", "白大褂", "医生服", "手术服",
+    # ── 空姐 / 航空 ──
+    "空姐制服", "机长制服", "飞行员制服", "航空制服", "空姐帽",
+    # ── 警察 / 军人 ──
+    "警察制服", "警服", "警帽", "警徽", "军装", "军服",
+    "军帽", "军靴", "军衔", "水手服", "海军制服",
+    # ── 教师 / 学生 ──
+    "校服", "JK制服", "学生制服", "白衬衫", "格子裙",
+    # ── 女仆 / 兔女郎 / 啦啦队 ──
+    "女仆装", "兔女郎装", "啦啦队服", "啦啦队",
+    # ── 民族 / 传统 ──
+    "汉服", "和服", "浴衣", "旗袍", "韩服", "纱丽", "肚兜", "凤冠", "霞帔",
+    # ── 异装 / 角色 ──
+    "婚纱", "公主裙", "女王长袍", "海盗服", "哥特服装",
+    "中世纪服装", "古风服装", "武侠服装", "仙女服", "精灵服",
+    "太空服", "宇航服", "战斗服", "机甲服",
+    # ── 家居 / 厨房 / 户外 ──
+    "围裙", "迷彩服", "迷彩", "工装", "工装裤", "工装上衣",
+    "牛仔帽", "棒球帽", "斗篷", "披风", "帽子", "领带",
+    # ── SM / 情趣 ──
+    "皮衣", "皮夹克", "乳胶紧身衣", "乳胶衣", "束缚装",
+    "情趣内衣", "情趣睡裙", "透明睡衣", "蕾丝内衣", "蕾丝睡裙",
+    "蕾丝吊带", "丁字裤", "胸罩", "文胸", "内裤", "吊带袜",
+    "三点式", "比基尼", "泳装", "泳衣", "比基尼泳装",
+    "性感内衣", "性感睡衣", "丝质睡衣", "真丝睡袍",
+    # ── 内衣 / 家居 ──
+    "家居服", "居家服", "睡衣", "睡袍", "睡裙", "睡帽",
+    "晨袍", "薄纱", "薄纱睡袍", "浴袍", "浴巾", "桑拿巾",
+    # ── 连衣裙 ──
+    "连衣裙", "白色连衣裙", "黑色连衣裙", "红色连衣裙",
+    "粉色连衣裙", "紫色连衣裙", "蓝色连衣裙", "晚礼服",
+    "礼服裙", "拖地长裙", "长裙", "短裙", "超短裙",
+    # ── 迷你裙 ──
+    "迷你裙", "黑色迷你裙", "白色迷你裙", "粉色迷你裙", "超短迷你裙",
+    # ── 半裙 / 包臀 ──
+    "包臀裙", "铅笔裙", "A字裙", "百褶裙", "伞裙",
+    # ── 套装 / 制服 ──
+    "职业套装", "职业装", "西装", "黑色西装", "商务衬衫",
+    "OL套装", "职场套装", "职业裙", "通勤装",
+    # ── 运动 / 健身 ──
+    "运动内衣", "运动装", "运动装", "运动服", "瑜伽服", "健身服",
+    "球衣", "运动短裤", "足球服", "棒球服", "保龄球服",
+    "保龄球polo衫", "高尔夫球装", "polo衫", "网球裙",
+    # ── 沙滩排球 ──
+    "沙滩短裤", "运动背心", "沙滩比基尼", "排球服", "排球短裤", "沙滩排球装",
+    # ── 上装 ──
+    "吊带", "吊带裙", "吊带背心", "背心", "T恤",
+    "衬衫", "毛衣", "针织衫", "开衫", "卫衣",
+    # ── 外套 ──
+    "风衣", "羽绒服", "外套", "大衣", "皮草",
+    # ── 牛仔 / 休闲 ──
+    "牛仔短裤", "牛仔裤", "休闲装", "便装",
+    # ── 配饰 (less important) ──
+    "高跟鞋", "球宝", "丝袜", "长筒袜", "过膝袜", "长靴",
+    # ── 全裸 / 半裸 ──
+    "全裸", "赤裸", "裸体", "半裸", "仅着内衣", "脱去外衣",
+    "部分脱去", "湿身", "披着浴巾",
+], key=len, reverse=True)
+
+# ─── Massive Chinese location vocabulary (100+ terms) ───────────────────────────
+_LOCATION_WORDS_ZH = sorted([
+    # ── 修女 ──
+    "修道院", "告解室", "祈祷室", "修女房间", "礼拜堂", "教堂",
+    "教堂内", "教堂中", "十字架前",
+    # ── 法官 ──
+    "法庭", "法院", "法官办公室", "法院走廊", "私人书房",
+    "审判席", "旁听席", "证人席", "律师事务所",
+    # ── 护士 / 医院 ──
+    "护士站", "病房", "医院", "诊所", "检查室", "医院走廊",
+    "急诊室", "手术室", "候诊区",
+    # ── 空姐 / 航空 ──
+    "飞机", "飞机洗手间", "头等舱", "机组休息室", "机场", "航班",
+    "驾驶舱", "经济舱", "客舱", "行李舱", "登机口",
+    # ── 温泉 / 浴场 / 浴室 ──
+    "温泉池", "温泉", "野温泉", "别墅温泉", "公共浴场", "浴室",
+    "桑拿房", "桑拿", "蒸气房", "岩盘浴", "温泉度假村",
+    # ── 学校 ──
+    "教室", "学校", "操场", "校园", "图书馆", "讲台",
+    "实验室", "宿舍", "体育馆", "学校走廊",
+    # ── 公园 / 户外 ──
+    "公园", "公园长椅", "摩天轮", "咖啡厅", "餐厅",
+    "酒吧", "酒吧包间", "包间", "包厢",
+    "卧室", "主卧", "次卧", "闺房", "酒店房间",
+    "情趣酒店", "酒店", "客房", "套房",
+    "床上", "沙发上", "椅子上", "吧台上",
+    "厨房", "客厅", "餐厅", "玄关",
+    "书房", "阳台", "露台", "天台",
+    # ── 法庭 / 办公 ──
+    "办公室", "会议室", "茶水间", "公司走廊",
+    # ── 街头 ──
+    "街道", "路边", "小巷", "胡同", "巷子",
+    # ── 保龄球馆 ──
+    "保龄球馆", "球馆", "保龄球道", "保龄球瓶区",
+    # ── 泳池 / 海 ──
+    "泳池", "游泳池", "泳道", "泳池边", "泳池边湿身",
+    "游泳馆", "跳水池", "泳池躺椅", "更衣室", "更衣帐篷",
+    "沙滩", "海边", "海岸", "海浪", "礁石",
+    "摩天轮", "摩天轮座舱", "摩天轮坐舱", "摩天轮上",
+    "喷泉", "喷泉旁", "喷泉边",
+    "树林", "树林深处", "树林里", "小树林", "树丛", "树荫", "树荫下",
+    "丛林", "丛林深处", "野外", "野外丛林", "野地", "荒地", "荒野",
+    "草丛", "草丛间", "花丛", "花园", "花园里",
+    "林间小道", "林荫道", "山间小路",
+    "山顶", "山腰", "山谷", "山洞", "山崖", "悬崖", "山脚", "山坡",
+    # ── 咖啡 / 餐厅 / 酒吧 (扩展) ──
+    "咖啡馆", "咖啡店内", "餐厅内", "餐厅里",
+    "酒窖", "夜店", "夜店内", "KTV包间", "派对现场",
+    # ── 卧室 / 酒店 (扩展) ──
+    "总统套房",
+    # ── 楼内 ──
+    "电梯内", "阁楼", "地下室", "屋顶", "观景台",
+    # ── 异域 / 传统 (扩展) ──
+    "中式阁楼", "古宅", "竹林深处", "月下",
+    "皇宫大殿", "王座厅", "老上海", "豪宅大厅", "豪宅内",
+    # ── 主题公园 / 娱乐 ──
+    "游乐园", "过山车", "旋转木马", "鬼屋", "密室", "密室逃脱",
+    # ── 洞穴 / 地下 ──
+    "洞穴", "地窖", "储藏室", "仓库",
+    # ── 球场 (扩展) ──
+    "篮球场", "足球场", "网球场", "羽毛球场", "乒乓球场",
+    "棒球场", "排球场",
+    # ── 交通工具 (扩展) ──
+    "车厢内", "出租车", "私家车", "大巴卧铺", "大巴上", "大巴里",
+    "地铁车厢", "地铁站", "公交车上",
+    "副驾驶", "车顶",
+    # ── 排球 / 沙滩 (扩展) ──
+    "沙滩", "海滩", "排球网旁", "沙滩毛巾", "沙滩小屋", "排球场",
+    "海边沙滩", "沙滩上", "海面上",
+    # ── 高尔夫 ──
+    "高尔夫球场", "果岭", "发球台", "球车", "会所",
+    # ── 滑雪 ──
+    "滑雪场", "滑雪道", "缆车", "雪地", "山顶小屋",
+    # ── 公园 / 街心 ──
+    "街心公园", "植物园", "动物园",
+    # ── 交通工具 ──
+    "车里", "车后座", "车前座", "车顶", "甲板", "船舱",
+    "电梯", "楼梯", "楼道",
+], key=len, reverse=True)
+
+# Pre-compiled regex (longest-first matching via | precedence)
+_OUTFIT_RE_ZH = _re_consist.compile("|".join(_re_consist.escape(w) for w in _OUTFIT_WORDS_ZH))
+_LOCATION_RE_ZH = _re_consist.compile("|".join(_re_consist.escape(w) for w in _LOCATION_WORDS_ZH))
+
+# English location vocabulary (for detecting off-theme English words in image_prompts)
+_LOCATION_WORDS_EN = [
+    "airplane cabin", "airplane cockpit", "airplane bathroom", "airplane lavatory",
+    "airplane", "private jet", "airport terminal", "airport gate", "airport", "airport lounge", "airplane interior", "airplane seat", "airplane aisle", "private jet cabin",
+    "first class cabin", "economy class cabin", "crew rest area",
+    "train compartment", "train sleeper cabin", "train car",
+    "subway car", "subway station", "bus interior", "taxi interior", "car interior",
+    "hot spring onsen", "hot spring pool", "onsen pool", "onsen bath",
+    "beach volleyball court", "beach shore", "beach", "seaside", "swimming pool",
+    "poolside", "pool", "diving pool", "wrestling ring", "wrestling mat",
+    "bowling alley", "bowling lane", "gym", "yoga studio", "basketball court",
+    "soccer field", "football field", "tennis court", "volleyball court",
+    "nightclub", "night club", "bar", "cafe", "coffee shop", "restaurant",
+    "classroom", "school", "library", "laboratory",
+    "hospital", "clinic", "nurse station", "operating room",
+    "courtroom", "law office", "police station", "interrogation room",
+    "church", "convent", "chapel", "monastery",
+    "bedroom", "hotel room", "love hotel", "guest room", "suite",
+    "kitchen", "living room", "bathroom", "shower room", "bathtub",
+    "forest", "jungle", "park", "garden", "mountain", "cave", "cliff",
+    "ferris wheel", "amusement park", "rooftop bar", "rooftop",
+    "private yacht", "yacht deck", "ship cabin",
+    "Japanese garden", "tatami room", "Korean house", "Chinese courtyard",
+    "royal palace", "throne room", "mansion",
+    "training arena", "stage", "backstage", "dungeon room",
+    "escape room", "photo studio", "streaming room",
+    "ski slope", "snowy field", "bungee platform",
+]
+_LOCATION_RE_EN = _re_consist.compile(
+    "|".join(sorted(_LOCATION_WORDS_EN, key=len, reverse=True)),
+    flags=_re_consist.IGNORECASE,
+)
+
+# English outfit vocabulary (for detecting off-theme English words in image_prompts)
+_OUTFIT_WORDS_EN = [
+    # 航空
+    "flight attendant uniform", "flight attendant", "stewardess", "cabin crew",
+    # 医疗
+    "nurse uniform", "nurse cap", "white coat", "stethoscope", "scrubs",
+    # 宗教
+    "nun habit", "wimple habit", "religious robe", "monk robe",
+    # 司法
+    "judge robe", "white collar", "gavel", "lawyer suit",
+    # 女仆
+    "maid outfit", "French maid", "apron",
+    # 皮革/SM
+    "leather outfit", "latex suit", "bondage gear", "harness",
+    # 泳装
+    "bikini", "swimsuit", "one-piece swimsuit", "two-piece",
+    # 运动
+    "sports bra", "gym leggings", "yoga pants",
+    "wrestling outfit", "wrestling gear", "boxing gloves", "wrestling shorts",
+    "bowling shirt", "bowling polo", "bowling pants",
+    "cheerleader uniform", "pom-poms", "cheerleading outfit",
+    # 礼服
+    "evening gown", "cocktail dress", "mini skirt", "lingerie",
+    "bra and panties", "garter belt", "silk nightgown",
+    # 传统服装
+    "kimono", "yukata", "hanbok", "sari",
+    "hanfu", "qipao", "cheongsam",
+    # 特殊
+    "wet suit", "wetsuit", "diving suit",
+    "police uniform", "badge", "handcuffs",
+    "bunny suit", "bunny ears", "tuxedo tails",
+    "pirate costume",
+    # 休闲
+    "casual clothes", "street clothes", "jeans and t-shirt",
+    # 浴室
+    "towel wrap", "bathrobe", "bath towel",
+    # 裸体
+    "fully nude",  "naked body", "topless", "barefoot",
+    # 抽象 (allow on sex panels)
+    "nude", "naked", "wet",
+]
+_OUTFIT_RE_EN = _re_consist.compile(
+    "|".join(sorted(_OUTFIT_WORDS_EN, key=len, reverse=True)),
+    flags=_re_consist.IGNORECASE,
+)
+
+
+def _find_all_locations_in_text(text: str) -> List[str]:
+    """Return ALL location words found in text (Chinese + English)."""
+    if not text:
+        return []
+    zh_locs = set(_LOCATION_RE_ZH.findall(text))
+    en_locs = set(_LOCATION_RE_EN.findall(text))
+    return list(zh_locs | en_locs)
+
+
+def _find_all_outfits_in_text(text: str) -> List[str]:
+    """Return ALL outfit words found in text (Chinese + English)."""
+    if not text:
+        return []
+    zh = set(_OUTFIT_RE_ZH.findall(text))
+    en = set(_OUTFIT_RE_EN.findall(text))
+    return list(zh | en)
+
+
+# ─── Theme canonical outfit + location overrides ────────────────────────────────
+# { theme_name: (canonical_outfit_zh, canonical_outfit_en, canonical_location_zh, canonical_location_en) }
+THEME_CANONICAL_OVERRIDES: Dict[str, Tuple[str, str, str, str]] = {
+    # 修女
+    "修女": ("黑色修女服", "black nun habit with white wimple", "修道院", "convent monastery"),
+    # 法官
+    "法官": ("黑色法官袍", "black judge robe with white collar", "法庭", "courtroom"),
+    "女法官": ("黑色法官袍", "black judge robe", "法庭", "courtroom"),
+    # 护士
+    "护士长": ("护士制服", "white nurse uniform with cap", "护士站", "nurse station"),
+    "护士的情欲": ("护士制服", "white nurse uniform with cap", "护士站", "nurse station"),
+    "护士+兔耳": ("护士制服", "white nurse uniform with bunny ears", "护士站", "nurse station"),
+    # 空姐
+    "空姐的秘密": ("空姐制服", "navy-blue flight attendant uniform", "机组休息室", "crew rest area"),
+    # 教师
+    "女教师": ("职业套装", "professional teacher outfit", "教室", "classroom"),
+    # 温泉 (must match actual DB theme names — canonical location = first scenario, not theme name)
+    "温泉": ("浴袍", "white bathrobe", "温泉池", "hot spring onsen"),
+    "别墅温泉": ("浴巾", "white bath towel", "温泉池", "hot spring onsen"),
+    "火山温泉": ("浴巾", "white bath towel", "温泉池", "hot spring onsen"),
+    "野温泉秘境": ("浴巾", "white bath towel", "温泉池", "hot spring onsen"),
+    # 摔角 (user feedback: 比基尼 + 摔跤场, not 摔角短裤)
+    "比基尼摔角": ("比基尼", "colorful bikini", "摔角擂台", "wrestling ring"),
+    "比基尼摔跤": ("比基尼", "colorful bikini", "摔跤擂台", "wrestling mat"),
+    # 运动 / 场地
+    "沙滩排球": ("比基尼", "colorful bikini", "排球网旁", "beach volleyball court"),
+    "保龄球馆": ("保龄球polo衫", "bowling polo shirt", "保龄球馆", "bowling alley"),
+    # 兔女郎
+    "兔女郎派对": ("兔耳头饰", "black bunny corset with rabbit ears", "私人派对", "private party venue"),
+}
+
+
+def _zh_outfit_to_english(zh: str) -> str:
+    """Best-effort Chinese → English mapping for the most common outfit terms."""
+    mapping = {
+        "修女服": "black nun habit with white wimple",
+        "法官袍": "black judge's robe",
+        "律师套装": "black lawyer suit",
+        "护士服": "white nurse uniform with cap",
+        "空姐制服": "navy-blue flight attendant uniform",
+        "机长制服": "pilot uniform",
+        "警察制服": "police uniform",
+        "女仆装": "black-and-white French maid uniform",
+        "比基尼": "bikini",
+        "泳装": "swimsuit",
+        "浴袍": "white bathrobe",
+        "浴巾": "white bath towel",
+        "连衣裙": "dress",
+        "职业套装": "professional business suit",
+        "西装": "business suit",
+        "汉服": "traditional Chinese hanfu",
+        "和服": "traditional Japanese kimono",
+        "旗袍": "traditional Chinese qipao",
+        "校服": "school uniform",
+        "JK制服": "JK school uniform",
+        "水手服": "sailor uniform",
+        "军装": "military uniform",
+        "情趣内衣": "sexy lingerie",
+        "三点式": "bikini",
+        "全裸": "fully nude",
+        "杂技服": "acrobatic costume",
+        "紧身衣": "tight-fitting leotard",
+        "晚礼服": "evening gown",
+        "迷你裙": "mini skirt",
+        "高跟鞋": "high heels",
+        "丝袜": "silk stockings",
+        "保龄球polo衫": "bowling polo shirt",
+        "排球网旁": "beach volleyball court",
+        "沙滩短裤": "beach shorts",
+    }
+    return mapping.get(zh, zh)
+
+
+def _zh_location_to_english(zh: str) -> str:
+    """Convert Chinese location to English. Falls back to zh if no mapping."""
+    mapping = {
+        # ── 宗教 / 教育 ──
+        "修道院": "convent monastery",
+        "告解室": "confessional booth",
+        "祈祷室": "prayer room",
+        "礼拜堂": "chapel",
+        "教堂": "church interior",
+        "教室": "classroom",
+        "学校": "school",
+        "操场": "school playground",
+        "校园": "campus",
+        "图书馆": "library",
+        "实验室": "laboratory",
+        "教师办公室": "teacher's office",
+        "空教室": "empty classroom",
+        "学校图书馆": "school library",
+        # ── 医疗 ──
+        "护士站": "nurse station",
+        "病房": "hospital ward",
+        "医院": "hospital",
+        "诊所": "clinic",
+        "检查室": "examination room",
+        "医院走廊": "hospital corridor",
+        "急诊室": "emergency room",
+        "手术室": "operating room",
+        # ── 航空 ──
+        "飞机": "airplane cabin",
+        "飞机洗手间": "airplane bathroom",
+        "客舱": "airplane cabin",
+        "头等舱": "first class cabin",
+        "经济舱": "economy class cabin",
+        "机组休息室": "crew rest area",
+        "机场": "airport",
+        "登机口": "airport gate",
+        "驾驶舱": "airplane cockpit",
+        "行李舱": "airplane cargo hold",
+        "机舱": "airplane cabin",
+        "机组车": "crew van",
+        # ── 温泉 / 浴场 ──
+        "温泉池": "hot spring onsen pool",
+        "温泉": "hot spring onsen",
+        "野温泉": "wild outdoor hot spring",
+        "别墅温泉池": "villa hot spring pool",
+        "火山口观景": "volcanic crater viewpoint",
+        "温泉旁": "hot spring area",
+        "桑拿房": "sauna room",
+        "公共浴场": "public bathhouse",
+        "浴室": "bathroom",
+        "淋浴间": "shower room",
+        "浴缸": "bathtub",
+        # ── 运动 / 场地 ──
+        "训练场": "training arena",
+        "舞台": "stage",
+        "后台": "backstage",
+        "选手通道": "contestant corridor",
+        "摔角擂台": "wrestling ring",
+        "摔跤擂台": "wrestling mat",
+        "更衣室": "changing room",
+        "更衣帐篷": "changing tent",
+        "休息室": "lounge",
+        "保龄球馆": "bowling alley",
+        "保龄球道": "bowling lane",
+        "健身房": "gym",
+        "瑜伽教室": "yoga studio",
+        "篮球场": "basketball court",
+        "足球场": "soccer field",
+        "网球场": "tennis court",
+        "羽毛球场": "badminton court",
+        "乒乓球场": "ping pong table area",
+        "棒球场": "baseball diamond",
+        "排球场": "volleyball court",
+        "高尔夫球场": "golf course",
+        "果岭": "golf green",
+        "发球台": "tee box",
+        "会所": "golf clubhouse",
+        # ── 沙滩 / 水上 ──
+        "泳池": "swimming pool",
+        "泳池边": "poolside",
+        "泳池边湿身": "wet poolside area",
+        "跳水池": "diving pool",
+        "泳池躺椅": "poolside lounge chair",
+        "游泳馆": "indoor swimming pool",
+        "沙滩": "beach",
+        "海滩": "beach shore",
+        "海边": "seaside",
+        "海岸": "coastline",
+        "礁石": "rocky shore",
+        "沙滩小屋": "beach hut",
+        "排球网旁": "beach volleyball court",
+        "沙滩毛巾": "beach towel area",
+        "游艇甲板": "yacht deck",
+        "甲板": "ship deck",
+        "船舱": "ship cabin",
+        # ── 酒店 / 卧室 ──
+        "酒店": "hotel room",
+        "情趣酒店": "love hotel room",
+        "客房": "guest room",
+        "套房": "hotel suite",
+        "总统套房": "presidential suite",
+        "卧室": "bedroom",
+        "主卧": "master bedroom",
+        "闺房": "private boudoir",
+        "床上": "on bed",
+        # ── 餐厅 / 酒吧 ──
+        "餐厅": "restaurant",
+        "空中餐厅": "sky restaurant",
+        "咖啡厅": "cafe",
+        "咖啡馆": "coffee shop",
+        "酒吧": "bar",
+        "酒吧包间": "bar private booth",
+        "天台酒吧": "rooftop bar",
+        "地下酒吧": "speakeasy bar",
+        "KTV包间": "KTV private room",
+        "夜店": "nightclub",
+        # ── 办公 / 商业 ──
+        "办公室": "office",
+        "会议室": "conference room",
+        "公司走廊": "office corridor",
+        "直播间": "streaming room",
+        "摄影棚": "photo studio",
+        "写真馆": "photo studio",
+        # ── 户外 ──
+        "公园": "park",
+        "公园长椅": "park bench",
+        "喷泉": "fountain",
+        "喷泉旁": "fountain side",
+        "树林": "forest",
+        "树林深处": "deep forest",
+        "丛林": "jungle",
+        "野外": "wilderness",
+        "草丛": "grass",
+        "草丛间": "among the grass",
+        "花园": "garden",
+        "花丛": "flower garden",
+        "山顶": "mountain top",
+        "山腰": "hillside",
+        "山谷": "valley",
+        "山洞": "cave",
+        "悬崖": "cliff",
+        "摩天轮": "ferris wheel",
+        "摩天轮座舱": "ferris wheel cabin",
+        "游乐园": "amusement park",
+        "过山车": "roller coaster",
+        # ── 交通工具 ──
+        "地铁车厢": "subway car",
+        "地铁站": "subway station",
+        "公交车上": "bus interior",
+        "出租车": "taxi interior",
+        "私家车": "private car",
+        "大巴": "coach bus",
+        "车厢": "train compartment",
+        "火车包厢": "train sleeper cabin",
+        "豪华游艇": "luxury yacht",
+        "汽车内": "car interior",
+        # ── 传统 / 异域 ──
+        "日式庭园": "Japanese garden",
+        "中式庭院": "Chinese courtyard",
+        "榻榻米": "tatami room",
+        "缘侧": "Japanese engawa veranda",
+        "竹林深处": "deep bamboo forest",
+        "古宅": "old mansion",
+        "月下": "under moonlight",
+        "皇宫大殿": "royal palace hall",
+        "王座厅": "throne room",
+        "老上海": "old Shanghai street",
+        "豪宅": "luxury mansion",
+        "韩屋": "Korean hanok house",
+        "印度宫殿": "Indian palace",
+        # ── 其他室内 ──
+        "厨房": "kitchen",
+        "客厅": "living room",
+        "玄关": "entrance hall",
+        "书房": "study room",
+        "阳台": "balcony",
+        "露台": "terrace",
+        "天台": "rooftop",
+        "电梯": "elevator",
+        "楼梯": "staircase",
+        "走廊": "corridor",
+        "阁楼": "attic",
+        "地下室": "basement",
+        "屋顶": "rooftop",
+        "密室": "escape room",
+        "仓库": "warehouse",
+        "地窖": "wine cellar",
+        # ── 特殊场地 ──
+        "调教室": "dungeon room",
+        "乳胶工作室": "latex studio",
+        "逃脱屋": "escape room",
+        "DJ台": "DJ booth",
+        "蹦极台": "bungee platform",
+        "潜水装备间": "diving gear room",
+        "滑雪道": "ski slope",
+        "缆车": "cable car",
+        "雪地": "snowy field",
+        "天文馆": "planetarium",
+        # ── 角色专属场地 ──
+        "机组休息室": "crew rest area",
+        "机舱洗手间": "airplane lavatory",
+        "审讯室": "interrogation room",
+        "警察局办公室": "police station office",
+        "警车后座": "police car backseat",
+    }
+    return mapping.get(zh, zh)  # fallback: return zh (no English mapping)
+
+
+# ─── Outfit / location extraction with offset ──────────────────────────────────def _find_all_locations_in_text(text: str) -> List[str]:
+    """Return ALL location words found in text (Chinese + English)."""
+    if not text:
+        return []
+    zh_locs = set(_LOCATION_RE_ZH.findall(text))
+    en_locs = set(_LOCATION_RE_EN.findall(text))
+    return list(zh_locs | en_locs)
+
+
+# ─── Theme canonical helpers ────────────────────────────────────────────────────
+def _get_canonical_outfit(theme_name: str, theme_data: dict) -> Tuple[str, str]:
+    """
+    Return (zh, en) canonical outfit for theme.
+
+    Strategy: prefer the THEME'S ACTUAL COSTUMES list (first non-abstract item),
+    NOT the override table. The override table exists only to fix specific bugs
+    where the auto-detection picks something wrong (e.g. when the first costume
+    is 全裸 and we want the user-facing default to be something else).
+
+    The override is used ONLY if it provides a better answer than the auto-detection.
+    """
+    costumes = theme_data.get("costumes", []) if isinstance(theme_data, dict) else []
+    abstract = {"全裸", "湿身", "脱去外衣", "部分脱去", "半裸", "赤裸", "裸体", "披着浴巾", "脱去"}
+    real_keywords = ["服", "装", "裙", "衣", "袍", "裤", "鞋", "帽", "套", "甲", "衫", "制服", "polo", "比基尼", "内衣", "袜"]
+    auto_zh = None
+    for c in costumes:
+        if not isinstance(c, str):
+            continue
+        if c in abstract:
+            continue
+        if c == theme_name:  # Don't pick theme name as outfit (e.g. 潮吹喷射)
+            continue
+        if any(k in c for k in real_keywords):
+            auto_zh = c
+            break
+    if not auto_zh and costumes:
+        # Last resort — first costume that isn't theme_name or abstract
+        for c in costumes:
+            if isinstance(c, str) and c not in abstract and c != theme_name:
+                auto_zh = c
+                break
+    # Override is preferred only if it's NOT abstract (we want a real outfit)
+    if theme_name in THEME_CANONICAL_OVERRIDES:
+        override_zh = THEME_CANONICAL_OVERRIDES[theme_name][0]
+        if override_zh and override_zh not in abstract and override_zh != theme_name:
+            return (override_zh, THEME_CANONICAL_OVERRIDES[theme_name][1])
+    if auto_zh:
+        return (auto_zh, _zh_outfit_to_english(auto_zh))
+    # Truly no real clothing — return empty for outfit (allow 全裸 fallback)
+    if costumes:
+        return (str(costumes[0]), _zh_outfit_to_english(str(costumes[0])))
+    return ("", "")
+
+
+def _get_canonical_location(theme_name: str, theme_data: dict) -> Tuple[str, str]:
+    """
+    Return (zh, en) canonical location for theme.
+
+    Strategy: ALWAYS prefer the THEME'S ACTUAL SCENARIOS list (first item).
+    The override table is only used if it provides a location that exists in
+    the theme's scenarios list (otherwise it's a buggy override).
+    """
+    scenarios = theme_data.get("scenarios", []) if isinstance(theme_data, dict) else []
+    auto_zh = str(scenarios[0]) if scenarios else None
+    # Override is used ONLY if it's compatible (in scenarios) OR if there's no auto
+    if theme_name in THEME_CANONICAL_OVERRIDES:
+        override_zh = THEME_CANONICAL_OVERRIDES[theme_name][2]
+        if override_zh and (not scenarios or override_zh in scenarios):
+            return (override_zh, THEME_CANONICAL_OVERRIDES[theme_name][3])
+    if auto_zh:
+        return (auto_zh, _zh_location_to_english(auto_zh))
+    if theme_name in THEME_CANONICAL_OVERRIDES:
+        return THEME_CANONICAL_OVERRIDES[theme_name][2], THEME_CANONICAL_OVERRIDES[theme_name][3]
+    return (theme_name, theme_name)
+
+
+# ─── Outfit/location compatibility check ────────────────────────────────────────
+def _outfit_compatible_with_theme(outfit: str, theme_name: str, theme_data: dict,
+                                   canonical_outfit_zh: str) -> bool:
+    """
+    Return True if the outfit is COMPATIBLE with the theme.
+    """
+    if not outfit:
+        return True
+    if outfit == canonical_outfit_zh:
+        return True
+    abstract = {"全裸", "湿身", "赤裸", "裸体", "半裸", "披着浴巾"}
+    if outfit in abstract:
+        return True
+    if theme_name and len(theme_name) >= 2 and theme_name in outfit:
+        return True
+    if isinstance(theme_data, dict):
+        theme_costumes = theme_data.get("costumes", []) or []
+        for tc in theme_costumes:
+            if not isinstance(tc, str):
+                continue
+            if tc in outfit or outfit in tc:
+                return True
+            if len(tc) >= 2 and tc in outfit:
+                return True
+    # SM / fluid / bondage themes allow generic sexy outfits
+    sm_themes = {"捆绑", "绳缚", "SM", "调教", "皮衣", "乳胶", "BDSM", "情趣", "女王",
+                 "羞辱", "口交", "颜射", "潮吹", "深喉", "肛交", "露出", "公共",
+                 "野外", "群交", "派对", "迷奸", "奴隶", "宠物", "女性支配", "男性支配",
+                 "束缚", "悬吊", "足控", "手控", "制服诱惑"}
+    is_sm_theme = False
+    if theme_name:
+        for sm in sm_themes:
+            if sm in theme_name:
+                is_sm_theme = True
+                break
+    if isinstance(theme_data, dict):
+        cat = theme_data.get("category", "") or ""
+        if cat in {"sm", "fluid", "oral", "anal", "facial", "creampie", "toys", "multi"}:
+            is_sm_theme = True
+        tags = theme_data.get("tags", []) or []
+        for tag in tags:
+            if isinstance(tag, str) and any(sm in tag for sm in sm_themes):
+                is_sm_theme = True
+                break
+    # Outfits acceptable in many themes (mostly undergarments / bedroom-wear)
+    always_compatible = {"内裤", "胸罩", "文胸", "丁字裤"}
+    if outfit in always_compatible:
+        return True
+    if is_sm_theme:
+        sm_ok = {"情趣内衣", "性感睡衣", "蕾丝内衣", "蕾丝睡裙", "蕾丝吊带", "三点式",
+                 "情趣睡裙", "透明睡衣", "皮衣", "皮夹克", "乳胶紧身衣", "乳胶衣",
+                 "薄纱", "薄纱睡袍", "丝袜", "吊带袜", "高跟鞋", "比基尼", "三点式"}
+        if outfit in sm_ok:
+            return True
+    # Themes that always allow these (categories where nude/sexy is on-theme)
+    nude_categories = {"fluid", "oral", "anal", "facial", "creampie"}
+    if isinstance(theme_data, dict):
+        cat = theme_data.get("category", "") or ""
+        if cat in nude_categories:
+            nude_ok = {"比基尼", "三点式", "情趣内衣", "性感睡衣", "丝袜", "全裸", "湿身"}
+            if outfit in nude_ok:
+                return True
+    return False
+
+
+def _location_compatible_with_theme(location: str, theme_name: str, theme_data: dict,
+                                     canonical_loc_zh: str, theme_loc_set: set) -> bool:
+    """Return True if location is compatible with the theme."""
+    if not location:
+        return True
+    if location == canonical_loc_zh:
+        return True
+    if theme_name and len(theme_name) >= 2 and theme_name in location:
+        return True
+    if location in theme_loc_set:
+        return True
+    generic_private = {"卧室", "主卧", "次卧", "闺房", "酒店房间", "情趣酒店", "客房", "套房", "浴室", "卫生间"}
+    if location in generic_private:
+        return False
+    return False
+
+
+# ─── Foreplay panel detection ───────────────────────────────────────────────────
+def _is_foreplay_panel(panel_index: int, total_panels: int, r18: bool) -> bool:
+    """
+    Determine if a panel should be subject to outfit/location enforcement.
+      - Non-R18: enforce for ALL panels
+      - R18: enforce the FIRST 60% of panels (where clothes should still be on)
+        For 5 panels: enforce panels 1, 2, 3 (outfit can drift to naked only on 4, 5)
+        For 6 panels: enforce panels 1, 2, 3, 4
+        For 7 panels: enforce panels 1, 2, 3, 4
+    """
+    if not r18:
+        return True
+    if total_panels <= 0:
+        return False
+    # Foreplay cutoff: enforce first (total_panels - 1) panels in 5-panel,
+    # or first (total_panels - 2) in 6+ panel
+    if total_panels <= 4:
+        cutoff = total_panels - 1  # all but last panel
+    else:
+        cutoff = total_panels - 2  # all but last 2 panels
+    return panel_index < cutoff
+
+
+def _is_sex_panel(panel_index: int, total_panels: int, r18: bool) -> bool:
+    """Sex panel = last 1-2 panels in R18 mode (outfit can be naked)."""
+    if not r18:
+        return False
+    if total_panels <= 0:
+        return False
+    return panel_index >= total_panels - 2
+
+
+# ─── Main enforcement function ──────────────────────────────────────────────────
+def _enforce_theme_coherence(
+    scene_description: str,
+    image_prompt: str,
+    theme_name: str,
+    theme_data: dict,
+    panel_index: int,
+    total_panels: int,
+    r18: bool,
+) -> Tuple[str, str]:
+    """
+    Post-process a panel to enforce theme coherence:
+      1. ALL non-canonical locations are replaced with the theme's canonical location
+         (so panel 1-5 all take place in the SAME 1-2 theme-related scenes).
+      2. ALL non-canonical outfits are replaced with the theme's canonical outfit.
+      3. Panel 1 is GUARANTEED to mention the theme's primary location + outfit.
+
+    Returns (new_scene, new_image_prompt).
+    """
+    canonical_outfit_zh, canonical_outfit_en = _get_canonical_outfit(theme_name, theme_data)
+    canonical_loc_zh, canonical_loc_en = _get_canonical_location(theme_name, theme_data)
+    is_foreplay = _is_foreplay_panel(panel_index, total_panels, r18)
+    is_sex = _is_sex_panel(panel_index, total_panels, r18)
+    theme_scenarios = (theme_data.get("scenarios", []) if isinstance(theme_data, dict) else []) or []
+    theme_loc_set = set(theme_scenarios)
+    if canonical_loc_zh:
+        theme_loc_set.add(canonical_loc_zh)
+
+    new_scene = scene_description or ""
+    new_image = image_prompt or ""
+
+    # ── Helper: check if detected location is "compatible" with theme ────────
+    # Compatible means:
+    #   - It's the canonical location, OR
+    #   - It's literally in theme_scenarios, OR
+    #   - It's a substring match of any theme scenario (e.g. "泳池边" is part of "泳池边湿身")
+    def _is_loc_compatible(loc: str) -> bool:
+        if not loc or loc == canonical_loc_zh:
+            return True
+        if loc in theme_loc_set:
+            return True
+        if theme_name and len(theme_name) >= 2 and theme_name in loc:
+            return True
+        # Substring check: "泳池边" is contained in "泳池边湿身" → compatible
+        for s in theme_loc_set:
+            if isinstance(s, str) and len(s) >= 2 and (loc in s or s in loc):
+                return True
+        return False
+
+    def _is_outfit_compatible(outfit: str) -> bool:
+        if not outfit:
+            return True
+        return _outfit_compatible_with_theme(outfit, theme_name, theme_data, canonical_outfit_zh)
+
+    # ── LOCATION ENFORCEMENT (run on ALL panels, not just foreplay) ───────────
+    # User feedback: even sex panels should stay in theme setting — only the
+    # OUTFIT is allowed to be naked, not the LOCATION. Otherwise storyboards
+    # become incoherent (panel 4 in 泳池, panel 5 in 摩天轮).
+    all_locs = _find_all_locations_in_text(new_scene) + _find_all_locations_in_text(new_image)
+    for loc in all_locs:
+        if _is_loc_compatible(loc):
+            continue
+        # Replace in scene_description
+        if loc in new_scene:
+            new_scene = new_scene.replace(loc, canonical_loc_zh, 1)
+        # Replace English equivalent in image_prompt — REPLACE ALL occurrences (count=0)
+        en_equivalent = _zh_location_to_english(loc)
+        if en_equivalent and en_equivalent.lower() in new_image.lower():
+            new_image = _re_consist.sub(
+                _re_consist.escape(en_equivalent),
+                canonical_loc_en,
+                new_image,
+                count=0,  # replace ALL, not just first
+                flags=_re_consist.IGNORECASE,
+            )
+
+    # ── OUTFIT ENFORCEMENT (ALL panels — user wants theme consistency throughout) ──
+    # Even sex panels should keep theme outfit unless explicitly naked (全裸).
+    # Per user feedback: 修女 should always wear 修女服, not 围裙/迷彩, even on
+    # later panels. Only "脱去外衣" / "湿身" / "全裸" are exempt.
+    all_outfits = _find_all_outfits_in_text(new_scene) + _find_all_outfits_in_text(new_image)
+    for outfit in all_outfits:
+        abstract = {"全裸", "湿身", "赤裸", "裸体", "披着浴巾", "脱去外衣"}
+        if is_sex and outfit in abstract:
+            continue
+        if _is_outfit_compatible(outfit):
+            continue
+        # Replace in scene_description
+        if outfit in new_scene:
+            new_scene = new_scene.replace(outfit, canonical_outfit_zh, 1)
+        # Replace English equivalent in image_prompt — REPLACE ALL (count=0)
+        en_equivalent = _zh_outfit_to_english(outfit)
+        if en_equivalent and en_equivalent.lower() in new_image.lower():
+            new_image = _re_consist.sub(
+                _re_consist.escape(en_equivalent),
+                canonical_outfit_en,
+                new_image,
+                count=0,  # replace ALL, not just first
+                flags=_re_consist.IGNORECASE,
+            )
+
+    # ── PANEL 1 FORCE-SETUP ──────────────────────────────────────────────────
+    # Only inject if missing, and never duplicate.
+    if panel_index == 0:
+        # Make sure canonical location is at the front of the scene_description
+        if canonical_loc_zh and len(canonical_loc_zh) >= 2 and canonical_loc_zh not in new_scene:
+            new_scene = f"在{canonical_loc_zh}内，" + new_scene
+        # Make sure canonical outfit appears in the scene
+        if canonical_outfit_zh and len(canonical_outfit_zh) >= 2 and canonical_outfit_zh not in new_scene:
+            # Strip a "全裸" or "赤裸" first if it was injected by mistake
+            for strip in ["全裸", "赤裸", "裸体", "披着浴巾"]:
+                new_scene = new_scene.replace(f"，{strip}", "", 1)
+            new_scene = new_scene.rstrip("，") + f"，身穿{canonical_outfit_zh}"
+        # Ensure English canonical is in image_prompt (idempotent)
+        if canonical_outfit_en and canonical_outfit_en.lower() not in new_image.lower():
+            new_image = f"{new_image}, {canonical_outfit_en}"
+        if canonical_loc_en and canonical_loc_en.lower() not in new_image.lower():
+            new_image = f"{new_image}, {canonical_loc_en}"
+
+    # ── DE-DUPLICATE "在XXX内，XXX" patterns (cleanup of double injection) ───
+    # Some panel 1 cases produce "在泳池边湿身湿身湿身内" if multiple passes ran.
+    # Collapse runs of identical Chinese tokens (2+ in a row → 1).
+    new_scene = _re_consist.sub(
+        r"([一-鿿]{2,8}?)\1{1,}",
+        r"\1",
+        new_scene,
+    )
+    # Also collapse "身穿黑色法官袍黑色法官袍" → "身穿黑色法官袍"
+    new_scene = _re_consist.sub(
+        r"(身穿[一-鿿]{2,12}?)\1",
+        r"\1",
+        new_scene,
+    )
+
+    # ── Clean up preposition artifacts (XX旁上, XX旁里, XX旁内, etc.) ─────────
+    # When we replace a location, leftover prepositions like 上/里/内/中/下 can
+    # remain attached to the canonical (e.g. "在泳池边湿身上" → should be "在泳池边湿身").
+    # Common patterns to clean: 上, 里, 内, 中, 下 after 旁/边/上/中/内/里.
+    new_scene = _re_consist.sub(
+        r"(泳池边|泳池|泳道|跳水池|泳池躺椅|排球网|沙滩|海滩|海里|海底)(上|里|内|下)\b",
+        r"\1",
+        new_scene,
+    )
+    # Generic cleanup: if there's a leftover preposition right after our canonical
+    # location, remove it
+    if canonical_loc_zh and len(canonical_loc_zh) >= 2:
+        new_scene = _re_consist.sub(
+            _re_consist.escape(canonical_loc_zh) + r"(上|里|内|下)(?=[，。,\s])",
+            canonical_loc_zh,
+            new_scene,
+        )
+    # Cleanup: 后缀词 "舱内/座舱内/舱中" 出现在替换后的字符串里
+    new_scene = _re_consist.sub(
+        r"(温泉池|岩石|瀑布|别墅|酒店|学校|医院|公园)(舱内|座舱内|舱中|机舱内)",
+        r"\1",
+        new_scene,
+    )
+    # Cleanup: "[canonical]舱内" pattern → "[canonical]"
+    new_scene = _re_consist.sub(
+        canonical_loc_zh.replace("[", "\\[") + r"(舱内|座舱内|舱中|机舱内|驾驶舱内|洗手间内|包间内)",
+        canonical_loc_zh,
+        new_scene,
+    ) if canonical_loc_zh else new_scene
+
+    # Final canonical_location must appear in scene (idempotent re-inject for panel 1)
+    if panel_index == 0 and canonical_loc_zh and canonical_loc_zh not in new_scene:
+        new_scene = f"在{canonical_loc_zh}内，" + new_scene
+
+    return (new_scene, new_image)
+
+
+# Backward-compat alias used by older call sites
+_enforce_foreplay_consistency = _enforce_theme_coherence
+
+
+# ─── Character Bible Anchor Block ───────────────────────────────────────────────
+# Forces LLM to lock the character's visual identity at the START of every
+# image_prompt so that panel-to-panel consistency (clothing color, hair, shoes,
+# key props) is preserved automatically by the parser.
+#
+# The anchor is parsed back out by `_extract_character_anchor()` and re-injected
+# verbatim into every subsequent panel's image_prompt, so even if the LLM drifts
+# in panel 3/4/5, the visual identity stays locked.
+CHARACTER_BIBLE_BLOCK = """
+
+【CHARACTER BIBLE — MANDATORY VISUAL ANCHOR FOR ALL PANELS】:
+Every storyboard has TWO characters (one man + one woman) that appear in EVERY panel.
+You MUST define a CHARACTER ANCHOR LINE at the very BEGINNING of EVERY panel's image_prompt
+that LOCKS the character's visual identity across all panels. This anchor is what guarantees
+the generated images look like the SAME person in every frame.
+
+REQUIRED FORMAT — the FIRST line of every image_prompt MUST be exactly:
+[ANCHOR: <woman>,<hair+color>,<eyes>,<skin>,<primary_outfit_color>,<primary_outfit_item>,<footwear>,<key_props>; <man>,<hair+color>,<eyes>,<skin>,<top>,<bottom>,<footwear>,<key_props>]
+
+Examples (only as FORMAT reference — pick colors/items that match the SELECTED THEME):
+  [ANCHOR: 28yo Chinese woman,long straight black hair,dark brown eyes,fair skin,black,judge robe over white blouse,black high heels,wooden gavel; 32yo Japanese man,short black hair,sharp brown eyes,fair skin,black tailored lawyer suit,white dress shirt,polished black oxford shoes,briefcase]
+  [ANCHOR: 25yo Brazilian woman,wavy chestnut-brown hair,hazel eyes,tanned olive skin,white,bikini,barefoot,steam; 30yo Italian man,short dark brown hair,green eyes,olive skin,open white linen shirt,navy swim trunks,barefoot,tropical drink]
+  [ANCHOR: 26yo Korean woman,long silky black hair,almond dark eyes,fair porcelain skin,black,nurse uniform with white apron,white sneakers,stethoscope; 29yo American man,short blond hair,blue eyes,fair skin,white doctor's coat over navy scrubs,white sneakers,clipboard]
+
+STRICT RULES for the ANCHOR:
+1. The SAME anchor line must appear VERBATIM at the START of EVERY panel's image_prompt.
+   Do NOT change ANY attribute (hair color, outfit color, shoes, props) between panels —
+   only the POSE and SCENE/ACTION change.
+2. Pick anchor attributes that COHERENTLY MATCH THE SELECTED THEME:
+   - Theme = 法官 / 律师 / 法庭 → woman wears BLACK judge robe / lawyer suit, man wears BLACK suit
+   - Theme = 别墅温泉 / 温泉 → woman wears WHITE/PINK bikini or浴袍, man wears swim trunks, both barefoot or slippers
+   - Theme = 护士 / 医生 → woman wears WHITE nurse uniform, man wears WHITE doctor coat
+   - Theme = 空姐 → woman wears navy-blue airline uniform, man wears pilot uniform / business suit
+   - Theme = 校园 / 教室 → white shirt + plaid skirt + knee socks (school context, adults only)
+   - Any other theme: derive clothing that DIRECTLY matches the theme name — DO NOT default to
+     random casual clothes when the theme implies a specific uniform/costume.
+3. The KEY PROPS field is what makes the scene READ as the theme:
+   法官 → gavel / law books / wooden lectern / scales of justice
+   温泉 → steam / wooden tub / bathrobe / onsen rocks / tea cup
+   护士 → stethoscope / syringe / hospital bed / medical chart
+   DO NOT omit key props. They are non-negotiable for theme readability.
+4. Outfit color MUST be locked — once you pick "black judge robe" in panel 1, every panel
+   says "black judge robe". NEVER switch to red/black/white randomly between panels.
+5. If the theme implies progressive undressing (R18 arc), the OUTFIT may transition
+   (e.g. "black judge robe" → "white blouse only" → "topless"), but this transition must
+   be EXPLICIT in the scene_description AND the anchor's <primary_outfit_item> updates
+   in lockstep across panels. Do not silently change outfit mid-story.
+6. Anchor format is rigid — the parser extracts it by regex `\\[ANCHOR: ...?\\]`.
+   Keep it on ONE line at the START of image_prompt, no newlines inside the bracket.
+"""
+
+
+# ─── Theme Coherence Boost Block ────────────────────────────────────────────────
+# Force the LLM to embed at least one SCENARIO keyword + one COSTUME keyword from
+# the selected theme into every panel. This directly addresses the user's complaint
+# that scenes/clothes don't match the chosen theme.
+THEME_COHERENCE_BOOST_BLOCK = """
+
+【THEME COHERENCE — EVERY PANEL MUST EMBED THEME KEYWORDS — ABSOLUTELY MANDATORY】:
+The user picked a SPECIFIC theme. EVERY panel must visually + narratively belong to that
+theme. Do NOT invent unrelated settings, costumes, or props.
+
+═══════════════════════════════════════════════════════════════════
+【SCENE PROGRESSION ARC — MANDATORY NARRATIVE STRUCTURE】:
+Every storyboard MUST follow this 5-beat progression so the theme is FULLY EXPRESSED:
+
+  BEAT 1 (Panel 1) — THEME INTRODUCTION / SETUP:
+    The FIRST panel MUST SHOW the character ACTIVELY ENGAGED in the theme's
+    primary activity in the theme's primary location, wearing the theme's
+    primary costume with the theme's KEY PROPS visible.
+    This is the OPENING — the viewer should immediately understand WHAT theme
+    this is from panel 1 alone.
+    Examples:
+      Theme=保龄球馆 → Panel 1: "她正在保龄球馆打保龄球, 身穿保龄球polo衫, 手握保龄球瓶, 球馆灯光下"
+      Theme=修女 → Panel 1: "她在修道院礼拜堂内虔诚祈祷, 身穿黑色修女服, 头戴白色头巾, 手持念珠, 烛光摇曳"
+      Theme=游泳馆 → Panel 1: "她在游泳馆泳道内自由泳, 身穿专业泳衣泳帽, 泳池水花飞溅"
+      Theme=法官 → Panel 1: "她在法庭上敲下法槌, 身穿黑色法官袍, 头戴银色假发, 法庭庄严"
+      Theme=空姐 → Panel 1: "她在飞机客舱内推餐车, 身穿空姐制服, 头戴空姐帽, 微笑服务"
+      Theme=温泉 → Panel 1: "她在温泉池边踏入热汤, 披着白色浴巾, 蒸汽氤氲, 木桶竹勺"
+      Theme=校园 → Panel 1: "她在教室讲台上授课, 身穿职业套装, 手持课本, 黑板粉笔"
+    ❌ WRONG Panel 1: "她在卧室里/客厅里/厨房里" (脱离主题)
+    ❌ WRONG Panel 1: "她一出场就穿着情趣内衣/比基尼" (无主题铺垫)
+
+  BEAT 2 (Panel 2) — THEME CONTINUATION + TENSION BUILD:
+    The character remains IN the theme's setting, but the situation starts to
+    get intimate / flirtatious. Same costume, same key props. The setting
+    must STILL clearly belong to the theme — no location drift yet.
+
+  BEAT 3 (Panel 3) — TRANSITION: costumed intimacy.
+    Still in theme setting, character begins to lose costume pieces
+    progressively (e.g. judge removes robe → blouse visible; nun removes
+    wimple → face exposed; bowler removes polo → sports bra visible).
+    The theme costume must STILL be the dominant outfit, but partially
+    removed.
+
+  BEAT 4 (Panel 4) — INTIMATE ACTION in theme location.
+    Foreplay / heavy petting. Theme location may transition to a
+    semi-private corner of the theme setting (e.g. judge → judge's
+    chambers, bowler → bowling alley lounge, nun → convent private room).
+    Outfit may be removed but the LOCATION must stay theme-coherent.
+
+  BEAT 5 (Panel 5+) — SEX / CLIMAX.
+    Full intercourse / climax. Outfit may be fully removed (全裸 OK).
+    Location may transition to a private room WITHIN the theme setting
+    (e.g. for 法官 → private chambers; for 温泉 → private onsen tub).
+    ❌ NEVER transition to completely off-theme locations like 卧室/
+    厨房/普通酒店 if the theme is something specific.
+
+═══════════════════════════════════════════════════════════════════
+
+═══════════════════════════════════════════════════════════════════
+【SCENE COHERENCE — 1-2 MAIN SCENES ONLY, NO JUMPING】:
+The user EXPLICITLY requested that each theme stay in 1-2 related scenes with
+SMOOTH transitions — NOT jump wildly between unrelated locations.
+
+HARD RULES:
+- Pick ONLY 1-2 scenes from the theme's scenarios list. Use those for the entire
+  storyboard. Do NOT introduce new locations like 公园/喷泉/树林/草丛/摩天轮/山顶
+  /摩天轮座舱 etc. unless they are explicitly listed in the theme's scenarios.
+- If panel N is in scene A, panel N+1 should still be in scene A (or transition
+  smoothly to scene B which is closely related — e.g. 泳池边 → 泳池躺椅).
+- ❌ FORBIDDEN scene-jumping patterns:
+    * Panel 1: 公园长椅 → Panel 2: 喷泉旁 → Panel 3: 树林深处 (all unrelated)
+    * Panel 1: 飞机 → Panel 2: 卧室 (sudden location switch)
+    * Panel 1: 修女修道院 → Panel 4: 摩天轮座舱 (random fantasy jump)
+- ✅ CORRECT scene coherence:
+    * Theme=游泳池畔 → All panels in 泳池边 / 泳池躺椅 / 更衣室单间 (pool area)
+    * Theme=保龄球馆 → All panels in 保龄球馆 / 保龄球道 (bowling alley)
+    * Theme=修女 → All panels in 修道院 / 告解室 / 祈祷室 (convent area)
+    * Theme=空姐 → All panels in 飞机客舱 / 头等舱 / 机组休息室 (aircraft interior)
+
+═══════════════════════════════════════════════════════════════════
+
+For EVERY panel you generate:
+- scene_description (中文) MUST mention at least ONE of the THEME SCENARIOS
+  (the actual location / environment words from the theme's scenarios list).
+- scene_description MUST mention at least ONE of the THEME COSTUMES
+  (the actual clothing words from the theme's costumes list), OR clearly describe
+  a costume that is a DIRECT VARIANT of one of them.
+- image_prompt MUST reference at least ONE THEME SCENARIO word and at least ONE
+  THEME COSTUME word in English (or a direct English equivalent).
+- KEY PROPS that make the theme READABLE (gavel for judge, stethoscope for nurse,
+  swimwear + steam for onsen, bowling ball for bowling alley, etc.) MUST appear in EVERY panel.
+
+FAILURE EXAMPLES (do NOT do this):
+  Theme=保龄球馆, all panels are in 卧室/厨房/酒店 — ❌ WRONG — must stay in/near bowling alley
+  Theme=法官, Panel 1 says "在咖啡厅里穿着晚礼服"  ❌ WRONG — judge must be in court with robe
+  Theme=修女, Panel 3 says "在情趣酒店穿着情趣内衣"  ❌ WRONG — must stay in convent with habit
+  Theme=温泉, Panel 5 says "在厨房做饭,穿围裙"  ❌ WRONG — must stay in/near the onsen
+  Theme=空姐, Panel 1-2 are in 卧室 instead of 飞机 — ❌ WRONG — must start in airplane
+
+CORRECT EXAMPLES:
+  Theme=别墅温泉, Panel 1-3 mention "温泉池/蒸汽/木桶/浴巾/比基尼"  ✅
+  Theme=法官, Panel 1-4 mention "法庭/法袍/法槌/律师服/法庭书记员"  ✅
+  Theme=护士, Panel 1-4 mention "护士站/病房/护士服/听诊器/病床"  ✅
+  Theme=保龄球馆, Panel 1 must show bowling action, Panel 5 may transition to bowling alley lounge  ✅
+
+If you cannot naturally fit the theme keywords into a panel, RESTRUCTURE the panel's
+action so they fit — never drop the theme keywords.
+"""
+
+
+# ─── Character Anchor Extraction & Injection ────────────────────────────────────
+# These functions parse the [ANCHOR: ...] line that the LLM is required to put at
+# the start of every image_prompt. We then re-inject the anchor verbatim into every
+# panel's image_prompt so the visual identity stays locked even if the LLM drifts.
+import re as _re
+
+_ANCHOR_RE = _re.compile(r"\[ANCHOR:\s*([^\]]+)\]", _re.IGNORECASE)
+
+
+def _extract_character_anchor(image_prompt: str) -> Optional[str]:
+    """Extract the [ANCHOR: ...] line from an image_prompt. Returns None if not found."""
+    if not image_prompt:
+        return None
+    m = _ANCHOR_RE.search(image_prompt)
+    if not m:
+        return None
+    anchor_body = m.group(1).strip()
+    if not anchor_body:
+        return None
+    # Normalize whitespace inside the anchor (collapse newlines/extra spaces)
+    anchor_body = _re.sub(r"\s+", " ", anchor_body)
+    return f"[ANCHOR: {anchor_body}]"
+
+
+def _inject_character_anchor(image_prompt: str, anchor: str) -> str:
+    """Replace any existing anchor at the start of image_prompt with the locked anchor.
+
+    If no anchor is present, prepend the locked anchor. This guarantees that the
+    visual identity stays locked across all panels.
+    """
+    if not anchor:
+        return image_prompt
+    if not image_prompt:
+        return anchor
+    # Strip any existing anchor at the start (the LLM may have drifted)
+    stripped = _ANCHOR_RE.sub("", image_prompt, count=1).lstrip(" ,.;:\n\t ")
+    # If the LLM added extra fields, drop them — we only keep what was locked in panel 1
+    return f"{anchor} {stripped}".strip()
+
+
+def _normalize_anchor_for_safety(anchor: str) -> str:
+    """Sanity check the anchor before re-injecting — skip if it contains safety-risky tokens.
+
+    Defense in depth: if the LLM generated something NSFW/unsafe inside the bracket,
+    we should NOT splat it into every panel's prompt.
+    """
+    if not anchor:
+        return anchor
+    risky = [
+        r"\b(handcuff|bound|cuffed|chained|shackled|bondage|rope tie|hogtied)\b",
+        r"\b(dildo|vibrator|sex toy|butt plug|anal plug)\b",
+    ]
+    for pat in risky:
+        if _re.search(pat, anchor, _re.IGNORECASE):
+            return ""
+    return anchor
+
+
 # ─── Async Task Background Runners ─────────────────────────────────────────────────
 
 async def _run_themes_task(task_id: str, req: StoryboardThemesRequest, api_key: str):
@@ -105,14 +1245,25 @@ async def _run_themes_task(task_id: str, req: StoryboardThemesRequest, api_key: 
             rnd.shuffle(all_db_themes)
             picked = all_db_themes[:count]
             themes = []
-            for i, t in enumerate(picked):
+            for picked_idx, t in enumerate(picked):
                 if not isinstance(t, dict):
                     continue
                 scenarios = t.get("scenarios", []) if isinstance(t.get("scenarios"), list) else []
                 costumes = t.get("costumes", []) if isinstance(t.get("costumes"), list) else []
+                # CRITICAL: send the REAL seq_id (1-500) so the backend's
+                # `get_theme_by_seq_id()` lookup returns the same theme the user
+                # clicked. Previously we sent `i+1` (shuffle position 1-20) which
+                # caused every theme to resolve to the wrong data.
+                real_seq_id = t.get("seq_id")
+                if real_seq_id is None:
+                    # Fall back to original index in the unshuffled list
+                    try:
+                        real_seq_id = all_db_themes.index(t) + 1
+                    except ValueError:
+                        real_seq_id = picked_idx + 1
                 themes.append({
-                    "id": i + 1,
-                    "title": t.get("name", f"主题{i + 1}"),
+                    "id": real_seq_id,
+                    "title": t.get("name", f"主题{real_seq_id}"),
                     "description": t.get("description", ""),
                     "tags": t.get("tags", []) if isinstance(t.get("tags"), list) else [],
                     "r18_level": t.get("r18_level", "medium"),
@@ -220,10 +1371,16 @@ async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key
             scenarios = selected_theme.get("scenarios", [])
             costumes = selected_theme.get("costumes", [])
             poses = selected_theme.get("poses", [])
-            if scenarios:
-                theme_scenarios_str = "场景设定（必须至少选择2个使用）: " + "、".join(scenarios)
+            # Pick only the FIRST 2 scenarios as the "main scenes" for visual
+            # continuity. The user explicitly asked for 1-2 related scenes per
+            # theme with smooth transitions — not all 4 jumping around.
+            main_scenarios = scenarios[:2] if len(scenarios) > 2 else scenarios
+            if main_scenarios:
+                theme_scenarios_str = "主场景设定（必须使用,不可替换）: " + "、".join(main_scenarios)
+                if len(scenarios) > 2:
+                    theme_scenarios_str += f"\n辅助场景（可选,必要时过渡用,不超过2个）: " + "、".join(scenarios[2:])
             if costumes:
-                theme_costumes_str = "服装造型（必须选择1-2个使用）: " + "、".join(costumes)
+                theme_costumes_str = "服装造型（必须选择1-2个使用,前3个分镜必须保留主服装）: " + "、".join(costumes)
             if poses:
                 theme_poses_str = "姿势风格（参考）: " + "、".join(poses)
 
@@ -269,18 +1426,36 @@ async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key
         coherence_context = ""
         if theme_scenarios_str or theme_costumes_str or theme_poses_str:
             coherence_context = (
-                "\n\n【SELECTED THEME DETAILS — USE THESE FOR COHERENCE】:\n"
+                "\n\n【SELECTED THEME DETAILS — USE THESE FOR COHERENCE — MANDATORY】:\n"
+                f"  - {theme_scenarios_str}\n"
+                f"  - {theme_costumes_str}\n"
             )
-            if theme_scenarios_str:
-                coherence_context += f"  - {theme_scenarios_str}\n"
-            if theme_costumes_str:
-                coherence_context += f"  - {theme_costumes_str}\n"
             if theme_poses_str:
                 coherence_context += f"  - {theme_poses_str}\n"
             coherence_context += (
-                "IMPORTANT: You MUST incorporate the selected scenarios, costumes, "
-                "and poses above into your outline to ensure narrative coherence. "
-                "Do not invent unrelated settings or clothing."
+                "HARD RULES — DO NOT VIOLATE:\n"
+                "1. EVERY panel's scene_description (Chinese) MUST mention at least ONE specific "
+                "scenario word from the SCENARIOS list above (e.g. if SCENARIOS includes '法庭', "
+                "the panel MUST take place in 法庭/法官办公室 — NOT in a cafe, NOT on a beach).\n"
+                "2. EVERY panel's scene_description MUST mention at least ONE specific costume word "
+                "from the COSTUMES list (e.g. if COSTUMES includes '法官袍', the characters MUST "
+                "be wearing 法官袍 — NOT casual clothes).\n"
+                "3. EVERY panel's image_prompt (English) MUST include the English equivalent of "
+                "the scenario word AND the costume word, plus at least ONE KEY PROP from the theme "
+                "(gavel for judge, stethoscope for nurse, swimwear+steam for onsen, etc.).\n"
+                "4. The theme's MAIN SUBJECT (the role implied by the theme name — judge, nurse, "
+                "maid, flight attendant, onsen bather, etc.) MUST appear in EVERY panel as the "
+                "primary character, wearing the theme's costume, in the theme's setting.\n"
+                "5. NEVER replace the theme setting with a random unrelated setting. NEVER replace "
+                "the theme costume with random casual clothes. The THEME IS THE STORY.\n"
+                "6. SCENE COHERENCE — STAY IN 1-2 RELATED SCENES — NO JUMPING. The storyboard "
+                "should NOT jump from 公园长椅 to 喷泉旁 to 树林深处 to 摩天轮座舱. Pick 1-2 "
+                "scenes from the SCENARIOS list and STAY THERE for the whole storyboard. "
+                "Smooth transitions only (泳池边 → 泳池躺椅, NOT 泳池边 → 山顶).\n"
+                "7. ABSOLUTELY NO INVENTED LOCATIONS. If a location word is not in the SCENARIOS "
+                "list above, it is BANNED. Use ONLY the scenarios listed.\n"
+                "If a panel cannot naturally fit the theme keywords, RESTRUCTURE the panel — "
+                "do NOT drop the keywords."
             )
 
         system_prompt = system_template.format(
@@ -291,11 +1466,27 @@ async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key
             pose_list=pose_list_str,
             theme_coherence=coherence_context,
         )
+        # Build a short keyword list that the LLM MUST echo back. We pass this in
+        # the user_prompt (not the system_prompt) so it's reinforced right at the
+        # end of the prompt where models tend to follow instructions most strictly.
+        theme_keywords_required: list = []
+        if selected_theme:
+            theme_keywords_required.extend(selected_theme.get("scenarios", []) or [])
+            theme_keywords_required.extend(selected_theme.get("costumes", []) or [])
+        theme_keywords_line = (
+            f"\n【THEME KEYWORDS — MUST APPEAR IN YOUR OUTPUT】: "
+            + ", ".join(theme_keywords_required)
+            if theme_keywords_required else ""
+        )
+
         user_prompt = (
             f"Theme: {req.theme_title}\n"
             f"Panel count: {panel_count}\n"
             f"【重要】Panel 1 不能有直接性爱！必须先从开场/前戏开始，逐步发展到性爱。\n"
             f"【重要】R18模式：每个分镜的 image_prompt 必须非常详细和露骨，描述体位、身体部位、体液等。\n"
+            f"【关键】所有 panel 的场景必须在主题指定的场景列表中(法庭/温泉等)，"
+            f"所有人物的服装必须在主题指定的服装列表中(法官袍/泳装等)，"
+            f"不得脱离主题自由发挥。{theme_keywords_line}\n"
             f"Output as raw JSON only, no markdown."
         )
 
@@ -348,6 +1539,77 @@ async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key
                         })
                     except Exception:
                         continue
+
+                # ── Lock character identity across panels via [ANCHOR] injection ──
+                # Extract the anchor from panel 1, then re-inject it verbatim into every
+                # other panel. This is the single most important fix for theme
+                # consistency: it guarantees that the SAME character (same outfit color,
+                # same hair, same shoes, same key props) appears in every frame even if
+                # the LLM drifts in panels 2..N.
+                if panels:
+                    first_anchor = _extract_character_anchor(panels[0].get("image_prompt", ""))
+                    first_anchor = _normalize_anchor_for_safety(first_anchor)
+                    if first_anchor:
+                        for p in panels:
+                            p["image_prompt"] = _inject_character_anchor(
+                                p.get("image_prompt", ""),
+                                first_anchor,
+                            )
+                        logging.info(
+                            "[outline] locked character anchor across %d panels: %s",
+                            len(panels),
+                            first_anchor[:120],
+                        )
+
+                # ── Enforce theme-coherent outfit/location on FOREPLAY panels ──
+                # This is the second-most-important fix: even if the LLM drifts in
+                # panel 2/3 (e.g. theme=修女 but LLM writes 白色连衣裙 / 黑色迷你裙
+                # / 公园长椅 / 摩天轮坐舱), we post-process to replace those terms
+                # with the theme's canonical outfit + location.
+                # Sex panels (panel 3+ in R18, panel 4+ in normal mode) are EXEMPTED —
+                # the user is fine with nakedness during intercourse.
+                if panels and selected_theme:
+                    from app.services.theme_database import get_theme_by_seq_id, get_theme_by_id
+                    canon_theme = selected_theme
+                    if not isinstance(canon_theme, dict):
+                        canon_theme = get_theme_by_id(req.theme_id) if isinstance(req.theme_id, str) else None
+                        if canon_theme is None:
+                            try:
+                                canon_theme = get_theme_by_seq_id(int(req.theme_id))
+                            except (ValueError, TypeError):
+                                canon_theme = None
+                    theme_name = req.theme_title or ""
+                    if isinstance(canon_theme, dict):
+                        fix_count = 0
+                        for idx, p in enumerate(panels):
+                            new_scene, new_image = _enforce_theme_coherence(
+                                scene_description=p.get("scene_description", ""),
+                                image_prompt=p.get("image_prompt", ""),
+                                theme_name=theme_name,
+                                theme_data=canon_theme,
+                                panel_index=idx,
+                                total_panels=len(panels),
+                                r18=bool(req.r18),
+                            )
+                            if new_scene != p.get("scene_description", "") or new_image != p.get("image_prompt", ""):
+                                p["scene_description"] = new_scene
+                                p["image_prompt"] = new_image
+                                fix_count += 1
+                        if fix_count:
+                            logging.info(
+                                "[outline] theme-coherence fixed %d/%d panels (theme=%s)",
+                                fix_count, len(panels), theme_name,
+                            )
+
+                # ── Sanity check: detect any outfit color drift between panels ──
+                if len(panels) >= 2:
+                    drifts = detect_outfit_color_drift([p.get("image_prompt", "") for p in panels])
+                    if drifts:
+                        logging.warning(
+                            "[outline] outfit color drift detected (%d issues): %s",
+                            len(drifts),
+                            "; ".join(drifts[:3]),
+                        )
 
                 if not panels:
                     raise ValueError("No valid panels generated")
@@ -2016,9 +3278,14 @@ async def list_storyboard_themes():
             continue
         scenarios = t.get("scenarios", []) if isinstance(t.get("scenarios"), list) else []
         costumes = t.get("costumes", []) if isinstance(t.get("costumes"), list) else []
+        # CRITICAL: send the REAL seq_id (1-500) so the backend's
+        # `get_theme_by_seq_id()` lookup returns the same theme the user clicked.
+        real_seq_id = t.get("seq_id")
+        if real_seq_id is None:
+            real_seq_id = i + 1
         themes.append(StoryboardThemeOption(
-            id=i + 1,
-            title=t.get("name", f"主题{i + 1}"),
+            id=real_seq_id,
+            title=t.get("name", f"主题{real_seq_id}"),
             description=t.get("description", ""),
             tags=t.get("tags", []) if isinstance(t.get("tags"), list) else [],
             r18_level=t.get("r18_level", "medium"),
@@ -2030,9 +3297,8 @@ async def list_storyboard_themes():
     # Shuffle for variety when displayed
     random.seed()
     random.shuffle(themes)
-    # Re-number after shuffle
-    for i, t in enumerate(themes):
-        t.id = i + 1
+    # DO NOT re-number ids after shuffle — the id field is the seq_id needed for
+    # backend theme lookup. Re-numbering would break the lookup entirely.
 
     return StoryboardThemesResponse(themes=themes)
 
@@ -2072,14 +3338,20 @@ async def generate_storyboard_themes(
         random.shuffle(all_db_themes)
         picked = all_db_themes[:count]
         themes = []
-        for i, t in enumerate(picked):
+        for picked_idx, t in enumerate(picked):
             if not isinstance(t, dict):
                 continue
             scenarios = t.get("scenarios", []) if isinstance(t.get("scenarios"), list) else []
             costumes = t.get("costumes", []) if isinstance(t.get("costumes"), list) else []
+            # Send the REAL seq_id so backend's `get_theme_by_seq_id()` resolves
+            # the same theme the user clicked. Using shuffle-position (i+1) caused
+            # every theme to resolve to a different unrelated theme.
+            real_seq_id = t.get("seq_id")
+            if real_seq_id is None:
+                real_seq_id = picked_idx + 1
             themes.append(StoryboardThemeOption(
-                id=i + 1,
-                title=t.get("name", f"主题{i + 1}"),
+                id=real_seq_id,
+                title=t.get("name", f"主题{real_seq_id}"),
                 description=t.get("description", ""),
                 tags=t.get("tags", []) if isinstance(t.get("tags"), list) else [],
                 r18_level=t.get("r18_level", "medium"),
@@ -2138,9 +3410,13 @@ async def generate_storyboard_themes(
             if len(themes) < 2:
                 raise HTTPException(status_code=500, detail="Not enough themes generated")
 
-            # Ensure unique IDs
+            # Use negative IDs for LLM-generated custom themes (avoids collision
+            # with database seq_ids 1-500 used for the standard theme list).
+            # The backend will not be able to resolve these to a database theme
+            # — that's OK, custom themes only need the title/description for the
+            # outline prompt, not strict theme-data enforcement.
             for j, t in enumerate(themes[:count]):
-                t.id = j + 1
+                t.id = -(j + 1)
 
             return StoryboardThemesResponse(themes=themes[:count])
         except ContentSafetyError as e:
@@ -2262,7 +3538,7 @@ _NORMAL_OUTLINE_SYSTEM = """You are an expert adult comic director. A user selec
 {theme_coherence}
 
 Generate a COMPLETELY UNIQUE and CREATIVE narrative outline and {panel_count} storyboard panels for a 15-30 second short video.
-""" + ETHNICITY_BLOCK + """
+""" + ETHNICITY_BLOCK + CHARACTER_BIBLE_BLOCK + THEME_COHERENCE_BOOST_BLOCK + """
 
 【CREATIVITY REQUIREMENTS - CRITICAL】:
 - Use your CREATIVE IMAGINATION - do NOT repeat common tropes or overused descriptions
@@ -2296,7 +3572,7 @@ Do NOT wrap in markdown. Output raw JSON only."""
 
 _R18_OUTLINE_SYSTEM = """You are an EXPERT adult comic director specializing in EXPLICIT sexual content. User selected theme: "{theme_title}".
 {theme_coherence}
-""" + ETHNICITY_BLOCK + """
+""" + ETHNICITY_BLOCK + CHARACTER_BIBLE_BLOCK + THEME_COHERENCE_BOOST_BLOCK + """
 
 【POSE RANDOMIZATION - ABSOLUTELY MANDATORY】:
 You MUST select EXPLICITLY DIFFERENT sexual positions for each panel from the following 105-pose pool. NO TWO panels may share the same position category (e.g. doggy, cowgirl, missionary, 69, etc.). Variety is CRITICAL.
@@ -2384,28 +3660,49 @@ async def generate_storyboard_outline(
         scenarios = selected_theme.get("scenarios", [])
         costumes = selected_theme.get("costumes", [])
         poses = selected_theme.get("poses", [])
-        if scenarios:
-            theme_scenarios_str = "场景设定（必须至少选择2个使用）: " + "、".join(scenarios)
+        main_scenarios = scenarios[:2] if len(scenarios) > 2 else scenarios
+        if main_scenarios:
+            theme_scenarios_str = "主场景设定（必须使用,不可替换）: " + "、".join(main_scenarios)
+            if len(scenarios) > 2:
+                theme_scenarios_str += "\n辅助场景（可选,过渡用,不超过2个）: " + "、".join(scenarios[2:])
         if costumes:
-            theme_costumes_str = "服装造型（必须选择1-2个使用）: " + "、".join(costumes)
+            theme_costumes_str = "服装造型（必须选择1-2个使用,前3个分镜必须保留主服装）: " + "、".join(costumes)
         if poses:
             theme_poses_str = "姿势风格（参考）: " + "、".join(poses)
 
     coherence_context = ""
     if theme_scenarios_str or theme_costumes_str or theme_poses_str:
         coherence_context = (
-            "\n\n【SELECTED THEME DETAILS — USE THESE FOR COHERENCE】:\n"
+            "\n\n【SELECTED THEME DETAILS — USE THESE FOR COHERENCE — MANDATORY】:\n"
+            f"  - {theme_scenarios_str}\n"
+            f"  - {theme_costumes_str}\n"
         )
-        if theme_scenarios_str:
-            coherence_context += f"  - {theme_scenarios_str}\n"
-        if theme_costumes_str:
-            coherence_context += f"  - {theme_costumes_str}\n"
         if theme_poses_str:
             coherence_context += f"  - {theme_poses_str}\n"
         coherence_context += (
-            "IMPORTANT: You MUST incorporate the selected scenarios, costumes, "
-            "and poses above into your outline to ensure narrative coherence. "
-            "Do not invent unrelated settings or clothing."
+            "HARD RULES — DO NOT VIOLATE:\n"
+            "1. EVERY panel's scene_description (Chinese) MUST mention at least ONE specific "
+            "scenario word from the SCENARIOS list above (e.g. if SCENARIOS includes '法庭', "
+            "the panel MUST take place in 法庭/法官办公室 — NOT in a cafe, NOT on a beach).\n"
+            "2. EVERY panel's scene_description MUST mention at least ONE specific costume word "
+            "from the COSTUMES list (e.g. if COSTUMES includes '法官袍', the characters MUST "
+            "be wearing 法官袍 — NOT casual clothes).\n"
+            "3. EVERY panel's image_prompt (English) MUST include the English equivalent of "
+            "the scenario word AND the costume word, plus at least ONE KEY PROP from the theme "
+            "(gavel for judge, stethoscope for nurse, swimwear+steam for onsen, etc.).\n"
+            "4. The theme's MAIN SUBJECT (the role implied by the theme name — judge, nurse, "
+            "maid, flight attendant, onsen bather, etc.) MUST appear in EVERY panel as the "
+            "primary character, wearing the theme's costume, in the theme's setting.\n"
+            "5. NEVER replace the theme setting with a random unrelated setting. NEVER replace "
+            "the theme costume with random casual clothes. The THEME IS THE STORY.\n"
+            "6. SCENE COHERENCE — STAY IN 1-2 RELATED SCENES — NO JUMPING. The storyboard "
+            "should NOT jump from 公园长椅 to 喷泉旁 to 树林深处 to 摩天轮座舱. Pick 1-2 "
+            "scenes from the SCENARIOS list and STAY THERE for the whole storyboard. "
+            "Smooth transitions only (泳池边 → 泳池躺椅, NOT 泳池边 → 山顶).\n"
+            "7. ABSOLUTELY NO INVENTED LOCATIONS. If a location word is not in the SCENARIOS "
+            "list above, it is BANNED. Use ONLY the scenarios listed.\n"
+            "If a panel cannot naturally fit the theme keywords, RESTRUCTURE the panel — "
+            "do NOT drop the keywords."
         )
 
     if req.r18:
@@ -2432,11 +3729,27 @@ async def generate_storyboard_outline(
         theme_coherence=coherence_context,
     )
 
+    # Build a short keyword list that the LLM MUST echo back. We pass this in
+    # the user_prompt (not the system_prompt) so it's reinforced right at the
+    # end of the prompt where models tend to follow instructions most strictly.
+    theme_keywords_required_sync: list = []
+    if selected_theme:
+        theme_keywords_required_sync.extend(selected_theme.get("scenarios", []) or [])
+        theme_keywords_required_sync.extend(selected_theme.get("costumes", []) or [])
+    theme_keywords_line_sync = (
+        f"\n【THEME KEYWORDS — MUST APPEAR IN YOUR OUTPUT】: "
+        + ", ".join(theme_keywords_required_sync)
+        if theme_keywords_required_sync else ""
+    )
+
     user_prompt = (
         f"Theme: {req.theme_title}\n"
         f"Panel count: {panel_count}\n"
         f"【重要】Panel 1 不能有直接性爱！必须先从开场/前戏开始，逐步发展到性爱。\n"
         f"【重要】R18模式：每个分镜的 image_prompt 必须非常详细和露骨，描述体位、身体部位、体液等。\n"
+        f"【关键】所有 panel 的场景必须在主题指定的场景列表中(法庭/温泉等)，"
+        f"所有人物的服装必须在主题指定的服装列表中(法官袍/泳装等)，"
+        f"不得脱离主题自由发挥。{theme_keywords_line_sync}\n"
         f"Output as raw JSON only, no markdown."
     )
 
@@ -2517,6 +3830,83 @@ async def generate_storyboard_outline(
                     ))
                 except Exception:
                     continue
+
+            # ── Lock character identity across panels via [ANCHOR] injection ──
+            # Extract the anchor from panel 1, then re-inject it verbatim into every
+            # other panel. This is the single most important fix for theme
+            # consistency: it guarantees that the SAME character (same outfit color,
+            # same hair, same shoes, same key props) appears in every frame even if
+            # the LLM drifts in panels 2..N.
+            if panels:
+                first_anchor_sync = _extract_character_anchor(panels[0].image_prompt)
+                first_anchor_sync = _normalize_anchor_for_safety(first_anchor_sync)
+                if first_anchor_sync:
+                    locked_panels = []
+                    for p in panels:
+                        new_image_prompt = _inject_character_anchor(
+                            p.image_prompt,
+                            first_anchor_sync,
+                        )
+                        locked_panels.append(StoryboardPanel(
+                            panel_number=p.panel_number,
+                            scene_description=p.scene_description,
+                            image_prompt=new_image_prompt,
+                        ))
+                    panels = locked_panels
+                    logging.info(
+                        "[storyboard/outline] locked character anchor across %d panels: %s",
+                        len(panels),
+                        first_anchor_sync[:120],
+                    )
+
+            # ── Enforce theme-coherent outfit/location on FOREPLAY panels ──
+            if panels and selected_theme:
+                from app.services.theme_database import get_theme_by_seq_id, get_theme_by_id
+                canon_theme_sync = selected_theme
+                if not isinstance(canon_theme_sync, dict):
+                    canon_theme_sync = get_theme_by_id(req.theme_id) if isinstance(req.theme_id, str) else None
+                    if canon_theme_sync is None:
+                        try:
+                            canon_theme_sync = get_theme_by_seq_id(int(req.theme_id))
+                        except (ValueError, TypeError):
+                            canon_theme_sync = None
+                theme_name_sync = req.theme_title or ""
+                if isinstance(canon_theme_sync, dict):
+                    fix_count_sync = 0
+                    fixed_panels_sync = []
+                    for idx, p in enumerate(panels):
+                        new_scene_sync, new_image_sync = _enforce_theme_coherence(
+                            scene_description=p.scene_description,
+                            image_prompt=p.image_prompt,
+                            theme_name=theme_name_sync,
+                            theme_data=canon_theme_sync,
+                            panel_index=idx,
+                            total_panels=len(panels),
+                            r18=bool(req.r18),
+                        )
+                        if new_scene_sync != p.scene_description or new_image_sync != p.image_prompt:
+                            fix_count_sync += 1
+                        fixed_panels_sync.append(StoryboardPanel(
+                            panel_number=p.panel_number,
+                            scene_description=new_scene_sync,
+                            image_prompt=new_image_sync,
+                        ))
+                    panels = fixed_panels_sync
+                    if fix_count_sync:
+                        logging.info(
+                            "[storyboard/outline] theme-coherence fixed %d/%d panels (theme=%s)",
+                            fix_count_sync, len(panels), theme_name_sync,
+                        )
+
+            # ── Sanity check: detect any outfit color drift between panels ──
+            if len(panels) >= 2:
+                drifts_sync = detect_outfit_color_drift([p.image_prompt for p in panels])
+                if drifts_sync:
+                    logging.warning(
+                        "[storyboard/outline] outfit color drift detected (%d issues): %s",
+                        len(drifts_sync),
+                        "; ".join(drifts_sync[:3]),
+                    )
 
             if not panels:
                 raise HTTPException(status_code=500, detail="No valid panels generated")

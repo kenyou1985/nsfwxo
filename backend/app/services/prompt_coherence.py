@@ -4,7 +4,7 @@
 """
 
 import re
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 from app.services.llm_service import call_grok
 
@@ -622,3 +622,136 @@ def _fallback_fix(prompt: str) -> str:
                     break
 
     return result
+
+
+# ─── Outfit Color Inconsistency Detection ────────────────────────────────────────
+# When the LLM is asked to lock the character's outfit color across panels, but
+# still describes a DIFFERENT color in a later panel (e.g. "black robe" in panel 1
+# then "red robe" in panel 3), we want to flag it. Returns the list of conflict
+# descriptions so the caller can decide what to do (warn / rewrite / hard-fail).
+
+_OUTFIT_COLOR_WORDS = {
+    "black", "white", "red", "blue", "green", "yellow", "pink", "purple",
+    "orange", "brown", "gray", "grey", "silver", "gold", "golden", "navy",
+    "beige", "ivory", "cream", "tan", "olive", "burgundy", "maroon", "violet",
+    "turquoise", "teal", "cyan", "magenta",
+}
+_OUTFIT_ITEM_HINTS = re.compile(
+    r"\b(robe|dress|shirt|blouse|jacket|suit|uniform|costume|gown|outfit|"
+    r"bikini|swimsuit|swimwear|pants|skirt|shorts|jeans|leggings|"
+    r"coat|sweater|hoodie|kimono|armor|attire|garb|vest|corset|"
+    r"apron|scrubs|coat|tuxedo|blazer|sweatshirt|jersey|sari|sarong)\b",
+    re.I,
+)
+
+
+def detect_outfit_color_drift(image_prompts: List[str]) -> List[str]:
+    """
+    Given a list of image_prompts (one per panel), detect when the OUTFIT COLOR
+    drifts between panels. The expected usage: panel 0 contains the [ANCHOR] which
+    locks the outfit color. If a later panel mentions the SAME outfit item but
+    with a DIFFERENT color, that's a conflict.
+
+    Returns a list of human-readable conflict descriptions.
+    """
+    if not image_prompts or len(image_prompts) < 2:
+        return []
+
+    conflicts: List[str] = []
+    # Find anchor in first panel — extract expected colors per outfit item.
+    anchor = image_prompts[0]
+    anchor_colors_per_item = _parse_anchor_colors(anchor)
+
+    if not anchor_colors_per_item:
+        return []  # No anchor = no baseline to check against
+
+    # Compare each subsequent panel against the anchor
+    for idx in range(1, len(image_prompts)):
+        prompt = image_prompts[idx]
+        prompt_colors_per_item = _parse_anchor_colors(prompt)
+        for anchor_item, anchor_color in anchor_colors_per_item.items():
+            prompt_color = _match_item_color(prompt_colors_per_item, anchor_item)
+            if prompt_color and prompt_color != anchor_color:
+                conflicts.append(
+                    f"Panel {idx + 1}: outfit color drift — "
+                    f"'{anchor_item}' is '{anchor_color}' in panel 1 but "
+                    f"'{prompt_color}' in panel {idx + 1}"
+                )
+    return conflicts
+
+
+def _match_item_color(parsed: dict, anchor_item: str) -> Optional[str]:
+    """
+    Look up the color for an anchor item in a parsed dict, tolerating partial
+    matches (e.g. anchor_item='judge robe' matches parsed key='robe').
+
+    Returns the color string if found, else None.
+    """
+    if not parsed:
+        return None
+    if anchor_item in parsed:
+        return parsed[anchor_item]
+    # Partial: either anchor_item is a suffix or prefix of a parsed key
+    anchor_words = set(anchor_item.split())
+    for key, color in parsed.items():
+        key_words = set(key.split())
+        if anchor_words & key_words:  # any word overlap
+            return color
+    return None
+
+
+def _parse_anchor_colors(text: str) -> dict:
+    """
+    Parse an [ANCHOR: ...] line or a generic prompt to extract {item: color} pairs.
+
+    Supports TWO formats:
+    1. Comma-separated anchor: '[ANCHOR: woman,long black hair,fair skin,black judge robe,...]'
+       — pairs of (color, item) are split by commas, and we walk the tokens looking
+       for sequences of <color> followed by <item>.
+    2. Free-text 'in a <color> <item>' pattern in any prompt.
+
+    Used as a lightweight best-effort detector — not a full parser.
+    """
+    if not text:
+        return {}
+
+    found: dict = {}
+
+    # ── Format 1: comma-separated ANCHOR line ───────────────────────────────
+    m = re.search(r"\[ANCHOR:\s*([^\]]+)\]", text, re.IGNORECASE)
+    if m:
+        anchor_body = m.group(1)
+        # Split by comma, normalize each token
+        tokens = [t.strip().lower() for t in anchor_body.split(",") if t.strip()]
+        # Walk tokens: when we see a color followed by an item, store it.
+        # Anchor fields in our spec are interleaved:
+        # <woman_desc>, <hair>, <eyes>, <skin>, <outfit_color>, <outfit_item>, <footwear>, <props>; <man_desc>, ...
+        # So consecutive (color, item) tokens are the outfit description.
+        i = 0
+        while i < len(tokens) - 1:
+            t = tokens[i]
+            nxt = tokens[i + 1]
+            # Pattern A: t is a single color, nxt is an item word
+            if t in _OUTFIT_COLOR_WORDS and _OUTFIT_ITEM_HINTS.search(nxt):
+                # nxt may itself be "judge robe" (two words) — keep as-is
+                found.setdefault(nxt, t)
+                i += 2
+                continue
+            # Pattern B: t is "<color> <item>" (e.g. "black robe" without comma)
+            for color in _OUTFIT_COLOR_WORDS:
+                if t.startswith(color + " ") and _OUTFIT_ITEM_HINTS.search(t):
+                    item = t[len(color) + 1:].strip()
+                    if item:
+                        found.setdefault(item, color)
+                    break
+            i += 1
+
+    # ── Format 2: free-text "<color> <item>" anywhere in the prompt ────────
+    for m in re.finditer(r"\b([a-z]+)\s+([a-z]+)", text.lower()):
+        word_a = m.group(1)
+        word_b = m.group(2)
+        if word_a in _OUTFIT_COLOR_WORDS and _OUTFIT_ITEM_HINTS.search(word_b):
+            found.setdefault(word_b, word_a)
+        elif word_b in _OUTFIT_COLOR_WORDS and _OUTFIT_ITEM_HINTS.search(word_a):
+            found.setdefault(word_a, word_b)
+    return found
