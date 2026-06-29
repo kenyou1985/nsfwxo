@@ -268,7 +268,7 @@ _LOCATION_WORDS_ZH = sorted([
     # ── 保龄球馆 ──
     "保龄球馆", "球馆", "保龄球道", "保龄球瓶区",
     # ── 泳池 / 海 ──
-    "泳池", "游泳池", "泳道", "泳池边", "泳池边湿身",
+    "泳池", "游泳池", "泳道", # "泳池边",  # REMOVED: causes drift in non-pool themes "泳池边湿身",
     "游泳馆", "跳水池", "泳池躺椅", "更衣室", "更衣帐篷",
     "沙滩", "海边", "海岸", "海浪", "礁石",
     "摩天轮", "摩天轮座舱", "摩天轮坐舱", "摩天轮上",
@@ -304,6 +304,25 @@ _LOCATION_WORDS_ZH = sorted([
     "海边沙滩", "沙滩上", "海面上",
     # ── 高尔夫 ──
     "高尔夫球场", "果岭", "发球台", "球车", "会所",
+    "高尔夫练习场", "高尔夫俱乐部会所", "练习场",
+    # ── 拳击 ──
+    "拳击馆", "拳击场", "拳击台", "拳击擂台", "拳台",
+    "擂台", "围绳", "围绳旁", "沙袋", "沙袋旁",
+    "擂台角落", "休息室", "更衣室", "更衣间", "训练室",
+    # ── 反词表 (LLM 经常 drift 到的非主题地点) ──
+    # 这些 location 词即使出现在 panel 里,如果不在 ★ SCENARIOS,也要被替换
+    "酒店", "酒店大堂", "酒店房间", "酒店套房", "酒店停车场",
+    "地下停车场", "停车场", "公寓", "高级公寓", "豪华公寓",
+    "餐厅", "高级餐厅", "私人餐厅", "包间", "包厢",
+    "咖啡厅", "咖啡馆", "酒吧", "KTV",
+    "度假村", "度假别墅", "私人别墅", "山顶别墅",
+    "小岛", "海岛",
+    "摩天轮", "旋转木马", "过山车", "游乐场", "游乐园",
+    "地铁", "公交车", "出租车", "私家车",
+    "教室", "图书馆", "校园", "操场",
+    "公园", "公园长椅", "花店", "花房",
+    "写字楼", "办公室", "会议室", "茶水间",
+    "街头", "街道", "路边", "小巷",
     # ── 滑雪 ──
     "滑雪场", "滑雪道", "缆车", "雪地", "山顶小屋",
     # ── 公园 / 街心 ──
@@ -607,7 +626,160 @@ THEME_CANONICAL_OVERRIDES: Dict[str, Tuple[str, str, str, str]] = {
     "艺术疗法": ("工作服", "workwear", "工作室", "studio"),
     "舞动治疗": ("舞蹈服", "dance outfit", "舞蹈室", "dance room"),
     "戏剧疗法": ("戏服", "costume outfit", "排练室", "rehearsal room"),
-    "沙盘疗法": ("治疗服", "therapy outfit", "治疗室", "treatment room"),
+    # q3+: 高尔夫/拳击 (user feedback: 高尔夫野外球场 / 拳击馆 primary location)
+    "高尔夫球童": ("球童服", "golf caddy uniform with visor and polo", "高尔夫球场", "golf course"),
+    "拳击搭档": ("拳击短裤", "boxing shorts with sports bra and hand wraps", "拳击馆", "boxing gym"),
+    "地下拳击": ("拳击短裤", "boxing shorts with sports bra", "拳击台", "underground boxing ring with crowd"),
+    # q3+: 冲浪/滑雪/潜水/瑜伽/舞蹈/健身/马术/赛车 primary location locks
+    "冲浪教练": ("比基尼", "bikini", "海边", "beach with surfboards and ocean waves"),
+    "滑雪教练": ("滑雪服", "ski instructor jacket with goggles", "滑雪场", "ski slope with snow-covered mountain"),
+    "潜水教练": ("潜水服", "wetsuit", "船上", "dive boat deck with ocean"),
+    "瑜伽教练": ("瑜伽服", "yoga outfit with leggings", "瑜伽教室", "yoga studio with mats and natural light"),
+    "舞蹈教练": ("练功服", "dance leotard with tights", "练功房", "dance studio with mirrors and barre"),
+    "健身教练": ("运动内衣", "sports bra with gym leggings", "私教室", "private gym with equipment and mats"),
+    "马术教练": ("骑装", "equestrian riding jacket with helmet", "马场", "equestrian arena with horses and fences"),
+    "马术俱乐部": ("骑装", "equestrian riding jacket", "马厩", "horse stable with stalls and hay"),
+    "私人司机": ("司机制服", "chauffeur uniform with cap", "车内", "luxury car interior with leather seats"),
+    "赛车手装": ("赛车连体服", "racing suit with helmet", "赛车驾驶舱", "race car cockpit with steering wheel"),
+    "赛车宝贝": ("赛车宝贝背心", "racing babe vest with shorts", "维修站", "pit stop with crew and tires"),
+    "美容师": ("美容师制服", "beautician uniform", "美容床", "beauty salon with treatment bed"),
+    "潜水搭档": ("潜水服", "wetsuit", "船上", "dive boat deck with ocean"),
+    "乐队成员": ("乐队服装", "band outfit with stage clothes", "排练室", "band rehearsal room with instruments"),
+    "瑜伽课": ("瑜伽服", "yoga outfit", "瑜伽室", "yoga studio with mats and natural light"),
+    "纹身师与客人": ("纹身师装", "tattoo artist outfit with apron", "纹身工作室", "tattoo studio with chair and ink"),
+    "潜水艇内": ("海军制服", "naval uniform with cap", "潜水艇舱", "submarine interior with controls"),
+    "私人飞机": ("空姐制服", "flight attendant uniform", "飞机内", "private jet cabin with seats"),
+    "私人飞机乘务长": ("乘务制服", "flight attendant uniform with heels", "私人飞机", "private jet interior with luxury seats"),
+    "私人飞行员": ("飞行员制服", "pilot uniform with cap", "飞机驾驶舱", "aircraft cockpit with instruments"),
+    "舞蹈编导": ("舞蹈服", "dance outfit with tights", "排练厅", "rehearsal hall with mirrors"),
+    "演员排练": ("戏服", "theatrical costume", "排练室", "rehearsal room with stage"),
+    "时装设计师": ("设计师装", "fashion designer outfit", "工作室", "design studio with sketches and fabric"),
+    "摄影指导": ("摄影装", "photographer outfit with camera", "拍摄现场", "on-location film set with lights"),
+    "婚礼策划师": ("策划师装", "wedding planner outfit", "婚礼现场", "wedding venue with flowers and altar"),
+    "私人保镖": ("西装", "suit with earpiece", "豪宅", "luxury mansion interior"),
+    "空姐的秘密": ("空姐制服", "navy-blue flight attendant uniform", "机组休息室", "flight crew rest area with bunks"),
+    "泳池": ("比基尼", "colorful bikini", "泳池边", "swimming poolside with loungers"),
+    "水上教练": ("比基尼", "bikini", "泳池边", "swimming poolside with deck"),
+    "保龄球馆": ("保龄球polo衫", "bowling polo shirt", "保龄球馆", "bowling alley with lanes and pins"),
+    "沙滩排球": ("比基尼", "colorful bikini", "排球网旁", "beach volleyball court with net and sand"),
+    "比基尼摔角": ("比基尼", "colorful bikini", "摔角擂台", "wrestling ring with ropes and turnbuckles"),
+    "比基尼摔跤": ("比基尼", "colorful bikini", "摔跤擂台", "wrestling mat with ropes"),
+    # q3+: 家庭/教师/医疗
+    "女教师": ("职业套装", "professional teacher outfit", "教室", "classroom with blackboard and desks"),
+    "修女": ("黑色修女服", "black nun habit with white wimple", "修道院", "convent monastery interior with chapel"),
+    "法官": ("黑色法官袍", "black judge robe with white collar", "法庭", "courtroom with judge's bench"),
+    "护士长": ("护士制服", "white nurse uniform with cap", "护士站", "nurse station with medical equipment"),
+    # q3+: 派对/酒类/温泉
+    "兔女郎派对": ("兔耳头饰", "black bunny corset with rabbit ears", "私人派对", "private party venue with neon lights"),
+    "温泉": ("浴袍", "white bathrobe", "温泉池", "hot spring onsen with steam and rocks"),
+    "别墅温泉": ("浴巾", "white bath towel", "温泉池", "hot spring onsen with steam and rocks"),
+    "品酒会": ("正装", "formal evening wear", "酒窖", "wine cellar with barrels and glasses"),
+    "品酒师": ("品酒师制服", "sommelier uniform with vest", "酒窖", "wine cellar with barrels and glasses"),
+    "电竞战队": ("队服", "esports team jersey", "训练室", "esports training room with gaming PCs"),
+    "书友会": ("文艺服装", "literary casual wear", "书房", "private library with bookshelves"),
+    "梦幻之境": ("异世界服装", "fantasy outfit", "梦境空间", "dream realm with surreal landscape"),
+    "魔法森林": ("精灵装", "elf outfit with leaf details", "森林深处", "deep forest with ancient trees"),
+    "幽灵爱人": ("幽灵装", "ghostly white outfit", "古堡", "castle interior with stone walls"),
+    "中世纪城堡": ("中世纪礼服", "medieval gown with corset", "城堡卧室", "castle bedroom with stone walls"),
+    "海盗船长": ("船长服", "pirate captain outfit with hat", "海盗船", "pirate ship deck with sails and ocean"),
+    "女海盗": ("海盗服", "pirate outfit with bandana", "海盗船甲板", "pirate ship deck with ocean"),
+    "天使与恶魔": ("天使服装", "angel outfit with wings", "天空", "sky with clouds and light"),
+    "古代战场": ("战袍", "war robe with armor pieces", "战场", "battlefield with tents and soldiers"),
+    "太空舱": ("航天服", "spacesuit with helmet", "太空舱内", "space capsule interior with controls"),
+    "机器人管家": ("机器人装", "robot suit with metal panels", "豪宅", "luxury mansion with modern interior"),
+    "机械姬": ("机械姬装", "android outfit with glowing parts", "未来舱", "futuristic capsule with neon lights"),
+    "暗精灵女王": ("暗精灵服装", "dark elf outfit with crown", "暗精灵宫殿", "dark elf palace with obsidian"),
+    "星际海盗": ("星际海盗服", "space pirate outfit with gear", "星际飞船", "spacecraft interior with controls"),
+    "潜水艇观光": ("潜水服", "wetsuit with mask", "观光舱", "submarine observation chamber with portholes"),
+    "星空下": ("毛衣", "sweater with jeans", "户外草地", "outdoor grass field under starry sky"),
+    "樱花下": ("和服", "kimono with obi belt", "樱花树下", "under cherry blossom trees with petals"),
+    "月光": ("丝绸长裙", "silk long dress", "月光下", "moonlit balcony with silver light"),
+    "森林木屋": ("休闲装", "cozy cabin outfit", "木屋内", "wooden cabin interior with fireplace"),
+    "湖边小屋": ("毛衣", "sweater with jeans", "湖边", "lakeside cabin with water view"),
+    "海边小木屋": ("泳装", "swimsuit with cover-up", "海边小木屋", "seaside cabin with ocean view"),
+    "沙漠绿洲": ("长袍", "desert robe with headscarf", "沙漠绿洲", "desert oasis with palm trees"),
+    "雪山度假": ("滑雪服", "ski outfit with goggles", "雪山度假村", "ski resort lodge with snow"),
+    "极地科考": ("科考服", "expedition parka with fur hood", "科考站", "polar research station with ice"),
+    "火山探险": ("探险服", "expedition outfit with helmet", "火山口", "volcano crater with lava"),
+    "峡谷探险": ("探险服", "expedition outfit with rope", "峡谷底部", "canyon floor with rock walls"),
+    "洞穴探险": ("探险服", "expedition outfit with headlamp", "洞穴", "cave interior with stalactites"),
+    "湿地芦苇": ("长裙", "long dress with hat", "芦苇丛中", "wetland reeds with water"),
+    "竹林深处": ("汉服", "hanfu with sash", "竹林深处", "deep bamboo forest with green light"),
+    "茶室": ("和服", "kimono with obi", "茶室", "tea room with tatami and tea set"),
+    "古风青楼": ("古装肚兜", "period-drama underbodice", "青楼闺房", "brothel boudoir with silk drapes"),
+    "和风旅馆": ("浴衣", "yukata with geta sandals", "榻榻米房间", "tatami room with sliding doors"),
+    "温泉旅馆": ("浴衣", "yukata with geta", "温泉池", "hot spring onsen with rocks and steam"),
+    # q3+: VR/科幻/未来
+    "VR虚拟现实": ("紧身VR服", "tight-fitting VR suit with sensors", "VR体验室", "VR experience room with headsets"),
+    "监视下的性爱": ("直播服装", "live streaming outfit", "直播房间", "live streaming room with camera"),
+    "魔法学院": ("魔法袍", "magic robe with hat", "魔法教室", "magic classroom with spell books"),
+    "时空裂缝": ("时空服装", "time-space traveler outfit", "时空裂缝", "time-space rift with surreal visuals"),
+    "虫族女王": ("虫族服装", "insect queen outfit with chitin", "虫巢", "insect hive with eggs and resin"),
+    "冰与火": ("冰服装", "ice outfit with frost details", "冰火交界", "ice-fire boundary with elements"),
+    "失乐园": ("伊甸服装", "eden garden outfit with leaves", "伊甸园", "eden garden with forbidden tree"),
+    "凤凰涅槃": ("火焰服装", "flame outfit with feathers", "火山口", "volcano crater with phoenix"),
+    "水晶宫殿": ("水晶服装", "crystal outfit with gems", "水晶宫殿", "crystal palace with translucent walls"),
+    "水下巴洛克": ("水肺装", "scuba gear with fins", "水下巴洛克", "underwater baroque palace with coral"),
+    "魅魔诱惑": ("魅魔服装", "succubus outfit with wings", "异空间", "other dimension with dark altar"),
+    "外星接触": ("外星服装", "alien outfit with helmet", "飞船内", "spaceship interior with controls"),
+    "赛博空间": ("赛博装", "cyberpunk outfit with neon", "霓虹街", "neon street with holographic ads"),
+    "机械义体": ("机械义体", "mechanical prosthesis with metal", "改造室", "modification room with surgical tools"),
+    # q3+: 餐饮/工作
+    "私人厨师": ("厨师服", "chef outfit with hat", "厨房", "kitchen with stove and ingredients"),
+    "咖啡馆": ("围裙", "apron with casual clothes", "咖啡馆", "cafe with espresso machine and tables"),
+    "私人理财师": ("职业装", "business attire with briefcase", "客户家", "client home with office setup"),
+    "古董鉴定师": ("职业装", "business attire with loupe", "鉴定工作室", "appraisal studio with antiques"),
+    "花艺师": ("围裙", "apron with floral pattern", "花店", "floral shop with buckets of flowers"),
+    "翻译员": ("职业装", "business attire with headset", "会议室", "conference room with interpreter booth"),
+    "私人导游": ("导游服", "tour guide outfit with badge", "景点", "tourist attraction with group"),
+    "私人家教": ("职业装", "tutor outfit with books", "书房", "study room with desk and books"),
+    "营养师": ("职业服", "nutritionist outfit", "工作室", "office with nutrition charts"),
+    "法律顾问": ("律师袍", "lawyer robe with tie", "律所", "law office with bookshelves"),
+    "心理咨询师": ("职业装", "therapist business attire", "咨询室", "counseling room with couch"),
+    "私人医生": ("医生白大褂", "white doctor coat with stethoscope", "病人家中", "patient home with medical bag"),
+    "牙医诊所": ("牙医制服", "dentist uniform with mask", "牙科治疗椅", "dental chair with equipment"),
+    "私人裁缝": ("裁缝装", "tailor outfit with measuring tape", "裁缝工作室", "tailor studio with fabric and mannequins"),
+    "私人验光师": ("医疗制服", "medical uniform with phoropter", "验光室", "eye exam room with phoropter"),
+    "品酒会": ("正装", "formal evening wear", "酒窖", "wine cellar with barrels"),
+    "调香师": ("实验服", "lab coat with perfume bottles", "调香室", "perfume studio with ingredients"),
+    "策展人": ("策展装", "curator outfit with glasses", "展厅", "gallery exhibition hall with artworks"),
+    "古风雅集": ("汉服", "hanfu with sash", "古风庭院", "classical Chinese courtyard with pavilion"),
+    "古代宫廷": ("宫廷装", "palace court outfit", "皇宫大殿", "imperial palace hall with throne"),
+    "梦境引导": ("梦境服装", "dream-realm outfit with shimmer", "梦境空间", "dream-realm space with surreal elements"),
+    "催眠师": ("职业装", "therapist business attire", "催眠室", "hypnosis room with recliner"),
+    "灵魂交换": ("灵魂服装", "soul-swap outfit", "异空间", "other dimension with mirrors"),
+    "暗影刺客": ("刺客服装", "assassin outfit with mask", "暗影", "shadow realm with darkness"),
+    "女武神": ("女武神盔甲", "valkyrie armor with wings", "英灵殿", "valhalla hall with warriors"),
+    "神庙探险": ("探险装", "expedition outfit with torch", "神庙内部", "temple interior with carvings"),
+    "忍者大师": ("忍者服", "ninja outfit with mask", "道场", "ninja dojo with training area"),
+    "龙族宝藏": ("宝藏装", "treasure outfit with gold", "宝藏洞穴", "dragon treasure cave with gold"),
+    "幽灵古宅": ("古风服装", "vintage period outfit", "古宅", "old mansion with creaking floors"),
+    "炼金术士": ("炼金袍", "alchemist robe with vials", "炼金室", "alchemy lab with potions"),
+    "时间旅行者": ("时空服装", "time-traveler outfit with clock", "时空裂缝", "time rift with swirling vortex"),
+    "星际飞船": ("飞船制服", "spaceship uniform with badge", "飞船驾驶舱", "spaceship cockpit with controls"),
+    "美人鱼与王子": ("鳞片泳衣", "scale-patterned swimsuit with fins", "海底宫殿", "underwater palace with coral"),
+    "吸血鬼新娘": ("哥特婚纱", "gothic wedding dress with veil", "古堡卧室", "castle bedroom with candlelight"),
+    "吸血鬼猎人": ("猎人装", "hunter outfit with cross", "古堡", "castle interior with cobwebs"),
+    "吸血鬼": ("哥特长裙", "gothic long dress with lace", "古堡卧室", "castle bedroom with coffins"),
+    "宠物扮演": ("宠物装", "pet costume with ears", "主人房间", "master bedroom with pet bed"),
+    "主仆契约": ("主人服装", "master outfit with cane", "主人房间", "master bedroom with throne"),
+    "羞耻游戏": ("简单内衣", "simple lingerie", "私人房间", "private room with mirror"),
+    "换妻派对": ("派对装扮", "party outfit with mask", "私人派对", "private party with swingers"),
+    "偷拍威胁": ("日常装", "everyday outfit", "酒店房间", "hotel room with hidden camera"),
+    "监视下的性爱": ("直播服装", "live streaming outfit", "直播房间", "live streaming room with camera"),
+    "地下派对": ("夜店装扮", "underground club outfit", "地下俱乐部", "underground club with neon"),
+    "夜色酒吧": ("晚礼服", "evening gown", "酒吧", "bar with dim lights"),
+    "电影院放映厅": ("休闲装", "casual outfit with popcorn", "电影院放映厅", "movie theater auditorium with seats"),
+    "电影院深夜": ("休闲装", "casual outfit", "电影院", "late-night movie theater with empty seats"),
+    "雨天公交站": ("雨衣", "raincoat with boots", "公交站", "bus stop in rain"),
+    "深夜书店": ("休闲装", "casual outfit with glasses", "书店", "late-night bookstore with shelves"),
+    "城市天台": ("睡袍", "bathrobe", "天台", "rooftop with city skyline"),
+    "地下拳击": ("拳击短裤", "boxing shorts with wraps", "拳击台", "underground boxing ring"),
+    "渔港": ("渔民服", "fisherman outfit with boots", "渔港", "fishing harbor with boats"),
+    "机械工作室": ("工装", "mechanic overalls", "机械工作室", "mechanic workshop with tools"),
+    "美式酒吧": ("皮夹克", "leather jacket with jeans", "美式酒吧", "American-style bar with neon"),
+    "天台秘密": ("睡袍", "bathrobe", "天台躺椅", "rooftop with lounge chair"),
+    "泳池边": ("比基尼", "colorful bikini", "泳池边", "swimming poolside with loungers"),
 }
 
 
@@ -768,13 +940,514 @@ def _zh_outfit_to_english(zh: str) -> str:
         # ── 球场 (新) ──
         "高尔夫球装": "golf outfit",
         "棒球服": "baseball uniform",
-        "拳击短裤": "boxing shorts",
+        "拳击短裤": "boxing shorts with hand wraps",
         "拳击手套": "boxing gloves",
         "拳击护具": "boxing protective gear",
         "网球裙": "tennis skirt",
         "排球服": "volleyball uniform",
         "排球短裤": "volleyball shorts",
         "沙滩排球装": "beach volleyball uniform",
+        # q3+ 高尔夫球童/拳击/冲浪等 (NEW mappings to fix drift)
+        "球童服": "golf caddy uniform with visor and bib",
+        "高尔夫装": "golf polo shirt and skirt",
+        "运动装": "athletic outfit",
+        "绷带": "boxing hand wraps",
+        "运动内衣": "sports bra with gym shorts",
+        "冲浪服": "wetsuit",
+        "比基尼": "colorful bikini",
+        "泳装": "swimsuit",
+        "防晒服": "UV-protection cover-up",
+        "泳衣": "swimsuit",
+        "潜水服": "wetsuit with mask and fins",
+        "滑雪服": "ski jacket with goggles",
+        "保暖内衣": "thermal underwear",
+        "瑜伽服": "yoga outfit with leggings",
+        "练功服": "dance leotard with tights",
+        "舞蹈内衣": "dance leotard",
+        "紧身衣": "tight-fitting leotard",
+        "骑装": "equestrian riding jacket with helmet",
+        "马裤": "riding breeches",
+        "马靴": "riding boots",
+        "练功服": "dance leotard with tights",
+        "泳装": "swimsuit",
+        "泳装": "swimsuit",
+        "渔夫装": "fisherman outfit",
+        "雨衣": "raincoat with boots",
+        "毛衣": "sweater with jeans",
+        "皮革": "leather outfit",
+        "皮衣": "leather outfit",
+        "古风服装": "period-drama outfit",
+        "和服": "kimono with obi belt",
+        "汉服": "hanfu with sash",
+        "浴衣": "yukata with geta sandals",
+        "中式服装": "traditional Chinese outfit",
+        "浴巾": "white bath towel",
+        "浴袍": "white bathrobe",
+        "旗袍": "traditional Chinese qipao",
+        "婚纱": "wedding dress with veil",
+        "白色婚纱": "white wedding dress",
+        "黑色婚纱": "black gothic wedding dress",
+        "队长服": "team captain jersey",
+        "赛车服装": "racing suit with helmet",
+        "赛车服": "racing suit",
+        "皮夹克": "leather jacket with jeans",
+        "牛仔装": "denim outfit",
+        "护士装": "white nurse uniform with cap",
+        "女仆装": "black-and-white French maid uniform",
+        "西装": "business suit",
+        "制服": "uniform",
+        "运动服": "athletic tracksuit",
+        "运动短裤": "athletic shorts",
+        "工装": "work overalls",
+        "工作裤": "work pants",
+        "工装裤": "cargo pants",
+        "背心": "tank top",
+        "紧身上衣": "tight top",
+        "晚礼服": "evening gown",
+        "丝绸长裙": "silk long dress",
+        "丝绸连衣裙": "silk dress",
+        "丝绸睡袍": "silk robe",
+        "丝绸睡衣": "silk pajamas",
+        "皮夹克": "leather jacket with jeans",
+        "乐队服装": "band outfit with stage clothes",
+        "演出服": "performance outfit",
+        "化妆服": "makeup artist outfit",
+        "球队服": "team jersey",
+        "刺客服": "assassin outfit with mask",
+        "潜水员服": "diver outfit with oxygen tank",
+        "极地服": "polar expedition parka",
+        "长袍": "long robe with headscarf",
+        "沙漠装": "desert outfit with headwrap",
+        "长袍": "long robe with hood",
+        "油彩": "body paint",
+        "乐队T恤": "band t-shirt with jeans",
+        "古代服装": "period costume",
+        "中世纪服装": "medieval costume",
+        "宫廷装": "palace court outfit",
+        "古代宫廷装": "imperial court outfit",
+        "宫廷礼服": "palace court gown",
+        "传统服装": "traditional outfit",
+        "花裙": "floral dress",
+        "印花裙": "printed dress",
+        "田园裙": "pastoral dress",
+        "渔网袜": "fishnet stockings",
+        "渔网装": "fishnet outfit",
+        "透明装": "see-through outfit",
+        "薄纱睡袍": "sheer nightgown",
+        "薄纱": "sheer fabric",
+        "睡裙": "nightgown",
+        "睡衣": "pajamas",
+        "睡衣外套": "pajama jacket",
+        "睡袍": "bathrobe",
+        "浴袍": "white bathrobe",
+        "浴巾": "white bath towel",
+        "泳装": "swimsuit",
+        "泳衣": "swimsuit",
+        "比基尼": "colorful bikini",
+        "三点式": "bikini",
+        "高叉泳衣": "high-cut swimsuit",
+        "连体泳衣": "one-piece swimsuit",
+        "套装": "outfit set",
+        "队服": "team jersey",
+        "牛仔短裤": "denim shorts",
+        "牛仔夹克": "denim jacket",
+        "皮裤": "leather pants",
+        "皮裙": "leather skirt",
+        "水手服": "sailor uniform",
+        "军装": "military uniform",
+        "迷彩服": "camouflage outfit",
+        "战术背心": "tactical vest",
+        "战术服": "tactical outfit",
+        "赛车背心": "racing vest",
+        "赛车手套": "racing gloves",
+        "赛车头盔": "racing helmet",
+        "赛车靴": "racing boots",
+        "赛车连体服": "racing suit with helmet",
+        "赛车宝贝背心": "racing babe vest with shorts",
+        "赛车宝贝装": "racing babe outfit with shorts",
+        "泳裤": "swim trunks",
+        "沙滩裤": "beach shorts",
+        "拳击鞋": "boxing boots",
+        "拳击头套": "boxing headgear",
+        "拳击背心": "boxing tank top",
+        "拳击护齿": "boxing mouthguard",
+        "瑜伽服": "yoga outfit with leggings",
+        "瑜伽裤": "yoga leggings",
+        "运动内衣": "sports bra with gym shorts",
+        "健身短裤": "gym shorts",
+        "健身服": "athletic gym outfit",
+        "长袖运动衫": "long-sleeve athletic shirt",
+        "无袖上衣": "sleeveless top",
+        "紧身背心": "tight tank top",
+        "比基尼摔角服": "bikini wrestling outfit",
+        "摔角服": "wrestling outfit",
+        "摔跤服": "wrestling singlet",
+        "摔角短裤": "wrestling shorts",
+        "摔跤短裤": "wrestling shorts",
+        "摔角靴": "wrestling boots",
+        "足控服": "foot fetish outfit",
+        "高跟鞋": "high heels",
+        "凉鞋": "sandals",
+        "靴子": "boots",
+        "丝袜": "silk stockings",
+        "长筒袜": "thigh-high stockings",
+        "连裤袜": "pantyhose",
+        "吊带袜": "garter belt with stockings",
+        "过膝袜": "over-knee stockings",
+        "白丝": "white silk stockings",
+        "黑丝": "black silk stockings",
+        "吊带": "suspender belt",
+        "情趣内衣": "sexy lingerie",
+        "蕾丝内衣": "lace lingerie",
+        "蕾丝睡裙": "lace nightgown",
+        "蕾丝吊带": "lace bustier",
+        "三点情趣": "sexy bikini",
+        "丁字裤": "thong",
+        "性感睡衣": "sexy nightgown",
+        "薄纱睡衣": "sheer nightgown",
+        "透明睡衣": "see-through nightgown",
+        "丝绸睡衣": "silk pajamas",
+        "绸缎睡裙": "satin nightgown",
+        "黑色蕾丝": "black lace lingerie",
+        "红色蕾丝": "red lace lingerie",
+        "白色蕾丝": "white lace lingerie",
+        "紧身胸衣": "corset",
+        "束腰": "corset",
+        "胸衣": "bustier",
+        "皮胸衣": "leather bustier",
+        "乳胶衣": "latex catsuit",
+        "乳胶紧身衣": "latex catsuit",
+        "SM装": "BDSM outfit",
+        "SM服装": "BDSM outfit",
+        "捆绑装": "bondage outfit",
+        "捆绑服": "bondage gear",
+        "皮革SM": "leather BDSM outfit",
+        "恋物服": "fetish outfit",
+        "宠物装": "pet costume with ears and tail",
+        "宠物服装": "pet costume",
+        "尾巴装": "tail costume",
+        "猫耳装": "cat ear costume",
+        "兔耳装": "bunny ear costume",
+        "兔女郎装": "bunny girl outfit",
+        "兔耳头饰": "bunny ear headband",
+        "天使装": "angel costume with wings",
+        "恶魔装": "devil costume with horns",
+        "翅膀装": "winged costume",
+        "精灵装": "elf costume with pointed ears",
+        "翅膀": "wings",
+        "尾巴": "tail",
+        "猫耳": "cat ears",
+        "兔耳": "bunny ears",
+        "魔法帽": "wizard hat",
+        "斗篷": "cloak",
+        "长斗篷": "long cloak",
+        "斗篷装": "hooded cloak outfit",
+        "盔甲": "armor",
+        "板甲": "plate armor",
+        "锁子甲": "chain mail",
+        "战袍": "war robe",
+        "军服": "military uniform",
+        "军官服": "officer uniform",
+        "将军服": "general uniform",
+        "骑士服": "knight armor",
+        "战士服": "warrior outfit",
+        "猎人服": "hunter outfit",
+        "猎装": "hunting outfit",
+        "长袍": "long robe",
+        "魔法长袍": "magic robe",
+        "祭祀袍": "ritual robe",
+        "僧袍": "monk robe",
+        "道袍": "ceremonial robe",
+        "禅服": "zen robe",
+        "中式长袍": "Chinese long robe",
+        "日式浴衣": "Japanese yukata",
+        "日式和服": "Japanese kimono",
+        "韩服": "Korean hanbok",
+        "印度纱丽": "Indian sari",
+        "阿拉伯长袍": "Arab thobe",
+        "埃及长袍": "Egyptian robe",
+        "希腊长袍": "Greek toga",
+        "罗马长袍": "Roman toga",
+        "维京装": "Viking outfit",
+        "北欧装": "Nordic outfit",
+        "凯尔特装": "Celtic outfit",
+        "埃及艳后装": "Cleopatra outfit",
+        "法老装": "pharaoh outfit",
+        "木乃伊装": "mummy costume",
+        "女巫装": "witch costume",
+        "吸血鬼装": "vampire costume",
+        "狼人装": "werewolf costume",
+        "僵尸装": "zombie costume",
+        "骷髅装": "skeleton costume",
+        "死神装": "grim reaper costume",
+        "幽灵装": "ghost costume",
+        "仙女装": "fairy costume",
+        "精灵装": "elf costume",
+        "妖精装": "fairy costume",
+        "美人鱼装": "mermaid costume with tail",
+        "人鱼装": "mermaid costume",
+        "龙女仆装": "dragon maid outfit",
+        "女仆装": "French maid outfit",
+        "女仆": "maid outfit",
+        "仆人装": "servant outfit",
+        "管家装": "butler outfit",
+        "管家制服": "butler uniform",
+        "司机装": "chauffeur outfit",
+        "司机制服": "chauffeur uniform with cap",
+        "乘务装": "flight attendant outfit",
+        "乘务制服": "flight attendant uniform",
+        "空姐制服": "navy-blue flight attendant uniform",
+        "空姐装": "flight attendant outfit",
+        "空乘制服": "flight attendant uniform",
+        "机长制服": "pilot uniform with cap",
+        "飞行员制服": "pilot uniform with cap",
+        "赛车手装": "racing suit with helmet",
+        "赛车手": "racing suit with helmet",
+        "赛车服": "racing suit",
+        "消防员装": "firefighter uniform",
+        "警察装": "police uniform",
+        "军人装": "military uniform",
+        "特种部队装": "special forces outfit",
+        "忍者装": "ninja outfit with mask",
+        "武士装": "samurai armor",
+        "浪人装": "ronin outfit",
+        "剑客装": "swordsman outfit",
+        "刺客装": "assassin outfit with hood",
+        "盗贼装": "thief outfit with mask",
+        "海盗装": "pirate outfit with hat",
+        "船长装": "pirate captain outfit",
+        "牛仔装": "cowboy outfit with hat",
+        "印第安装": "Native American outfit",
+        "西部装": "western outfit",
+        "农夫装": "farmer outfit with straw hat",
+        "渔民装": "fisherman outfit with boots",
+        "猎人装": "hunter outfit with cap",
+        "伐木工装": "lumberjack outfit with plaid shirt",
+        "矿工装": "miner outfit with helmet",
+        "建筑工装": "construction worker outfit",
+        "机械工装": "mechanic overalls",
+        "焊接工装": "welder outfit with mask",
+        "厨师装": "chef outfit with hat",
+        "服务员装": "waiter outfit with bow tie",
+        "调酒师装": "bartender outfit with vest",
+        "咖啡师装": "barista outfit with apron",
+        "花艺师装": "florist outfit with apron",
+        "裁缝装": "tailor outfit with measuring tape",
+        "美容师装": "beautician uniform",
+        "美容师制服": "beautician uniform",
+        "化妆师装": "makeup artist outfit",
+        "发型师装": "hairdresser outfit",
+        "纹身师装": "tattoo artist outfit with apron",
+        "按摩师装": "masseuse uniform",
+        "按摩师制服": "masseuse uniform",
+        "瑜伽师装": "yoga instructor outfit",
+        "教练装": "coach outfit with whistle",
+        "健身教练装": "fitness trainer outfit",
+        "舞蹈教练装": "dance instructor outfit",
+        "游泳教练装": "swim instructor outfit",
+        "潜水教练装": "dive instructor outfit with wetsuit",
+        "滑雪教练装": "ski instructor outfit with goggles",
+        "高尔夫教练装": "golf instructor outfit with cap",
+        "网球教练装": "tennis instructor outfit",
+        "棒球教练装": "baseball coach outfit",
+        "足球教练装": "football coach outfit",
+        "篮球教练装": "basketball coach outfit",
+        "排球教练装": "volleyball coach outfit",
+        "橄榄球教练装": "rugby coach outfit",
+        "曲棍球教练装": "hockey coach outfit",
+        "高尔夫球童": "golf caddy uniform with visor",
+        "球童": "golf caddy",
+        "高尔夫球童装": "golf caddy uniform with visor",
+        "球童服": "golf caddy uniform with visor and bib",
+        "高尔夫服": "golf polo shirt and skirt",
+        "高尔夫装": "golf polo shirt and skirt",
+        "高尔夫球装": "golf outfit",
+        "网球装": "tennis outfit",
+        "网球裙": "tennis skirt",
+        "棒球服": "baseball uniform",
+        "棒球装": "baseball uniform",
+        "排球服": "volleyball uniform",
+        "排球装": "volleyball uniform",
+        "排球短裤": "volleyball shorts",
+        "沙滩排球装": "beach volleyball uniform",
+        "篮球服": "basketball uniform",
+        "篮球装": "basketball uniform",
+        "篮球短裤": "basketball shorts",
+        "足球服": "football uniform",
+        "足球装": "football uniform",
+        "足球短裤": "football shorts",
+        "橄榄球服": "rugby uniform",
+        "橄榄球装": "rugby uniform",
+        "曲棍球服": "hockey uniform",
+        "曲棍球装": "hockey uniform",
+        "拳击短裤": "boxing shorts with hand wraps",
+        "拳击装": "boxing outfit with shorts and wraps",
+        "拳击背心": "boxing tank top with shorts",
+        "摔角服": "wrestling outfit",
+        "摔角短裤": "wrestling shorts",
+        "摔角靴": "wrestling boots",
+        "摔跤服": "wrestling singlet",
+        "摔跤短裤": "wrestling shorts",
+        "马术装": "equestrian riding outfit",
+        "骑装": "equestrian riding jacket with helmet",
+        "马裤": "riding breeches",
+        "马靴": "riding boots",
+        "骑师装": "jockey outfit with cap",
+        "赛马装": "horse racing outfit",
+        "赛车装": "racing outfit",
+        "赛车连体服": "racing suit with helmet",
+        "赛车宝贝装": "racing babe outfit with shorts",
+        "赛车宝贝背心": "racing babe vest with shorts",
+        "泳装": "swimsuit",
+        "泳衣": "swimsuit",
+        "泳裤": "swim trunks",
+        "沙滩裤": "beach shorts",
+        "沙滩装": "beach outfit",
+        "防晒服": "UV-protection cover-up",
+        "冲浪服": "wetsuit",
+        "冲浪装": "wetsuit",
+        "潜水服": "wetsuit with mask and fins",
+        "滑雪服": "ski jacket with goggles",
+        "保暖内衣": "thermal underwear",
+        "瑜伽服": "yoga outfit with leggings",
+        "瑜伽装": "yoga outfit with leggings",
+        "紧身瑜伽服": "tight yoga outfit",
+        "健身服": "athletic gym outfit",
+        "健身装": "athletic gym outfit",
+        "运动内衣": "sports bra with gym shorts",
+        "健身短裤": "gym shorts",
+        "紧身裤": "leggings",
+        "练功服": "dance leotard with tights",
+        "舞蹈服": "dance outfit with tights",
+        "舞蹈装": "dance outfit",
+        "舞衣": "dance costume",
+        "舞蹈内衣": "dance leotard",
+        "戏剧服装": "theatrical costume",
+        "戏服": "theatrical costume",
+        "表演服": "performance outfit",
+        "演出服": "performance outfit",
+        "模特服": "model outfit",
+        "写真服": "photo shoot outfit",
+        "复古装": "vintage outfit",
+        "复古服装": "vintage outfit",
+        "古风服装": "period-drama outfit",
+        "古装": "period costume",
+        "古装肚兜": "period-drama underbodice",
+        "古装裙": "period skirt",
+        "戏水服": "swim outfit",
+        "水手服": "sailor uniform",
+        "校园服": "school uniform",
+        "JK制服": "JK school uniform",
+        "校服": "school uniform",
+        "学生装": "student outfit",
+        "教师装": "teacher outfit",
+        "职业装": "business attire",
+        "正装": "formal suit",
+        "礼服": "formal gown",
+        "晚礼服": "evening gown",
+        "鸡尾酒裙": "cocktail dress",
+        "迷你裙": "mini skirt",
+        "连衣裙": "dress",
+        "长裙": "long dress",
+        "丝绸长裙": "silk long dress",
+        "丝绸连衣裙": "silk dress",
+        "丝绸睡衣": "silk pajamas",
+        "丝绸睡袍": "silk robe",
+        "丝绸裙": "silk dress",
+        "丝绒裙": "velvet dress",
+        "蕾丝裙": "lace dress",
+        "碎花裙": "floral print dress",
+        "白裙": "white dress",
+        "红裙": "red dress",
+        "黑裙": "black dress",
+        "粉裙": "pink dress",
+        "蓝裙": "blue dress",
+        "婚纱": "wedding dress with veil",
+        "白色婚纱": "white wedding dress",
+        "黑色婚纱": "black gothic wedding dress",
+        "哥特婚纱": "gothic wedding dress with veil",
+        "哥特长裙": "gothic long dress with lace",
+        "朋克装": "punk outfit",
+        "朋克服": "punk outfit",
+        "哥特装": "gothic outfit",
+        "摇滚装": "rock outfit",
+        "金属装": "metal-style outfit",
+        "机车装": "biker outfit with leather",
+        "皮衣": "leather outfit",
+        "皮夹克": "leather jacket with jeans",
+        "皮裤": "leather pants",
+        "皮裙": "leather skirt",
+        "皮装": "leather outfit",
+        "机车夹克": "biker jacket",
+        "丹宁装": "denim outfit",
+        "牛仔装": "denim outfit",
+        "牛仔短裤": "denim shorts",
+        "牛仔夹克": "denim jacket",
+        "工装": "work overalls",
+        "工作服": "work uniform",
+        "工装裤": "cargo pants",
+        "工人装": "worker outfit",
+        "办公室装": "office attire",
+        "白领装": "white-collar outfit",
+        "商务装": "business suit",
+        "西装": "business suit",
+        "西装裙": "suit skirt",
+        "职业套装": "professional business suit",
+        "OL装": "OL office outfit",
+        "OL通勤装": "OL commute outfit",
+        "秘书装": "secretary outfit",
+        "助理装": "assistant outfit",
+        "空姐装": "flight attendant outfit",
+        "乘务装": "flight attendant outfit",
+        "舞女装": "showgirl outfit",
+        "脱衣舞娘装": "exotic dancer outfit",
+        "钢管舞装": "pole dance outfit",
+        "艳舞装": "exotic dance outfit",
+        "兔女郎装": "bunny girl outfit",
+        "兔女郎": "bunny girl outfit",
+        "泳装": "swimsuit",
+        "泳装比基尼": "bikini",
+        "三点式": "bikini",
+        "高叉泳衣": "high-cut swimsuit",
+        "连体泳衣": "one-piece swimsuit",
+        "运动装": "athletic outfit",
+        "运动服": "athletic tracksuit",
+        "运动外套": "tracksuit jacket",
+        "运动短裤": "athletic shorts",
+        "运动头带": "sports headband",
+        "绷带": "boxing hand wraps",
+        "拳击绑带": "boxing hand wraps",
+        "训练装": "training outfit",
+        "训练服": "training outfit",
+        "训练背心": "training vest",
+        "训练短裤": "training shorts",
+        "队服": "team jersey",
+        "球队服": "team jersey",
+        "球衣": "team jersey",
+        "球衣套装": "team uniform set",
+        "球衣短裤": "team shorts",
+        "球袜": "team socks",
+        "球靴": "football boots",
+        "队长袖标": "captain armband",
+        "守门员手套": "goalkeeper gloves",
+        "赛车服": "racing suit",
+        "赛车手套": "racing gloves",
+        "赛车头盔": "racing helmet",
+        "赛车靴": "racing boots",
+        "赛车内衣": "racing underwear",
+        "赛车领奖服": "podium outfit",
+        "赛车防火服": "racing fire suit",
+        "赛车护目镜": "racing goggles",
+        "赛车鞋": "racing shoes",
+        "车队背心": "pit crew vest",
+        "维修工装": "pit crew uniform",
+        "赞助商服装": "sponsor outfit",
+        "赛车围裙": "pit crew apron",
+        "领奖服": "podium outfit",
+        "颁奖服": "award ceremony outfit",
+        "奖牌": "medal",
+        "国旗": "national flag",
+        "颁奖礼服": "award ceremony gown",
     }
     return mapping.get(zh, zh)
 
@@ -1002,6 +1675,27 @@ def _zh_location_to_english(zh: str) -> str:
         "果岭": "golf green",
         "发球台": "tee box",
         "会所": "golf clubhouse",
+        # ── 高尔夫 / 拳击 (q3+ bugfix:高尔夫球童 / 拳击搭档 主题 drift 修复) ──
+        "球场": "golf course",
+        "球车": "golf cart",
+        "高尔夫俱乐部会所": "golf clubhouse interior",
+        "高尔夫练习场": "golf driving range",
+        "练习场": "driving range",
+        "拳击馆": "boxing gym",
+        "拳击场": "boxing gym",
+        "拳击台": "boxing ring",
+        "拳击擂台": "boxing ring",
+        "拳台": "boxing ring",
+        "擂台": "boxing ring",
+        "围绳": "ring ropes",
+        "围绳旁": "by the ring ropes",
+        "沙袋": "punching bag",
+        "沙袋旁": "by the punching bag",
+        "擂台角落": "ring corner",
+        "休息室": "lounge room",
+        "更衣室": "locker room",
+        "更衣间": "locker room",
+        "训练室": "training room",
         # ── 沙滩 / 水上 ──
         "泳池": "swimming pool",
         "泳池边": "poolside",
@@ -1411,6 +2105,334 @@ def _enforce_theme_coherence(
     new_scene = scene_description or ""
     new_image = image_prompt or ""
 
+    # ── q3+ PRE-PASS DRIFT SCRUB ─────────────────────────────────────────────
+    # Earlier the LOCATION ENFORCEMENT loop below only replaced the FIRST
+    # detected off-theme word with canonical, leaving drift residue like
+    # "大堂" / "私人泳池" / "地下" hanging around. That made downstream strip
+    # passes churn and produce gibberish like "在球场的地下私人球场".
+    # Now we strip ALL known off-theme drift LOCATIONS (as standalone tokens)
+    # BEFORE any replacement, so the rest of the pipeline operates on a clean
+    # scene. We only strip multi-character compound tokens (酒店大堂, 私人泳池)
+    # and the specific noun-phrase drift words — NOT generic particles like
+    # "的" / "高级" / "私人" that are part of legitimate descriptions.
+    _DRIFT_LOC_ZH = (
+        # 完整 drift 短语 (优先匹配,避免残留 "的地下私人")
+        "酒店大堂", "酒店房间", "酒店套房", "酒店停车场",
+        "地下私人停车场", "地下停车场",
+        "高级公寓的地下", "的地下私人",
+        "高级公寓", "豪华公寓", "私人公寓",
+        "高级餐厅", "私人餐厅", "高级包间", "私人包间",
+        "咖啡厅", "咖啡馆", "私人泳池露台", "私人泳池",
+        "希腊小岛", "希腊", "度假别墅", "私人别墅", "山顶别墅",
+        "度假村", "摩天轮", "旋转木马", "过山车", "游乐场", "游乐园",
+        "公园长椅", "酒店", "停车场", "公寓",
+        "餐厅", "包间", "包厢", "酒吧", "KTV", "小岛", "海岛",
+        "地铁", "公交车", "出租车", "私家车", "教室", "图书馆",
+        "校园", "操场", "公园", "花店", "花房",
+        "写字楼", "办公室", "会议室", "街头", "街道", "路边",
+        "小巷", "巷子", "大堂", "大厅",
+        "温泉池", "汤池", "桑拿房", "蒸气房",
+        # Additional drift locations for specific themes
+        "泳池边", "泳池畔", "泳池旁", "泳池内",
+        "座舱里", "座舱中", "驾驶舱", "机舱", "车厢里", "车厢中",
+        "私人影院", "电影院", "放映厅",
+    )
+    # Sort by length descending so longer tokens are stripped first
+    # (e.g. "酒店大堂" before "酒店" so we don't leave "大堂" residue)
+    for d in sorted(_DRIFT_LOC_ZH, key=len, reverse=True):
+        if d in new_scene:
+            new_scene = new_scene.replace(d, "", 1)
+    # Tidy up double-punctuation / leading spaces introduced by the scrub
+    new_scene = _re_consist.sub(r"[ ，,。]{2,}", "，", new_scene).lstrip(" ，,。、").rstrip(" ，,。、")
+    # Strip orphan descriptive residue left over from drift scrub.
+    # The scrub deletes drift location words like "高级公寓" or "地下停车场"
+    # but leaves behind their trailing characters ("的", "里", "上", "的地下",
+    # "的私人", etc.). Match these as `的X，` / `X里，` / `X上，` patterns
+    # where X is 0-8 chars of leftover modifiers. Repeat up to 5 times to
+    # catch nested residue.
+    for _ in range(5):
+        # Pattern A: 孤立 particle + 0-4 chars trailing → 在/，前后边界.
+        # q3+ bugfix: do NOT match "在" as the leading boundary character
+        # (it would strip "在" + the following "的/里/..." particle, removing
+        # the location hook that PANEL FORCE-SETUP's Pattern A relies on).
+        # The look-behind boundary is now punctuation/whitespace only, not 在.
+        new_scene = _re_consist.sub(
+            r"(?:^|(?<=[，。、，, \s]))(?:的|里|上|中|内|下|和|与|跟|同)(?:地下|私人|豪华|高级|高级的|私人的|豪华的|高档|私|地下停车场|大|小|露天|泳池|泳|空)?(?=[，。、，, \s])",
+            "",
+            new_scene,
+        )
+        # Pattern B: 多个孤立 particle 串联 (e.g. "的高级里")
+        new_scene = _re_consist.sub(
+            r"(?:的|里|上|中|内|下|和|与|跟|同)+(?:地下|私人|豪华|高级|私|高档|露天|地下停车场)?(?:的|里|上|中|内|下|和|与|跟|同)+",
+            "",
+            new_scene,
+        )
+        # Pattern C: 开头/中间的 "在X，" (X 是 particle + 0-4 chars)
+        new_scene = _re_consist.sub(
+            r"^[\s，,。、]*(?:的|里|上|中|内|下|和|与|跟|同)(?:地下|私人|豪华|高级|私|高档|地下停车场)?[\s，,。、]*",
+            "",
+            new_scene,
+        )
+        # Pattern D: 紧跟着 "在" 的 "的X，" — only if followed by drift residue,
+        # NOT if "在" stands alone (in which case PANEL FORCE-SETUP's Pattern A
+        # will rewrite it to "在<primary_loc>内，"). Otherwise we strip too
+        # aggressively and lose the location hook.
+        new_scene = _re_consist.sub(
+            r"在(?:的|里|上|中|内|下)*(?:地下|私人|豪华|高级|私|高档|露天|地下停车场)+(?:的|里|上|中|内|下)*",
+            "",
+            new_scene,
+        )
+        # Pattern E: 任何位置 "的X，Y" where X is 0-4 chars of garbage
+        new_scene = _re_consist.sub(
+            r"(?:^|(?<=[，。、，, \s]))(?:的|高级|私人|豪华|高档|露天|地下)(?:地下|私人|豪华|高级|私|高档|露天|地下停车场|大|小|高档|泳池)?(?=[，。、，, \s])",
+            "",
+            new_scene,
+        )
+    new_scene = _re_consist.sub(r"[ ，,。]{2,}", "，", new_scene)
+    # Strip leading/trailing orphan punctuation introduced by drift scrub
+    new_scene = new_scene.lstrip(" ，,。、").rstrip(" ，,。、")
+    new_scene = _re_consist.sub(r"^[，,]+", "", new_scene)
+    # Strip leading "在，" only if the scene is too short to be valid (drift
+    # scrub ate everything else). Otherwise preserve "在" so legitimate
+    # leading "在XXX内，" patterns survive.
+    if len(new_scene.strip()) <= 6 and new_scene.strip().startswith("在"):
+        new_scene = _re_consist.sub(r"^在\s*[,，]?\s*", "", new_scene).lstrip(" ，,。、").rstrip(" ，,。、")
+    if not new_scene.strip():
+        new_scene = scene_description or ""  # safety: don't blank out the scene
+    # English drift tokens in image_prompt
+    _DRIFT_LOC_EN = (
+        "hotel lobby", "hotel room", "hotel suite", "parking garage",
+        "underground parking", "luxury apartment", "high-end apartment",
+        "Greek island", "Greek ", "private villa", "resort villa", "ferris wheel",
+        "carous", "subway car", "bus interior", "taxi interior",
+        "classroom interior", "school hallway", "office building",
+        "street corner", "private pool", "private poolside",
+        "hotel", "parking", "villa", "island", "apartment", "deck",
+        "Greek", "luxury", "private", "high-end",
+        # Locations off-theme for most themes (but NOT "lounge" which is a valid boxing gym sub-scene)
+        "fine dining room", "fine dining",
+        # Orphan prepositions from drift scrub (e.g. "walking in, pool" → "walking , pool")
+        "in,", "on,", "at,", "by,", "into,", "onto,",
+    )
+    for d in sorted(_DRIFT_LOC_EN, key=len, reverse=True):
+        if d.lower() in new_image.lower():
+            new_image = _re_consist.sub(
+                _re_consist.escape(d),
+                "",
+                new_image,
+                flags=_re_consist.IGNORECASE,
+            )
+    new_image = _re_consist.sub(r",\s*,", ",", new_image).strip(" ,")
+    # Collapse multiple spaces + fix orphan commas
+    new_image = _re_consist.sub(r"\s+", " ", new_image)
+    new_image = _re_consist.sub(r"\s+,", ",", new_image)
+    new_image = _re_consist.sub(r",\s*$", "", new_image).strip()
+    # Collapse duplicate adjacent English words (boxing boxing, hotel hotel)
+    new_image = _re_consist.sub(r"\b(\w+)\s+\1\b", r"\1", new_image, flags=_re_consist.IGNORECASE)
+    # q3+ POST-DRIFT ORPHAN-PREP CLEANUP (English image_prompt)
+    # After scrubbing drift nouns, the residue is usually:
+    #   "in a"  /  "on the"  /  "by the"  /  "at the"  /  ", the"
+    #   ", with"  /  ", sitting in"  /  ", standing at"
+    # All of these now sit orphaned in front of canonical anchors. Collapse
+    # repeated runs of orphan preposition + article combinations.
+    # Pattern A: leading "Asian woman in a, dim lights..." → keep subject,
+    # strip trailing "in a" preposition-article combo. We do this by finding
+    # the first preposition+article combo in the string and trimming the
+    # leading subject+noun+preposition+article sequence.
+    _EN_PREPS = r"(?:in|on|at|by|of|to|with|from|for|into|onto|over|under|beside|against|across|around|near|through|during|before|after|above|below|beneath|behind|along|via|within|without|upon|toward|towards|about|onto|off|out)"
+    _EN_ARTICLES = r"(?:the|a|an|his|her|its|their|this|that|these|those|my|your|our)"
+    # Pattern A1: middle-of-string "noun PREP ART, " runs that are now orphaned
+    # (e.g. "in a," right after the drift noun got removed).
+    new_image = _re_consist.sub(
+        r"(?:^|[\s,])(?:" + _EN_PREPS + r")\s+(?:" + _EN_ARTICLES + r")\s*,",
+        ",",
+        new_image,
+        flags=_re_consist.IGNORECASE,
+    )
+    # Pattern A2: leading "PREP ART, ..." (no subject noun — only after
+    # total drift removal; rare but possible)
+    new_image = _re_consist.sub(
+        r"^\s*,?\s*(?:" + _EN_PREPS + r")\s+(?:" + _EN_ARTICLES + r")\s*,",
+        "",
+        new_image,
+        flags=_re_consist.IGNORECASE,
+    ).strip(" ,")
+    # Pattern B: mid-string ", PREP X," (X is a word, e.g. ", with a couple, X")
+    new_image = _re_consist.sub(
+        r",\s+(?:" + _EN_PREPS + r")\s+(?:" + _EN_ARTICLES + r")\s*,",
+        ",",
+        new_image,
+        flags=_re_consist.IGNORECASE,
+    )
+    # Pattern C: ", PREP WORD," (where PREP is a preposition, not part of a
+    # legitimate description). E.g. ", in pool, X" → ", X".
+    new_image = _re_consist.sub(
+        r",\s+(?:" + _EN_PREPS + r")\s+(\w+)\s*,",
+        r", \1,",
+        new_image,
+        flags=_re_consist.IGNORECASE,
+    )
+    # Pattern D: mid-string "PREP ART X" where X is non-article word — strip
+    # the orphan preposition only (e.g. "with the car, X" → ", car, X")
+    new_image = _re_consist.sub(
+        r",\s+(?:" + _EN_PREPS + r")\s+(?:" + _EN_ARTICLES + r")\s+",
+        ", ",
+        new_image,
+        flags=_re_consist.IGNORECASE,
+    )
+    # Pattern D2: "PREP PREP" orphans — e.g. "sitting in on" (no comma, no trailing
+    # space) or "sitting in on " (trailing space). Matches anywhere in string.
+    # This covers both mid-string orphans and end-of-string orphans.
+    new_image = _re_consist.sub(
+        r"\s+(?:" + _EN_PREPS + r")\s+(?:" + _EN_PREPS + r")(?=\s|$|,)",
+        " ",
+        new_image,
+        flags=_re_consist.IGNORECASE,
+    )
+    # Pattern D3: "VERB PREP ," trailing orphan — e.g. "sitting in,"
+    # (verb + preposition immediately followed by a comma — drop the preposition)
+    new_image = _re_consist.sub(
+        r"\s+(?:" + _EN_PREPS + r")\s+(?=,)",
+        "",
+        new_image,
+        flags=_re_consist.IGNORECASE,
+    )
+    # Pattern D4: "VERB PREP PREP , X" — e.g. "sitting in on, X" → "sitting, X"
+    new_image = _re_consist.sub(
+        r"\s+(?:" + _EN_PREPS + r")\s+(?:" + _EN_PREPS + r")\s*,",
+        ",",
+        new_image,
+        flags=_re_consist.IGNORECASE,
+    )
+    # Re-collapse duplicate commas/spaces
+    new_image = _re_consist.sub(r",\s*,", ",", new_image)
+    new_image = _re_consist.sub(r"\s+,", ",", new_image)
+    new_image = new_image.strip(" ,")
+    # Pattern E: "X PREP ART Y" where PREP looks like a stray preposition
+    # (e.g. "sitting in the car" is fine; "sitting in a" alone is bad)
+    # We only fire on "PREP ART" at end of phrase just before ", X" (where
+    # X is a NEW subject — indicating the PREP is orphaned between subjects)
+    new_image = _re_consist.sub(
+        r"\s+(?:" + _EN_PREPS + r")\s+(?:" + _EN_ARTICLES + r")\s+(?=,)",
+        "",
+        new_image,
+        flags=_re_consist.IGNORECASE,
+    )
+    # Pattern F: fix dangling "PREP ," that lost its noun (e.g. "against car in, X")
+    new_image = _re_consist.sub(
+        r"\s+(?:" + _EN_PREPS + r")\s*,",
+        ",",
+        new_image,
+        flags=_re_consist.IGNORECASE,
+    )
+    # Pattern F2: REMOVED — was too aggressive (deleted legitimate
+    # prepositions like "against car" in "leaning against car"). The orphan
+    # "VERB PREP, " case is now handled by F3 below.
+    # Pattern F3: "PREP, " followed by canonical anchor — e.g.
+    # "against car in, golf course" → "against car, golf course"
+    # The orphan "in," between "car" and the canonical was a drift residue
+    # from "car in parking garage" → "car in" + canonical = drift fix.
+    new_image = _re_consist.sub(
+        r"\s+(?:" + _EN_PREPS + r")\s*,\s*",
+        ", ",
+        new_image,
+        flags=_re_consist.IGNORECASE,
+    )
+    # Pattern F3b: "NOUN PREP ," stranded after canonical was injected
+    # (e.g. "car in, golf course"). Drops the orphan PREP, keeps the noun.
+    new_image = _re_consist.sub(
+        r"\s+(?:" + _EN_PREPS + r")\s*,(?=\s*(?:golf|boxing|swimming|soccer|football|basketball|tennis|baseball|on|by|at|near))",
+        "",
+        new_image,
+        flags=_re_consist.IGNORECASE,
+    )
+    # Pattern F4: REMOVED — was too aggressive and consumed legitimate verb-preposition
+    # phrases like "swimming in on" (the "in" was correctly matched by D2). Keeping
+    # it caused "swimming in on" → "swimming on" (destroying valid "in").
+    # The D2/D4 patterns handle "PREP PREP" cases sufficiently.
+    # Pattern F5: "VERB PREP, " → "VERB," (drop orphan preposition right
+    # before comma). E.g. "dining at on, X" → "dining, X"
+    new_image = _re_consist.sub(
+        r"\s+(?:" + _EN_PREPS + r")\s*,\s*",
+        ",",
+        new_image,
+        flags=_re_consist.IGNORECASE,
+    )
+    # Pattern F6: "X on Y on Y" (duplicate location via canonical injection)
+    # → "X on Y". E.g. "walking toward golf course on golf course" → "walking toward golf course"
+    new_image = _re_consist.sub(
+        r"\b(\w+(?:\s+\w+){0,2}?)\s+(?:on|in|at|by|of|to|with|along|across|toward|towards)\s+\1\b",
+        r"\1",
+        new_image,
+        flags=_re_consist.IGNORECASE,
+    )
+    # Re-collapse again
+    new_image = _re_consist.sub(r",\s*,", ",", new_image)
+    new_image = _re_consist.sub(r"\s+,", ",", new_image)
+    new_image = _re_consist.sub(r"\s{2,}", " ", new_image)
+    new_image = new_image.strip(" ,")
+
+    # Pattern D2: "PREP PREP" orphans — e.g. "sitting in on" (no comma, no trailing
+    # space) or "sitting in on " (trailing space). Matches anywhere in string.
+    # This covers both mid-string orphans and end-of-string orphans.
+    new_image = _re_consist.sub(
+        r"\s+(?:" + _EN_PREPS + r")\s+(?:" + _EN_PREPS + r")(?=\s|$|,)",
+        " ",
+        new_image,
+        flags=_re_consist.IGNORECASE,
+    )
+
+    # ── Special: strip orphaned preposition+comma fragments left over from drift ────
+    # These appear when the LLM wrote "VERB PREP LOCATION" and drift-scrub removed
+    # LOCATION, leaving "VERB PREP," as a dangling fragment:
+    #   "standing in, boxing gym" / "leaning against car in, golf course"
+    #   "woman swimming in, wet poolside area" / "couple walking in, wet poolside area"
+    # Strategy: match 0-1 words then PREP(", "|" ,") where the PREP is followed by a
+    # comma. This distinguishes from legitimate "in the X" (no comma) and "in a X"
+    # (no comma before X).
+    new_image = _re_consist.sub(
+        r"(?<![a-zA-Z])(?:\S+\s+){0,1}(in|on|at|by|against|across|around|near|into|onto|over|under|through|during|between|within|behind|beneath|beside|along|via|toward|towards)\s*,\s*",
+        ", ",
+        new_image,
+        flags=_re_consist.IGNORECASE,
+    )
+    # ── Collapse orphan comma after verb: "woman swimming , wet" → "woman swimming, wet"
+    # Only fires when comma is between two word-boundary items (the comma itself
+    # creates the gap; we close it).
+    new_image = _re_consist.sub(
+        r"(\w+)\s*,\s*(?=[A-Za-z][a-z]|\w{2,})",
+        r"\1, ",
+        new_image,
+    )
+
+    # q3+ POST-DRIFT ORPHAN-PREP CLEANUP (Chinese scene_description)
+    # The drift scrub deletes noun-phrase drift but leaves orphan particles:
+    #   "在私人里，"  /  "的豪华内，"  /  "的高级上，"
+    # Plus: 删除 drift 之后留下 "在" 开头的 残头 ("在,两人..."  →  "两人...").
+    # We run a single-purpose scrub: drop orphan particle runs that appear
+    # alone (no adjacent character/word) between boundary markers.
+    for _ in range(3):
+        new_scene = _re_consist.sub(
+            r"(?<=[，。、，,\s])(?:的|里|上|中|内|下|和|与|跟|同|从|到|往|向|从|由|为|以|把|将|被|让|使|叫|请|要|会|能|可|得|了|过|着|过|起|下|上来|下去|上来着|着呢)\s*[，,]?",
+            "",
+            new_scene,
+        )
+    # NOTE: we deliberately do NOT strip a leading "在" head here, because
+    # the PANEL FORCE-SETUP pass below uses Pattern A "在X，" to REPLACE the
+    # X with our canonical. Stripping "在" first would make that pass always
+    # fall through to a hard prepend, which produces "在球场内气氛暧昧" →
+    # cleaned to "在球场，气氛暧昧" by the preposition cleanup at the end
+    # of this function. That works, but the REPLACE-IF-PRESENT approach
+    # produces cleaner output when the LLM has written a partial "在酒店" head
+    # (e.g. after "酒店大堂" was scrubbed).
+    new_scene = _re_consist.sub(
+        r"^[\s，,。、]*(?:的)\s*[，,。、]?\s*",
+        "",
+        new_scene,
+    )
+    new_scene = _re_consist.sub(r"[ ，,。]{2,}", "，", new_scene)
+    new_scene = new_scene.lstrip(" ，,。、").rstrip(" ，,。、")
+
     # ── Helper: check if detected location is "compatible" with theme ────────
     # Compatible means:
     #   - It's the canonical location, OR
@@ -1438,9 +2460,54 @@ def _enforce_theme_coherence(
     # User feedback: even sex panels should stay in theme setting — only the
     # OUTFIT is allowed to be naked, not the LOCATION. Otherwise storyboards
     # become incoherent (panel 4 in 泳池, panel 5 in 摩天轮).
+    # q3+ bugfix: whitelist furniture / generic preposition-words that look
+    # like locations to the regex but are NOT actually theme locations
+    # (e.g. "沙发上", "床上", "椅子上", "吧台上", "桌上", "地上"). The
+    # pre-pass DRIFT SCRUB has already cleaned the real drift — don't
+    # overwrite legitimate words.
+    _LOC_WHITELIST = {
+        "沙发上", "床上", "椅子上", "吧台上", "桌上", "地上",
+        "楼梯上", "车前座", "车后座", "副驾驶",
+        # q3+: high-frequency sub-locations inside the theme that the LOCATION
+        # ENFORCEMENT pass would over-aggressively rewrite. These are
+        # semantically a part of the theme (高尔夫球场 → 发球台/果岭/球车) and
+        # replacing them with the canonical broadens the scene unnaturally.
+        "发球台", "果岭", "球道", "球童", "俱乐部会所", "俱乐部",
+        "练习场", "围绳", "围绳旁", "沙袋", "沙袋旁", "擂台角落",
+        "更衣室", "更衣间", "训练室", "休息区", "休息室", "拳击台",
+        "球门区", "球门", "球门线", "球门旁", "球门后", "球门内",
+        "替补席", "球员通道", "通道", "包厢", "看台", "VIP包厢",
+        "看台区", "观众席", "泳道", "跳水池", "泳池躺椅", "泳池边",
+        "泳池", "泳池内", "跳水台", "泳池旁", "泳池内", "深水区", "浅水区",
+        "更衣帐篷", "沙滩小屋", "沙滩毛巾", "教练席", "裁判台",
+    }
+    # English equivalents of the same sub-locations
+    _LOC_WHITELIST_EN = {
+        "tee box", "tee", "green", "fairway", "rough", "bunker", "sand trap",
+        "clubhouse", "driving range", "putting green",
+        "ring", "ring ropes", "punching bag", "heavy bag", "speed bag",
+        "locker room", "training room", "lounge", "rest area",
+        "ring corner", "corner", "ring apron",
+        "pool", "swimming pool", "poolside", "diving board", "diving pool",
+        "swim lane", "lane", "shallow end", "deep end",
+        "locker tent", "beach cabana", "beach towel",
+    }
     all_locs = _find_all_locations_in_text(new_scene) + _find_all_locations_in_text(new_image)
     for loc in all_locs:
+        if loc in _LOC_WHITELIST:
+            continue
+        # Skip very short (1-2 char) location words that are not the canonical.
+        # The regex matcher may pick up fragments like "车" or "楼" that aren't
+        # real scene-setting locations — replacing them would corrupt the text.
+        # Only enforce if the word is >= 3 chars or IS the canonical.
+        if len(loc) <= 2 and loc != canonical_loc_zh:
+            continue
         if _is_loc_compatible(loc):
+            continue
+        # q3+: skip English sub-locations that are inside the theme scope
+        # (e.g. "tee box" inside 高尔夫球童 theme). Replacing them with
+        # canonical "golf course" loses the specific sub-location detail.
+        if loc.lower() in _LOC_WHITELIST_EN:
             continue
         # Replace in scene_description
         if loc in new_scene:
@@ -1481,23 +2548,102 @@ def _enforce_theme_coherence(
                 flags=_re_consist.IGNORECASE,
             )
 
-    # ── PANEL 1 FORCE-SETUP ──────────────────────────────────────────────────
-    # Only inject if missing, and never duplicate.
-    if panel_index == 0:
-        # Make sure canonical location is at the front of the scene_description
-        if canonical_loc_zh and len(canonical_loc_zh) >= 2 and canonical_loc_zh not in new_scene:
-            new_scene = f"在{canonical_loc_zh}内，" + new_scene
-        # Make sure canonical outfit appears in the scene
-        if canonical_outfit_zh and len(canonical_outfit_zh) >= 2 and canonical_outfit_zh not in new_scene:
-            # Strip a "全裸" or "赤裸" first if it was injected by mistake
-            for strip in ["全裸", "赤裸", "裸体", "披着浴巾"]:
-                new_scene = new_scene.replace(f"，{strip}", "", 1)
-            new_scene = new_scene.rstrip("，") + f"，身穿{canonical_outfit_zh}"
-        # Ensure English canonical is in image_prompt (idempotent)
-        if canonical_outfit_en and canonical_outfit_en.lower() not in new_image.lower():
-            new_image = f"{new_image}, {canonical_outfit_en}"
-        if canonical_loc_en and canonical_loc_en.lower() not in new_image.lower():
-            new_image = f"{new_image}, {canonical_loc_en}"
+
+    # ── PANEL FORCE-SETUP (ALL panels) ──────────────────────────────────────
+    # q3+ bugfix: user feedback (高尔夫球童 / 拳击搭档) — LLM often drifts
+    # panel 2+ to completely off-theme locations. The PRE-PASS DRIFT SCRUB
+    # above stripped all known drift tokens; now we just need to:
+    #   1. Detect panels that still have NO theme scenario word.
+    #   2. Inject canonical location at the FRONT of those panels.
+    #   3. Inject canonical outfit if missing.
+    #   4. Mirror canonical location + outfit into English image_prompt.
+    if theme_scenarios and canonical_loc_zh:
+        scene_has_theme = False
+        for s in theme_scenarios:
+            if isinstance(s, str) and len(s) >= 2 and s in new_scene:
+                scene_has_theme = True
+                break
+        if not scene_has_theme and canonical_loc_en and canonical_loc_en.lower() in new_image.lower():
+            scene_has_theme = True
+
+        if not scene_has_theme:
+            primary_loc_candidate = canonical_loc_zh if (canonical_loc_zh and len(canonical_loc_zh) >= 2) else theme_scenarios[0]
+
+            # q3+ bugfix: instead of forcing a hard `在X内，` prefix (which
+            # creates broken results like "在球场在的私人，气氛暧昧" when
+            # drift scrub left an orphan "在" head), we do REPLACE-IF-PRESENT.
+            # The strategy: scan the scene for any leading "在X，" / "X里，"
+            # location phrase and REPLACE X with our canonical. Otherwise
+            # prepend at the very front.
+            _rewrote_prefix = False
+            # Particles that are NOT locations (don't try to replace these)
+            _PARTICLES = {"的", "了", "着", "过", "和", "与", "跟", "同", "在", "从", "到", "往", "向", "由", "为", "以", "两", "一", "三", "四", "五", "六", "七", "八", "九", "十", "几"}
+            # Pattern A: leading "在X，" / "在X里，" / "在X馆，" where X is 2-8 chars
+            # (MIN 2 chars prevents "里两" / "中一" from being treated as locations)
+            # Valid terminators include: 里/内/中/上/下 (plus 馆/吧/厅/室 for room types)
+            m = _re_consist.match(
+                r"^[，,。\s]*在([^，。、,\s]{2,8}?)(?:里|内|中|上|下|馆|吧|厅|室|间)?[，,]",
+                new_scene,
+            )
+            if m:
+                old_loc = m.group(1).strip()
+                if old_loc and old_loc not in _PARTICLES and old_loc != primary_loc_candidate:
+                    new_scene = _re_consist.sub(
+                        r"^[，,。\s]*在" + _re_consist.escape(old_loc) + r"(?:里|内|中|上|下)?[，,]",
+                        f"在{primary_loc_candidate}内，",
+                        new_scene,
+                        count=1,
+                    )
+                    _rewrote_prefix = True
+                else:
+                    # Particle-only "在X，" (X is particle or too short) — strip the
+                    # orphan "在X，" head at the START of the string and prepend
+                    # canonical cleanly. Using ^ anchor prevents stripping "在球场内，"
+                    # from the middle of a string.
+                    new_scene = _re_consist.sub(
+                        r"^[，,。\s]*在[^，。、,\s]{0,8}?[，,]",
+                        "",
+                        new_scene,
+                    ).lstrip(" ，,。、")
+                    new_scene = f"在{primary_loc_candidate}内，" + new_scene
+                    _rewrote_prefix = True
+            # Pattern B: leading "X里，/X内，/X中，" without 在
+            # MIN 2 chars prevents "里两" from being treated as location+noun
+            if not _rewrote_prefix:
+                m = _re_consist.match(
+                    r"^[，,。\s]*([^，。、,\s]{2,8}?)(?:里|内|中)[，,]",
+                    new_scene,
+                )
+                if m:
+                    old_loc = m.group(1).strip()
+                    _BAD_LEADING_NOUN = {"两人", "三人", "一人", "四人", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十", "两", "几", "他们", "她们", "我们", "大家", "气氛", "氛围", "暧昧", "灯光", "现场", "情况", "状态", "环境", "画面"}
+                    if old_loc and old_loc not in _PARTICLES and old_loc not in _BAD_LEADING_NOUN and old_loc != primary_loc_candidate:
+                        new_scene = _re_consist.sub(
+                            r"^[，,。\s]*" + _re_consist.escape(old_loc) + r"(?:里|内|中)[，,]",
+                            f"在{primary_loc_candidate}内，",
+                            new_scene,
+                            count=1,
+                        )
+                        _rewrote_prefix = True
+            # Fallback: prepend at front (only if no prefix rewrite happened)
+            if not _rewrote_prefix:
+                new_scene = f"在{primary_loc_candidate}内，" + new_scene
+
+            # Mirror canonical location into English image_prompt
+            if canonical_loc_en and canonical_loc_en.lower() not in new_image.lower():
+                new_image = f"{new_image}, {canonical_loc_en}"
+
+            # Mirror canonical outfit (Chinese scene + English image_prompt)
+            if canonical_outfit_zh and canonical_outfit_zh not in new_scene:
+                for strip in ["全裸", "赤裸", "裸体", "披着浴巾"]:
+                    new_scene = new_scene.replace(f"，{strip}", "", 1)
+                new_scene = new_scene.rstrip("，") + f"，身穿{canonical_outfit_zh}"
+            if canonical_outfit_en and canonical_outfit_en.lower() not in new_image.lower():
+                new_image = f"{new_image}, {canonical_outfit_en}"
+            logging.info(
+                "[outline-coherence] hard-forced theme location: theme=%s panel=%d primary_loc=%s",
+                theme_name, panel_index + 1, primary_loc_candidate,
+            )
 
     # ── GLOBAL PANEL ENFORCEMENT (all panels, not just panel 1) ───────────────
     # The LLM sometimes drifts (e.g. 园丁 → 绿色花房花店后间 which mentions 花房
@@ -1521,12 +2667,47 @@ def _enforce_theme_coherence(
                 # HARD REPLACE: scene has drifted even via substring cheating.
                 # Pick the canonical (most "primary") location
                 primary_loc = canonical_loc_zh or theme_scenarios[0]
-                # Strip any leading "在X内/在X中/位于X/公园/..." preamble
-                new_scene = _re_consist.sub(
-                    r"^[^\n。]{0,40}?(?:室内|外|景|院里|之中|中|公园|街|路|铺里|海岸|酒吧|咖啡|ktv|火车|地铁|飞机|汽车|酒店|旅馆|出租车|公园|园林|庭院|船|航站楼|甲板|餐车|草原|山林|滩|岛|湖|潭|河|江|海边|海滩|海岛|雪山|沙漠)\s*[，,]?",
-                    "",
+                # q3+ rewrite: try REPLACE-IF-PRESENT before prepending.
+                # The drift scrub above may have left an orphan "在" head or a
+                # partial location like "高级" or "的豪华里" — find any leading
+                # "在X" / "X里" pattern and REPLACE X with primary_loc.
+                _PARTICLES_G = {"的", "了", "着", "过", "和", "与", "跟", "同", "在", "从", "到", "往", "向", "由", "为", "以"}
+                _g_rewrote = False
+                m = _re_consist.match(
+                    r"^[，,。\s]*在([^，。、,\s]{1,8}?)(?:里|内|中|上|下)?[，,]",
                     new_scene,
-                ).lstrip(" ，,。")
+                )
+                if m:
+                    old_loc = m.group(1).strip()
+                    if old_loc and old_loc not in _PARTICLES_G and old_loc != primary_loc:
+                        new_scene = _re_consist.sub(
+                            r"^[，,。\s]*在" + _re_consist.escape(old_loc) + r"(?:里|内|中|上|下)?[，,]",
+                            f"在{primary_loc}内，",
+                            new_scene,
+                            count=1,
+                        )
+                        _g_rewrote = True
+                    else:
+                        # q3+: strip the orphan "在X，" head at START of string
+                        # (X is a particle or already-canonical location). Using ^
+                        # anchor prevents stripping "在球场内，" from the middle of
+                        # the string when it was already injected earlier.
+                        new_scene = _re_consist.sub(
+                            r"^[，,。\s]*在[^，。、,\s]{0,8}?[，,]",
+                            "",
+                            new_scene,
+                        ).lstrip(" ，,。、")
+                        new_scene = f"在{primary_loc}内，" + new_scene
+                        _g_rewrote = True
+                # Strip any leading "在" + orphan particles left over from drift
+                # (defensive — orphan-prep cleanup should have caught this but
+                # we belt-and-braces here)
+                if not _g_rewrote:
+                    new_scene = _re_consist.sub(
+                        r"^[^\n。]{0,40}?(?:室内|外|景|院里|之中|中|公园|街|路|铺里|海岸|酒吧|咖啡|ktv|火车|地铁|飞机|汽车|酒店|旅馆|出租车|公园|园林|庭院|船|航站楼|甲板|餐车|草原|山林|滩|岛|湖|潭|河|江|海边|海滩|海岛|雪山|沙漠)\s*[，,]?",
+                        "",
+                        new_scene,
+                    ).lstrip(" ，,。")
                 # If canonical_loc_zh not present, prepend
                 if primary_loc not in new_scene:
                     new_scene = f"在{primary_loc}内，" + new_scene
@@ -1541,6 +2722,7 @@ def _enforce_theme_coherence(
                     new_image = f"{new_image}, {canonical_loc_en}"
                 if canonical_outfit_en and canonical_outfit_en.lower() not in new_image.lower():
                     new_image = f"{new_image}, {canonical_outfit_en}"
+
 
     # ── DE-DUPLICATE "在XXX内，XXX" patterns (cleanup of double injection) ───
     # Some panel 1 cases produce "在泳池边湿身湿身湿身内" if multiple passes ran.
@@ -1557,6 +2739,15 @@ def _enforce_theme_coherence(
         new_scene,
     )
 
+    # ── DE-DUPLICATE English adjacent words (boxing boxing gym) ─────────────
+    new_image = _re_consist.sub(
+        r"\b(\w+)\s+\1\b",
+        r"\1",
+        new_image,
+        flags=_re_consist.IGNORECASE,
+    )
+
+
     # ── Clean up preposition artifacts (XX旁上, XX旁里, XX旁内, etc.) ─────────
     # When we replace a location, leftover prepositions like 上/里/内/中/下 can
     # remain attached to the canonical (e.g. "在泳池边湿身上" → should be "在泳池边湿身").
@@ -1566,36 +2757,75 @@ def _enforce_theme_coherence(
         r"\1",
         new_scene,
     )
-    # Generic cleanup: if there's a leftover preposition right after our canonical
-    # location, remove it
-    if canonical_loc_zh and len(canonical_loc_zh) >= 2:
-        new_scene = _re_consist.sub(
-            _re_consist.escape(canonical_loc_zh) + r"(上|里|内|下)(?=[，。,\s])",
-            canonical_loc_zh,
-            new_scene,
-        )
-    # Cleanup: 后缀词 "舱内/座舱内/舱中" 出现在替换后的字符串里
+    # ── Cleanup: strip leftover trailing prepositions after specific location nouns ──
+    # Only for known cases where the LLM generated a location + trailing preposition
+    # (e.g. "泳池边湿身上" → "泳池边湿身"). We intentionally do NOT strip "内/里/上/中"
+    # after canonical_loc_zh because that's our own injected prefix (在球场内，).
     new_scene = _re_consist.sub(
-        r"(温泉池|岩石|瀑布|别墅|酒店|学校|医院|公园)(舱内|座舱内|舱中|机舱内)",
+        r"(泳池边|泳池|泳道|跳水池|泳池躺椅|排球网|沙滩|海滩|海里|海底)(上|里|内|下)\b",
         r"\1",
         new_scene,
     )
-    # Cleanup: "[canonical]舱内" pattern → "[canonical]"
-    new_scene = _re_consist.sub(
-        canonical_loc_zh.replace("[", "\\[") + r"(舱内|座舱内|舱中|机舱内|驾驶舱内|洗手间内|包间内)",
-        canonical_loc_zh,
-        new_scene,
-    ) if canonical_loc_zh else new_scene
+
 
     # Final canonical_location must appear in scene (idempotent re-inject for panel 1)
-    if panel_index == 0 and canonical_loc_zh and canonical_loc_zh not in new_scene:
+    # Check for the FULL "在X内，" prefix, not just the bare location word, to avoid
+    # double-prepending when "在球场，在的，气氛暧昧" already has "球场" in it.
+    if panel_index == 0 and canonical_loc_zh and f"在{canonical_loc_zh}内，" not in new_scene and f"在{canonical_loc_zh}，" not in new_scene:
         new_scene = f"在{canonical_loc_zh}内，" + new_scene
+
+    # ── Cleanup: remove orphan "在的，/在里，/在中，" fragments from MIDDLE of string ──
+    # When drift scrub strips "停车场" from "在停车场里"，we get "在里，" which then
+    # gets its "在" stripped by particle cleanup, leaving "里，" as a floating fragment.
+    # When PANEL FORCE-SETUP then prepends "在球场内，", we get:
+    #   "在球场内，里，" or "在球场内，在的，气氛暧昧"
+    # This step removes orphan particle sequences from the MIDDLE of the string
+    # (not anchored to ^ — those are handled by the particle-only regex above).
+    new_scene = _re_consist.sub(
+        r"(?<=[，,])(?:的|里|上|中|内|下)\s*[，,]?\s*",
+        "",
+        new_scene,
+    )
+    # Also handle "，在X，" middle patterns (e.g. "，在球场内，在的，" → "，在球场内，")
+    # where the second "在X，" is a particle-only fragment.
+    new_scene = _re_consist.sub(
+        r"，\s*在[^，。、,\s]{0,5}?[，,](?=\S)",
+        "，",
+        new_scene,
+    )
+    new_scene = _re_consist.sub(r"[ ，,]{2,}", "，", new_scene)
+    new_scene = new_scene.strip(" ，,。、")
+
 
     return (new_scene, new_image)
 
 
 # Backward-compat alias used by older call sites
 _enforce_foreplay_consistency = _enforce_theme_coherence
+
+
+# ─── Test harness ───────────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    import sys
+    cases = [
+        ("高尔夫球童", {'id': 't357', 'name': '高尔夫球童', 'scenarios': ['球场', '球车', '会所'], 'costumes': ['球童服', '运动装', '高尔夫装']}, [
+            ('在高级公寓的地下私人停车场，气氛暧昧，两人互相靠近。', 'Asian woman in a luxury hotel lobby, dim lights, night scene'),
+            ('酒店大堂休息室里，两人坐在沙发上聊天。', 'couple sitting in hotel lobby on sofas, dim amber lighting'),
+        ]),
+        ("拳击搭档", {'id': 't264', 'name': '拳击搭档', 'scenarios': ['拳击馆', '更衣室', '休息室'], 'costumes': ['拳击短裤', '运动内衣', '绷带']}, [
+            ('希腊小岛的私人泳池露台，美女在泳池边晒太阳。', 'woman sunbathing on Greek island private pool deck, sunshine'),
+        ]),
+    ]
+    for theme_name, theme_data, panels in cases:
+        print(f'\n=== {theme_name} ===')
+        for i, (s, im) in enumerate(panels):
+            ns, nim = _enforce_theme_coherence(
+                scene_description=s, image_prompt=im,
+                theme_name=theme_name, theme_data=theme_data,
+                panel_index=i, total_panels=9, r18=False,
+            )
+            print(f'  Panel {i+1}: {ns[:100]!r}')
+            print(f'    EN:    {nim[:100]!r}')
 
 
 # ─── Character Bible Anchor Block ───────────────────────────────────────────────
@@ -2064,6 +3294,18 @@ async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key
                 "     unless those exact words appear in ★ SCENARIOS). Use the EXACT word.\n"
                 "  6. If a scene cannot naturally fit, RESTRUCTURE — never substitute a\n"
                 "     different theme location or outfit.\n"
+                "  7. CHARACTER CONSISTENCY: Define the MAIN CHARACTER(s) ONCE in panel 1\n"
+                "     (including their ethnic appearance / nationality / look) and KEEP them\n"
+                "     IDENTICAL across ALL panels. NEVER change a character's nationality or\n"
+                "     ethnicity between panels. NEVER introduce a new character from a\n"
+                "     different country/ethnicity mid-storyboard unless explicitly in ★ list.\n"
+                "     For multi-person themes (拳击搭档 / 高尔夫球童 / etc.), the SAME two\n"
+                "     characters appear in EVERY panel — never replace them with people from\n"
+                "     different countries.\n"
+                "  8. PRIMARY LOCATION ANCHOR: The FIRST scenario in ★ SCENARIOS is the\n"
+                "     PRIMARY location. At least 60% of panels MUST take place there (or in a\n"
+                "     tightly-connected secondary scenario from the same list). Do NOT split\n"
+                "     the storyboard across unrelated off-theme settings.\n"
                 "\n"
                 "Theme data is a HARD CONSTRAINT, not a creative suggestion."
             )
@@ -4438,9 +5680,21 @@ async def generate_storyboard_outline(
             "  4. The PRIMARY ROLE is the MAIN CHARACTER of every panel. 「园丁」 →\n"
             "     the gardener; 「电影院放映厅」 → people inside a movie theater.\n"
             "  5. NEVER synonym-substitute the scenario. Use the EXACT ★ word.\n"
-            "  6. If a scene cannot naturally fit, RESTRUCTURE — never substitute.\n"
-            "\n"
-            "Theme data is a HARD CONSTRAINT, not a creative suggestion."
+"  6. If a scene cannot naturally fit, RESTRUCTURE — never substitute.\n"
+                "  7. CHARACTER CONSISTENCY: Define the MAIN CHARACTER(s) ONCE in panel 1\n"
+                "     (including their ethnic appearance / nationality / look) and KEEP them\n"
+                "     IDENTICAL across ALL panels. NEVER change a character's nationality or\n"
+                "     ethnicity between panels. NEVER introduce a new character from a\n"
+                "     different country/ethnicity mid-storyboard unless explicitly in ★ list.\n"
+                "     For multi-person themes (拳击搭档 / 高尔夫球童 / etc.), the SAME two\n"
+                "     characters appear in EVERY panel — never replace them with people from\n"
+                "     different countries.\n"
+                "  8. PRIMARY LOCATION ANCHOR: The FIRST scenario in ★ SCENARIOS is the\n"
+                "     PRIMARY location. At least 60% of panels MUST take place there (or in a\n"
+                "     tightly-connected secondary scenario from the same list). Do NOT split\n"
+                "     the storyboard across unrelated off-theme settings.\n"
+                "\n"
+                "Theme data is a HARD CONSTRAINT, not a creative suggestion."
         )
 
     if req.r18:
