@@ -97,7 +97,6 @@ ADULT_THEMES = [
     {
         "id": "t010", "name": "游泳池畔", "category": "outdoor",
         "description": "泳池边的诱惑，湿漉漉的身体在阳光下闪闪发光",
-        "scumes": ["泳池边", "更衣室", "跳水池旁", "躺椅"],
         "scenarios": ["泳池边湿身", "更衣室单间", "跳水池", "泳池躺椅"],
         "costumes": ["比基尼泳衣", "一件式泳衣", "湿透的T恤", "浴袍"],
         "poses": ["池边传教士", "湿身69", "跳水池姿势", "躺椅姿势"],
@@ -827,6 +826,7 @@ ADULT_THEMES = [
         "poses": ["跪姿服务", "床铺姿势", "跪式服务", "女仆姿势"],
         "tags": ["女仆", "角色扮演", "仪式感", "服从", "跪姿"],
         "r18_level": "medium",
+        "dedupe_of": "t019",
     },
     {
         "id": "t087", "name": "空姐的秘密", "category": "costume",
@@ -836,6 +836,7 @@ ADULT_THEMES = [
         "poses": ["机组床铺", "机组休息室", "空姐姿势"],
         "tags": ["空姐", "机组", "制服", "高空", "旅行"],
         "r18_level": "medium",
+        "dedupe_of": "t016",
     },
     {
         "id": "t088", "name": "浴室play", "category": "indoor",
@@ -1180,7 +1181,7 @@ ADULT_THEMES = [
     {'id': 't324', 'name': '肛塞入门', 'category': 'toys', 'description': '肛塞的基本使用', 'scenarios': ['卧室', 'SM工作室'], 'costumes': ['丁字裤', '情趣内衣', '全裸'], 'poses': ['展示姿势', '后入姿势', '站立姿势'], 'tags': ['肛塞', '入门', '基本', '展示'], 'r18_level': 'hard'},
     {'id': 't325', 'name': '肛塞进阶', 'category': 'toys', 'description': '肛塞尺寸进阶的体验', 'scenarios': ['卧室', 'SM工作室'], 'costumes': ['情趣内衣', '全裸'], 'poses': ['进阶姿势', '展示姿势', '组合'], 'tags': ['肛塞', '进阶', '尺寸', '收藏'], 'r18_level': 'hard'},
     {'id': 't326', 'name': '真空吸乳', 'category': 'toys', 'description': '真空吸乳器的特殊体验', 'scenarios': ['卧室', '私密房间'], 'costumes': ['情趣内衣', '全裸'], 'poses': ['吸乳姿势', '展示姿势', '组合'], 'tags': ['吸乳', '真空', '玩具', '敏感'], 'r18_level': 'hard'},
-    {'id': 't327', 'name': '电动按摩器', 'category': 'toys', 'description': '各种电动按摩器的极致体验', 'scenarios': ['卧室', '浴室'], 'costumes': ['情趣内衣', '全裸'], 'poses': ['按摩姿势', '振动体验', '组合'], 'tags': ['电动', '按摩', '振动', '玩具'], 'r18_level': 'hard'},
+    {'id': 't327', 'name': '电动按摩器', 'category': 'toys', 'description': '各种电动按摩器的极致体验', 'scenarios': ['卧室', '浴室'], 'costumes': ['情趣内衣', '全裸'], 'poses': ['按摩姿势', '振动体验', '组合'], 'tags': ['电动', '按摩', '振动', '玩具'], 'r18_level': 'hard', 'dedupe_of': 't076'},
     {'id': 't328', 'name': '双龙入门', 'category': 'toys', 'description': '双插的基本体验', 'scenarios': ['卧室', '酒店房间'], 'costumes': ['情趣内衣', '全裸'], 'poses': ['双龙姿势', 'DP', '叠加姿势'], 'tags': ['双龙', '双插', '入门', '同时'], 'r18_level': 'hard'},
     {'id': 't329', 'name': '假阳具组合', 'category': 'toys', 'description': '假阳具与真人的组合体验', 'scenarios': ['卧室', '工作室'], 'costumes': ['情趣内衣', '全裸'], 'poses': ['组合姿势', '假阳具姿势', '混合'], 'tags': ['假阳具', '组合', '混合', '玩具'], 'r18_level': 'hard'},
     {'id': 't330', 'name': '乳夹体验', 'category': 'toys', 'description': '乳夹的特殊刺激体验', 'scenarios': ['卧室', 'SM工作室'], 'costumes': ['情趣内衣', '全裸'], 'poses': ['乳夹姿势', '调教姿势', '展示'], 'tags': ['乳夹', '刺激', '特殊', '体验'], 'r18_level': 'hard'},
@@ -1195,7 +1196,7 @@ ADULT_THEMES = [
     {'id': 't339', 'name': '多点同时刺激', 'category': 'toys', 'description': '身体多个敏感点同时被刺激', 'scenarios': ['卧室', 'SM工作室'], 'costumes': ['情趣内衣', '全裸'], 'poses': ['多点姿势', '组合姿势', '展示'], 'tags': ['多点', '同时', '刺激', '玩具'], 'r18_level': 'hard'},
     {'id': 't340', 'name': '产卵器体验', 'category': 'toys', 'description': '产卵器的特殊幻想体验', 'scenarios': ['卧室', 'SM工作室'], 'costumes': ['情趣内衣', '全裸'], 'poses': ['产卵姿势', '展示姿势', '组合'], 'tags': ['产卵', '玩具', '幻想', '特殊'], 'r18_level': 'hard'},
     {'id': 't341', 'name': '健身教练', 'category': 'work', 'description': '私人健身教练的专业指导与暧昧', 'scenarios': ['私教室', '更衣室', '健身器械旁'], 'costumes': ['运动内衣', '紧身裤', '健身短裤'], 'poses': ['垫上姿势', '器械辅助', '拉伸姿势'], 'tags': ['健身', '教练', '运动', '身体接触', '汗水'], 'r18_level': 'medium'},
-    {'id': 't342', 'name': '瑜伽教练', 'category': 'work', 'description': '私人瑜伽课程中的亲密接触', 'scenarios': ['瑜伽教室', '私人工作室', '海边露台'], 'costumes': ['瑜伽服', '运动内衣', '紧身裤'], 'poses': ['瑜伽姿势', '柔韧展示', '身体拉伸'], 'tags': ['瑜伽', '柔韧', '教练', '身体', '运动'], 'r18_level': 'medium'},
+    {'id': 't342', 'name': '瑜伽教练', 'category': 'work', 'description': '私人瑜伽课程中的亲密接触', 'scenarios': ['瑜伽教室', '私人工作室', '海边露台'], 'costumes': ['瑜伽服', '运动内衣', '紧身裤'], 'poses': ['瑜伽姿势', '柔韧展示', '身体拉伸'], 'tags': ['瑜伽', '柔韧', '教练', '身体', '运动'], 'r18_level': 'medium', 'dedupe_of': 't062'},
     {'id': 't343', 'name': '舞蹈教练', 'category': 'work', 'description': '舞蹈教练的亲密指导', 'scenarios': ['练功房', '舞蹈室', '更衣室'], 'costumes': ['练功服', '舞蹈内衣', '紧身衣'], 'poses': ['练功姿势', '指导姿势', '柔韧展示'], 'tags': ['舞蹈', '教练', '指导', '柔韧', '亲密'], 'r18_level': 'medium'},
     {'id': 't344', 'name': '私人司机', 'category': 'work', 'description': '私人司机与雇主之间的暧昧', 'scenarios': ['车内', '雇主家', '车库'], 'costumes': ['司机制服', '职业装', '正装'], 'poses': ['车内姿势', '车库角落', '雇主家'], 'tags': ['司机', '雇主', '车内', '暧昧'], 'r18_level': 'medium'},
     {'id': 't345', 'name': '管家', 'category': 'work', 'description': '私人管家与主人之间的特殊关系', 'scenarios': ['主人家', '管家房间', '书房'], 'costumes': ['管家制服', '围裙', '正装'], 'poses': ['管家姿势', '主人房间', '书房角落'], 'tags': ['管家', '主人', '特殊', '服务'], 'r18_level': 'medium'},
@@ -1203,7 +1204,7 @@ ADULT_THEMES = [
     {'id': 't347', 'name': '园丁', 'category': 'work', 'description': '园丁在花园中的私密时刻', 'scenarios': ['花园', '工具房', '花房'], 'costumes': ['园丁服', '工作裤', '背心'], 'poses': ['花园姿势', '工具房角落', '花房'], 'tags': ['园丁', '花园', '户外', '私密'], 'r18_level': 'medium'},
     {'id': 't348', 'name': '私人医生', 'category': 'work', 'description': '私人医生上门服务的特殊体验', 'scenarios': ['病人家中', '诊所', '检查室'], 'costumes': ['医生白大褂', '听诊器', '医疗装'], 'poses': ['检查姿势', '病人房间', '诊所角落'], 'tags': ['私人医生', '医疗', '上门', '特殊'], 'r18_level': 'hard'},
     {'id': 't349', 'name': '心理咨询师', 'category': 'work', 'description': '心理咨询室中的移情与暧昧', 'scenarios': ['咨询室', '休息区', '办公室'], 'costumes': ['职业装', '正装', '连衣裙'], 'poses': ['咨询室姿势', '休息区角落', '办公室'], 'tags': ['心理咨询', '移情', '办公室', '暧昧'], 'r18_level': 'medium'},
-    {'id': 't350', 'name': '私人保镖', 'category': 'work', 'description': '贴身私人保镖的保护与亲密', 'scenarios': ['豪宅', '酒店套房', '车后座'], 'costumes': ['西装', '紧身T恤', '战术背心'], 'poses': ['保护姿势', '车内姿势', '沙发姿势'], 'tags': ['保镖', '保护', '权力', '西装', '肌肉'], 'r18_level': 'medium'},
+    {'id': 't350', 'name': '私人保镖', 'category': 'work', 'description': '贴身私人保镖的保护与亲密', 'scenarios': ['豪宅', '酒店套房', '车后座'], 'costumes': ['西装', '紧身T恤', '战术背心'], 'poses': ['保护姿势', '车内姿势', '沙发姿势'], 'tags': ['保镖', '保护', '权力', '西装', '肌肉'], 'r18_level': 'medium', 'dedupe_of': 't063'},
     {'id': 't351', 'name': '私人助理', 'category': 'work', 'description': '私人助理与老板之间的暧昧关系', 'scenarios': ['办公室', '出差', '家中'], 'costumes': ['职业装', 'OL装', '正装'], 'poses': ['办公室姿势', '出差途中', '家中'], 'tags': ['助理', '老板', '办公室', '暧昧'], 'r18_level': 'medium'},
     {'id': 't352', 'name': '猎头顾问', 'category': 'work', 'description': '猎头顾问在咖啡馆与候选人之间的暧昧', 'scenarios': ['咖啡馆', '酒店大堂', '办公室'], 'costumes': ['职业装', '正装', '连衣裙'], 'poses': ['咖啡馆姿势', '大堂角落', '办公室'], 'tags': ['猎头', '顾问', '咖啡馆', '暧昧'], 'r18_level': 'soft'},
     {'id': 't353', 'name': '调香师', 'category': 'work', 'description': '调香师在工作室中的香气与亲密', 'scenarios': ['调香室', '原料库', '实验室'], 'costumes': ['实验服', '连衣裙', '便装'], 'poses': ['调香室姿势', '原料库角落', '实验室'], 'tags': ['调香', '香气', '工作室', '暧昧'], 'r18_level': 'soft'},
@@ -1718,11 +1719,151 @@ def get_all_themes() -> list[dict]:
 
 
 def get_theme_by_seq_id(seq_id: int) -> Optional[dict]:
-    """根据序号ID获取主题（seq_id 为 1-500 的顺序编号）"""
+    """根据序号ID获取主题（seq_id 为 1-500 的顺序编号）
+
+    自动跟随 dedupe_of 字段:如果主题标了 dedupe_of="tXXX",
+    返回 dedupe 目标主题(经过 copy 隔离)。
+    """
     all_themes = get_all_themes()
     if seq_id < 1 or seq_id > len(all_themes):
         return None
-    return all_themes[seq_id - 1]
+    t = all_themes[seq_id - 1]
+    target_id = t.get("dedupe_of") if isinstance(t, dict) else None
+    if target_id:
+        for candidate in all_themes:
+            if isinstance(candidate, dict) and candidate.get("id") == target_id:
+                return copy.deepcopy(candidate)
+    return t
+
+
+def resolve_theme_dedupe(theme: dict) -> dict:
+    """If `theme` has dedupe_of pointing to another theme, follow the chain.
+
+    Returns the canonical theme dict (deep-copied). Otherwise returns a copy
+    of the input. Cycle-safe (max 5 hops).
+    """
+    if not isinstance(theme, dict):
+        return theme
+    seen = set()
+    cur = theme
+    hops = 0
+    while isinstance(cur, dict) and cur.get("dedupe_of") and hops < 5:
+        if cur.get("id") in seen:
+            break
+        seen.add(cur.get("id"))
+        target_id = cur.get("dedupe_of")
+        found = None
+        for t in ADULT_THEMES:
+            if isinstance(t, dict) and t.get("id") == target_id:
+                found = t
+                break
+        if found is None:
+            break
+        cur = found
+        hops += 1
+    return copy.deepcopy(cur)
+
+
+def list_duplicate_themes() -> list[tuple[dict, dict]]:
+    """Return [(alias, canonical)] for every theme with dedupe_of set.
+
+    Used by audit / debug tools. Not invoked at runtime.
+
+    Note: We intentionally KEEP the alias entries on disk (instead of deleting
+    them) for two reasons:
+      1. Historical generated records may reference alias IDs (t087 etc.) and
+         deletion would orphan those references.
+      2. seq_id is positional — deleting entries shifts all subsequent
+         seq_ids, which would invalidate any cached position references.
+
+    At runtime, get_theme_by_seq_id() transparently resolves aliases to
+    their canonical target.  resolve_theme_dedupe() does the same for dicts.
+    """
+    out = []
+    for t in ADULT_THEMES:
+        if isinstance(t, dict) and t.get("dedupe_of"):
+            cid = t["dedupe_of"]
+            for c in ADULT_THEMES:
+                if isinstance(c, dict) and c.get("id") == cid:
+                    out.append((copy.deepcopy(t), copy.deepcopy(c)))
+                    break
+    return out
+
+
+def dedupe_health_report() -> dict:
+    """Return a snapshot summary of dedupe chain health for debugging.
+
+    Useful for `/health` or audit endpoints. Look for anomalies:
+      - "cycles": chains that loop back to themselves
+      - "broken": aliases pointing to a non-existent canonical
+    """
+    seen_ids = {t["id"] for t in ADULT_THEMES if isinstance(t, dict)}
+    cycles: list[str] = []
+    broken: list[str] = []
+    aliases: list[tuple[str, str]] = []
+    for t in ADULT_THEMES:
+        if not isinstance(t, dict):
+            continue
+        cid = t.get("dedupe_of")
+        if not cid:
+            continue
+        aliases.append((t["id"], cid))
+        if cid not in seen_ids:
+            broken.append(t["id"])
+        # Cycle check (length 1: self-loop)
+        # Cycle check (length 2: A->B, B->A)
+        if cid == t["id"]:
+            cycles.append(t["id"])
+    return {
+        "alias_count": len(aliases),
+        "broken_count": len(broken),
+        "broken": broken,
+        "cycles": cycles,
+        "all_health_ok": not cycles and not broken,
+    }
+
+
+def theme_keywords_en(theme: dict) -> list[str]:
+    """Best-effort English aliases for a theme's costumes and scenarios.
+
+    Works at runtime, no per-theme data edits needed. Uses the bilingual
+    mapping tables (kept in routes/prompt.py) at call time so updates to
+    those tables automatically propagate here.
+
+    Accepts the raw theme dict OR a dedupe-resolved one. Operates on
+    deepcopy to avoid mutating the source.
+    """
+    if not isinstance(theme, dict):
+        return []
+    t = resolve_theme_dedupe(theme)
+    aliases: set[str] = set()
+
+    try:
+        from app.routes.prompt import (
+            _zh_outfit_to_english as _o2e,
+            _zh_location_to_english as _l2e,
+        )
+    except Exception:
+        _o2e = lambda s: s
+        _l2e = lambda s: s
+
+    for c in (t.get("costumes") or []):
+        if not isinstance(c, str):
+            continue
+        if not c.strip() or len(c) < 2:
+            continue
+        en = _o2e(c)
+        if en and en != c and len(en) >= 4:
+            aliases.add(en)
+    for s in (t.get("scenarios") or []):
+        if not isinstance(s, str):
+            continue
+        if not s.strip() or len(s) < 2:
+            continue
+        en = _l2e(s)
+        if en and en != s and len(en) >= 4:
+            aliases.add(en)
+    return sorted(aliases)
 
 
 # ── R18 姿势库 (105个) ──────────────────────────────────────────────────────
