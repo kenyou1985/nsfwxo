@@ -6414,13 +6414,47 @@ STRICT DIVERSITY RULES:
 @router.post("/storyboard/grid", response_model=GridStoryboardResponse)
 async def storyboard_grid(req: GridStoryboardRequest, api_key: str = Depends(get_api_key)):
     """九宫格分镜生成（优先使用 gpt-5.5，失败回退到 grok-4.3）。
-    基于用户提示词，生成 9 个连贯的分镜画面（一张图片九宫格）。"""
+    基于用户提示词，生成 9 个连贯的分镜画面（一张图片九宫格）。
+
+    当传入 reference_image_url + character_prompt 时，会在 system prompt 中注入
+    「CHARACTER IDENTITY LOCK」指令，要求所有 9 个分镜都共享同一个角色外观，
+    并在每个 panel.image_prompt 末尾追加 [ANCHOR: ...] 块，
+    这样前端用 editImage + 数字人图生成时，模型能在每个分镜中锚定人物身份。
+    """
     # 优先 gpt-5.5，失败回退 grok-4.3
     model_order = ["gpt-5.5", "grok-4.3"]
     system_prompt = (
         GRID_STORYBOARD_SYSTEM_PROMPT_R18 if req.r18
         else GRID_STORYBOARD_SYSTEM_PROMPT_NORMAL
     )
+
+    # ── 数字人锚点注入 ─────────────────────────────────────────────────
+    use_character_anchor = bool(req.character_prompt and req.character_prompt.strip())
+    anchor_text = req.character_prompt.strip() if use_character_anchor else ""
+    if use_character_anchor:
+        # 在 system prompt 里硬性要求保留人物身份
+        system_prompt += """
+
+CHARACTER IDENTITY LOCK (CRITICAL):
+The uploaded reference image (Image #1) defines the EXACT character identity (face, hair, body, age).
+You MUST preserve this character across ALL 9 panels. The same character MUST appear in every panel.
+DO NOT describe the character's appearance (hair color, eye color, skin tone, body type, age, ethnicity)
+in any panel — the reference image defines all of these. ONLY describe:
+- Pose / action / movement
+- Camera angle / framing
+- Outfit / clothing changes
+- Setting / lighting / mood
+- Background / environment
+
+Every panel.image_prompt MUST start with the literal prefix: [ANCHOR: """ + anchor_text + """]
+followed by a comma, then the panel-specific scene description. The anchor text is LOCKED
+across all 9 panels — never modify, paraphrase, or drop it.
+
+Example format for image_prompt:
+"[ANCHOR: """ + anchor_text + """], a cinematic medium shot of the subject standing by the window, ..."
+
+ALL 9 panels must share the IDENTICAL [ANCHOR: ...] prefix verbatim.
+"""
 
     user_prompt = (
         f"Plot / Scene: {req.plot}\n\n"
@@ -6429,6 +6463,14 @@ async def storyboard_grid(req: GridStoryboardRequest, api_key: str = Depends(get
         f"while varying camera angle and moment across panels. "
         f"Return raw JSON array only, no markdown formatting."
     )
+
+    if use_character_anchor:
+        user_prompt += (
+            "\n\nCRITICAL REMINDER: Every panel's image_prompt field MUST begin with the exact "
+            "prefix `[ANCHOR: " + anchor_text + "], ` (including the trailing comma and space). "
+            "Do NOT alter this prefix. Do NOT omit it. Failure to include this anchor in ALL 9 panels "
+            "will break downstream image generation."
+        )
 
     safety_override_added = False
     for attempt in range(MAX_RETRIES):
@@ -6472,6 +6514,25 @@ async def storyboard_grid(req: GridStoryboardRequest, api_key: str = Depends(get
 
             # 按 panel_number 排序，确保 1-9 顺序
             panels.sort(key=lambda p: p.panel_number)
+
+            # ── 数字人锚点强制注入 ────────────────────────────────────
+            # 即使 system prompt 已经强制要求 LLM 加 [ANCHOR: ...] 前缀，
+            # 为了保险（LLM 偶尔会漏掉/改写），再统一强插一遍。
+            # 用第一个 panel 里提取的 anchor 锁住全部 9 个 panel。
+            if use_character_anchor:
+                locked_anchor = _extract_character_anchor(panels[0].image_prompt)
+                if not locked_anchor:
+                    # LLM 没加，自己补
+                    locked_anchor = f"[ANCHOR: {anchor_text}]"
+                # normalize 可能因安全词命中返回空字符串——空字符串就放弃 anchor，
+                # 避免把空 anchor 注入所有 panel
+                normalized = _normalize_anchor_for_safety(locked_anchor)
+                if normalized:
+                    for p in panels:
+                        p.image_prompt = _inject_character_anchor(
+                            p.image_prompt,
+                            normalized,
+                        )
 
             # 多样性校验：9个格子的 image_prompt 不能全相同（LLM偷懒时会出现）
             unique_prompts = set(p.image_prompt.lower().strip() for p in panels)

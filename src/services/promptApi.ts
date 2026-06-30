@@ -339,6 +339,8 @@ export interface GridStoryboardResponse {
 export async function generateGridStoryboard(
   plot: string,
   r18: boolean = false,
+  referenceImageUrl?: string,
+  characterPrompt?: string,
 ): Promise<GridStoryboardResponse> {
   const base = getBackendUrl();
   const controller = new AbortController();
@@ -349,7 +351,12 @@ export async function generateGridStoryboard(
       {
         method: 'POST',
         signal: controller.signal as RequestInit['signal'],
-        body: JSON.stringify({ plot, r18 }),
+        body: JSON.stringify({
+          plot,
+          r18,
+          ...(referenceImageUrl ? { reference_image_url: referenceImageUrl } : {}),
+          ...(characterPrompt ? { character_prompt: characterPrompt } : {}),
+        }),
       },
     );
     return response;

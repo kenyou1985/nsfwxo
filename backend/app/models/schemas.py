@@ -86,6 +86,9 @@ class GridStoryboardRequest(BaseModel):
     """九宫格分镜生成（gpt-5.5）"""
     plot: str = Field(..., min_length=1, max_length=3000, description="提示词/场景描述")
     r18: bool = Field(default=False, description="是否启用 R18 模式")
+    # 可选：数字人锚点参数——保持人物身份在所有 9 个分镜中一致
+    reference_image_url: Optional[str] = Field(default=None, description="数字人参考图 URL（保持人物身份一致）")
+    character_prompt: Optional[str] = Field(default=None, description="角色锚点提示词（如 '1girl, same face as image #1, ...'）")
 
 
 class GridStoryboardResponse(BaseModel):

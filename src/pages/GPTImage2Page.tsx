@@ -95,6 +95,61 @@ function buildCompositePrompt(panels: GridPanel[]): string {
   );
 }
 
+/**
+ * 构建最终发给 gpt-image-2 的 prompt。
+ *
+ * 关键策略：
+ * 1. 数字人锚点放最前面，最大化模型对「人物身份」的关注。
+ * 2. 显式标注图片角色（IMAGE_ROLE_HINT），弥补 prompt 与 image 数组没有
+ *    显式对应关系的缺陷——模型不会自动知道「reference」是哪张图。
+ * 3. 用「same face as image #1」这种位置化措辞，而不是含糊的「same as reference」，
+ *    因为 image #1 总是数字人图（已固定在 imageFiles[0]）。
+ *
+ * @param isBoostStage 二次强化阶段：此时 imageFiles[0]=第一步结果，imageFiles[1]=数字人原图。
+ *                     第一步结果本身已经是基于数字人生的，所以这次主要用于「微调身份细节」。
+ */
+function buildPromptInternal(
+  userPrompt: string,
+  style: string,
+  gf: GirlfriendPreset | null,
+  userRefCount: number,
+  isBoostStage: boolean = false
+): string {
+  const hasDigitalHuman = !!gf?.characterPrompt;
+  const hasUserRefs = userRefCount > 0;
+
+  let IMAGE_ROLE_HINT: string;
+  if (isBoostStage && hasDigitalHuman) {
+    IMAGE_ROLE_HINT =
+      'IMPORTANT: Image #1 is the FIRST-PASS RESULT — already contains the character. Image #2 is the CHARACTER IDENTITY REFERENCE — refine face, hair and identity details to match Image #2 exactly while preserving Image #1\'s composition.';
+  } else if (hasDigitalHuman && hasUserRefs) {
+    IMAGE_ROLE_HINT =
+      'IMPORTANT: Image #1 is the CHARACTER IDENTITY REFERENCE — preserve her face, hair, body type and identity exactly. Image #2 and beyond are COMPOSITION/POSE REFERENCES — follow the pose, framing and scene from them, but the subject must be the character from Image #1.';
+  } else if (hasDigitalHuman) {
+    IMAGE_ROLE_HINT =
+      'IMPORTANT: The uploaded image is the CHARACTER IDENTITY REFERENCE — preserve her face, hair, body type and identity exactly.';
+  } else if (hasUserRefs) {
+    IMAGE_ROLE_HINT =
+      'IMPORTANT: Image #1 is the MAIN subject to edit. Additional images are visual references for pose, composition or style.';
+  } else {
+    IMAGE_ROLE_HINT = '';
+  }
+
+  const parts: string[] = [];
+  if (hasDigitalHuman && gf) {
+    // 把「以第一张图为身份锚」这件事塞进 characterPrompt 前面，模型对开头的关注度最高
+    parts.push(
+      `1girl, same face as image #1, same hair as image #1, same body as image #1, ` +
+      `character consistency, preserve identity from image #1`
+    );
+    parts.push(gf.characterPrompt);
+  }
+  if (IMAGE_ROLE_HINT) parts.push(IMAGE_ROLE_HINT);
+  if (userPrompt.trim()) parts.push(userPrompt.trim());
+  if (style) parts.push(style);
+  return parts.filter(Boolean).join(', ');
+}
+
 async function compositeGridImage(
   panelImageUrls: (string | null)[],
   gridPanels: GridPanel[]
@@ -422,7 +477,15 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
 
     let panels: GridPanel[] = [];
     try {
-      const res = await generateGridStoryboard(prompt.trim(), false);
+      // 把数字人锚点参数透传给后端 LLM，让 9 个分镜都共享人物身份。
+      // 后端会在每个 panel 的 image_prompt 开头注入 [ANCHOR: ...] 前缀，
+      // 这样后续 editImage 时，模型能在每个分镜中锚定数字人脸。
+      const res = await generateGridStoryboard(
+        prompt.trim(),
+        false,
+        selectedGirlfriend?.portraitUrl,
+        selectedGirlfriend?.characterPrompt,
+      );
       if (!res.grid || res.grid.length === 0) {
         onError('九宫格分镜生成返回为空，请重试');
         return;
@@ -440,7 +503,7 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
     } finally {
       setIsGeneratingGrid(false);
     }
-  }, [prompt, yunwuKey, onError, onSuccess]);
+  }, [prompt, yunwuKey, selectedGirlfriend, onError, onSuccess]);
 
   // ── Generate composite grid image ────────────────────────────────────────
   const handleGenerateCompositeGrid = useCallback(async () => {
@@ -456,11 +519,45 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
     setIsGeneratingGridImage(true);
     try {
       const compositePrompt = buildCompositePrompt(gridPanels);
-      const imgs = await generateImage(yunwuKey, compositePrompt, {
-        n: 1,
-        size: '1024x1792',
-        quality: 'medium',
-      });
+
+      // ── 决定走文生图还是图生图路径 ──────────────────────────────────
+      // 有数字人（或上传了参考图）→ editImage：数字人作为 imageFiles[0] 锚定人物身份
+      // 都没有 → generateImage：纯文生图（向后兼容）
+      const hasDigitalHuman = !!selectedGirlfriend?.characterPrompt;
+      const hasUserRefs = editImageEntries.length > 0;
+      const useEditPath = hasDigitalHuman || hasUserRefs;
+
+      let imgs: GptImageResult[] = [];
+
+      if (useEditPath) {
+        // 构建 imageFiles：数字人（人物身份锚）放第一张，后面跟用户参考图
+        const imageFiles: File[] = [];
+        if (gfImageFile) imageFiles.push(gfImageFile);
+        for (const entry of editImageEntries) {
+          imageFiles.push(entry.file);
+        }
+
+        // 九宫格专用 prompt：把数字人锚点放最前 + 显式说明图片角色
+        const gridPrompt = buildPromptInternal(
+          compositePrompt,
+          style,
+          selectedGirlfriend,
+          editImageEntries.length,
+          false, // 不是 boost 阶段
+        );
+
+        imgs = await editImage(yunwuKey, gridPrompt, imageFiles, {
+          n: 1,
+          size: '1024x1792',
+          quality: 'medium',
+        });
+      } else {
+        imgs = await generateImage(yunwuKey, compositePrompt, {
+          n: 1,
+          size: '1024x1792',
+          quality: 'medium',
+        });
+      }
 
       if (imgs.length > 0 && imgs[0].url) {
         const dataUrl = await fetchImageAsDataUrl(imgs[0].url);
@@ -470,7 +567,8 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
         setSelectedGridIndex(newIdx);
         onSuccess('九宫格合成图生成完成');
         // 保存到历史记录
-        await saveGeneratedImages([finalUrl], buildCompositePrompt(gridPanels), '', '1024x1792', 'medium', 1, 'txt2img');
+        const saveMode = useEditPath ? 'edit' : 'txt2img';
+        await saveGeneratedImages([finalUrl], buildCompositePrompt(gridPanels), '', '1024x1792', 'medium', 1, saveMode);
         onGenerate?.();
       } else {
         onError('九宫格合成图生成失败');
@@ -481,7 +579,7 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
     } finally {
       setIsGeneratingGridImage(false);
     }
-  }, [yunwuKey, gridPanels, gridImages, buildCompositePrompt, onError, onSuccess]);
+  }, [yunwuKey, gridPanels, gridImages, selectedGirlfriend, gfImageFile, editImageEntries, style, buildCompositePrompt, onError, onSuccess]);
 
   // ── Single panel: apply prompt + select ───────────────────────────────
   const handleSelectPanel = useCallback((panel: GridPanel) => {
@@ -608,14 +706,20 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
   }, [gridImages, onSuccess, onError]);
 
   const buildPrompt = useCallback((): string => {
-    const parts: string[] = [prompt.trim()];
-    if (style) {
-      parts.push(style);
-    }
-    if (selectedGirlfriend?.characterPrompt) {
-      parts.push(selectedGirlfriend.characterPrompt);
-    }
-    return parts.join(', ');
+    return buildPromptInternal(prompt, style, selectedGirlfriend, editImageEntries.length);
+  }, [prompt, style, selectedGirlfriend, editImageEntries.length]);
+
+  /**
+   * 二次强化（identity boost）专用 prompt 生成：
+   * 此时 imageFiles[0] = 第一步生成结果（已经包含数字人），
+   * imageFiles[1] = 数字人原图（用于强化身份细节）。
+   *
+   * 强化阶段用「原始用户 prompt」而不是已拼好的 finalPrompt，避免 IMAGE_ROLE_HINT / characterPrompt 重复堆叠。
+   */
+  const buildPromptForBoost = useCallback((): string => {
+    // 强化阶段不带用户参考图，只有「第一步结果」+「数字人原图」
+    const fakeEntriesCount = 0;
+    return buildPromptInternal(prompt, style, selectedGirlfriend, fakeEntriesCount, /*isBoostStage*/ true);
   }, [prompt, style, selectedGirlfriend]);
 
   const handleGenerate = useCallback(async () => {
@@ -647,6 +751,8 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
         }
       } else {
         const imageFiles: File[] = [];
+        // 关键：把数字人图固定放在 imageFiles[0]，作为「人物身份主图」。
+        // yunwu gpt-image-2 多图编辑时，第一张是主图身份锚，后续是构图/姿势参考。
         if (gfImageFile) imageFiles.push(gfImageFile);
         for (const entry of editImageEntries) {
           imageFiles.push(entry.file);
@@ -656,17 +762,66 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
           setIsGenerating(false);
           return;
         }
-        const imgs = await editImage(yunwuKey, finalPrompt, imageFiles, {
+
+        // ── 两步强化策略 ──────────────────────────────────────────────
+        // 当同时存在数字人 + 用户参考图时，单次 edit 经常出现「identity drift」——
+        // 模型倾向保留主图（数字人）的姿势/构图，但身份被参考图稀释。
+        // 修复：第一次生成后，把结果作为新主图、再叠回数字人做一次 edit，
+        //       这样数字人的身份权重最高，主图=结果，模型只需修细节。
+        const needIdentityBoost =
+          !!gfImageFile && editImageEntries.length > 0;
+
+        const firstBatch = await editImage(yunwuKey, finalPrompt, imageFiles, {
           n,
           size,
           quality,
           maskFile: maskFile || undefined,
         });
-        setResults(imgs);
-        if (imgs.length > 0) {
-          onSuccess(`编辑成功，获得 ${imgs.length} 张图片`);
+
+        if (firstBatch.length === 0) {
+          throw new Error('图片编辑未返回结果，请重试');
+        }
+
+        // 如果不需要强化（或只生成 1 张），直接返回第一批
+        let finalBatch = firstBatch;
+        if (needIdentityBoost && firstBatch[0]?.url && n >= 1) {
+          // 取第一张作为主图，加上数字人做二次 edit
+          const firstImgUrl = firstBatch[0].url;
+          try {
+            // 把 URL 转成 File
+            const blob = await (await fetch(firstImgUrl)).blob();
+            const firstImgFile = new File([blob], 'first-pass.png', { type: blob.type || 'image/png' });
+
+            // 第二步：把数字人 + 第一步结果作为输入，再次强调身份
+            // 此时 imageFiles[0]=第一步结果（已带数字人脸）, imageFiles[1]=数字人原图
+            const boostPrompt = buildPromptForBoost();
+            const boostFiles: File[] = [firstImgFile];
+            if (gfImageFile) boostFiles.push(gfImageFile);
+
+            const boosted = await editImage(yunwuKey, boostPrompt, boostFiles, {
+              n,
+              size,
+              quality,
+              maskFile: undefined,
+            });
+            if (boosted.length > 0) {
+              // 用强化后的图替换；如果有 n>1 张，强化只做 1 张，其余保留第一批
+              finalBatch = boosted.length >= firstBatch.length
+                ? boosted
+                : [...boosted, ...firstBatch.slice(boosted.length)];
+            }
+          } catch (boostErr) {
+            // 强化失败就退回第一批，不报错
+            console.warn('[handleGenerate] identity boost failed, using first-pass result:', boostErr);
+            finalBatch = firstBatch;
+          }
+        }
+
+        setResults(finalBatch);
+        if (finalBatch.length > 0) {
+          onSuccess(`编辑成功，获得 ${finalBatch.length} 张图片`);
           const permanentDataUrls = await Promise.all(
-            imgs.filter((i) => i.url).map((i) => fetchImageAsDataUrl(i.url))
+            finalBatch.filter((i) => i.url).map((i) => fetchImageAsDataUrl(i.url))
           );
           const validUrls = permanentDataUrls.filter((u): u is string => Boolean(u));
           await saveGeneratedImages(validUrls, finalPrompt, style, size, quality, n, 'edit');
@@ -680,7 +835,7 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
     } finally {
       setIsGenerating(false);
     }
-  }, [mode, yunwuKey, buildPrompt, n, size, quality, style, gfImageFile, editImageEntries, maskFile, onError, onSuccess, onGenerate]);
+  }, [mode, yunwuKey, buildPrompt, buildPromptForBoost, n, size, quality, style, gfImageFile, editImageEntries, maskFile, onError, onSuccess, onGenerate]);
 
   const handleReset = () => {
     setPrompt('');

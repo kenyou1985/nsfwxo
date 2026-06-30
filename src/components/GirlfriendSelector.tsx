@@ -101,11 +101,18 @@ export function GirlfriendSelector({
         compressImageForStorage(uploadingPreview),
         compressImageForStorage(uploadingPreview, 300),
       ]);
+      const rawCharPrompt = savePrompt.trim();
+      // 如果用户没填 characterPrompt，自动生成一个默认锚点，
+      // 和预设数字人行为一致：强调查张图里第一张是人物身份参考。
+      const characterPrompt =
+        rawCharPrompt ||
+        '1girl, same face as image #1, same hair as image #1, same body as image #1, character consistency, preserve identity from image #1, high quality, detailed, portrait, 9:16 vertical composition';
+
       const result = saveCustomGirlfriend({
         name: saveName.trim(),
         nameZh: saveNameZh.trim() || saveName.trim(),
         description: saveDesc.trim(),
-        characterPrompt: savePrompt.trim(),
+        characterPrompt,
         tags: saveTags
           .split(',')
           .map((t) => t.trim())
