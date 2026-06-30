@@ -62,28 +62,123 @@ ETHNICITY_POOL = (
 )
 
 ETHNICITY_BLOCK = (
-    "\n\n【CHARACTER ETHNICITY / NATIONALITY DIVERSITY — MANDATORY】:\n"
-    "When generating characters, VARY their ethnicities/nationalities to reflect a GLOBAL cast.\n"
-    "Do NOT default to a single race. Across the generated themes/panels, draw characters from a "
-    "diverse pool that may include any of the following (rotate freely — do NOT restrict to Asian only):\n"
-    + "\n".join(f"  - {e}" for e in ETHNICITY_POOL) +
-    "\n\nRules:\n"
-    "1. Pick characters from DIFFERENT ethnicities/nationalities for variety. A story may feature, "
-    "for example, an Iranian man with a Brazilian woman, an Italian with a Korean, a Russian with "
-    "a Japanese, an American with a Thai, a French with a Chinese, etc.\n"
-    "2. In the Chinese descriptions, identify the character's nationality/ethnicity explicitly "
-    "(中国人 / 日本人 / 韩国人 / 泰国人 / 印度人 / 伊朗人 / 意大利人 / 法国人 / 德国人 / 俄罗斯人 / "
-    "美国人 / 拉丁人 / 拉美人 / 巴西人 / 墨西哥人 / 非洲人 / 黑人 / 混血儿 etc.).\n"
-    "3. In English image_prompts, include the ethnicity descriptor explicitly, e.g.: "
-    "\"a handsome Italian man with olive skin and dark brown hair\", "
-    "\"a beautiful Iranian woman with fair olive skin and dark almond eyes\", "
-    "\"a Brazilian woman with tanned olive skin and dark curly hair\", "
-    "\"a Russian man with pale skin and light blue eyes\", "
-    "\"a Thai woman with warm beige skin and silky black hair\".\n"
-    "4. Keep physical descriptions consistent across all panels for the same character "
-    "(do NOT change ethnicity or skin tone mid-story).\n"
-    "5. AVOID cliche single-race casts. Aim for global, multi-cultural storytelling."
+    "\n\n【CHARACTER ETHNICITY / NATIONALITY DIVERSITY — MANDATORY PRIORITY ORDER】:\n"
+    "When generating characters, follow this STRICT PRIORITY ORDER for ethnicity/race selection.\n"
+    "Do NOT default to a single race. The priority order below MUST be respected so the cast\n"
+    "reflects the user\'s preference: muscular Black men and East Asian women first.\n"
+    "\n"
+    "═══════════════════════════════════════════════════════════════════════\n"
+    "  PRIORITY 1 (HIGHEST — use most often): MUSCULAR BLACK MEN (黑人 / 非洲裔)\n"
+    "═══════════════════════════════════════════════════════════════════════\n"
+    "  - Chiseled, muscular, broad-shouldered Black men (African / African-American / Caribbean descent)\n"
+    "  - Skin tone: rich dark brown / deep brown / ebony / chocolate\n"
+    "  - Build: muscular, athletic, broad shoulders, strong arms, well-defined chest and abs\n"
+    "  - Hair: short black hair, close-cropped fade, bald, or short Afro\n"
+    "  - Examples for English image_prompt:\n"
+    "    * \"a tall muscular Black man with rich dark brown skin, broad shoulders, short black hair, and strong arms\"\n"
+    "    * \"a chiseled African-American man with deep ebony skin, muscular chest and abs, and short-cropped black hair\"\n"
+    "    * \"a strong Black man with chocolate skin, athletic muscular build, and a bald head\"\n"
+    "    * \"a handsome Nigerian man with rich brown skin, muscular build, and short black hair\"\n"
+    "    * \"a fit Afro-Caribbean man with dark skin, broad shoulders, and powerful arms\"\n"
+    "\n"
+    "═══════════════════════════════════════════════════════════════════════\n"
+    "  PRIORITY 2 (HIGH — use often): EAST ASIAN WOMEN (黄种人 / 东亚女性)\n"
+    "═══════════════════════════════════════════════════════════════════════\n"
+    "  - Korean (韩国女人), Japanese (日本女人), Chinese (中国女人) preferred — rotate freely\n"
+    "  - Skin tone: warm beige / fair / porcelain / ivory (East Asian complexion)\n"
+    "  - Features: dark almond eyes, silky black hair (long, straight or wavy)\n"
+    "  - Examples for English image_prompt:\n"
+    "    * \"a beautiful Korean woman with warm beige skin, silky long black hair, and dark almond eyes\"\n"
+    "    * \"a stunning Japanese woman with fair porcelain skin, silky straight black hair, and dark brown eyes\"\n"
+    "    * \"a gorgeous Chinese woman with warm ivory skin, long wavy black hair, and dark eyes\"\n"
+    "    * \"a beautiful Taiwanese woman with fair skin, silky black hair, and delicate features\"\n"
+    "    * \"a cute Thai woman with warm beige skin, long black hair, and soft brown eyes\" (acceptable secondary)\n"
+    "\n"
+    "═══════════════════════════════════════════════════════════════════════\n"
+    "  PRIORITY 3 (MEDIUM — use as supporting/secondary): EUROPEAN WHITE WOMEN\n"
+    "═══════════════════════════════════════════════════════════════════════\n"
+    "  - Russian, Italian, French, German, Scandinavian, Spanish, Polish, etc.\n"
+    "  - Skin tone: pale / fair / olive / light\n"
+    "  - Examples:\n"
+    "    * \"a beautiful Russian woman with pale skin, light blonde hair, and blue eyes\"\n"
+    "    * \"a gorgeous Italian woman with olive skin, dark brown hair, and hazel eyes\"\n"
+    "\n"
+    "═══════════════════════════════════════════════════════════════════════\n"
+    "  PRIORITY 4 (LOWER — only when variety is needed): OTHER ETHNICITIES\n"
+    "═══════════════════════════════════════════════════════════════════════\n"
+    "  - Iranian / Persian, Turkish, Indian, Brazilian, Mexican, Cuban, Argentine, etc.\n"
+    "\n"
+    "═══════════════════════════════════════════════════════════════════════\n"
+    "  ABSOLUTE RULES:\n"
+    "═══════════════════════════════════════════════════════════════════════\n"
+    "1. **Default man archetype**: When the story has a male character, the DEFAULT is\n"
+    "   a MUSCULAR BLACK MAN (Priority 1). At least 70% of male roles must be Black/\n"
+    "   African-descent men with strong muscular builds. Do NOT default to white/Asian men.\n"
+    "2. **Default woman archetype**: When the story has a female character, the DEFAULT\n"
+    "   is an EAST ASIAN WOMAN (Korean / Japanese / Chinese, Priority 2). At least 60% of\n"
+    "   female roles must be East Asian women. Only use European white women as a\n"
+    "   secondary/supporting character (Priority 3).\n"
+    "3. **Skin tone MUST match ethnicity**: Dark skin for Black characters; warm beige/fair\n"
+    "   for East Asian; pale/olive for European.\n"
+    "4. **Same character across panels**: Once a character\'s ethnicity is set in Panel 1,\n"
+    "   NEVER change it. Same Black man in every panel; same East Asian woman in every panel.\n"
+    "5. **EXCEPTION — Lesbian theme**: If the theme is a LESBIAN / 女同 / 百合 / 双女主 theme\n"
+    "   (detected by theme name/tags), then BOTH main characters MUST be women —\n"
+    "   prioritize ONE East Asian woman + ONE European white woman (or two East\n"
+    "   Asian women). NO MAN appears in any panel. The Black male archetype does NOT apply.\n"
+    "6. In English image_prompts, ALWAYS start with the explicit ethnicity descriptor:\n"
+    "   * Man examples: \"a tall muscular Black man with rich dark brown skin, broad shoulders,\n"
+    "     short black hair, and well-defined muscular chest and abs\"\n"
+    "   * Woman examples: \"a beautiful Korean woman with warm beige skin, silky long black\n"
+    "     hair, and dark almond eyes\"\n"
+    "   * Lesbian examples: \"a beautiful Chinese woman with warm beige skin, silky long black\n"
+    "     hair\" paired with \"a stunning Russian woman with pale skin, light blonde hair\"\n"
+    "7. AVOID cliche single-race casts. Mix East Asian women + Black men as the default\n"
+    "   pairing for het stories; mix East Asian + European white women for lesbian stories."
 )
+
+
+# ── Lesbian theme detection ───────────────────────────────────────────────────────
+# Returns True if the theme name/tags indicate a lesbian / female-only / 双女主 theme.
+# Used to flip the prompt rules so:
+#   - No man appears in any panel
+#   - Both characters are women (East Asian + European white by default)
+#   - Sex positions are female-on-female (scissoring, tribbing, fingering, etc.)
+_LESBIAN_KEYWORDS = (
+    "拉拉", "女同", "百合", "双女主", "双女", "闺蜜", "lesbian", "lesbo", "trib",
+    "tribbing", "scissor", "scissoring", "girl on girl", "girl-on-girl", "g/g",
+    "femdom", "女性支配", "两女", "女性之间", "girls together", "sapphic", "wlw",
+    "females only", "all women", "纯女", "女人和女人",
+)
+
+
+def _is_lesbian_theme(theme_name, theme_tags=None, theme_data=None):
+    """Return True if theme name/tags/category indicate a lesbian / women-only story.
+
+    Examples of detected themes:
+      - 「双女闺蜜」 / 「双女主」 / 「闺蜜」 → True
+      - 「女同」 / 「拉拉」 / 「百合」 → True
+      - 「女性支配」 (女上位 / dominatrix) → True
+      - Two-girl-only themes (category=lesbian/femdom/ff) → True
+    """
+    name = (theme_name or "").lower()
+    for kw in _LESBIAN_KEYWORDS:
+        if kw in name:
+            return True
+    if theme_tags:
+        for tag in theme_tags:
+            if not isinstance(tag, str):
+                continue
+            t = tag.lower()
+            for kw in _LESBIAN_KEYWORDS:
+                if kw in t:
+                    return True
+    if theme_data and isinstance(theme_data, dict):
+        cat = (theme_data.get("category") or "").lower()
+        if cat in {"lesbian", "femdom", "ff", "girlxgirl"}:
+            return True
+    return False
+
 
 
 # ════════════════════════════════════════════════════════════════════════════════
@@ -1448,6 +1543,97 @@ def _zh_outfit_to_english(zh: str) -> str:
         "奖牌": "medal",
         "国旗": "national flag",
         "颁奖礼服": "award ceremony gown",
+        # ── q3+ bugfix: missing outfits used in scenarios / canonical overrides ──
+        # Without these, English image_prompt would be raw Chinese that
+        # Stable Diffusion/Flux cannot parse, forcing the model to drift.
+        "紧身上衣": "tight top",
+        "紧身T恤": "tight t-shirt",
+        "丝绸长裙": "silk long dress",
+        "丝绸连衣裙": "silk dress",
+        "丝绸长旗袍": "silk qipao",
+        "丝绸睡衣": "silk pajamas",
+        "真丝睡袍": "silk bathrobe",
+        "背心": "tank top",
+        "鞋子": "shoes",
+        "吊带": "suspender top",
+        "吊带情趣套装": "harness lingerie set",
+        "吊带睡裙": "slip nightgown",
+        "吊带袜": "suspender stockings",
+        "吊带袜情趣套装": "garter belt with stockings",
+        "吊带情趣": "suspender lingerie",
+        "蕾丝情趣内衣": "lace lingerie",
+        "蕾丝吊带": "lace bustier",
+        "蕾丝睡裙": "lace nightgown",
+        "蕾丝吊带睡裙": "lace nightgown with bustier",
+        "丝袜吊带": "silk stockings with suspenders",
+        "睡衣外套": "pajama jacket",
+        "睡衣睡袍": "pajama robe",
+        "睡衣": "pajamas",
+        "睡衣睡袍": "pajama robe",
+        "浴袍轻披": "open bathrobe",
+        "丝袜": "silk stockings",
+        "紧身VR服": "tight-fitting VR suit",
+        "夜店装扮": "club outfit",
+        "派对装扮": "party outfit",
+        "内衣": "lingerie",
+        "简单内衣": "simple lingerie",
+        "情趣内衣": "sexy lingerie",
+        "三点式内衣": "bikini",
+        "薄纱": "sheer fabric",
+        "薄纱睡衣": "sheer nightgown",
+        "丝带": "silk ribbon",
+        "情趣睡裙": "sexy nightgown",
+        "透明睡衣": "see-through nightgown",
+        "皮质胸衣": "leather bustier",
+        "OL通勤装": "OL commute outfit",
+        "OL下班装": "OL after-work outfit",
+        "OL紧身裙": "OL pencil skirt",
+        "学生便装": "student casual wear",
+        "约会装": "date outfit",
+        "约会裙": "date dress",
+        "亚洲的约会装": "Asian date outfit",
+        "华丽晚装": "glamorous evening gown",
+        "白领职业裙": "white-collar pencil skirt",
+        "高端连衣裙": "premium dress",
+        "名媛风连衣裙": "socialite dress",
+        "优雅连衣裙": "elegant dress",
+        "飘逸长裙": "flowing long dress",
+        "丝绒连衣裙": "velvet dress",
+        "半透丝袜": "semi-sheer stockings",
+        "黑丝袜": "black stockings",
+        "白丝袜": "white stockings",
+        "厨师服": "chef outfit with hat",
+        "围裙": "apron",
+        "理疗服": "therapy outfit",
+        "中医服": "TCM outfit",
+        "舞蹈服": "dance outfit",
+        "戏服": "theatrical costume",
+        "练功服": "dance leotard with tights",
+        "舞裙": "dance skirt",
+        "表演服": "performance costume",
+        "战袍": "war robe",
+        "防护服": "protective suit",
+        "皮质装": "leather outfit",
+        "赛车领奖服": "racing podium outfit",
+        "赛车防火服": "racing fire suit",
+        "赛车护目镜": "racing goggles",
+        "赛车内衣": "racing underwear",
+        "赛车宝贝背心": "racing babe vest",
+        "职业套装": "professional business suit",
+        "职业装": "business attire",
+        "正装": "formal evening wear",
+        "日常装": "everyday outfit",
+        "薄上衣": "light top",
+        "小外套": "short jacket",
+        "透明雨衣": "transparent raincoat",
+        "白色短袜": "white ankle socks",
+        "黑色长筒袜": "black thigh-high stockings",
+        "渔网袜": "fishnet stockings",
+        "黑丝渔网袜": "black fishnet stockings",
+        "战斗服": "battle outfit",
+        "铠甲": "armor",
+        "皮甲": "leather armor",
+        "金属盔甲": "metal armor",
     }
     return mapping.get(zh, zh)
 
@@ -1823,6 +2009,142 @@ def _zh_location_to_english(zh: str) -> str:
         "审讯室": "interrogation room",
         "警察局办公室": "police station office",
         "警车后座": "police car backseat",
+        # ── q3+ bugfix ────────────────────────────────────────────────
+        # Missing scenarios from the theme database that had no English mapping.
+        # Without these, English image_prompt would end up with a raw Chinese
+        # token that Flux/Stable Diffusion cannot interpret, forcing the model
+        # to drift to default locations like "park bench" / "hotel lobby".
+        "后座空间": "SUV backseat interior with leather seats",
+        "车后座": "car backseat with leather upholstery",
+        "车后座空间": "spacious car backseat",
+        "车前座": "car front seat",
+        "车前排": "car front passenger seat",
+        "停车场的车内": "car parked in underground parking garage",
+        "停车场": "parking garage",
+        "郊外": "countryside road",
+        "天窗下": "car interior with open sunroof",
+        "车引擎盖": "car hood",
+        "私教泳池": "private swimming pool",
+        "夜间泳池": "night swimming pool",
+        "泳池内部": "inside swimming pool water",
+        "水下": "underwater scene with bubbles",
+        "保龄球道": "bowling lane",
+        "保龄球馆": "bowling alley with lanes and pins",
+        "泳池边湿身": "wet poolside with lounge chairs",
+        "更衣室单间": "pool locker room individual stall",
+        "泳池躺椅": "poolside lounge chair",
+        "跳水池": "diving pool area",
+        "泳池阶梯": "poolside steps",
+        "泳池外": "swimming pool exterior",
+        "泳池内": "inside swimming pool",
+        "泳池畔": "swimming pool edge",
+        "草地上": "grassy meadow",
+        "密林深处": "deep forest undergrowth",
+        "小溪边": "creek bank with rocks",
+        "大树下": "under a large tree",
+        "草地上": "grass meadow",
+        "草地间": "grassy meadow",
+        "山洞内": "inside cave",
+        "树屋里": "inside treehouse",
+        "海滩中央": "center of beach",
+        "岩石后面": "behind rocks on beach",
+        "沙滩毛巾": "on beach towel",
+        "浅海区域": "shallow sea area",
+        "天台躺椅": "rooftop lounge chair",
+        "通风管道旁": "by rooftop ventilation pipe",
+        "消防通道": "rooftop fire escape",
+        "水箱后面": "behind rooftop water tank",
+        "公园长椅": "park bench",
+        "公园长椅上": "on park bench",
+        "树林深处": "deep forest",
+        "公园夜晚": "park at night",
+        "摩天轮座舱": "ferris wheel cabin",
+        "末班公交车": "night bus last-row seat",
+        "最后一排座位": "last-row bus seat",
+        "公交总站": "bus terminal",
+        "车窗边": "by car window",
+        "末班公交车内": "inside night bus",
+        "双人包厢": "train sleeper cabin for two",
+        "卧铺下铺": "lower sleeper berth",
+        "车厢走廊": "train corridor",
+        "火车卧铺": "train sleeper berth",
+        "餐车": "dining car",
+        "地铁早高峰": "rush-hour subway car interior",
+        "深夜末班车": "late-night subway car empty",
+        "地铁站台": "subway platform",
+        "车厢连接处": "between subway cars",
+        "飞机洗手间": "airplane lavatory",
+        "头等舱座位": "first-class cabin seat",
+        "行李舱": "cargo hold",
+        "拳击场": "boxing ring area",
+        "拳击擂台": "boxing ring with ropes",
+        "更衣帐篷": "locker tent",
+        "更衣室": "locker room",
+        "练习场": "driving range",
+        "高尔夫练习场": "golf driving range",
+        "高尔夫球场": "golf course fairway",
+        "高尔夫俱乐部会所": "golf clubhouse interior",
+        "高尔夫俱乐部会所内": "inside golf clubhouse",
+        "马场": "equestrian arena with horses",
+        "马厩": "horse stable",
+        "会所": "clubhouse interior",
+        "刑讯室": "interrogation room",
+        "审讯室": "interrogation room",
+        "囚室": "prison cell",
+        "法庭": "courtroom",
+        "车库": "garage interior",
+        "车库角落": "garage corner",
+        "车位": "parking spot in garage",
+        "电梯间": "elevator lobby",
+        "废弃仓库": "abandoned warehouse",
+        "温泉": "hot spring onsen",
+        "温泉池": "hot spring pool",
+        "别墅温泉池": "villa hot spring pool",
+        "火山口": "volcano crater",
+        "山洞": "cave entrance",
+        "教堂": "church interior",
+        "公交车": "bus interior",
+        "公交车内": "inside city bus",
+        "出租车": "taxi interior",
+        "私家车": "private car interior",
+        "汽车内": "car interior",
+        "车内部": "inside car",
+        "主驾驶座": "driver's seat",
+        "后座空间": "spacious rear seat",
+        "酒吧": "bar interior",
+        "夜店": "nightclub",
+        "派对": "party venue",
+        "派对房": "party room",
+        "度假别墅": "vacation villa",
+        "游泳池": "swimming pool",
+        "VIP包间": "VIP room",
+        "观景房": "observation room",
+        # ── 房车 / 露营 / 户外 缺失补全 ──
+        "房车内": "RV interior with bed and kitchenette",
+        "房车床铺": "RV bedroom bed",
+        "车顶帐篷": "rooftop tent on a vehicle",
+        "营地篝火": "campsite bonfire at night",
+        "营地": "campsite with tents",
+        "户外": "outdoor wilderness",
+        "露营地": "campsite clearing",
+        "户外取景": "outdoor location",
+        "露营帐篷": "camping tent interior",
+        # ── 健身房 / 运动 缺失补全 ──
+        "器械区": "gym equipment area",
+        "瑜伽房": "yoga studio with mats",
+        "更衣室": "locker room",
+        "健身房": "fitness gym",
+        # ── 马术俱乐部 缺失补全 ──
+        "马厩": "horse stable with hay bales",
+        "马场": "equestrian arena with horses",
+        "骑乘区": "riding area",
+        "俱乐部大厅": "club lounge",
+        "会所": "clubhouse interior",
+        # ── 修女/宗教 缺失补全 ──
+        "修道院": "convent monastery",
+        "祈祷室": "prayer room",
+        "告解室": "confessional booth",
+        # ── 通用中文 fallback 后缀处理 (后续如果还有缺失会走 pypinyin) ──
     }
     return mapping.get(zh, zh)  # fallback: return zh (no English mapping)
 
@@ -1891,13 +2213,38 @@ def _get_canonical_location(theme_name: str, theme_data: dict) -> Tuple[str, str
     """
     scenarios = theme_data.get("scenarios", []) if isinstance(theme_data, dict) else []
     auto_zh = str(scenarios[0]) if scenarios else None
-    # Override is used ONLY if it's compatible (in scenarios) OR if there's no auto
+    # ── q3+ bugfix ──
+    # Previous logic: if override_zh not in scenarios, override was DROPPED, then
+    # fell back to scenarios[0] which may not be the override (e.g. "SUV后座"
+    # scenario[0]="后座空间" — and we lost "车后座"). That made the canonical
+    # location not match the override table.
+    #
+    # New logic: ALWAYS prefer the theme's first scenario as the canonical. If
+    # the override exists AND its zh text exists in our English mapping table
+    # (so we can produce an English version), use the override instead. But
+    # also auto-translate any scenario the mapping table knows about.
+    override_zh = None
+    override_en = None
     if theme_name in THEME_CANONICAL_OVERRIDES:
         override_zh = THEME_CANONICAL_OVERRIDES[theme_name][2]
-        if override_zh and (not scenarios or override_zh in scenarios):
-            return (override_zh, THEME_CANONICAL_OVERRIDES[theme_name][3])
+        override_en = THEME_CANONICAL_OVERRIDES[theme_name][3]
+        # Convert scenario to English (if known); otherwise use override directly.
+        if override_zh and override_zh in scenarios:
+            return (override_zh, override_en)
+    # Pick the canonical: prefer override if it has a valid mapping; otherwise
+    # the first scenario (with English translation).
+    if override_zh and override_en:
+        return (override_zh, override_en)
     if auto_zh:
-        return (auto_zh, _zh_location_to_english(auto_zh))
+        auto_en = _zh_location_to_english(auto_zh)
+        # _zh_location_to_english returns the zh on miss — at least it's not English
+        # junk in the prompt. Add a small English suffix to make it usable for Flux.
+        if auto_en == auto_zh:
+            # No English mapping for this scenario word → construct a generic one
+            # from the theme name + first scenario so the image model gets *something*
+            # English to work with.
+            auto_en = f"{auto_zh} ({theme_name} setting)"
+        return (auto_zh, auto_en)
     if theme_name in THEME_CANONICAL_OVERRIDES:
         return THEME_CANONICAL_OVERRIDES[theme_name][2], THEME_CANONICAL_OVERRIDES[theme_name][3]
     return (theme_name, theme_name)
@@ -2066,15 +2413,865 @@ def _is_foreplay_panel(panel_index: int, total_panels: int, r18: bool) -> bool:
 
 
 def _is_sex_panel(panel_index: int, total_panels: int, r18: bool) -> bool:
-    """Sex panel = last 1-2 panels in R18 mode (outfit can be naked)."""
+    """Sex panel = any R18 panel where the action contains explicit sex.
+
+    For R18 mode, the front half is warmup (clothing still on), the back
+    half (panel >= total // 2) is explicit sex (nude). The last panel is
+    always climax.
+    """
     if not r18:
         return False
     if total_panels <= 0:
         return False
-    return panel_index >= total_panels - 2
+    # Anything past the midpoint is sex. For 5 panels: panels 3, 4 (0-indexed)
+    # For 6 panels: panels 3, 4, 5. Etc.
+    return panel_index >= max(1, total_panels // 2)
+
+
+# Beats (panel-level action templates) — give every panel a distinct
+# narrative beat so the storyboard doesn't feel repetitive.
+_BEATS_NON_R18 = [
+    "出场亮相 — 主角登场，与场景互动",
+    "关系升温 — 双方暧昧互动，情感铺垫",
+    "聚焦特写 — 表情、姿态、细节描写",
+    "互动高潮 — 身体接触，亲密互动",
+    "高潮结尾 — 情感释放，开放式收尾",
+]
+_BEATS_R18 = [
+    "出场前戏 — 场景介绍、穿着主题服装、暧昧眼神交流、NO 性行为",
+    "升温调情 — 身体接触、亲吻、暗示性语言、情绪铺垫",
+    "脱衣亲密 — 衣物部分脱去、爱抚、口手刺激前戏",
+    "性爱前戏 — 进一步前戏、口交或手部挑逗、身体全面反应",
+    "性爱进行 — 直接插入，体位变化，抽插特写",
+    "高潮逼近 — 节奏加快，体位深入，呻吟加剧",
+    "高潮射精 — 高潮特写、颜射/内射/体外射精、事后温存",
+]
+
+
+def _pick_beat(panel_index: int, total: int, r18: bool) -> str:
+    pool = _BEATS_R18 if r18 else _BEATS_NON_R18
+    if total <= len(pool):
+        return pool[panel_index]
+    return pool[panel_index % len(pool)]
+
+
+# ── Character descriptor pools (gender + ethnicity, image-prompt ready) ─────────
+# Each entry is an explicit Flux-ready descriptor string. We pair one female
+# + one male per storyboard to enforce diversity (per ETHNICITY_BLOCK).
+_FEMALE_DESCRIPTORS = [
+    "a beautiful Brazilian woman with tanned olive skin, dark curly hair, and brown eyes",
+    "a stunning Iranian woman with fair olive skin, dark almond eyes, and long black hair",
+    "a gorgeous Italian woman with warm olive skin, dark brown hair, and hazel eyes",
+    "a beautiful Russian woman with pale porcelain skin, light blue eyes, and silky blonde hair",
+    "a cute Japanese woman with warm beige skin, silky black hair, and dark brown eyes",
+    "a beautiful Korean woman with fair skin, silky black hair, and dark eyes",
+    "a stunning Thai woman with warm beige skin, silky black hair, and soft brown eyes",
+    "a gorgeous French woman with fair skin, dark brown hair, and green eyes",
+    "a beautiful Mexican woman with tanned olive skin, long dark brown hair, and brown eyes",
+    "a stunning Indian woman with warm brown skin, long dark hair, and deep brown eyes",
+    "a beautiful Turkish woman with fair olive skin, dark brown hair, and hazel eyes",
+    "a gorgeous Chinese woman with warm beige skin, silky black hair, and dark almond eyes",
+    "a stunning Spanish woman with olive skin, dark brown hair, and brown eyes",
+    "a beautiful Polish woman with pale skin, light brown hair, and blue eyes",
+    "a gorgeous Cuban woman with tanned olive skin, dark curly hair, and brown eyes",
+    "a stunning Vietnamese woman with warm beige skin, long black hair, and dark eyes",
+    "a beautiful South African woman with rich brown skin, dark curly hair, and brown eyes",
+    "a gorgeous Greek woman with olive skin, dark brown hair, and green eyes",
+    "a stunning Filipino woman with warm brown skin, long dark brown hair, and dark eyes",
+    "a beautiful Argentine woman with fair olive skin, dark brown hair, and brown eyes",
+]
+
+_MALE_DESCRIPTORS = [
+    "a handsome Brazilian man with tanned olive skin, dark brown hair, and brown eyes, muscular build",
+    "a chiseled Italian man with olive skin, dark brown hair, and hazel eyes, athletic body",
+    "a handsome Russian man with pale skin, light brown hair, and blue eyes, muscular build",
+    "a tall German man with fair skin, short blonde hair, and blue eyes, broad shoulders",
+    "a handsome American man with tanned skin, short brown hair, and blue eyes, muscular body",
+    "a chiseled Iranian man with olive skin, dark hair, and dark brown eyes, athletic build",
+    "a handsome Mexican man with tanned olive skin, dark brown hair, and brown eyes, muscular build",
+    "a tall French man with olive skin, dark brown hair, and green eyes, athletic body",
+    "a handsome Turkish man with olive skin, dark hair, and dark brown eyes, muscular build",
+    "a chiseled Japanese man with warm beige skin, short black hair, and dark brown eyes, lean muscular body",
+    "a handsome Korean man with fair skin, short black hair, and dark eyes, athletic build",
+    "a tall Scandinavian man with pale skin, blonde hair, and blue eyes, muscular body",
+    "a handsome Greek man with olive skin, dark curly hair, and brown eyes, muscular build",
+    "a chiseled Spanish man with olive skin, dark brown hair, and brown eyes, athletic body",
+    "a tall Dutch man with fair skin, light brown hair, and blue eyes, muscular build",
+    "a handsome Polish man with pale skin, dark brown hair, and blue eyes, athletic body",
+    "a chiseled Argentinian man with tanned olive skin, dark brown hair, and brown eyes, muscular build",
+    "a handsome Australian man with tanned skin, blonde hair, and blue eyes, athletic body",
+    "a tall Indian man with warm brown skin, dark hair, and brown eyes, lean muscular build",
+    "a chiseled Chinese man with warm beige skin, short black hair, and dark eyes, athletic build",
+]
+
+
+# ── Per-beat action descriptors (image-prompt-ready English) ─────────────────
+# These describe what the male character is doing TO the female character in
+# each panel, ensuring a clear narrative progression and avoiding the
+# "1girl looking at camera" failure mode.
+#
+# Each list has 6+ variants so that for any panel count (2-10) we cycle
+# through DIFFERENT actions, never repeating the same one twice.
+
+# Pre-sex beats (Non-R18 mode + R18 panels 1-3) — 6+ variants each
+_ACTION_PRE_INTRO = [
+    "the man walks up to the woman in the {loc}, exchanging a flirtatious glance",
+    "the man gently takes the woman's hand and leads her deeper into the {loc}",
+    "the man and woman stand face-to-face in the {loc}, eye contact full of anticipation",
+    "the man leans against the wall watching the woman enter the {loc} slowly",
+    "the woman playfully pushes the man onto a chair in the {loc}, both smiling mischievously",
+    "the man offers the woman a drink in the {loc}, leaning close to whisper",
+    "the woman fixes the man's collar in the {loc}, her hand lingering on his chest",
+    "the man and woman sit across from each other in the {loc}, knees touching under the table",
+]
+_ACTION_PRE_WARMUP = [
+    "the man leans in and whispers into the woman's ear as she bites her lip",
+    "the man pulls the woman close, his hands sliding down her back, foreplay beginning",
+    "the woman sits on the man's lap in the {loc}, both breathing heavily, kissing deeply",
+    "the man runs his fingers through the woman's hair, tilting her face up to kiss her",
+    "the woman's arms wrap around the man's neck as he presses her against the wall, kissing her neck",
+    "the man and woman share a long passionate kiss in the {loc}, his hands roaming her body",
+    "the woman straddles the man on a chair in the {loc}, grinding softly as they make out",
+    "the man nibbles the woman's earlobe while his hand squeezes her breast through the fabric",
+]
+_ACTION_PRE_FORPLAY = [
+    "the man unbuttons the woman's top, kissing her neck as she tilts her head back",
+    "the man strips off her clothes piece by piece, kissing her collarbone and shoulders",
+    "the man's hand traces down the woman's body as she unhooks her bra, breath quickening",
+    "the woman pulls her shirt over her head, the man's lips moving down her stomach",
+    "the man kneels before the woman in the {loc}, kissing her inner thighs as she trembles",
+    "the woman's bra falls to the floor as the man sucks on her nipples, her back arching",
+    "the man lays the woman down on the surface, kissing her belly as he unbuttons her pants",
+    "the woman unbuckles the man's belt while grinding against him in the {loc}",
+]
+
+# Sex beats (R18 mode, panels 3-4 / 4-5 etc.) — 24+ variants
+_ACTION_SEX_LIST = [
+    "the man thrusts deep into the woman from behind in doggy style, both moaning loudly",
+    "the man penetrates the woman missionary with her legs wrapped around his waist, hands gripping the sheets",
+    "the man lifts the woman up against the wall in a standing carry, her legs locked around his hips as he thrusts deeply",
+    "the woman rides the man cowgirl style, bouncing rhythmically while he grips her hips",
+    "the man penetrates the woman in prone bone position, her back arched and face pressed into the surface",
+    "the woman sits on top of the man reverse cowgirl, looking back over her shoulder at him seductively",
+    "the man holds the woman from behind in a standing doggy position, supporting her weight as he thrusts",
+    "the man and woman are in 69 position, simultaneously performing oral on each other",
+    "the man penetrates the woman in spooning position from behind, his arm wrapped around her waist",
+    "the man spreads the woman's legs wide and thrusts into her in a butterfly position on the edge",
+    "the woman grinds on the man in lotus position, intimate eye contact as they make love slowly",
+    "the man holds the woman in a full nelson lift, both standing as he drives deep into her",
+    "the man and woman are entangled in piledriver position, her legs hooked over his shoulders",
+    "the man thrusts into the woman amazon position, her squatting on top in a dominant stance",
+    "the man and woman embrace tightly in pretzel dip position, legs interlocked as they move together",
+    "the man performs oral sex on the woman, her legs draped over his shoulders as he licks deeply",
+    "the man finger-fucks the woman while kissing her inner thighs, building anticipation",
+    "the woman pleasures the man with her mouth in deepthroat, his hands gripping her hair",
+    "the man eats the woman's pussy while she moans, fingers gripping his hair",
+    "the man and woman hold each other in a deep standing embrace, her back against the wall, both nude",
+    "the man penetrates the woman from behind with her bent over a table in the {loc}, deep rapid thrusts",
+    "the woman wraps her legs around the man's waist in the {loc}, his cock buried deep inside her",
+    "the man flips the woman onto her back and thrusts into her, her breasts bouncing with each thrust",
+    "the man and woman grind together in slow sensual motion, her clit rubbing against his pubic bone",
+]
+_ACTION_SEX_CLIMAX = [
+    "the man thrusts hard one final time, ejaculating on the woman's breasts while she screams in climax",
+    "the man cums deep inside the woman missionary, her body trembling as her orgasm peaks",
+    "the man and woman climax simultaneously in lotus position, foreheads pressed together, breathless",
+    "the man ejaculates on the woman's face from above, his cock pulsing as cum drips down her cheeks",
+    "the man and woman collapse together in exhausted afterglow, his cock still inside her, both panting",
+    "the woman screams in climax as the man continues thrusting, her nails digging into his back, both drenched in sweat",
+    "the man's cock throbs as he shoots his load inside the woman, her pussy milking every drop in her orgasm",
+    "the man and woman reach simultaneous orgasm, bodies convulsing together as cum spills between her thighs",
+]
+
+
+# ── Per-mode pose selection: pick a distinct sex pose for each panel ────────────
+def _pick_pose_for_panel(panel_index: int, total: int, r18: bool):
+    """Return (action_template, scene_zh_clause) appropriate for the panel's beat.
+
+    For non-R18 we pick from the pre-intro/warmup/foreplay action pools.
+    For R18, panels in the first half pick pre-intro/warmup/foreplay,
+    panels in the second half pick from the explicit sex list. The last
+    panel picks from the climax list.
+    """
+    if not r18:
+        if panel_index == 0:
+            pool = _ACTION_PRE_INTRO
+        elif panel_index < total - 1:
+            pool = _ACTION_PRE_WARMUP
+        else:
+            pool = _ACTION_PRE_FORPLAY
+        idx = panel_index % len(pool)
+        zh_clause = "暧昧互动，眼神交流" if panel_index == 0 else (
+            "两人热烈亲吻，爱抚" if panel_index < total - 1 else
+            "脱去衣物，亲密爱抚"
+        )
+        return pool[idx], zh_clause
+
+    # R18 — front-load pre-intro, then escalate
+    sex_start = max(1, total // 2)
+    if panel_index == 0:
+        pool = _ACTION_PRE_INTRO
+        zh_clause = "出场前戏，暧昧眼神交流"
+    elif panel_index < sex_start:
+        pool = _ACTION_PRE_WARMUP
+        zh_clause = "升温调情，亲吻爱抚"
+    elif panel_index < total - 1:
+        pool = _ACTION_SEX_LIST
+        zh_clause = "激烈性爱，体位深入"
+    else:
+        pool = _ACTION_SEX_CLIMAX
+        zh_clause = "高潮射精，事后温存"
+    return pool[(panel_index - (0 if panel_index == 0 else sex_start)) % len(pool)], zh_clause
+
+
+# Outfit rotation — let the outfit change naturally across panels without
+# ever leaving the theme's costume list. Late R18 panels drift toward
+# partial nudity, which is on-theme for the climax but the LOCATION stays
+# theme-coherent.
+def _pick_outfit_for_panel(
+    panel_index: int,
+    total: int,
+    r18: bool,
+    theme_costumes: list,
+    canonical_outfit_zh: str,
+    canonical_outfit_en: str,
+    theme_scenarios: list,
+) -> tuple:
+    """Pick (outfit_zh, outfit_en, has_clothes) for this panel.
+
+    Late R18 panels (last 1-2) drop the costume toward nude; everything else
+    wears a costume from the theme list (or the canonical if list empty).
+    """
+    if not theme_costumes:
+        theme_costumes = [canonical_outfit_zh] if canonical_outfit_zh else ["themed outfit"]
+    if r18 and panel_index >= total - 2 and total >= 5:
+        # Sex panels: drop most clothes. We pass back a partial-state marker.
+        base_zh = theme_costumes[0] if theme_costumes else canonical_outfit_zh
+        return (f"{base_zh} 部分脱去", "partially undressed", False)
+    # Cycle through costumes so different panels show different looks
+    idx = (panel_index * 2) % len(theme_costumes)
+    chosen_zh = theme_costumes[idx]
+    en = _zh_outfit_to_english(chosen_zh)
+    if en == chosen_zh:
+        en = canonical_outfit_en or chosen_zh
+    return (chosen_zh, en, True)
+
+
+# ── Helper: hash-based deterministic female/male pick per theme ────────────────
+def _pick_characters(theme_name: str):
+    """Pick one female + one male descriptor deterministically from theme name.
+
+    This guarantees that:
+    - The same theme always uses the same male/female pair (consistency)
+    - Across themes, pairs vary (diversity)
+    - Each panel ALWAYS features BOTH a man and a woman (multi-character)
+    """
+    import hashlib
+    h = int(hashlib.md5(theme_name.encode("utf-8")).hexdigest(), 16)
+    female = _FEMALE_DESCRIPTORS[h % len(_FEMALE_DESCRIPTORS)]
+    # Offset male pick by 7 so it doesn't always match the female's ethnicity slot.
+    male = _MALE_DESCRIPTORS[(h // 7) % len(_MALE_DESCRIPTORS)]
+    return female, male
+
+
+def _strip_anchor_brackets(anchor: str) -> str:
+    """Strip '[ANCHOR: ...]' wrapper, return inner content."""
+    if not anchor:
+        return ""
+    a = anchor.strip()
+    if a.startswith("[ANCHOR:") and a.endswith("]"):
+        return a[len("[ANCHOR:"):-1].strip()
+    return a
+
+
+def _rebuild_panel_from_template(
+    scene_text: str,
+    image_text: str,
+    canonical_loc_zh: str,
+    canonical_loc_en: str,
+    canonical_outfit_zh: str,
+    canonical_outfit_en: str,
+    theme_scenarios: list,
+    is_sex_panel_flag: bool,
+    panel_index: int,
+    theme_name: str,
+    theme_costumes: list = None,
+    r18: bool = False,
+    total_panels: int = 5,
+) -> tuple:
+    """Build scene_description + image_prompt fresh from theme metadata.
+
+    V3: Output is now DETAILED and matches Stable Diffusion / Flux requirements:
+      - Multi-character anchor (1girl + 1boy, NEVER 1girl alone)
+      - Specific female + male ethnicity descriptors (per ETHNICITY_POOL)
+      - Explicit ACTION: "the man thrusts into the woman in X position"
+      - Specific theme-coherent location in English
+      - Specific theme-coherent costume in English
+      - Photographic terms: lens, lighting, composition, mood
+      - All-English image_prompt (Chinese characters auto-replaced via fallback)
+      - Diverse poses per panel (cycling through the action pools)
+    """
+    beat = _pick_beat(panel_index, total_panels, r18)
+
+    # ── Pick theme-coherent scenario for this panel ────────────────────
+    if theme_scenarios:
+        scene_word_zh = theme_scenarios[panel_index % len(theme_scenarios)]
+    else:
+        scene_word_zh = canonical_loc_zh or theme_name or "themed location"
+    scene_word_en = _zh_location_to_english_safe(scene_word_zh)
+
+    # ── Outfit rotation ───────────────────────────────────────────────
+    costume_zh, costume_en, has_clothes = _pick_outfit_for_panel(
+        panel_index, total_panels, r18,
+        theme_costumes or [],
+        canonical_outfit_zh, canonical_outfit_en,
+        theme_scenarios,
+    )
+    # If costume_en still has Chinese, force a generic English fallback.
+    costume_en = _ensure_english(costume_en, "themed outfit")
+
+    # ── Character descriptors (deterministic from theme name) ──────────
+    female_desc, male_desc = _pick_characters(theme_name)
+
+    # ── Action descriptor (diverse per panel) ──────────────────────────
+    action_template, scene_zh_clause = _pick_pose_for_panel(panel_index, total_panels, r18)
+    action_text = action_template.format(loc=scene_word_en)
+
+    # ── Chinese scene_description (detailed narrative, all Chinese) ────
+    # Extract a short Chinese noun from female_desc/male_desc to make the
+    # scene_description identify which characters are present (without
+    # embedding the English action sentence).
+    female_zh = _english_descriptor_to_chinese_label(female_desc)
+    male_zh = _english_descriptor_to_chinese_label(male_desc)
+
+    if r18 and is_sex_panel_flag:
+        scene_parts = [
+            f"在{scene_word_zh}",
+            f"【{beat}】",
+            f"{female_zh}与{male_zh}{scene_zh_clause}",
+            (f"女人身穿{costume_zh}" if costume_zh else "女人已脱去衣物"),
+        ]
+    else:
+        scene_parts = [
+            f"在{scene_word_zh}",
+            f"【{beat}】",
+            f"{female_zh}与{male_zh}{scene_zh_clause}",
+            (f"女人身穿{costume_zh}" if costume_zh else ""),
+        ]
+    new_scene = "，".join(p for p in scene_parts if p) + "。"
+
+    # ── English image_prompt (Flux/SD-ready, multi-character, detailed) ──
+    # Lighting / composition varies per panel for visual diversity.
+    lighting_options = [
+        "soft natural window light",
+        "warm golden hour glow",
+        "intimate dim ambient lighting",
+        "moody cinematic lighting with rim light",
+        "bright sunlit atmosphere",
+    ]
+    composition_options = [
+        "full body shot from a low angle",
+        "medium shot from slightly above",
+        "close-up on faces and hands",
+        "wide shot showing both characters and the full environment",
+        "three-quarter portrait composition",
+    ]
+    lighting = lighting_options[panel_index % len(lighting_options)]
+    composition = composition_options[panel_index % len(composition_options)]
+
+    if r18 and is_sex_panel_flag:
+        # Explicit sex panel: include nudity and explicit body parts.
+        nudity_clause = "both fully nude, "
+        explicit_action = action_text
+    else:
+        nudity_clause = (
+            f"the woman wearing {costume_en}, " if costume_en else ""
+        )
+        explicit_action = action_text
+
+    new_image = (
+        f"1girl, 1boy, {female_desc}, and {male_desc}, "
+        f"{nudity_clause}{explicit_action}, "
+        f"in {scene_word_en}, "
+        f"{lighting}, {composition}, "
+        f"masterpiece, best quality, ultra-detailed, 8k uhd, "
+        f"professional photography, cinematic color grading, sharp focus"
+    )
+
+    return (new_scene, new_image)
+
+
+# ── English-to-Chinese label mapping for scene_description characters ─────────
+# Map the (nationality, gender) pair from a Flux descriptor to a short Chinese
+# phrase for use in scene_description (e.g. "the Brazilian woman with tanned
+# olive skin..." → "巴西美女"). This keeps scene_description fully Chinese
+# while still identifying WHICH characters are present.
+_EN_DESC_NATIONALITY_TO_ZH = {
+    "Brazilian": "巴西美女",
+    "Iranian": "伊朗美女",
+    "Italian": "意大利美女",
+    "Russian": "俄罗斯美女",
+    "Japanese": "日本美女",
+    "Korean": "韩国美女",
+    "Thai": "泰国美女",
+    "French": "法国美女",
+    "Mexican": "墨西哥美女",
+    "Indian": "印度美女",
+    "Turkish": "土耳其美女",
+    "Chinese": "中国美女",
+    "Spanish": "西班牙美女",
+    "Polish": "波兰美女",
+    "Cuban": "古巴美女",
+    "Vietnamese": "越南美女",
+    "South African": "南非美女",
+    "Greek": "希腊美女",
+    "Filipino": "菲律宾美女",
+    "Argentine": "阿根廷美女",
+    "German": "德国帅哥",
+    "American": "美国帅哥",
+    "Scandinavian": "北欧帅哥",
+    "Dutch": "荷兰帅哥",
+    "Australian": "澳洲帅哥",
+    "Argentinian": "阿根廷帅哥",
+}
+
+
+def _english_descriptor_to_chinese_label(desc: str) -> str:
+    """Extract a short Chinese nationality label from an English descriptor.
+
+    Women → 美女; Men → 帅哥. We check the FIRST 30 chars of the descriptor
+    which contains the gender word ("woman"/"man"/"girl"/"boy").
+    """
+    head = desc[:60]
+    # Prioritize "woman" / "1girl" / "beautiful" female markers over "man" inside
+    # nationality words like "Brazilian woman" — "woman" appears BEFORE "man"
+    # in "Brazilian woman", but "man" is also in "woman". So check for female
+    # markers first.
+    is_female = (
+        "woman" in head
+        or " 1girl" in head[:8]
+        or "beautiful" in head[:30]
+        or "gorgeous" in head[:30]
+        or "stunning" in head[:30]
+        or "cute" in head[:30]
+        or "handsome" not in head
+        and (
+            "man" in head
+            or "boy" in head
+        )
+    )
+    # Simpler rule: if "woman" appears in the first 60 chars, it's female.
+    is_female = "woman" in head
+    is_male = not is_female and ("man" in head or "boy" in head)
+    for nat, zh in _EN_DESC_NATIONALITY_TO_ZH.items():
+        if nat in desc:
+            if is_male and zh.endswith("美女"):
+                return zh[:-2] + "帅哥"
+            return zh
+    return "帅哥" if is_male else "美女"
+
+
+# ─── Safe translation helpers (used by _rebuild_panel_from_template) ──────────
+def _ensure_english(text: str, fallback: str) -> str:
+    """If `text` contains any Chinese characters, replace with `fallback`."""
+    if not text:
+        return fallback
+    if any("\u4e00" <= c <= "\u9fff" for c in text):
+        return fallback
+    return text
+
+
+def _zh_location_to_english_safe(zh: str) -> str:
+    """Convert zh → en using mapping. Always returns pure English (fallback
+    for unmapped Chinese strings)."""
+    if not zh:
+        return "themed location"
+    mapped = _zh_location_to_english(zh)
+    return _ensure_english(mapped, _pinyin_fallback(zh, "location"))
+
+
+def _pinyin_fallback(zh: str, kind: str) -> str:
+    """Last-resort fallback: convert Chinese to pinyin with 'interior' suffix.
+
+    Produces something like 'fang che nei interior' for '房车内'. This is
+    ugly but at least ALL English, which Flux/SD can interpret better than
+    raw Chinese characters. Used only when no manual mapping exists.
+    """
+    try:
+        from pypinyin import lazy_pinyin
+        tokens = lazy_pinyin(zh)
+        romanized = " ".join(tokens).strip()
+    except Exception:
+        # Last-resort: strip non-ASCII entirely.
+        romanized = "".join(c for c in zh if ord(c) < 128).strip() or "themed"
+    if kind == "location":
+        return f"{romanized} interior"
+    return romanized or "themed outfit"
 
 
 # ─── Main enforcement function ──────────────────────────────────────────────────
+def _enforce_panel_rules(
+    panels: list,
+    theme_name: str,
+    theme_data: dict,
+    r18: bool,
+) -> list:
+    """
+    Hard post-processing rules on top of _enforce_theme_coherence / LLM output.
+
+    This addresses three recurring user complaints:
+
+      A. **Panel 1 must be single-woman** — the LLM tends to force `1girl, 1boy`
+         into Panel 1 even when the theme/setup calls for just the woman.
+         For every theme EXCEPT multi-character themes where the man literally
+         must appear in Panel 1, we strip `1boy`, `1man`, `the man`, `a man`,
+         male descriptors, etc. from Panel 1's image_prompt and force
+         `1girl, <female descriptor>, <scene>`.
+
+      B. **Lesbian / 双女主 themes must have NO MAN in any panel** — when
+         `_is_lesbian_theme(...)` is True, strip ALL male-related tokens from
+         EVERY panel's image_prompt (1boy, the man, his, penis, cumshot, etc.)
+         and force `1girl, 1girl, ...` plus a second-woman descriptor.
+
+      C. **Last R18 sex panel MUST show visible cum / semen** — append
+         explicit visible-cum English tags to the FINAL panel's image_prompt
+         so the model actually paints semen in the image. For lesbian
+         stories, swap cum → squirting / female ejaculation.
+
+    Returns the same panels list with mutated dicts in place.
+    """
+    if not panels:
+        return panels
+
+    is_lesbian = _is_lesbian_theme(
+        theme_name=theme_name,
+        theme_tags=(theme_data.get("tags", []) if isinstance(theme_data, dict) else []),
+        theme_data=theme_data if isinstance(theme_data, dict) else None,
+    )
+    total = len(panels)
+
+    # ── Lesbian: pick a SECOND-WOMAN descriptor (East Asian default) ──
+    second_woman_options = [
+        "a beautiful Korean woman with warm beige skin, silky long black hair, and dark almond eyes",
+        "a stunning Japanese woman with fair porcelain skin, silky straight black hair, and dark brown eyes",
+        "a gorgeous Chinese woman with warm ivory skin, long wavy black hair, and dark eyes",
+        "a beautiful Taiwanese woman with fair skin, silky black hair, and delicate features",
+    ]
+    second_woman = second_woman_options[hash(theme_name or "") % len(second_woman_options)]
+
+    # Male descriptor removal regex (case-insensitive). Used for lesbian + Panel 1.
+    _MALE_TOKENS_RE = re.compile(
+        r"\b(?:1boy|1man|"
+        r"a handsome (?:Black|African|Brazilian|Italian|Russian|Japanese|Korean|American|Mexican|Turkish|French|German|Greek|Spanish|Polish|Dutch|Argentinian|Australian|Indian|Chinese|Thai) man|"
+        r"a chiseled (?:Black|African|Brazilian|Italian|Russian|Japanese|Korean|American|Mexican|Turkish|French|German|Greek|Spanish|Polish|Dutch|Argentinian|Australian|Indian|Chinese|Thai) man|"
+        r"a tall (?:Black|African|Brazilian|Italian|Russian|Japanese|Korean|American|German|French|Dutch|Scandinavian|Polish|Argentinian|Indian|Australian) man|"
+        r"a muscular Black man|"
+        r"a muscular (?:Black|African|American) man|"
+        r"a strong Black man|"
+        r"a fit Afro-?Caribbean man|"
+        r"a handsome Nigerian man|"
+        r"the man|"
+        r"a man|"
+        r"his cock|"
+        r"his penis|"
+        r"his mouth|"
+        r"his hands?|"
+        r"his body|"
+        r"his chest|"
+        r"his abs|"
+        r"his arms?|"
+        r"his shoulders|"
+        r"cumshot|"
+        r"balls deep|"
+        r"penis|"
+        r"cock|"
+        r"dick|"
+        r"erect|"
+        r"hard cock)\b",
+        re.IGNORECASE,
+    )
+
+    # Lesbian-only: also remove heterosexual sex-act phrases that imply a penis.
+    _HET_SEX_ACT_RE = re.compile(
+        r",?\s*(?:his cock|cum on her face|deep throat|deepthroat|"
+        r"penetrate\w*|penetration|"
+        r"thrusting into (?:the )?woman|thrusts? into (?:the )?woman|"
+        r"facial cumshot|face covered in cum|covered in cum|"
+        r"cum on her breasts?|"
+        r"cum on her stomach|"
+        r"cum on her thighs?|"
+        r"creampie(?:\s+residue)?|"
+        r"cum dripping from her vagina|"
+        r"semen visible|"
+        r"cumshot aftermath|"
+        r"thick ropes of cum)"
+        r"(?:[,\s\.]+|$)",
+        re.IGNORECASE,
+    )
+
+    # Lesbian-only: cleanup orphaned "a Chinese woman with muscular build" / similar
+    # leftovers from the male-descriptor regex. Also catches "and with muscular build"
+    # when the male descriptor was stripped leaving dangling modifier.
+    _ORPHAN_DESC_RE = re.compile(
+        r",?\s*(?:a|an)\s+[A-Z][a-zA-Z]+\s+(?:woman|man|girl|boy)\s+with\s+muscular\s+build\b"
+        r"|,?\s*(?:and\s+)?with\s+muscular\s+build\b"
+        r"|,?\s*with\s+short\s+black\s+hair\b"
+        r"|,?\s*with\s+short-cropped\s+black\s+hair\b"
+        r"|,?\s*with\s+broad\s+shoulders\b"
+        r"|,?\s*with\s+chiseled\s+(?:jaw|features)\b"
+        r"|,?\s*with\s+short\s+blonde\s+hair\b",
+        re.IGNORECASE,
+    )
+
+    for idx, p in enumerate(panels):
+        prompt_text = p.get("image_prompt", "") or ""
+        scene_text = p.get("scene_description", "") or ""
+
+        # ── B. Lesbian — strip every male reference from every panel ──
+        if is_lesbian:
+            cleaned = _MALE_TOKENS_RE.sub("", prompt_text)
+            # Strip male-sex-act phrases too (they're meaningless without a penis)
+            cleaned = _HET_SEX_ACT_RE.sub(",", cleaned)
+            # Cleanup orphan descriptors like "a Chinese woman with muscular build"
+            cleaned = _ORPHAN_DESC_RE.sub("", cleaned)
+            # Drop "and <descriptor>" leftovers from "1boy, a Chinese woman and a handsome Black man"
+            cleaned = re.sub(r"\s+and\s+", " ", cleaned)
+            # Strip ALL national descriptors ("a <Nationality> woman" / "a <Nationality> man")
+            # that LLM wrote — we will inject our own deterministic second_woman below.
+            cleaned = re.sub(
+                r",?\s*(?:a|an|the)\s+(?:beautiful|stunning|gorgeous|handsome|"
+                r"chiseled|tall|strong|muscular|fit)?\s*"
+                r"(?:Black|African|Brazilian|Italian|Russian|Japanese|Korean|"
+                r"American|Mexican|Turkish|French|German|Greek|Spanish|Polish|"
+                r"Dutch|Argentinian|Australian|Indian|Chinese|Thai|Vietnamese|"
+                r"Taiwanese|Scandinavian|Nigerian|Caucasian|European|White|"
+                r"Filipino|Cuban|Argentinian|South\sAfrican|Asian)\s+"
+                r"(?:woman|man|girl|boy|帅哥|美女|男|女)\b[^.,]*(?=,|\.|$)",
+                "",
+                cleaned,
+                flags=re.IGNORECASE,
+            )
+            # Collapse leftover empties / stray commas
+            cleaned = re.sub(r"\s+,", ",", cleaned)
+            cleaned = re.sub(r"(,\s*){2,}", ", ", cleaned)
+            # Force prefix to "1girl, 1girl, <desc1>, and <desc2>"
+            # Remove any leading "1girl, 1boy," / "1girl, " / "1boy," segments
+            cleaned = re.sub(r"^[\s,]*1girl\s*,\s*1boy\s*,?", "1girl, 1girl,", cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r"^[\s,]*1boy\s*,?", "1girl, 1girl,", cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r"^[\s,]*1girl\s*,?\s*", "1girl, 1girl,", cleaned, count=1, flags=re.IGNORECASE)
+            # Inject the deterministic second-woman descriptor
+            cleaned = re.sub(
+                r"^(1girl,\s*1girl,)\s*",
+                rf"\1 {second_woman}, ",
+                cleaned,
+                count=1,
+                flags=re.IGNORECASE,
+            )
+            # If the cleaned prompt doesn't start with the 1girl×2 prefix, prepend it.
+            if not re.match(r"^\s*1girl", cleaned, re.IGNORECASE):
+                cleaned = f"1girl, 1girl, {second_woman}, {cleaned.lstrip(', ').strip()}"
+            # Replace female-only sex acts: prefer scissoring / tribbing / cunnilingus
+            if "scissor" not in cleaned.lower() and "trib" not in cleaned.lower() and idx >= total // 2:
+                cleaned = cleaned.rstrip(",. ") + ", scissoring tribbing position, mutual cunnilingus, female orgasm, glistening wet pussy, squirting female ejaculation"
+            p["image_prompt"] = cleaned.strip()
+            # Strip male references from scene_description too
+            cleaned_scene = re.sub(r"(与|和|跟)\s*(男人|男性|男子|帅哥|黑人|男性|他)\b", "", scene_text)
+            cleaned_scene = re.sub(r"(男人|男性|男子|帅哥|黑人)\s*[，。]", "，", cleaned_scene)
+            p["scene_description"] = cleaned_scene
+
+        # ── A. Panel 1 — single-woman rule (non-multi-character themes) ──
+        # For non-multi-character themes (i.e. not lesbian, not 双人明确 listed),
+        # Panel 1 should be single-woman. We detect by: panel_index == 0 AND
+        # is_foreplay (= not a sex panel).
+        is_foreplay = _is_foreplay_panel(idx, total, r18)
+        if idx == 0 and is_foreplay and not is_lesbian:
+            cleaned = prompt_text
+            # Strip "1boy," / "1boy " / "and 1boy"
+            cleaned = re.sub(r"\s*,?\s*1boy\b", "", cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r"\b1boy\b", "", cleaned, flags=re.IGNORECASE)
+            # Strip "and a handsome X man" / "a handsome X man" / "and a strong Black man"
+            cleaned = re.sub(
+                r",?\s*and\s+a\s+(?:handsome|chiseled|tall|strong|muscular|fit)\s+"
+                r"(?:Black|African|Brazilian|Italian|Russian|Japanese|Korean|American|"
+                r"Mexican|Turkish|French|German|Greek|Spanish|Polish|Dutch|Argentinian|"
+                r"Australian|Indian|Chinese|Thai|Caucasian|European|White)\s+man[^.]*?(?=,|\.|$)",
+                "",
+                cleaned,
+                flags=re.IGNORECASE,
+            )
+            cleaned = re.sub(
+                r",?\s*a\s+(?:handsome|chiseled|tall|strong|muscular|fit)\s+"
+                r"(?:Black|African|Brazilian|Italian|Russian|Japanese|Korean|American|"
+                r"Mexican|Turkish|French|German|Greek|Spanish|Polish|Dutch|Argentinian|"
+                r"Australian|Indian|Chinese|Thai|Caucasian|European|White)\s+man[^.]*?(?=,|\.|$)",
+                "",
+                cleaned,
+                flags=re.IGNORECASE,
+            )
+            # Strip "the man and" / "the man," / "the man" / "a man" phrases
+            cleaned = re.sub(r",?\s*and\s+the\s+man\b", "", cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r",?\s*the\s+man\b", "", cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r",?\s*a\s+man\b", "", cleaned, flags=re.IGNORECASE)
+            # Strip "and <his>"
+            cleaned = re.sub(r",?\s*and\s+his\s+\w+\b", "", cleaned, flags=re.IGNORECASE)
+            # Collapse
+            cleaned = re.sub(r"\s+,", ",", cleaned)
+            cleaned = re.sub(r"\s+\.", ".", cleaned)
+            cleaned = re.sub(r"(,\s*){2,}", ", ", cleaned)
+            p["image_prompt"] = cleaned.strip()
+            # Strip male from scene_description too
+            cleaned_scene = re.sub(r"(与|和|跟)\s*(男人|男性|男子|帅哥|黑人|他)\b", "", scene_text)
+            cleaned_scene = re.sub(r"(男人|男性|男子|帅哥|黑人)\s*[，。]", "，", cleaned_scene)
+            p["scene_description"] = cleaned_scene
+
+        # ── C. Last panel — visible cum (R18 only) ──
+        if r18 and idx == total - 1:
+            is_last_sex = _is_sex_panel(idx, total, r18) or True  # last panel always treated as sex/climax
+            if is_last_sex:
+                cur = p.get("image_prompt", "") or ""
+                if is_lesbian:
+                    cum_tags = (
+                        ", visible squirting female ejaculation, "
+                        "wet pussy juices dripping, "
+                        "female orgasm fluid visible on skin, "
+                        "squirting visible on sheets, "
+                        "creampie residue on inner thighs"
+                    )
+                    if not any(k in cur.lower() for k in ("squirting", "female ejaculation", "creampie residue")):
+                        p["image_prompt"] = cur.rstrip(",. ") + cum_tags
+                else:
+                    cum_tags = (
+                        ", visible cum dripping from her vagina, "
+                        "cum on her inner thighs, "
+                        "cum puddle on the sheets, "
+                        "thick ropes of cum visible on skin, "
+                        "creampie residue, "
+                        "semen visible, "
+                        "cumshot aftermath"
+                    )
+                    cur_lower = cur.lower()
+                    if not any(k in cur_lower for k in (
+                        "visible cum", "cum drip", "cum puddle", "creampie residue",
+                        "cum on her", "cumshot",
+                    )):
+                        p["image_prompt"] = cur.rstrip(",. ") + cum_tags
+
+    return panels
+
+
+def _correct_location_in_text(text: str, canonical_loc_zh: str) -> str:
+    """
+    Replace off-theme location words in a Chinese scene_description with the
+    canonical location, WITHOUT destroying the surrounding narrative text.
+
+    Strategy:
+      - Only replace standalone location tokens (not characters that happen to
+        appear as substrings of longer words).
+      - Never touch dialogue / action / emotion / position words.
+    """
+    if not text or not canonical_loc_zh:
+        return text
+
+    # A curated list of drift locations that commonly appear in LLM output
+    # but don't match the canonical theme location.
+    _DRIFT_LOCS = [
+        "酒店大堂", "酒店房间", "酒店套房", "酒店停车场",
+        "地下私人停车场", "地下停车场",
+        "高级公寓", "豪华公寓", "私人公寓",
+        "高级餐厅", "私人餐厅", "高级包间", "私人包间",
+        "咖啡厅", "咖啡馆", "私人泳池露台", "私人泳池",
+        "希腊小岛", "希腊", "度假别墅", "私人别墅", "山顶别墅",
+        "度假村", "摩天轮", "旋转木马", "过山车", "游乐场", "游乐园",
+        "公园长椅", "酒店", "停车场", "公寓",
+        "餐厅", "包间", "包厢", "酒吧", "KTV", "小岛", "海岛",
+        "地铁", "公交车", "出租车", "私家车", "教室", "图书馆",
+        "校园", "操场", "公园", "花店", "花房",
+        "写字楼", "办公室", "会议室", "街头", "街道", "路边",
+        "小巷", "巷子", "大堂", "大厅",
+        "温泉池", "汤池", "桑拿房", "蒸气房",
+        "泳池边", "泳池畔", "泳池旁", "泳池内",
+        "座舱里", "座舱中", "驾驶舱", "机舱", "车厢里", "车厢中",
+        "私人影院", "电影院", "放映厅",
+    ]
+    for drift in _DRIFT_LOCS:
+        # Only replace if it appears as a complete word (surrounded by non-Chinese
+        # characters or start/end of string). Skip if it's the canonical itself.
+        if drift == canonical_loc_zh:
+            continue
+        # Use word-boundary check: drift must be surrounded by non-Chinese or
+        # punctuation/whitespace, not embedded in longer words.
+        # Simple approach: replace "，X，" / "，X。" / " X，" patterns
+        text = re.sub(
+            rf"(?<=[，、\s]){re.escape(drift)}(?=[，、。；；\s]|$)",
+            canonical_loc_zh,
+            text,
+        )
+    return text
+
+
+def _correct_location_in_prompt(prompt: str, canonical_loc_en: str, canonical_loc_zh: str) -> str:
+    """
+    Replace off-theme English location words in an image_prompt with the canonical
+    theme location (in English), preserving the rest of the prompt intact.
+    """
+    if not prompt:
+        return prompt
+    # Always strip known drift English location tokens, even without a canonical replacement.
+    _EN_LOC_DRIFT = [
+        "hotel lobby", "hotel room", "hotel suite", "hotel parking lot",
+        "private parking garage", "underground parking", "parking garage",
+        "luxury apartment", "private apartment", "penthouse apartment", "apartment",
+        "fancy restaurant", "private restaurant", "private dining room",
+        "coffee shop", "cafe", "coffeehouse", "private pool terrace", "pool terrace",
+        "private pool", "pool", "greek island", "resort villa", "private villa",
+        "mountain villa", "theme park", "ferris wheel", "carousel",
+        "amusement park", "playground", "park bench", "hotel",
+        "bar", "restaurant", "cinema", "movie theater", "private theater",
+        "classroom", "library", "school campus", "gym", "gymnasium",
+        "office", "meeting room", "street", "alley", "alleyway",
+        "subway", "bus", "taxi", "car interior", "hot spring pool",
+        "sauna room", "steam room", "poolside",
+    ]
+    for drift in _EN_LOC_DRIFT:
+        # Remove the whole phrase including trailing comma
+        prompt = re.sub(
+            rf",?\s*{re.escape(drift)}\b,?\s*",
+            ", ",
+            prompt,
+            flags=re.IGNORECASE,
+        )
+    # Append canonical English location if provided
+    if canonical_loc_en:
+        prompt = re.sub(r",?\s*in\s+\S+.*?(?=,\s*[,.]|$)", "", prompt, flags=re.IGNORECASE)
+        prompt = re.sub(r"\s+in\s+\S+\s*,", ",", prompt, flags=re.IGNORECASE)
+        prompt = prompt.rstrip(",. ") + f", in {canonical_loc_en}, "
+    return re.sub(r"\s+", " ", prompt).strip().rstrip(",")
+
+
+def _correct_outfit_in_prompt(prompt: str, canonical_outfit_en: str, canonical_outfit_zh: str) -> str:
+    """
+    Ensure the image_prompt contains the theme's canonical outfit/costume keyword.
+    If the LLM omitted the outfit or wrote a different one, inject the canonical.
+
+    For Panel 1 (foreplay) this is mandatory — the outfit is part of the theme.
+    For sex panels we don't force it (nudity is expected).
+    """
+    if not prompt or not canonical_outfit_en:
+        return prompt
+
+    # Check if the canonical outfit keyword (or a close variant) is already present.
+    outfit_lower = canonical_outfit_en.lower().strip()
+    # Extract the main noun (e.g. "black lace bra and panties" → "bra")
+    outfit_words = outfit_lower.split()
+    has_outfit = any(w in prompt.lower() for w in outfit_words if len(w) > 3)
+
+    if not has_outfit:
+        # Inject outfit descriptor before the first action/comma
+        # "wearing ..." phrase
+        prompt = prompt.rstrip(",. ") + f", the woman wearing {canonical_outfit_en}, "
+    return prompt
+
+
 def _enforce_theme_coherence(
     scene_description: str,
     image_prompt: str,
@@ -2104,6 +3301,44 @@ def _enforce_theme_coherence(
 
     new_scene = scene_description or ""
     new_image = image_prompt or ""
+
+    # ── q3+ HARD EARLY-OUT: full-template rebuild ────────────────────────────────
+    # Architectural change: we NO LONGER trust the LLM to write the
+    # scene_description or image_prompt for location + outfit, because the
+    # user has reported that even with the 700+ line drift-scrub pipeline,
+    # real outputs were "公园长椅" / "希腊小岛" / etc. when the theme was
+    # 游泳池畔 / 地下车库. The LLM does not obey the THEME CONTRACT often
+    # enough to be acceptable for a paying product.
+    #
+    # Instead, we throw away the LLM's scene_description and image_prompt
+    # entirely, and build them from theme metadata + a fixed beat schedule.
+    # The LLM's role is reduced to: produce the [ANCHOR] on panel 1 (used
+    # to lock character identity across all panels). Everything else is
+    # deterministic.
+    # ALWAYS rebuild from template. We NO LONGER trust the LLM to write the
+    # scene_description or image_prompt for location + outfit. Reason: the
+    # user has reported that even after the 700+ line drift-scrub pipeline,
+    # real outputs were "公园长椅" / "希腊小岛" / etc. when the theme was
+    # 游泳池畔 / 地下车库 — i.e. the LLM doesn't obey the THEME CONTRACT
+    # often enough to be acceptable for a paying product. The user explicitly
+    # demanded: "重写下功能" / "主题和大纲需要对应匹配".
+    #
+    # Trade-off: we lose LLM-written narrative flavor in exchange for 100%
+    # theme consistency across ALL 500 themes (including LLM-custom titles
+    # like 「巴黎咖啡馆」 that have no DB row). The LLM still produces a
+    # character anchor on panel 1 (used to lock identity across all panels).
+    if theme_scenarios and canonical_loc_zh:
+        # ── q3+ FIX: preserve LLM narrative, only fix location drift in Chinese text ──
+        # The previous "full-template rebuild" threw away all LLM-written narrative
+        # (dialogue, emotions, specific sex positions) and replaced it with a
+        # mechanical "woman in X wearing Y" template. This killed story coherence.
+        # We now PRESERVE the LLM's scene_description and image_prompt entirely,
+        # and only surgically fix off-theme Chinese location words in scene_description.
+        # The LLM is trusted to write good narrative — the arc_panels + pose_list
+        # provide the structure (specific positions, pacing).
+        new_scene = _correct_location_in_text(new_scene, canonical_loc_zh)
+        new_image = new_image  # DO NOT modify image_prompt — preserve LLM's full output
+        return (new_scene, new_image)
 
     # ── q3+ PRE-PASS DRIFT SCRUB ─────────────────────────────────────────────
     # Earlier the LOCATION ENFORCEMENT loop below only replaced the FIRST
@@ -3175,8 +4410,14 @@ async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key
         theme_scenarios_str = ""
         theme_costumes_str = ""
         theme_poses_str = ""
+
+        # Strategy: try multiple lookups in order of reliability.
+        # 1) theme_id (numeric seq_id or string ID like "t101")
+        # 2) theme_title (fallback when theme_id is a LLM-generated position
+        #    index that doesn't correspond to a real DB row, e.g. when the
+        #    user uses the "自定义选题" custom-description flow which
+        #    produces themes with id=j+1 but arbitrary titles)
         if req.theme_id:
-            # theme_id may be a numeric string like "1", "101" etc.
             try:
                 seq_id = int(req.theme_id)
                 selected_theme = get_theme_by_seq_id(seq_id)
@@ -3184,9 +4425,32 @@ async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key
                 selected_theme = None
 
             if selected_theme is None:
-                # Try to find by string ID like "t001", "t101"
                 from app.services.theme_database import get_theme_by_id
                 selected_theme = get_theme_by_id(req.theme_id)
+
+            # Verify the resolved theme actually matches the requested title.
+            # If not (LLM-custom flow bug), fall through to title-based lookup.
+            if selected_theme is not None and req.theme_title:
+                db_name = (selected_theme.get("name") or "").strip()
+                req_name = (req.theme_title or "").strip()
+                if db_name and req_name and db_name != req_name:
+                    logging.info(
+                        "[storyboard/outline] theme_id %s resolved to '%s' but user title is '%s'; trying title-based lookup",
+                        req.theme_id, db_name, req_name,
+                    )
+                    selected_theme = None
+
+        if selected_theme is None and req.theme_title:
+            # Fall back to title-based lookup (when theme_id was wrong).
+            from app.services.theme_database import get_all_themes
+            for t in get_all_themes():
+                if isinstance(t, dict) and (t.get("name") or "").strip() == (req.theme_title or "").strip():
+                    selected_theme = t
+                    logging.info(
+                        "[storyboard/outline] title-based lookup matched '%s' to seq_id %s",
+                        req.theme_title, t.get("id"),
+                    )
+                    break
 
         # Build coherent context strings from the theme's data
         if selected_theme:
@@ -3207,15 +4471,78 @@ async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key
                 theme_poses_str = "姿势风格（参考）: " + "、".join(poses)
 
         _R18_ARC_PANELS = {
-            2: ["开场遇见/前戏", "高潮性爱"],
-            3: ["开场遇见", "升温调情/亲密", "高潮性爱"],
-            4: ["开场遇见", "升温调情", "亲密前戏", "高潮性爱"],
-            5: ["开场遇见", "升温调情", "脱衣亲密", "性爱进行", "高潮结尾"],
-            6: ["开场遇见", "升温调情", "脱衣亲密", "性爱进行", "高潮变化", "高潮射精"],
-            7: ["开场遇见", "升温调情", "脱衣亲密", "性爱进行", "换姿势", "高潮变化", "高潮射精"],
-            8: ["开场遇见", "升温调情", "脱衣亲密", "性爱开始", "深入进行", "换姿势", "高潮冲刺", "高潮射精"],
-            9: ["开场遇见", "升温调情", "脱衣亲密", "性爱开始", "深入进行", "换姿势", "深入再换", "高潮冲刺", "高潮射精"],
-            10: ["开场遇见", "升温调情", "脱衣亲密", "性爱开始", "深入进行", "换姿势", "深入再换", "多种姿势", "高潮冲刺", "高潮射精"],
+            2: [
+                "Panel 1: 开场前戏 - 【女人单独出场】场景介绍、女人首次亮相、服装描述（穿主题服装，非全裸）、暗示性表情和肢体语言、暧昧氛围（NO man yet，NO sex yet）",
+                "Panel 2: 性爱高潮 - 男人加入，直接性爱，口交或后入体位，高潮特写、颜射/内射/体外射精，【画面必须可见精液】",
+            ],
+            3: [
+                "Panel 1: 开场前戏 - 【女人单独出场】场景介绍、女人服装描述（主题服装）、暗示性表情（NO man yet，NO sex yet）",
+                "Panel 2: 升温前戏 - 男人加入，脱衣亲密/亲吻爱抚，口交或手淫前戏（explicit foreplay）",
+                "Panel 3: 性爱高潮 - 直接性爱描写，传教士体位或后入式，体位变化，射前特写或体内射精【画面必须可见精液】",
+            ],
+            4: [
+                "Panel 1: 开场前戏 - 【女人单独出场】场景介绍、女人服装（主题服装）、表情、暗示性眼神交流（NO man yet，NO sex yet）",
+                "Panel 2: 升温调情 - 男人加入，脱衣亲密、亲吻爱抚、口交前戏、挑逗暗示",
+                "Panel 3: 性爱进行 - 直接插入性爱，后入式（doggy style）或女上位（cowgirl），体位特写",
+                "Panel 4: 高潮结尾 - 传教士体位（missionary），高潮特写、颜射/内射/体外射精、身体反应【画面必须可见精液】",
+            ],
+            5: [
+                "Panel 1: 开场遇见 - 【女人单独出场】场景介绍、女人服装（主题服装）、暗示性第一眼、暧昧肢体语言（NO man yet，NO sex yet）",
+                "Panel 2: 升温调情 - 男人加入，身体接触、亲吻、暗示性语言、情感铺垫、服装开始松开",
+                "Panel 3: 脱衣前戏 - 衣物脱去、亲吻爱抚、口交（oral cunnilingus）或乳交（titjob）",
+                "Panel 4: 性爱进行 - 后入式（doggy style）插入，体位变化、抽插特写、呻吟描述",
+                "Panel 5: 高潮射精 - 传教士体位（missionary）或女上位（cowgirl），高潮特写、颜射/内射/体外射精【画面必须可见精液】",
+            ],
+            6: [
+                "Panel 1: 开场遇见 - 【女人单独出场】场景介绍、女人服装（主题服装）、暗示性第一眼（NO man yet，NO sex yet）",
+                "Panel 2: 升温调情 - 男人加入，暧昧对话、轻微身体接触、衣服开始松开",
+                "Panel 3: 脱衣亲密 - 衣物脱去、亲吻爱抚、口交前戏（oral cunnilingus）",
+                "Panel 4: 性爱进行 - 后入式（doggy style）插入或女上位（cowgirl），体位、抽插",
+                "Panel 5: 高潮逼近 - 传教士体位（missionary），体位深入、双方反应、呻吟",
+                "Panel 6: 高潮射精 - 侧入式（spooning）或坐姿（reverse cowgirl），高潮特写、颜射/内射/体外射精【画面必须可见精液】",
+            ],
+            7: [
+                "Panel 1: 开场遇见 - 【女人单独出场】场景介绍、女人服装（主题服装）、暗示性第一眼（NO man yet，NO sex yet）",
+                "Panel 2: 升温调情 - 男人加入，暧昧对话、轻微身体接触",
+                "Panel 3: 脱衣亲密 - 衣物脱去、亲吻爱抚、口交前戏（oral）",
+                "Panel 4: 前戏深入 - 口交（deepthroat oral）、乳房爱抚、情趣挑逗",
+                "Panel 5: 性爱进行 - 后入式（doggy style）插入，体位变化",
+                "Panel 6: 高潮逼近 - 传教士体位（missionary），体位深入、呻吟",
+                "Panel 7: 高潮射精 - 女上位（cowgirl）或侧入式（spooning），高潮特写、颜射/内射【画面必须可见精液】",
+            ],
+            8: [
+                "Panel 1: 开场遇见 - 【女人单独出场】场景介绍、女人服装（主题服装）、暗示性第一眼（NO man yet，NO sex yet）",
+                "Panel 2: 升温调情 - 男人加入，暧昧对话、轻微身体接触",
+                "Panel 3: 脱衣亲密 - 衣物脱去、亲吻爱抚、口交（cunnilingus oral）",
+                "Panel 4: 前戏深入 - 口交（deepthroat）、乳房爱抚、情趣玩具",
+                "Panel 5: 性爱进行 A - 后入式（doggy style），体位变化",
+                "Panel 6: 性爱进行 B - 女上位（cowgirl reverse），呻吟加剧",
+                "Panel 7: 高潮特写 - 传教士体位（missionary），射前最后阶段",
+                "Panel 8: 高潮射精 - 站立式（standing）或坐姿（cowgirl），高潮特写、颜射/内射【画面必须可见精液】",
+            ],
+            9: [
+                "Panel 1: 开场遇见 - 【女人单独出场】场景介绍、女人服装（主题服装）、暗示性第一眼（NO man yet，NO sex yet）",
+                "Panel 2: 升温调情 - 男人加入，暧昧对话、轻微身体接触",
+                "Panel 3: 脱衣亲密 - 衣物脱去、亲吻爱抚、口交（oral cunnilingus）",
+                "Panel 4: 前戏深入 - 口交（deepthroat）、乳房爱抚",
+                "Panel 5: 性爱开始 - 后入式（doggy style）插入，缓慢节奏",
+                "Panel 6: 性爱进行 - 女上位（cowgirl），体位变化、呻吟",
+                "Panel 7: 高潮逼近 - 传教士体位（missionary），呻吟达到顶峰",
+                "Panel 8: 高潮特写 - 侧入式（spooning），射前最后阶段",
+                "Panel 9: 高潮射精 - 坐姿（reverse cowgirl）或立式，颜射/内射【画面必须可见精液】",
+            ],
+            10: [
+                "Panel 1: 开场遇见 - 【女人单独出场】场景介绍、女人服装（主题服装）、暗示性第一眼（NO man yet，NO sex yet）",
+                "Panel 2: 升温调情 - 男人加入，暧昧对话、轻微身体接触",
+                "Panel 3: 脱衣亲密 - 衣物脱去、亲吻爱抚、口交（oral cunnilingus）",
+                "Panel 4: 前戏深入 - 口交（deepthroat）、乳房爱抚、情趣玩具",
+                "Panel 5: 性爱开始 - 后入式（doggy style）插入，缓慢节奏",
+                "Panel 6: 性爱进行 A - 女上位（cowgirl），节奏加快",
+                "Panel 7: 性爱进行 B - 传教士体位（missionary），抽插",
+                "Panel 8: 高潮逼近 - 侧入式（spooning），呻吟达到顶峰、身体颤抖",
+                "Panel 9: 高潮特写 - 手交（handjob）或站立式（standing），射前最后阶段",
+                "Panel 10: 高潮射精 - 坐姿（reverse cowgirl）或颜射（facial），高潮特写【画面必须可见精液】",
+            ],
         }
         _NORMAL_ARC_PANELS = {
             2: ["开场", "高潮"],
@@ -3503,6 +4830,25 @@ async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key
                                 "[outline] theme-coherence fixed %d/%d panels (theme=%s)",
                                 fix_count, len(panels), theme_name,
                             )
+
+                # ── Hard post-processing: single-woman Panel 1 + lesbian no-man + visible cum ──
+                if panels and selected_theme:
+                    before = [(p.get("scene_description", ""), p.get("image_prompt", "")) for p in panels]
+                    _enforce_panel_rules(
+                        panels=panels,
+                        theme_name=theme_name,
+                        theme_data=selected_theme if isinstance(selected_theme, dict) else {},
+                        r18=bool(req.r18),
+                    )
+                    rule_fix = sum(
+                        1 for (b_sc, b_im), p in zip(before, panels)
+                        if b_sc != p.get("scene_description", "") or b_im != p.get("image_prompt", "")
+                    )
+                    if rule_fix:
+                        logging.info(
+                            "[outline] panel-rules fixed %d/%d panels (theme=%s)",
+                            rule_fix, len(panels), theme_name,
+                        )
 
                 # ── Sanity check: detect any outfit color drift between panels ──
                 if len(panels) >= 2:
@@ -5425,78 +6771,79 @@ _NORMAL_ARC_PANELS = {
 
 _R18_ARC_PANELS = {
     2: [
-        "Panel 1: 开场前戏 - 场景介绍、人物出现、暗示性的服装和肢体语言、暧昧氛围（NO sex yet）",
-        "Panel 2: 性爱高潮 - 明确的性爱描写，可以包含口交、后入、传教士等体位，射前特写",
+        "Panel 1: 开场前戏 - 【女人单独出场】场景介绍、女人首次亮相、主题服装描述（非全裸）、暗示性表情和肢体语言、暧昧氛围（NO man yet，NO sex yet）",
+        "Panel 2: 性爱高潮 - 男人加入，直接性爱，口交或后入体位，高潮特写、颜射/内射/体外射精【画面必须可见精液】",
     ],
     3: [
-        "Panel 1: 开场前戏 - 场景介绍、人物出现、服装描述、暗示性抚摸和亲吻（NO sex yet）",
-        "Panel 2: 脱衣亲密/前戏 - 脱去衣物、亲吻爱抚、口交或手淫前戏（explicit foreplay）",
-        "Panel 3: 性爱高潮 - 直接性爱描写、体位变化、射前特写或体内射精",
+        "Panel 1: 开场前戏 - 【女人单独出场】场景介绍、女人首次亮相、主题服装描述、暗示性表情（NO man yet，NO sex yet）",
+        "Panel 2: 升温前戏 - 男人加入，脱衣亲密/亲吻爱抚，口交或手淫前戏（explicit foreplay）",
+        "Panel 3: 性爱高潮 - 直接性爱描写，传教士体位或后入式，体位变化，射前特写或体内射精【画面必须可见精液】",
     ],
     4: [
-        "Panel 1: 开场前戏 - 场景介绍、人物出现、暗示性互动、眼神交流、暧昧升温（NO sex yet）",
-        "Panel 2: 脱衣亲密 - 脱去衣物、互相亲吻爱抚、口交前戏、挑逗暗示",
-        "Panel 3: 性爱进行 - 直接性爱描写、体位、口交或插入、手部/口部刺激",
-        "Panel 4: 高潮结尾 - 高潮特写、身体反应、事后温存或开放式结局",
+        "Panel 1: 开场前戏 - 【女人单独出场】场景介绍、女人主题服装、表情、暗示性眼神交流（NO man yet，NO sex yet）",
+        "Panel 2: 升温调情 - 男人加入，脱衣亲密、亲吻爱抚、口交前戏、挑逗暗示",
+        "Panel 3: 性爱进行 - 直接插入性爱，后入式（doggy style）或女上位（cowgirl），体位特写",
+        "Panel 4: 高潮结尾 - 传教士体位（missionary），高潮特写、颜射/内射/体外射精【画面必须可见精液】",
     ],
     5: [
-        "Panel 1: 开场遇见 - 场景介绍、人物出现、制服/场景描述、暧昧互动、眼神交流（NO sex yet）",
-        "Panel 2: 升温调情 - 身体接触、亲吻、暗示性语言、情感铺垫、服装开始脱去",
-        "Panel 3: 脱衣前戏 - 衣物全部脱去或部分脱去、亲吻爱抚、口交或乳交等前戏",
-        "Panel 4: 性爱进行 - 直接插入或口交性爱、体位变化、抽插特写、呻吟描述",
-        "Panel 5: 高潮射精 - 高潮特写、颜射/内射/体外射精、事后温存或开放式结局",
+        "Panel 1: 开场遇见 - 【女人单独出场】场景介绍、女人主题服装、暗示性第一眼、暧昧肢体语言（NO man yet，NO sex yet）",
+        "Panel 2: 升温调情 - 男人加入，身体接触、亲吻、暗示性语言、情感铺垫",
+        "Panel 3: 脱衣前戏 - 衣物脱去、亲吻爱抚、口交（oral cunnilingus）或乳交（titjob）",
+        "Panel 4: 性爱进行 - 后入式（doggy style）插入，体位变化、抽插特写、呻吟描述",
+        "Panel 5: 高潮射精 - 传教士体位（missionary）或女上位（cowgirl），高潮特写、颜射/内射/体外射精【画面必须可见精液】",
     ],
     6: [
-        "Panel 1: 开场遇见 - 场景介绍、人物出现、暗示性的第一眼、服装描述（NO sex yet）",
-        "Panel 2: 升温调情 - 暧昧对话、轻微身体接触、衣服开始松开",
-        "Panel 3: 脱衣亲密 - 衣物脱去、互相亲吻爱抚、口交前戏开始",
-        "Panel 4: 性爱进行 - 直接插入性爱或深度口交，体位、抽插、口水/体液",
-        "Panel 5: 高潮逼近 - 性爱继续，体位变化、双方反应、呻吟",
-        "Panel 6: 高潮射精 - 高潮特写、颜射/内射/体外射精、事后反应、结局",
+        "Panel 1: 开场遇见 - 【女人单独出场】场景介绍、女人主题服装、暗示性第一眼（NO man yet，NO sex yet）",
+        "Panel 2: 升温调情 - 男人加入，暧昧对话、轻微身体接触、衣服开始松开",
+        "Panel 3: 脱衣亲密 - 衣物脱去、亲吻爱抚、口交前戏（oral cunnilingus）",
+        "Panel 4: 性爱进行 - 后入式（doggy style）插入或女上位（cowgirl），体位、抽插",
+        "Panel 5: 高潮逼近 - 传教士体位（missionary），体位深入、双方反应、呻吟",
+        "Panel 6: 高潮射精 - 侧入式（spooning）或坐姿（reverse cowgirl），高潮特写、颜射/内射/体外射精【画面必须可见精液】",
     ],
     7: [
-        "Panel 1: 开场遇见 - 场景介绍、人物出现、暗示性的第一眼、服装描述（NO sex yet）",
-        "Panel 2: 升温调情 - 暧昧对话、轻微身体接触、衣服开始松开",
-        "Panel 3: 脱衣亲密 - 衣物脱去、互相亲吻爱抚、口交前戏开始",
-        "Panel 4: 前戏深入 - 口交、乳房爱抚、情趣玩具挑逗、身体全面反应",
-        "Panel 5: 性爱进行 - 直接插入性爱，体位变化、抽插特写、双方呻吟",
-        "Panel 6: 高潮逼近 - 体位深入、呻吟加剧、身体反应强烈",
-        "Panel 7: 高潮射精 - 高潮特写、颜射/内射/体外射精、事后温存、结局",
+        "Panel 1: 开场遇见 - 【女人单独出场】场景介绍、女人主题服装、暗示性第一眼（NO man yet，NO sex yet）",
+        "Panel 2: 升温调情 - 男人加入，暧昧对话、轻微身体接触",
+        "Panel 3: 脱衣亲密 - 衣物脱去、亲吻爱抚、口交前戏（oral）",
+        "Panel 4: 前戏深入 - 口交（deepthroat oral）、乳房爱抚、情趣挑逗",
+        "Panel 5: 性爱进行 - 后入式（doggy style）插入，体位变化",
+        "Panel 6: 高潮逼近 - 传教士体位（missionary），体位深入、呻吟",
+        "Panel 7: 高潮射精 - 女上位（cowgirl）或侧入式（spooning），高潮特写、颜射/内射【画面必须可见精液】",
     ],
     8: [
-        "Panel 1: 开场遇见 - 场景介绍、人物出现、暗示性的第一眼、服装描述（NO sex yet）",
-        "Panel 2: 升温调情 - 暧昧对话、轻微身体接触、衣服开始松开",
-        "Panel 3: 脱衣亲密 - 衣物脱去、互相亲吻爱抚、口交前戏开始",
-        "Panel 4: 前戏深入 - 口交、乳房爱抚、情趣玩具挑逗、身体全面反应",
-        "Panel 5: 性爱进行 - 直接插入性爱，体位变化、抽插特写、双方呻吟",
-        "Panel 6: 高潮逼近 - 体位深入、呻吟加剧、身体反应强烈",
-        "Panel 7: 高潮特写 - 射前最后阶段、强烈身体反应",
-        "Panel 8: 高潮射精 - 高潮特写、颜射/内射/体外射精、事后温存、结局",
+        "Panel 1: 开场遇见 - 【女人单独出场】场景介绍、女人主题服装、暗示性第一眼（NO man yet，NO sex yet）",
+        "Panel 2: 升温调情 - 男人加入，暧昧对话、轻微身体接触",
+        "Panel 3: 脱衣亲密 - 衣物脱去、亲吻爱抚、口交（cunnilingus oral）",
+        "Panel 4: 前戏深入 - 口交（deepthroat）、乳房爱抚、情趣玩具",
+        "Panel 5: 性爱进行 A - 后入式（doggy style），体位变化",
+        "Panel 6: 性爱进行 B - 女上位（cowgirl reverse），呻吟加剧",
+        "Panel 7: 高潮特写 - 传教士体位（missionary），射前最后阶段",
+        "Panel 8: 高潮射精 - 站立式（standing）或坐姿（cowgirl），高潮特写、颜射/内射【画面必须可见精液】",
     ],
     9: [
-        "Panel 1: 开场遇见 - 场景介绍、人物出现、暗示性的第一眼、服装描述（NO sex yet）",
-        "Panel 2: 升温调情 - 暧昧对话、轻微身体接触、衣服开始松开",
-        "Panel 3: 脱衣亲密 - 衣物脱去、互相亲吻爱抚、口交前戏开始",
-        "Panel 4: 前戏深入 - 口交、乳房爱抚、情趣玩具挑逗、身体全面反应",
-        "Panel 5: 性爱开始 - 直接插入性爱，缓慢节奏、双方适应",
-        "Panel 6: 性爱进行 - 体位变化、抽插特写、呻吟加剧",
-        "Panel 7: 高潮逼近 - 体位深入、呻吟达到顶峰",
-        "Panel 8: 高潮特写 - 射前最后阶段、强烈身体反应",
-        "Panel 9: 高潮射精 - 高潮特写、颜射/内射/体外射精、事后温存、结局",
+        "Panel 1: 开场遇见 - 【女人单独出场】场景介绍、女人主题服装、暗示性第一眼（NO man yet，NO sex yet）",
+        "Panel 2: 升温调情 - 男人加入，暧昧对话、轻微身体接触",
+        "Panel 3: 脱衣亲密 - 衣物脱去、亲吻爱抚、口交（oral cunnilingus）",
+        "Panel 4: 前戏深入 - 口交（deepthroat）、乳房爱抚",
+        "Panel 5: 性爱开始 - 后入式（doggy style）插入，缓慢节奏",
+        "Panel 6: 性爱进行 - 女上位（cowgirl），体位变化、呻吟",
+        "Panel 7: 高潮逼近 - 传教士体位（missionary），呻吟达到顶峰",
+        "Panel 8: 高潮特写 - 侧入式（spooning），射前最后阶段",
+        "Panel 9: 高潮射精 - 坐姿（reverse cowgirl）或立式，颜射/内射【画面必须可见精液】",
     ],
     10: [
-        "Panel 1: 开场遇见 - 场景介绍、人物出现、暗示性的第一眼、服装描述（NO sex yet）",
-        "Panel 2: 升温调情 - 暧昧对话、轻微身体接触、衣服开始松开",
-        "Panel 3: 脱衣亲密 - 衣物脱去、互相亲吻爱抚、口交前戏开始",
-        "Panel 4: 前戏深入 - 口交、乳房爱抚、情趣玩具挑逗、身体全面反应",
-        "Panel 5: 性爱开始 - 直接插入性爱，缓慢节奏、双方适应",
-        "Panel 6: 性爱进行 A - 第一种体位、节奏加快",
-        "Panel 7: 性爱进行 B - 体位变化、抽插特写、呻吟加剧",
-        "Panel 8: 高潮逼近 - 体位深入、呻吟达到顶峰、身体颤抖",
-        "Panel 9: 高潮特写 - 射前最后阶段、强烈身体反应",
-        "Panel 10: 高潮射精 - 高潮特写、颜射/内射/体外射精、事后温存、结局",
+        "Panel 1: 开场遇见 - 【女人单独出场】场景介绍、女人主题服装、暗示性第一眼（NO man yet，NO sex yet）",
+        "Panel 2: 升温调情 - 男人加入，暧昧对话、轻微身体接触",
+        "Panel 3: 脱衣亲密 - 衣物脱去、亲吻爱抚、口交（oral cunnilingus）",
+        "Panel 4: 前戏深入 - 口交（deepthroat）、乳房爱抚、情趣玩具",
+        "Panel 5: 性爱开始 - 后入式（doggy style）插入，缓慢节奏",
+        "Panel 6: 性爱进行 A - 女上位（cowgirl），节奏加快",
+        "Panel 7: 性爱进行 B - 传教士体位（missionary），抽插",
+        "Panel 8: 高潮逼近 - 侧入式（spooning），呻吟达到顶峰、身体颤抖",
+        "Panel 9: 高潮特写 - 手交（handjob）或站立式（standing），射前最后阶段",
+        "Panel 10: 高潮射精 - 坐姿（reverse cowgirl）或颜射（facial），高潮特写【画面必须可见精液】",
     ],
 }
+
 
 
 _NORMAL_OUTLINE_SYSTEM = """You are an expert adult comic director. A user selected theme: "{theme_title}".
@@ -5582,6 +6929,55 @@ EXPLICIT CONTENT requirements for Panel 3+:
 
 CRITICAL: ALL characters 18+. NO minors. NO non-consent. NO animals.
 
+
+
+【LEAD-WOMAN PANEL 1 — MANDATORY SINGLE-WOMAN OPENING】:
+Panel 1 of EVERY R18 storyboard MUST feature ONLY the woman on screen. NO man
+appears in Panel 1 — even when the arc uses a man in later panels. The Panel 1
+woman must be presented alone in the ★ SCENARIO location, wearing the ★ COSTUME,
+with her ethnicity descriptor (East Asian / Korean / Japanese / Chinese preferred),
+her expression / eye contact / pose, and atmosphere. The man may enter from Panel 2
+onward (or not at all if the theme is lesbian).
+- image_prompt for Panel 1 MUST start with `1girl, ` (NOT `1girl, 1boy,`) and
+  describe ONLY the woman's appearance + scene + mood.
+- scene_description for Panel 1 should NOT mention a man or "the man".
+- This rule applies to EVERY theme (het / lesbian / etc.) unless the theme
+  literally demands two characters in the opening (rare).
+
+【LESBIAN / 双女主 / 拉拉 / 女同 / 闺蜜 THEME — NO-MAN RULE】:
+If the theme name contains ANY of these keywords (拉拉, 女同, 百合, 双女主, 双女,
+闺蜜, lesbian, trib, scissor, girl on girl, sapphic, wlw, femdom, 女性支配, 两女)
+— OR the theme's tags/category match — then the entire storyboard features ONLY
+women. NO MAN appears in ANY panel.
+- image_prompt must use `1girl, ` (no `1boy`, no `man`, no `male`, no `Black man`,
+  no `muscular man`, no `penis`, no `cumshot`).
+- Use East Asian woman + European white woman (or two East Asian women) as the
+  default pair. Sex acts are female-on-female: scissoring, tribbing, fingering,
+  oral (cunnilingus), 69, mutual masturbation, using a strap-on.
+- Replace any "1boy" / "the man" / "his cock" with the second woman.
+
+【VISIBLE CUM ON LAST SEX PANEL — MANDATORY】:
+The LAST panel of any R18 storyboard (Panel N where sex/climax happens) MUST show
+visible semen / cum on or in the body. Do NOT write "cum" only as a verb — make it
+visible in the rendered image:
+- For cum INSIDE (creampie): "creampie visible", "cum dripping from her vagina",
+  "cum leaking out of pussy", "semen visible inside", "creampie residue".
+- For cum ON body (facial / body shots): "cum on her face", "cum on her breasts",
+  "cum dripping down her chin", "visible cum splattered on skin", "thick ropes of
+  cum on her stomach", "facial cumshot".
+- For cum ON surface: "cum puddle on the sheets", "cum splattered on her thighs".
+- Always include these literal English tags in the FINAL panel's image_prompt:
+  `cum, visible cum, dripping cum, cum on body, semen, cumshot`. The model must
+  paint these visibly — abstract "climax" without cum visible is a HARD FAILURE.
+- For lesbian stories, the LAST panel must show female ejaculation / squirting /
+  visible vaginal fluids instead.
+
+【DISTINCT POSITION PER PANEL — HARD RULE】:
+Each panel's image_prompt MUST describe a DIFFERENT sex position. Pick from the
+{pose_list} pool above. NO TWO panels may share the same position category
+(missionary / doggystyle / cowgirl / 69 / etc.). If you reuse the same position
+across two panels, the output is REJECTED.
+
 Output as raw JSON:
 {{"outline": {{"arc": "{arc_label}", "scenes": ["Panel 1: 前戏描述", "Panel 2: 升温描述", ...]}}, "storyboard": [{{"panel_number": 1, "scene_description": "中文场景描述", "image_prompt": "explicit SD prompt"}}, ...]}}
 
@@ -5628,6 +7024,26 @@ async def generate_storyboard_outline(
         if selected_theme is None:
             from app.services.theme_database import get_theme_by_id
             selected_theme = get_theme_by_id(req.theme_id)
+        # Verify title match — fall back to title-based lookup if not.
+        if selected_theme is not None and req.theme_title:
+            db_name = (selected_theme.get("name") or "").strip()
+            req_name = (req.theme_title or "").strip()
+            if db_name and req_name and db_name != req_name:
+                logging.info(
+                    "[storyboard/outline:sync] theme_id %s resolved to '%s' but user title is '%s'; trying title-based lookup",
+                    req.theme_id, db_name, req_name,
+                )
+                selected_theme = None
+    if selected_theme is None and req.theme_title:
+        from app.services.theme_database import get_all_themes
+        for t in get_all_themes():
+            if isinstance(t, dict) and (t.get("name") or "").strip() == (req.theme_title or "").strip():
+                selected_theme = t
+                logging.info(
+                    "[storyboard/outline:sync] title-based lookup matched '%s' to id %s",
+                    req.theme_title, t.get("id"),
+                )
+                break
     if selected_theme:
         scenarios = selected_theme.get("scenarios", [])
         costumes = selected_theme.get("costumes", [])
@@ -5928,6 +7344,32 @@ async def generate_storyboard_outline(
                         logging.info(
                             "[storyboard/outline] theme-coherence fixed %d/%d panels (theme=%s)",
                             fix_count_sync, len(panels), theme_name,
+                        )
+
+                # ── Hard post-processing: single-woman Panel 1 + lesbian no-man + visible cum ──
+                if panels and selected_theme:
+                    rule_fix_sync = 0
+                    rule_panels = []
+                    for idx, p in enumerate(panels):
+                        d = {"scene_description": p.scene_description, "image_prompt": p.image_prompt}
+                        _enforce_panel_rules(
+                            panels=[d],
+                            theme_name=theme_name,
+                            theme_data=selected_theme if isinstance(selected_theme, dict) else {},
+                            r18=bool(req.r18),
+                        )
+                        if d["scene_description"] != p.scene_description or d["image_prompt"] != p.image_prompt:
+                            rule_fix_sync += 1
+                        rule_panels.append(StoryboardPanel(
+                            panel_number=p.panel_number,
+                            scene_description=d["scene_description"],
+                            image_prompt=d["image_prompt"],
+                        ))
+                    panels = rule_panels
+                    if rule_fix_sync:
+                        logging.info(
+                            "[storyboard/outline] panel-rules fixed %d/%d panels (theme=%s)",
+                            rule_fix_sync, len(panels), theme_name,
                         )
 
             # ── Sanity check: detect any outfit color drift between panels ──
