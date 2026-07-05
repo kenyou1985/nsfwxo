@@ -96,24 +96,41 @@ function buildCompositePrompt(panels: GridPanel[]): string {
 }
 
 /**
- * 构建最终发给 gpt-image-2 的 prompt。
- *
  * 关键策略：
  * 1. 数字人锚点放最前面，最大化模型对「人物身份」的关注。
  * 2. 显式标注图片角色（IMAGE_ROLE_HINT），弥补 prompt 与 image 数组没有
  *    显式对应关系的缺陷——模型不会自动知道「reference」是哪张图。
- * 3. 用「same face as image #1」这种位置化措辞，而不是含糊的「same as reference」，
- *    因为 image #1 总是数字人图（已固定在 imageFiles[0]）。
+ * 3. 用「same face as image #N」这种位置化措辞，而不是含糊的「same as reference」，
+ *    因为 image 数组里的位置是确定的（数字人总是放在 characterAnchorIdx）。
  *
  * @param isBoostStage 二次强化阶段：此时 imageFiles[0]=第一步结果，imageFiles[1]=数字人原图。
  *                     第一步结果本身已经是基于数字人生的，所以这次主要用于「微调身份细节」。
+ *                     身份锚指向 image #2 (数字人原图)，不再是 image #1。
+ * @param characterAnchorIdx 数字人原图在 imageFiles 数组中的索引（默认 0，boost 阶段为 1）。
  */
+/**
+ * 剥离 prompt 中的 UI 锚点标记（如 @图1、@数字人:xxx、[...]），
+ * 这些标记只在编辑器里用来提示用户，不会出现在最终发给模型的 prompt 里。
+ */
+function stripUiAnchors(rawPrompt: string): string {
+  return rawPrompt
+    // 剥离末尾由 buildAnchor() 自动追加的 [...@...@...] 整段
+    .replace(/\s*\[[\s\S]*?@[\s\S]*?\]/g, '')
+    // 剥离 @数字人:xxx
+    .replace(/@数字人:[^\s,，。；;]+/g, '')
+    // 剥离 @图1、@图2 等
+    .replace(/@图\d+/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 function buildPromptInternal(
   userPrompt: string,
   style: string,
   gf: GirlfriendPreset | null,
   userRefCount: number,
-  isBoostStage: boolean = false
+  isBoostStage: boolean = false,
+  characterAnchorIdx: number = 0
 ): string {
   const hasDigitalHuman = !!gf?.characterPrompt;
   const hasUserRefs = userRefCount > 0;
@@ -124,7 +141,8 @@ function buildPromptInternal(
       'IMPORTANT: Image #1 is the FIRST-PASS RESULT — already contains the character. Image #2 is the CHARACTER IDENTITY REFERENCE — refine face, hair and identity details to match Image #2 exactly while preserving Image #1\'s composition.';
   } else if (hasDigitalHuman && hasUserRefs) {
     IMAGE_ROLE_HINT =
-      'IMPORTANT: Image #1 is the CHARACTER IDENTITY REFERENCE — preserve her face, hair, body type and identity exactly. Image #2 and beyond are COMPOSITION/POSE REFERENCES — follow the pose, framing and scene from them, but the subject must be the character from Image #1.';
+      `IMPORTANT: Image #1 is the CHARACTER IDENTITY REFERENCE — preserve her face, hair, body type and identity exactly. ` +
+      `Image #2 and beyond are COMPOSITION/POSE REFERENCES — follow the pose, framing and scene from them, but the subject must be the character from Image #1.`;
   } else if (hasDigitalHuman) {
     IMAGE_ROLE_HINT =
       'IMPORTANT: The uploaded image is the CHARACTER IDENTITY REFERENCE — preserve her face, hair, body type and identity exactly.';
@@ -137,10 +155,10 @@ function buildPromptInternal(
 
   const parts: string[] = [];
   if (hasDigitalHuman && gf) {
-    // 把「以第一张图为身份锚」这件事塞进 characterPrompt 前面，模型对开头的关注度最高
+    const anchorIdx = characterAnchorIdx + 1; // prompt 用 1-based 描述
     parts.push(
-      `1girl, same face as image #1, same hair as image #1, same body as image #1, ` +
-      `character consistency, preserve identity from image #1`
+      `1girl, same face as image #${anchorIdx}, same hair as image #${anchorIdx}, same body as image #${anchorIdx}, ` +
+      `character consistency, preserve identity from image #${anchorIdx}`
     );
     parts.push(gf.characterPrompt);
   }
@@ -706,7 +724,12 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
   }, [gridImages, onSuccess, onError]);
 
   const buildPrompt = useCallback((): string => {
-    return buildPromptInternal(prompt, style, selectedGirlfriend, editImageEntries.length);
+    return buildPromptInternal(
+      stripUiAnchors(prompt),
+      style,
+      selectedGirlfriend,
+      editImageEntries.length,
+    );
   }, [prompt, style, selectedGirlfriend, editImageEntries.length]);
 
   /**
@@ -714,12 +737,20 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
    * 此时 imageFiles[0] = 第一步生成结果（已经包含数字人），
    * imageFiles[1] = 数字人原图（用于强化身份细节）。
    *
+   * 关键：数字人原图现在在 imageFiles[1]，所以身份锚指向 image #2。
    * 强化阶段用「原始用户 prompt」而不是已拼好的 finalPrompt，避免 IMAGE_ROLE_HINT / characterPrompt 重复堆叠。
    */
   const buildPromptForBoost = useCallback((): string => {
     // 强化阶段不带用户参考图，只有「第一步结果」+「数字人原图」
     const fakeEntriesCount = 0;
-    return buildPromptInternal(prompt, style, selectedGirlfriend, fakeEntriesCount, /*isBoostStage*/ true);
+    return buildPromptInternal(
+      stripUiAnchors(prompt),
+      style,
+      selectedGirlfriend,
+      fakeEntriesCount,
+      /*isBoostStage*/ true,
+      /*characterAnchorIdx*/ 1, // 数字人原图位于 imageFiles[1]
+    );
   }, [prompt, style, selectedGirlfriend]);
 
   const handleGenerate = useCallback(async () => {
