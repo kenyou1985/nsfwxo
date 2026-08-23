@@ -16,7 +16,7 @@ from app.models.schemas import (
     StoryboardOutlineRequest, StoryboardOutlineResponse, StoryboardOutline,
     StoryboardScriptRequest, StoryboardScriptResponse,
 )
-from app.services.llm_service import call_grok, clean_json_response, YunwuAuthError, YunwuRateLimitError, YunwuTimeoutError, YunwuParseError, YunwuAPIError
+from app.services.llm_service import call_grok, clean_json_response, OpenLuxAuthError, OpenLuxRateLimitError, OpenLuxTimeoutError, OpenLuxParseError, OpenLuxAPIError
 from app.services.gacha_service import generate_random_tags
 from app.services.safety_filter import check_prompt_safety, check_tags_safety, ContentSafetyError
 from app.services.prompt_coherence import detect_prompt_conflicts, rewrite_coherent_prompt, detect_outfit_color_drift
@@ -4383,9 +4383,9 @@ async def _run_themes_task(task_id: str, req: StoryboardThemesRequest, api_key: 
         store.mark_done(task_id, {"themes": themes})
     except ContentSafetyError as e:
         store.mark_failed(task_id, str(e))
-    except (YunwuTimeoutError, YunwuRateLimitError) as e:
+    except (OpenLuxTimeoutError, OpenLuxRateLimitError) as e:
         store.mark_failed(task_id, str(e))
-    except YunwuAPIError as e:
+    except OpenLuxAPIError as e:
         store.mark_failed(task_id, str(e))
     except Exception as e:
         logging.error(f"[themes] background task error: {e}")
@@ -4757,7 +4757,7 @@ async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key
                         try:
                             prompt_text = await rewrite_coherent_prompt(prompt_text, api_key)
                             check_prompt_safety(prompt_text)
-                        except (ContentSafetyError, YunwuTimeoutError):
+                        except (ContentSafetyError, OpenLuxTimeoutError):
                             pass
                     try:
                         panels.append({
@@ -4925,7 +4925,7 @@ async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key
                     continue
                 store.mark_failed(task_id, str(e))
                 return
-            except (YunwuTimeoutError, YunwuRateLimitError, YunwuAPIError, YunwuParseError) as e:
+            except (OpenLuxTimeoutError, OpenLuxRateLimitError, OpenLuxAPIError, OpenLuxParseError) as e:
                 if attempt < MAX_RETRIES - 1:
                     continue
                 store.mark_failed(task_id, str(e))
@@ -4940,7 +4940,7 @@ async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key
             except Exception as e:
                 # q3+ bugfix: transient LLM / parsing errors should retry
                 # before failing the task. The MAX_RETRIES loop above is
-                # the primary retry, but if a non-Yunwu exception slips
+                # the primary retry, but if a non-OpenLux exception slips
                 # through (e.g. a transient bug), give it one more shot
                 # before propagating.
                 logging.exception(f"[outline] theme={theme_name} background task error (attempt {attempt}): {e}")
@@ -5019,7 +5019,7 @@ async def _run_script_task(task_id: str, req: StoryboardScriptRequest, api_key: 
                     continue
                 store.mark_failed(task_id, str(e))
                 return
-            except (YunwuTimeoutError, YunwuRateLimitError, YunwuAPIError) as e:
+            except (OpenLuxTimeoutError, OpenLuxRateLimitError, OpenLuxAPIError) as e:
                 if attempt < MAX_RETRIES - 1:
                     continue
                 store.mark_failed(task_id, str(e))
@@ -5060,15 +5060,15 @@ def get_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)) -
 
 def _map_llm_error(e: Exception) -> HTTPException:
     """将 LLM 相关异常映射为精确的 HTTP 错误状态码和消息。"""
-    if isinstance(e, YunwuAuthError):
+    if isinstance(e, OpenLuxAuthError):
         return HTTPException(status_code=401, detail=str(e))
-    if isinstance(e, YunwuRateLimitError):
+    if isinstance(e, OpenLuxRateLimitError):
         return HTTPException(status_code=429, detail=str(e))
-    if isinstance(e, YunwuTimeoutError):
+    if isinstance(e, OpenLuxTimeoutError):
         return HTTPException(status_code=504, detail=str(e))
-    if isinstance(e, YunwuParseError):
+    if isinstance(e, OpenLuxParseError):
         return HTTPException(status_code=502, detail=str(e))
-    if isinstance(e, YunwuAPIError):
+    if isinstance(e, OpenLuxAPIError):
         return HTTPException(status_code=502, detail=str(e))
     return HTTPException(status_code=500, detail=f"未知错误: {str(e)}")
 
@@ -5432,11 +5432,11 @@ async def _generate_single_expand(
                 system_for_this += "\n\nSAFETY OVERRIDE: Your previous response was rejected. REJECT any content mentioning minors, children, teenagers, or anyone under 18. STRICTLY ADULTS ONLY."
                 continue
             raise HTTPException(status_code=400, detail=str(e))
-        except (YunwuTimeoutError, YunwuRateLimitError, YunwuParseError, YunwuAPIError) as e:
+        except (OpenLuxTimeoutError, OpenLuxRateLimitError, OpenLuxParseError, OpenLuxAPIError) as e:
             if attempt < MAX_RETRIES - 1:
                 continue
             raise _map_llm_error(e)
-        except YunwuAuthError as e:
+        except OpenLuxAuthError as e:
             raise _map_llm_error(e)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"未知错误: {str(e)}")
@@ -5525,7 +5525,7 @@ async def _generate_single_i2v(
                 system_prompt += "\n\nSAFETY OVERRIDE: Your previous response was rejected. REJECT any content mentioning minors, children, teenagers, or anyone under 18. STRICTLY ADULTS ONLY."
                 continue
             raise
-        except (YunwuTimeoutError, YunwuRateLimitError, YunwuAPIError) as e:
+        except (OpenLuxTimeoutError, OpenLuxRateLimitError, OpenLuxAPIError) as e:
             if attempt < MAX_RETRIES - 1:
                 continue
             raise
@@ -6235,11 +6235,11 @@ STRICT RULE: All characters ADULTS 18+. Consensual only. Output ONLY a raw coher
                 system_for_random += "\n\nSAFETY OVERRIDE: Reject ALL minors. ADULTS ONLY."
                 continue
             raise HTTPException(status_code=400, detail=str(e))
-        except (YunwuTimeoutError, YunwuRateLimitError, YunwuParseError, YunwuAPIError) as e:
+        except (OpenLuxTimeoutError, OpenLuxRateLimitError, OpenLuxParseError, OpenLuxAPIError) as e:
             if attempt < MAX_RETRIES - 1:
                 continue
             raise _map_llm_error(e)
-        except YunwuAuthError as e:
+        except OpenLuxAuthError as e:
             raise _map_llm_error(e)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"未知错误: {str(e)}")
@@ -6330,11 +6330,11 @@ async def storyboard(req: StoryboardRequest, api_key: str = Depends(get_api_key)
                 system_prompt += "\n\nSAFETY OVERRIDE: Your response was rejected. ALL characters must be ADULTS 18+. REJECT any panel mentioning minors."
                 continue
             raise HTTPException(status_code=400, detail=str(e))
-        except (YunwuTimeoutError, YunwuRateLimitError, YunwuParseError, YunwuAPIError) as e:
+        except (OpenLuxTimeoutError, OpenLuxRateLimitError, OpenLuxParseError, OpenLuxAPIError) as e:
             if attempt < MAX_RETRIES - 1:
                 continue
             raise _map_llm_error(e)
-        except YunwuAuthError as e:
+        except OpenLuxAuthError as e:
             raise _map_llm_error(e)
         except HTTPException:
             raise
@@ -6561,11 +6561,11 @@ ALL 9 panels must share the IDENTICAL [ANCHOR: ...] prefix verbatim.
                 safety_override_added = True
                 continue
             raise HTTPException(status_code=400, detail=str(e))
-        except (YunwuTimeoutError, YunwuRateLimitError, YunwuParseError, YunwuAPIError) as e:
+        except (OpenLuxTimeoutError, OpenLuxRateLimitError, OpenLuxParseError, OpenLuxAPIError) as e:
             if attempt < MAX_RETRIES - 1:
                 continue
             raise _map_llm_error(e)
-        except YunwuAuthError as e:
+        except OpenLuxAuthError as e:
             raise _map_llm_error(e)
         except HTTPException:
             raise
@@ -6592,7 +6592,7 @@ Output in Chinese only. Do NOT wrap in markdown."""
 
 
 # R18 themes prompt — keep it neutral/descriptive without explicit sexual act keywords
-# Yunwu AI may reject requests with explicitly sexual system prompts
+# OpenLux AI may reject requests with explicitly sexual system prompts
 _THEMES_SYSTEM_PROMPT_R18 = """You are a creative director specializing in adult content. Based on the provided theme pool, select and describe {count} DIVERSE and UNIQUE video theme options.
 
 IMPORTANT - DIVERSITY RULES - CRITICAL:
@@ -6796,13 +6796,13 @@ async def generate_storyboard_themes(
                 system_prompt += "\n\nSAFETY OVERRIDE: Reject ALL minors. ADULTS ONLY."
                 continue
             raise HTTPException(status_code=400, detail=str(e))
-        except (YunwuTimeoutError, YunwuRateLimitError) as e:
+        except (OpenLuxTimeoutError, OpenLuxRateLimitError) as e:
             # Retry on timeout and rate limit
             if attempt < MAX_RETRIES - 1:
                 continue
             raise _map_llm_error(e)
-        except YunwuAPIError as e:
-            # Retry on Yunwu API errors (502 from upstream)
+        except OpenLuxAPIError as e:
+            # Retry on OpenLux API errors (502 from upstream)
             if attempt < MAX_RETRIES - 1:
                 continue
             raise _map_llm_error(e)
@@ -7325,7 +7325,7 @@ async def generate_storyboard_outline(
                             item.get("panel_number", "?"),
                         )
                         continue
-                    except YunwuTimeoutError:
+                    except OpenLuxTimeoutError:
                         # Timeout during rewrite — keep original prompt
                         logging.warning("[storyboard/outline] rewrite timed out, keeping original prompt")
                         pass
@@ -7495,18 +7495,18 @@ async def generate_storyboard_outline(
                 )
                 continue
             raise HTTPException(status_code=400, detail=str(e))
-        except (YunwuTimeoutError, YunwuRateLimitError) as e:
+        except (OpenLuxTimeoutError, OpenLuxRateLimitError) as e:
             # Retry on timeout and rate limit
             if attempt < MAX_RETRIES - 1:
                 continue
             raise _map_llm_error(e)
-        except YunwuAPIError as e:
-            # Retry on Yunwu API errors (502 from upstream)
+        except OpenLuxAPIError as e:
+            # Retry on OpenLux API errors (502 from upstream)
             logging.warning("[storyboard/outline] upstream API error on attempt %s/%s: %s", attempt + 1, MAX_RETRIES, e)
             if attempt < MAX_RETRIES - 1:
                 continue
             raise _map_llm_error(e)
-        except YunwuParseError as e:
+        except OpenLuxParseError as e:
             # Retry on JSON parse errors
             logging.warning("[storyboard/outline] parse error on attempt %s/%s: %s", attempt + 1, MAX_RETRIES, e)
             if attempt < MAX_RETRIES - 1:
@@ -7644,11 +7644,11 @@ async def generate_video_script(
             if attempt < MAX_RETRIES - 1:
                 continue
             raise HTTPException(status_code=400, detail=str(e))
-        except (YunwuTimeoutError, YunwuRateLimitError, YunwuParseError, YunwuAPIError) as e:
+        except (OpenLuxTimeoutError, OpenLuxRateLimitError, OpenLuxParseError, OpenLuxAPIError) as e:
             if attempt < MAX_RETRIES - 1:
                 continue
             raise _map_llm_error(e)
-        except YunwuAuthError as e:
+        except OpenLuxAuthError as e:
             raise _map_llm_error(e)
         except HTTPException:
             raise

@@ -92,7 +92,7 @@ async function buildIndices() {
 }
 
 export const DB_META = {
-  source: 'https://www.runninghub.cn/openapi/v2/resource/list',
+  source: 'https://www.runninghub.ai/openapi/v2/resource/list',
   updatedAt: '2026-06-27',
   baseModelFilter: 'IL-XL',
   totalCheckpoints: 630,

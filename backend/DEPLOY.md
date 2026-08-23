@@ -23,7 +23,7 @@ railway up
 | 变量名 | 说明 |
 |--------|------|
 | `PORT` | Railway 自动注入，值为分配的端口 |
-| `YUNWU_BASE_URL` | `https://api.yunwu.ai/v1` |
+| `OPENLUX_BASE_URL` | `https://api.openlux.ai/v1` |
 | `MODEL_NAME` | `grok-4-20-reasoning` |
 
 ## 3. Railway 会自动识别 Dockerfile 并构建

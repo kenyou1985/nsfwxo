@@ -1,6 +1,6 @@
 import type { GirlfriendPreset } from '../data/girlfriendPresets';
 
-const YUNWU_BASE = 'https://yunwu.ai/v1';
+const OPENLUX_BASE = 'https://api.openlux.ai/v1';
 
 export type GptImageQuality = 'low' | 'medium' | 'high';
 /** gpt-image-2 支持任意尺寸（最大边 ≤ 3840px，两边 16 的倍数，比例 ≤ 3:1） */
@@ -34,14 +34,14 @@ function parseYunwuError(res: Response, bodyText: string): Error {
   }
 
   // 通用 HTTP 状态映射
-  if (res.status === 401) return new Error('API Key 无效或已过期，请检查设置中的 Yunwu AI Key');
+  if (res.status === 401) return new Error('API Key 无效或已过期，请检查设置中的 OpenLux API Key');
   if (res.status === 403) return new Error('API Key 无权限，请确认账户状态');
   if (res.status === 429) return new Error('请求过于频繁，请稍后重试');
 
   // 关键词快速匹配
   const lower = msg.toLowerCase();
   if (lower.includes('quota') || lower.includes('insufficient') || lower.includes('余额') || lower.includes('credit') || lower.includes('配额') || lower.includes('limit'))
-    return new Error('余额不足/配额耗尽，请前往 yunwu.ai 充值');
+    return new Error('余额不足/配额耗尽，请前往 api.openlux.ai 充值');
   if (lower.includes('timeout') || lower.includes('超时'))
     return new Error('请求超时，请稍后重试');
   if (lower.includes('rate limit') || lower.includes('速率限制') || lower.includes('too many request'))
@@ -65,13 +65,13 @@ function parseYunwuError(res: Response, bodyText: string): Error {
 
   // OpenAI error type 分类
   if (code === 'invalid_request_error' || code === 'invalid_api_key')
-    return new Error('API Key 无效，请检查设置中的 Yunwu AI Key');
+    return new Error('API Key 无效，请检查设置中的 OpenLux API Key');
   if (code === 'rate_limit_exceeded')
     return new Error('触发了速率限制，请稍后重试');
   if (code === 'content_policy_violated')
     return new Error('内容违规（色情/暴力/敏感），请修改提示词后重试');
   if (code === 'billing_not_active' || code === 'billing_hard_limit_reached')
-    return new Error('账户欠费或计费未激活，请前往 yunwu.ai 处理');
+    return new Error('账户欠费或计费未激活，请前往 api.openlux.ai 处理');
 
   return new Error(`生成失败：${msg}`);
 }
@@ -113,7 +113,7 @@ export async function generateImage(
   const errors: string[] = [];
 
   const doOne = async (): Promise<void> => {
-    const res = await fetch(`${YUNWU_BASE}/images/generations`, {
+    const res = await fetch(`${OPENLUX_BASE}/images/generations`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -200,7 +200,7 @@ export async function editImage(
       form.append('mask', maskFile);
     }
 
-    const res = await fetch(`${YUNWU_BASE}/images/edits`, {
+    const res = await fetch(`${OPENLUX_BASE}/images/edits`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}` },
       body: form,

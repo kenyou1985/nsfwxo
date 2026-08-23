@@ -481,7 +481,7 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
       return;
     }
     if (!yunwuKey) {
-      onError('请先在设置中配置 Yunwu AI API Key');
+      onError('请先在设置中配置 OpenLux API Key');
       return;
     }
 
@@ -526,7 +526,7 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
   // ── Generate composite grid image ────────────────────────────────────────
   const handleGenerateCompositeGrid = useCallback(async () => {
     if (!yunwuKey) {
-      onError('请先在设置中配置 Yunwu AI API Key');
+      onError('请先在设置中配置 OpenLux API Key');
       return;
     }
     if (gridPanels.length === 0) {
@@ -635,7 +635,7 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
   // ── Generate single panel image (parallel-safe) ───────────────────────────
   const handleGeneratePanelImage = useCallback(async (panel: GridPanel) => {
     if (!yunwuKey) {
-      onError('请先在设置中配置 Yunwu AI API Key');
+      onError('请先在设置中配置 OpenLux API Key');
       return;
     }
 
@@ -760,7 +760,7 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
       return;
     }
     if (!yunwuKey) {
-      onError('请先在设置中配置 Yunwu AI API Key');
+      onError('请先在设置中配置 OpenLux API Key');
       return;
     }
 

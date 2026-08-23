@@ -324,7 +324,7 @@ nsfwxo/
 ### API Integration
 
 #### RunningHub Endpoints
-- **Base URL**: `https://www.runninghub.cn/openapi/v2`
+- **Base URL**: `https://www.runninghub.ai/openapi/v2`
 - **Auth Header**: `Authorization: Bearer ${API_KEY}`
 - **Content-Type**: `application/json`
 

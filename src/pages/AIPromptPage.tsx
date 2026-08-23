@@ -94,8 +94,8 @@ export function AIPromptPage({ onError, onSuccess, onOpenSettings, taskManager, 
         <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 flex items-start gap-3">
           <AlertCircle size={18} className="text-amber-500 flex-shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-amber-800">请先配置 Yunwu AI API Key</p>
-            <p className="text-xs text-amber-600 mt-0.5">AI 提示词功能需要 Yunwu AI Key 才能使用，请在右上角设置中填入。</p>
+            <p className="text-sm font-medium text-amber-800">请先配置 OpenLux API Key</p>
+            <p className="text-xs text-amber-600 mt-0.5">AI 提示词功能需要 OpenLux API Key 才能使用，请在右上角设置中填入。</p>
           </div>
           {onOpenSettings && (
             <button onClick={onOpenSettings} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-500 text-white text-xs font-medium hover:bg-amber-600 transition-colors flex-shrink-0">

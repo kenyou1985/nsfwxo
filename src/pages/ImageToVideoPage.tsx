@@ -277,7 +277,7 @@ function AIPromptPanel({ on应用 }: AIPromptPanelProps) {
 
   const 处理扩写 = async () => {
     if (!输入.trim()) return;
-    if (!getYunwuKey()) { alert('请先在设置中配置 Yunwu AI API Key'); return; }
+    if (!getYunwuKey()) { alert('请先在设置中配置 OpenLux API Key'); return; }
     set加载中(true);
     try {
       const res = await expandPrompt(输入.trim(), 'video', R18模式, 数量);
@@ -293,7 +293,7 @@ function AIPromptPanel({ on应用 }: AIPromptPanelProps) {
   };
 
   const 处理随机 = async () => {
-    if (!getYunwuKey()) { alert('请先在设置中配置 Yunwu AI API Key'); return; }
+    if (!getYunwuKey()) { alert('请先在设置中配置 OpenLux API Key'); return; }
     set加载中(true);
     try {
       const res = await randomPrompt('video', R18模式, 数量, 主题);

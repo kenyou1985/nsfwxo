@@ -1,4 +1,4 @@
-"""LLM Service - Grok via Yunwu API 动态客户端封装"""
+"""LLM Service - Grok via OpenLux API 动态客户端封装"""
 
 import asyncio
 import json
@@ -9,7 +9,7 @@ from openai import AsyncOpenAI, APIError, AuthenticationError, RateLimitError
 
 logger = logging.getLogger(__name__)
 
-YUNWU_BASE_URL = "https://api.yunwu.ai/v1"
+OPENLUX_BASE_URL = "https://api.openlux.ai/v1"
 MODEL_NAME = "grok-4.3"
 MODEL_FALLBACK = "grok-4-1-fast-non-reasoning"
 REQUEST_TIMEOUT = 90
@@ -56,7 +56,7 @@ async def _call_model_single(
     """
     client = AsyncOpenAI(
         api_key=api_key,
-        base_url=YUNWU_BASE_URL,
+        base_url=OPENLUX_BASE_URL,
         timeout=REQUEST_TIMEOUT,
     )
     messages = [
@@ -82,12 +82,12 @@ async def _call_model_single(
                         f"[LLM] model={model_name} returned refusal, retry {retry+1}/{MAX_RETRIES}"
                     )
                     continue
-                raise YunwuAPIError(
+                raise OpenLuxAPIError(
                     f"模型拒绝了请求（可能因内容审核）: {result_text[:200]}"
                 )
             return result_text
         except AuthenticationError as e:
-            raise YunwuAuthError(f"无效的 Yunwu AI API Key (401): {str(e)}")
+            raise OpenLuxAuthError(f"无效的 OpenLux API Key (401): {str(e)}")
         except RateLimitError as e:
             if retry < MAX_RETRIES - 1:
                 logger.warning(
@@ -95,7 +95,7 @@ async def _call_model_single(
                 )
                 await asyncio.sleep(_RETRY_BASE_DELAY)
                 continue
-            raise YunwuRateLimitError(f"Yunwu AI 请求频率超限 (429): {str(e)}")
+            raise OpenLuxRateLimitError(f"OpenLux 请求频率超限 (429): {str(e)}")
         except APIError as e:
             status_code = getattr(e, "status_code", None)
             logger.warning(
@@ -110,7 +110,7 @@ async def _call_model_single(
                     )
                     await asyncio.sleep(wait_sec)
                     continue
-                raise YunwuAPIError(f"Yunwu AI 502 Bad Gateway: {str(e)}")
+                raise OpenLuxAPIError(f"OpenLux 502 Bad Gateway: {str(e)}")
             elif retry < MAX_RETRIES - 1:
                 wait_sec = (retry + 1) * _RETRY_BASE_DELAY
                 logger.warning(
@@ -118,7 +118,7 @@ async def _call_model_single(
                 )
                 await asyncio.sleep(wait_sec)
                 continue
-            raise YunwuAPIError(f"Yunwu AI API 错误 ({status_code or '?'}): {str(e)}")
+            raise OpenLuxAPIError(f"OpenLux API 错误 ({status_code or '?'}): {str(e)}")
         except asyncio.TimeoutError:
             if retry < MAX_RETRIES - 1:
                 wait_sec = (retry + 1) * _RETRY_BASE_DELAY
@@ -127,7 +127,7 @@ async def _call_model_single(
                 )
                 await asyncio.sleep(wait_sec)
                 continue
-            raise YunwuTimeoutError(f"Yunwu AI 请求超时（5分钟）")
+            raise OpenLuxTimeoutError(f"OpenLux 请求超时（5分钟）")
         except Exception as e:
             error_text = str(e).lower()
             logger.warning(
@@ -142,7 +142,7 @@ async def _call_model_single(
                     )
                     await asyncio.sleep(wait_sec)
                     continue
-                raise YunwuTimeoutError(f"Yunwu AI 请求超时（5分钟）")
+                raise OpenLuxTimeoutError(f"OpenLux 请求超时（5分钟）")
             if "502" in error_text or "bad gateway" in error_text or "gateway" in error_text:
                 if retry < MAX_RETRIES - 1:
                     wait_sec = (retry + 1) * _RETRY_BASE_DELAY
@@ -152,17 +152,17 @@ async def _call_model_single(
                     )
                     await asyncio.sleep(wait_sec)
                     continue
-                raise YunwuAPIError(f"Yunwu AI Bad Gateway (502): {str(e)}")
+                raise OpenLuxAPIError(f"OpenLux Bad Gateway (502): {str(e)}")
             if retry < MAX_RETRIES - 1:
                 logger.warning(
                     f"[LLM] unexpected error on {model_name}: {e}, retry {retry+1}/{MAX_RETRIES}"
                 )
                 await asyncio.sleep(_RETRY_BASE_DELAY)
                 continue
-            raise YunwuAPIError(f"LLM 调用失败: {str(e)}")
+            raise OpenLuxAPIError(f"LLM 调用失败: {str(e)}")
 
     # Should not reach here, but safety net
-    raise YunwuAPIError(f"模型 {model_name} 在重试 {MAX_RETRIES} 次后仍失败")
+    raise OpenLuxAPIError(f"模型 {model_name} 在重试 {MAX_RETRIES} 次后仍失败")
 
 
 async def call_grok(
@@ -182,7 +182,7 @@ async def call_grok(
         logger.info(f"[LLM] trying model={model_name} (model_idx={model_idx})")
         try:
             return await _call_model_single(api_key, model_name, system_prompt, user_prompt)
-        except YunwuAuthError:
+        except OpenLuxAuthError:
             # Auth errors should not fall back to another model
             raise
         except Exception as e:
@@ -193,37 +193,37 @@ async def call_grok(
             )
             if model_idx == len(models_to_try) - 1:
                 # Last model — propagate the error
-                raise YunwuAPIError(
+                raise OpenLuxAPIError(
                     f"所有模型均不可用（{MODEL_NAME} 和 {MODEL_FALLBACK} 都已失败）: {type(e).__name__}: {e}"
                 )
             # More models available — continue to next
             continue
 
     # Should not reach here
-    raise YunwuAPIError("LLM 调用失败（无可用模型）")
+    raise OpenLuxAPIError("LLM 调用失败（无可用模型）")
 
 
-class YunwuAuthError(Exception):
+class OpenLuxAuthError(Exception):
     """无效的 API Key"""
     pass
 
 
-class YunwuRateLimitError(Exception):
+class OpenLuxRateLimitError(Exception):
     """请求频率超限"""
     pass
 
 
-class YunwuTimeoutError(Exception):
+class OpenLuxTimeoutError(Exception):
     """请求超时"""
     pass
 
 
-class YunwuAPIError(Exception):
+class OpenLuxAPIError(Exception):
     """通用 API 错误"""
     pass
 
 
-class YunwuContentFilteredError(Exception):
+class OpenLuxContentFilteredError(Exception):
     """内容审核过滤（违禁词/敏感词触发）"""
     pass
 
@@ -231,7 +231,7 @@ class YunwuContentFilteredError(Exception):
 def clean_json_response(raw_text: str) -> Union[list, dict]:
     """清理大模型可能返回的 markdown 代码块，安全解析 JSON"""
     if not raw_text:
-        raise YunwuParseError("模型返回了空响应")
+        raise OpenLuxParseError("模型返回了空响应")
 
     text = raw_text.strip()
 
@@ -241,7 +241,7 @@ def clean_json_response(raw_text: str) -> Union[list, dict]:
         text = text.strip()
 
     if not text:
-        raise YunwuParseError("模型返回了空响应（清理后）")
+        raise OpenLuxParseError("模型返回了空响应（清理后）")
 
     try:
         return json.loads(text)
@@ -263,9 +263,9 @@ def clean_json_response(raw_text: str) -> Union[list, dict]:
                     return json.loads(obj_match.group())
                 except json.JSONDecodeError:
                     pass
-            raise YunwuParseError(f"无法解析模型返回为 JSON（{e}）：{text[:100]}")
+            raise OpenLuxParseError(f"无法解析模型返回为 JSON（{e}）：{text[:100]}")
 
 
-class YunwuParseError(Exception):
+class OpenLuxParseError(Exception):
     """JSON 解析失败"""
     pass

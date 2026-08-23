@@ -63,7 +63,7 @@ export function maskApiKey(key: string): string {
   return `${key.slice(0, 4)}...${key.slice(-4)}`;
 }
 
-// ─── Yunwu AI API Key ───────────────────────────────────────────────────────
+// ─── OpenLux API Key ───────────────────────────────────────────────────────
 
 export function getYunwuKey(): string | null {
   try {

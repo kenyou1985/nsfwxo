@@ -305,7 +305,7 @@ function App() {
               maskedKey={maskedKey}
               onSaveApiKey={saveApiKey}
               onClearApiKey={removeApiKey}
-              // Yunwu
+              // OpenLux
               yunwuKey={yunwuKey}
               maskedYunwuKey={maskedYunwuKey}
               onSaveYunwuKey={saveYunwuKey}
@@ -339,7 +339,7 @@ function App() {
                 maskedKey={maskedKey}
                 onSaveApiKey={saveApiKey}
                 onClearApiKey={removeApiKey}
-                // Yunwu
+                // OpenLux
                 yunwuKey={yunwuKey}
                 maskedYunwuKey={maskedYunwuKey}
                 onSaveYunwuKey={saveYunwuKey}
@@ -530,13 +530,13 @@ function InlineApiKeyEditor({
 
       <div className="border-t border-border" />
 
-      {/* Yunwu AI */}
+      {/* OpenLux */}
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center">
             <Zap size={13} className="text-primary" />
           </div>
-          <h3 className="text-sm font-semibold text-text-primary">Yunwu AI API Key</h3>
+          <h3 className="text-sm font-semibold text-text-primary">OpenLux API Key</h3>
         </div>
         <p className="text-[11px] text-text-tertiary -mt-1">用于 AI 提示词推理（智能扩写 / 随机抽卡 / 剧情分镜）</p>
         {yunwuKey && (
@@ -551,7 +551,7 @@ function InlineApiKeyEditor({
             type={yunwuShow ? 'text' : 'password'}
             value={yunwuInput}
             onChange={(e) => setYunwuInput(e.target.value)}
-            placeholder="请输入 Yunwu AI API Key"
+            placeholder="请输入 OpenLux API Key"
             className="w-full bg-bg-elevated border border-border rounded-xl px-4 py-3 pr-12 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-primary transition-colors"
             autoComplete="off"
             spellCheck={false}
@@ -565,7 +565,7 @@ function InlineApiKeyEditor({
           </button>
         </div>
         <p className="text-[11px] text-text-secondary">
-          获取: <a href="https://yunwu.ai" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">yunwu.ai</a> → API Keys 页面
+          获取: <a href="https://api.openlux.ai" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">api.openlux.ai</a> → API Keys 页面
         </p>
         <div className="flex gap-3">
           <button
@@ -639,7 +639,7 @@ function InlineApiKeyEditor({
         <p className="text-xs font-medium text-text-secondary">使用说明</p>
         <ol className="space-y-1 text-[11px] text-text-secondary">
           <li className="flex gap-2"><span className="text-blue-500 font-medium">1.</span> RunningHub Key 用于调用 Flux/SD 生图、Wan2.1 生视频</li>
-          <li className="flex gap-2"><span className="text-primary font-medium">2.</span> Yunwu AI Key 用于 AI 提示词智能生成（grok-4-20-reasoning）</li>
+          <li className="flex gap-2"><span className="text-primary font-medium">2.</span> OpenLux Key 用于 AI 提示词智能生成（grok-4-20-reasoning）</li>
           <li className="flex gap-2"><span className="text-amber-500 font-medium">3.</span> 本地开发使用 localhost:8000，部署 Railway 后替换为分配的域名</li>
         </ol>
       </div>

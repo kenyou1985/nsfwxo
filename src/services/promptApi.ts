@@ -124,7 +124,7 @@ async function apiRequest<T>(
 ): Promise<T> {
   const yunwuKey = getYunwuKey();
   if (!yunwuKey) {
-    throw new Error('Yunwu AI API Key 未设置，请在设置中配置 Yunwu AI Key');
+    throw new Error('OpenLux API Key 未设置，请在设置中配置 OpenLux API Key');
   }
 
   const headers: Record<string, string> = {

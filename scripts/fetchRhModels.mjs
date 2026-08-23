@@ -11,7 +11,7 @@ import { resolve } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 const API_KEY = '4bdff125174140bb804395756f8c597d';
-const ENDPOINT = 'https://www.runninghub.cn/openapi/v2/resource/list';
+const ENDPOINT = 'https://www.runninghub.ai/openapi/v2/resource/list';
 const BASE_MODEL = 'IL-XL';
 const PAGE_SIZE = 50;          // max
 const REQUEST_DELAY_MS = 3500; // 20 req / 60s -> 3000ms 安全余量
@@ -220,7 +220,7 @@ async function main() {
   const dataset = {
     version: 4,
     baseModelFilter: BASE_MODEL,
-    source: 'https://www.runninghub.cn/openapi/v2/resource/list',
+    source: 'https://www.runninghub.ai/openapi/v2/resource/list',
     fetchedAt: new Date().toISOString(),
     categories: [
       { id: 'all', label: '全部' },
