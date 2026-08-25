@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Trash2, Image as ImageIcon, Clock, X, RotateCcw, Loader2, Video, Heart, Download, AlertTriangle, HardDrive, Bookmark, Layers, Check, Circle, Palette, Copy } from 'lucide-react';
 import { getRecords, deleteRecord, clearAllHistory, type HistoryRecord } from '../services/historyService';
-import { loadCachedOrExtractedImages, getCachedImages } from '../services/imageCacheService';
-import { extractImagesFromZipAsDataUrls, extractImagesFromLocalZip, deleteLocalZip } from '../services/runninghub';
+import { loadCachedOrExtractedImages, getCachedImages, cacheImages } from '../services/imageCacheService';
+import { extractImagesFromZipAsDataUrls, extractImagesFromLocalZip, deleteLocalZip, fetchImageAsDataUrl } from '../services/runninghub';
 import { getFavorites, addFavorite, removeFavorite, clearFavorites, type FavoriteItem } from '../services/storage';
 import { getStorageStats, getLocalStorageStats, getUnifiedCacheStats } from '../services/storageQuota';
 import { LightboxViewer } from '../components/LightboxViewer';
@@ -125,19 +125,36 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
       // Legacy `direct:<taskId>` keys (from older app versions) only have a
       // localStorage cache entry — once evicted the images are gone. We still
       // try the cache for backward compatibility.
+      console.log(`[loadImagesForRecord] record.id=${record.id} zipUrl=${record.zipUrl}`);
       let dataUrls: string[];
       if (record.zipUrl.startsWith('packed:') || record.zipUrl.startsWith('direct:')) {
         const cached = (await getCachedImages(record.zipUrl, 10)).filter(Boolean);
+        console.log(`[loadImagesForRecord] cache hit: ${cached.length} images for ${record.zipUrl}`);
         if (cached.length > 0) {
           dataUrls = cached;
         } else if (record.zipUrl.startsWith('packed:')) {
+          console.log(`[loadImagesForRecord] trying extractImagesFromLocalZip for ${record.zipUrl}`);
           dataUrls = await extractImagesFromLocalZip(record.zipUrl);
+          console.log(`[loadImagesForRecord] extractImagesFromLocalZip returned ${dataUrls.length} images`);
           if (dataUrls.length > 0) {
             void loadCachedOrExtractedImages(record.zipUrl, async () => dataUrls);
           }
         } else {
           dataUrls = [];
         }
+      } else if (/\.(png|jpg|jpeg|webp|gif)(\?|$)/i.test(record.zipUrl)) {
+        // Direct CDN image URL (e.g. RunningHub returning png/jpg/webp for
+        // img2img workflow 2083569010550423553). Use as-is; skip the zip
+        // extraction step. The URL expires after 24h, but we cache the data
+        // URL into localStorage on first render so subsequent reloads still
+        // work after expiry.
+        console.log(`[loadImagesForRecord] direct image URL: ${record.zipUrl}`);
+        dataUrls = [record.zipUrl];
+        void fetchImageAsDataUrl(record.zipUrl).then((dataUrl) => {
+          if (dataUrl) {
+            void cacheImages(record.zipUrl, [dataUrl]);
+          }
+        });
       } else {
         dataUrls = await loadCachedOrExtractedImages(record.zipUrl, () => extractImagesFromZipAsDataUrls(record.zipUrl ?? ''));
       }

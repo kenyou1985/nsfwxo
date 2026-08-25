@@ -722,21 +722,26 @@ export async function extractImagesFromZip(zipUrl: string, retries = 2): Promise
   return promise;
 }
 
-export async function fetchImageAsDataUrl(url: string): Promise<string | null> {
+export async function fetchImageAsDataUrl(url: string, timeoutMs = 30000): Promise<string | null> {
   // data URL already contains the full content — return as-is
   if (url.startsWith('data:')) return url;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: controller.signal });
     if (!response.ok) return null;
     const blob = await response.blob();
-    return new Promise<string>((resolve, reject) => {
+    return await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onloadend = () => resolve(reader.result as string);
       reader.onerror = reject;
       reader.readAsDataURL(blob);
     });
-  } catch {
+  } catch (err) {
+    console.warn('[fetchImageAsDataUrl] failed:', url, err instanceof Error ? err.message : err);
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 

@@ -220,17 +220,22 @@ export function useTaskManager({
 
     try {
       const resultsResponse = await getTaskResults(currentApiKey, taskId);
+      console.log(`[extractFinishedTaskImages] taskId=${taskId} resultsResponse=`, JSON.stringify(resultsResponse));
       if (resultsResponse.results && resultsResponse.results.length > 0) {
+        console.log(`[extractFinishedTaskImages] results count=${resultsResponse.results.length}, types=${resultsResponse.results.map(r => r.outputType).join(',')}`);
         const zipResult = resultsResponse.results.find((r) => r.outputType === 'zip');
         if (zipResult?.url) {
+          console.log(`[extractFinishedTaskImages] found zip result: ${zipResult.url}`);
           zipUrl = zipResult.url;
         } else {
+          console.log(`[extractFinishedTaskImages] no zip result found, checking direct image URLs...`);
           const imageResults = resultsResponse.results.filter((r) =>
             r.outputType === 'png' || r.outputType === 'webp' || r.outputType === 'jpg' || r.outputType === 'jpeg' ||
             r.fileType === 'png' || r.fileType === 'webp' || r.fileType === 'jpg' || r.fileType === 'jpeg' ||
             r.url?.match(/\.(png|webp|jpg|jpeg)(\?|$)/i)
           );
           if (imageResults.length > 0) {
+            console.log(`[extractFinishedTaskImages] found ${imageResults.length} direct image URLs`);
             directImageUrls = imageResults.map((r) => r.url).filter(Boolean) as string[];
           }
         }
@@ -241,20 +246,20 @@ export function useTaskManager({
       if (resultsResponse.usage?.taskCostTime) {
         elapsed = parseInt(resultsResponse.usage.taskCostTime, 10);
       }
-    } catch {
-      // Use defaults if results fetch fails
+    } catch (err) {
+      console.error(`[extractFinishedTaskImages] getTaskResults failed:`, err);
     }
+
+    console.log(`[extractFinishedTaskImages] after processing: zipUrl=${zipUrl}, directImageUrls.length=${directImageUrls.length}`);
 
     if (zipUrl) {
       try {
-        // Only fetch data-URLs — they're the source of truth for both the
-        // cache and the task.images array. The redundant parallel
-        // extractImagesFromZip() call used to double-hit the CDN and cause
-        // "Failed to fetch" / "Corrupted zip" errors when several tasks
-        // finished at the same time.
+        console.log(`[extractFinishedTaskImages] extracting zip from: ${zipUrl}`);
         const dataUrls = await extractImagesFromZipAsDataUrls(zipUrl);
+        console.log(`[extractFinishedTaskImages] extracted ${dataUrls.length} images from zip`);
         const finalImages = dataUrls;
         await cacheImages(zipUrl, dataUrls);
+        console.log(`[extractFinishedTaskImages] cached ${dataUrls.length} images`);
         setTasks((prev) =>
           prev.map((t) =>
             t.id === task.id ? { ...t, status: 'FINISHED', images: finalImages, zipUrl, coins, elapsedSeconds: elapsed } : t
@@ -266,7 +271,7 @@ export function useTaskManager({
         return { updatedTask };
       } catch (err) {
         console.error('[extractFinishedTaskImages] Failed to extract images:', err);
-        // Last-resort fallback: serve blob URLs through the cache layer.
+        console.warn('[extractFinishedTaskImages] Falling back to extractImagesFromZip...');
         // These will be displayed as <img src="blob:..."> and are usually
         // recoverable on the next refresh once the CDN settles down.
         const blobUrls = await extractImagesFromZip(zipUrl).catch(() => []);
@@ -289,6 +294,7 @@ export function useTaskManager({
       // history page can never display them after the page is refreshed.
       // We use `packed:<taskId>` as the zipUrl so the rest of the history
       // pipeline can treat img2img exactly like a zip-returning workflow.
+      console.log(`[extractFinishedTaskImages] directImageUrls branch: ${directImageUrls.length} URLs`);
       const dataUrls: string[] = [];
       for (const url of directImageUrls) {
         if (url.startsWith('data:')) {
@@ -298,28 +304,57 @@ export function useTaskManager({
           if (dataUrl) dataUrls.push(dataUrl);
         }
       }
-      const finalImages = dataUrls;
+      console.log(`[extractFinishedTaskImages] converted ${dataUrls.length} data URLs`);
+      let finalImages = dataUrls;
 
-      // Pack the downloaded data URLs into a local zip Blob and persist it
-      // in IndexedDB under a `packed:<taskId>` key. This mirrors the zip
-      // workflow used by txt2img: history records store the key as zipUrl,
-      // and the history page extracts images from the zip on demand.
+      // If fetchImageAsDataUrl failed for every URL (CORS, network, etc.),
+      // fall back to storing the direct CDN URLs as-is. They expire after
+      // 24h but at least the task will leave the "generating" state and
+      // be visible during the current session.
+      if (finalImages.length === 0 && directImageUrls.length > 0) {
+        console.warn('[extractFinishedTaskImages] No data URLs produced; falling back to direct CDN URLs (24h expiry)');
+        finalImages = directImageUrls;
+      }
+
+      // Per the user's request: when the workflow returns png/jpg/webp URLs
+      // directly (no zip), use the first URL itself as the zipUrl so the
+      // history page can recognize it as a direct image URL and skip the
+      // zip-extraction step. We also cache the data URL into the cache
+      // layer keyed by that same URL so subsequent loads still work after
+      // the CDN expires (24h).
+      //
+      // The img2img workflow 2083569010550423553 always returns direct
+      // jpg/png URLs; using `packed:<taskId>` here forced every history
+      // load to re-download and re-pack the same blob, which is what made
+      // the history page come up empty.
       let packedKey = '';
       if (finalImages.length > 0) {
-        try {
-          packedKey = await packImagesAsZip(task.id, finalImages);
-        } catch (err) {
-          console.warn('[extractFinishedTaskImages] packImagesAsZip failed:', err);
+        const firstUrl = directImageUrls[0];
+        if (firstUrl && /\.(png|jpg|jpeg|webp|gif)(\?|$)/i.test(firstUrl)) {
+          // Direct image URL — use it as the history zipUrl.
+          packedKey = firstUrl;
+          if (dataUrls[0]) {
+            // Cache the data URL so a page reload after CDN expiry still works.
+            void cacheImages(firstUrl, [dataUrls[0]]);
+          }
         }
         if (!packedKey) {
-          // Fallback: write to localStorage cache so at least the current
-          // session can still display the images. The history record will
-          // fall back to the empty images array after refresh.
-          packedKey = `direct:${task.id}`;
-          await cacheImages(packedKey, finalImages);
+          // Multi-image case (count > 1) or no zip-able URL — keep the
+          // old "pack into IndexedDB zip" path.
+          try {
+            packedKey = await packImagesAsZip(task.id, finalImages);
+            console.log(`[extractFinishedTaskImages] packedKey=${packedKey}`);
+          } catch (err) {
+            console.warn('[extractFinishedTaskImages] packImagesAsZip failed:', err);
+          }
+          if (!packedKey) {
+            packedKey = `direct:${task.id}`;
+            await cacheImages(packedKey, finalImages);
+          }
         }
       }
       zipUrl = packedKey || null;
+      console.log(`[extractFinishedTaskImages] directImageUrls branch: zipUrl=${zipUrl}, finalImages=${finalImages.length}`);
 
       setTasks((prev) =>
         prev.map((t) =>
