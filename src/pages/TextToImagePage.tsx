@@ -200,6 +200,9 @@ export function TextToImagePage({
   const negativeTagsRef = useRef(negativeTags);
   positiveTagsRef.current = positiveTags;
   negativeTagsRef.current = negativeTags;
+  // Forward ref so handleOptimizePrompt can trigger handleGenerateFromPrompt
+  // (defined later in the file) without a TDZ violation.
+  const handleGenerateFromPromptRef = useRef<() => void>(() => {});
 
   const handleUpdateTagWeight = useCallback((tag: string, weight: WeightMode) => {
     if (weight === 'negative') {
@@ -307,6 +310,10 @@ export function TextToImagePage({
     } finally {
       setIsOptimizing(false);
     }
+    // Auto-submit image generation right after expansion completes — the
+    // "自由提示词" button now expands AND submits in a single click instead of
+    // forcing the user to click "生图" a second time.
+    handleGenerateFromPromptRef.current();
   }, [buildTagPrompt, customPrompt, isR18Enabled]);
 
   const handleGenerateFromPrompt = useCallback(async () => {
@@ -345,6 +352,8 @@ export function TextToImagePage({
       setIsGeneratingFromPrompt(false);
     }
   }, [expandedPrompt, customPrompt, params, taskManager, buildNegativePrompt, onError, onSuccess]);
+  // Keep ref in sync so handleOptimizePrompt (defined earlier) can safely call us.
+  handleGenerateFromPromptRef.current = handleGenerateFromPrompt;
 
   const buildNodeList = useCallback(() => {
     const finalPrompt = buildFinalPrompt();

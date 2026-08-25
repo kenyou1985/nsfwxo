@@ -338,16 +338,18 @@ export function PromptEditor({
             {onOptimizePrompt && (
               <button
                 onClick={onOptimizePrompt}
-                disabled={disabled || isOptimizing}
+                disabled={disabled || isOptimizing || isGeneratingFromPrompt}
                 className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-                title="AI 一键扩写"
+                title="AI 自由提示词：点击后自动扩写并提交生图"
               >
                 {isOptimizing ? (
+                  <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : isGeneratingFromPrompt ? (
                   <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
                   <Wand2 size={11} />
                 )}
-                <span>扩写</span>
+                <span>{isOptimizing ? '扩写中' : isGeneratingFromPrompt ? '提交中' : '自由提示词'}</span>
               </button>
             )}
           </div>
