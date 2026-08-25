@@ -853,7 +853,9 @@ export const LORA_PRESETS: LORAPreset[] = [
   },
 ];
 
-export const QUALITY_BOOST_PROMPT = 'masterpiece, best quality, photorealistic, 8k, hyper detailed, ultra-detailed, high resolution, soft lighting, cinematic lighting, realistic shadow, depth of field, bokeh, real skin texture, natural skin pores, soft portrait lighting, realistic eyes, delicate facial features, perfect anatomy, detailed background, clean composition, aesthetic, blur background, beautiful skin, subsurface scattering';
+// Krea2-optimized quality boost: concrete descriptors instead of generic quality tags.
+// Krea2 prefers concise, visually-grounded language over "masterpiece, best quality" spam.
+export const QUALITY_BOOST_PROMPT = 'realistic photography, natural skin texture, subtle skin pores, soft facial contour, lifelike eyes, sharp fine details, exquisite rendering, cinematic soft glow, gentle shadow, soft natural window light, shallow depth of field, 50mm prime lens, rich saturated colors, high detail';
 
 export const DEFAULT_TXT2IMG_PARAMS = {
   width: 1024,

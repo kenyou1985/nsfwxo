@@ -1,7 +1,131 @@
 import JSZip from 'jszip';
 import type { NodeInfo, RunTaskRequest, TaskResponse, UploadResponse, TaskStatus } from '../types';
+import { openDB, idbGet, idbPut, idbDelete } from './idb';
 
 const BASE_URL = 'https://www.runninghub.ai/openapi/v2';
+
+// ─── Local ZIP pack/unpack for img2img workflows that return direct image URLs ───
+// Some RunningHub workflows (notably IMAGE_TO_IMAGE = '2083569010550423553') return
+// direct image URLs (png/jpg) instead of a zip package. To keep history caching logic
+// unified with zip-based workflows (txt2img, storyboard, etc.), we pack the downloaded
+// image bytes into a zip Blob and persist it in IndexedDB. The history record stores a
+// `packed:<taskId>` key in `zipUrl`; history page reads the zip back from IndexedDB and
+// extracts images on demand, exactly like a remote-zip workflow.
+
+const LOCAL_ZIP_DB_NAME = 'nsfwxo_local_zips';
+const LOCAL_ZIP_DB_VERSION = 1;
+const LOCAL_ZIP_STORE = 'zips';
+
+interface LocalZipEntry {
+  key: string;
+  blob: Blob;
+  cachedAt: number;
+  sizeBytes: number;
+}
+
+let _localZipDb: IDBDatabase | null = null;
+
+async function getLocalZipDB(): Promise<IDBDatabase> {
+  if (_localZipDb) return _localZipDb;
+  _localZipDb = await openDB(LOCAL_ZIP_DB_NAME, LOCAL_ZIP_DB_VERSION, (db) => {
+    if (!db.objectStoreNames.contains(LOCAL_ZIP_STORE)) {
+      db.createObjectStore(LOCAL_ZIP_STORE, { keyPath: 'key' });
+    }
+  });
+  return _localZipDb;
+}
+
+/**
+ * Pack a list of image data URLs into a zip Blob and persist it in IndexedDB.
+ * Returns a `packed:<taskId>` key suitable for storing in a history record's
+ * `zipUrl` field. The actual zip Blob lives in IndexedDB so it survives page
+ * refreshes — unlike a `URL.createObjectURL` blob URL, which is invalidated
+ * when the document unloads.
+ */
+export async function packImagesAsZip(taskId: string, images: string[]): Promise<string> {
+  if (!taskId || images.length === 0) return '';
+  const db = await getLocalZipDB();
+  const zip = new JSZip();
+  for (let i = 0; i < images.length; i++) {
+    const url = images[i];
+    if (!url) continue;
+    let ext = 'png';
+    if (url.startsWith('data:')) {
+      const mt = url.slice(5, url.indexOf(';'));
+      const sub = mt.split('/')[1] || 'png';
+      ext = sub === 'jpeg' ? 'jpg' : sub;
+    }
+    if (url.startsWith('blob:')) ext = 'png';
+    const filename = `${String(i + 1).padStart(3, '0')}.${ext}`;
+    if (url.startsWith('data:')) {
+      const base64 = url.slice(url.indexOf(',') + 1);
+      zip.file(filename, base64, { base64: true });
+    } else {
+      // For http(s) URLs the caller should have already converted to data URLs.
+      // Fall back to fetching the bytes.
+      try {
+        const resp = await fetch(url);
+        const blob = await resp.blob();
+        zip.file(filename, blob);
+      } catch {
+        // Skip this file if we can't fetch it
+      }
+    }
+  }
+  const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+  const key = `packed:${taskId}`;
+  const entry: LocalZipEntry = { key, blob: zipBlob, cachedAt: Date.now(), sizeBytes: zipBlob.size };
+  await idbPut(db, LOCAL_ZIP_STORE, entry);
+  return key;
+}
+
+/**
+ * Read a previously packed zip from IndexedDB and return the contained image
+ * data URLs. Mirrors extractImagesFromZipAsDataUrls but reads from a local
+ * source instead of fetching from a remote URL.
+ */
+export async function extractImagesFromLocalZip(packedKey: string): Promise<string[]> {
+  if (!packedKey || !packedKey.startsWith('packed:')) return [];
+  try {
+    const db = await getLocalZipDB();
+    const entry = (await idbGet(db, LOCAL_ZIP_STORE, packedKey)) as LocalZipEntry | undefined;
+    if (!entry || !entry.blob) return [];
+    const zip = await JSZip.loadAsync(entry.blob);
+    const imageExtensions = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
+    const dataUrls: string[] = [];
+    const nonDirFiles = Object.entries(zip.files).filter(([, f]) => !f.dir);
+    // Sort by filename so order matches the original image order
+    nonDirFiles.sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }));
+    for (const [, file] of nonDirFiles) {
+      const filename = file.name.toLowerCase();
+      if (!imageExtensions.some((e) => filename.endsWith(e))) continue;
+      const blob = await file.async('blob');
+      if (blob.size === 0) continue;
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+      dataUrls.push(dataUrl);
+    }
+    return dataUrls;
+  } catch (err) {
+    console.warn('[extractImagesFromLocalZip] Failed:', err);
+    return [];
+  }
+}
+
+/** Delete a packed zip entry. Used when a history record is removed. */
+export async function deleteLocalZip(packedKey: string): Promise<void> {
+  if (!packedKey || !packedKey.startsWith('packed:')) return;
+  try {
+    const db = await getLocalZipDB();
+    await idbDelete(db, LOCAL_ZIP_STORE, packedKey);
+  } catch {
+    /* ignore */
+  }
+}
 
 export const WORKFLOW = {
   TEXT_TO_IMAGE: '2016821668009742337',

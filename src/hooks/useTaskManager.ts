@@ -5,6 +5,8 @@ import {
   getTaskResults,
   extractImagesFromZip,
   extractImagesFromZipAsDataUrls,
+  packImagesAsZip,
+  extractImagesFromLocalZip,
   WORKFLOW,
 } from '../services/runninghub';
 import { getDefaultWorkflow } from '../services/modelDefaultsService';
@@ -283,8 +285,10 @@ export function useTaskManager({
       // Some workflows (notably the img2img workflow 2083569010550423553)
       // return direct image URLs (png/jpg) instead of a zip. Those URLs
       // expire on the RunningHub CDN, so we must convert them to data URLs
-      // and cache them — otherwise the history page can never display
-      // them after the page is refreshed.
+      // and pack them into a local zip stored in IndexedDB — otherwise the
+      // history page can never display them after the page is refreshed.
+      // We use `packed:<taskId>` as the zipUrl so the rest of the history
+      // pipeline can treat img2img exactly like a zip-returning workflow.
       const dataUrls: string[] = [];
       for (const url of directImageUrls) {
         if (url.startsWith('data:')) {
@@ -296,14 +300,26 @@ export function useTaskManager({
       }
       const finalImages = dataUrls;
 
-      // Synthetic cache key so HistoryPage can look up the cached images.
-      // Real zip URLs are reused on subsequent loads; this synthetic key
-      // stands in for "cache by task id" since there's no zip URL.
-      const syntheticKey = `direct:${task.id}`;
+      // Pack the downloaded data URLs into a local zip Blob and persist it
+      // in IndexedDB under a `packed:<taskId>` key. This mirrors the zip
+      // workflow used by txt2img: history records store the key as zipUrl,
+      // and the history page extracts images from the zip on demand.
+      let packedKey = '';
       if (finalImages.length > 0) {
-        await cacheImages(syntheticKey, finalImages);
+        try {
+          packedKey = await packImagesAsZip(task.id, finalImages);
+        } catch (err) {
+          console.warn('[extractFinishedTaskImages] packImagesAsZip failed:', err);
+        }
+        if (!packedKey) {
+          // Fallback: write to localStorage cache so at least the current
+          // session can still display the images. The history record will
+          // fall back to the empty images array after refresh.
+          packedKey = `direct:${task.id}`;
+          await cacheImages(packedKey, finalImages);
+        }
       }
-      zipUrl = syntheticKey;
+      zipUrl = packedKey || null;
 
       setTasks((prev) =>
         prev.map((t) =>
@@ -581,9 +597,9 @@ export function useTaskManager({
           let initialDirectImages: string[] = [];
           if (!initialZipUrl && data.results && data.results.length > 0) {
             const pngResults = data.results.filter((r) =>
-              r.outputType === 'png' || r.outputType === 'webp' ||
-              r.fileType === 'png' || r.fileType === 'webp' ||
-              r.url?.match(/\.(png|webp)(\?|$)/i)
+              r.outputType === 'png' || r.outputType === 'webp' || r.outputType === 'jpg' || r.outputType === 'jpeg' ||
+              r.fileType === 'png' || r.fileType === 'webp' || r.fileType === 'jpg' || r.fileType === 'jpeg' ||
+              r.url?.match(/\.(png|webp|jpg|jpeg)(\?|$)/i)
             );
             if (pngResults.length > 0) {
               initialDirectImages = pngResults.map((r) => r.url).filter(Boolean) as string[];
@@ -774,9 +790,9 @@ export function useTaskManager({
             let initialDirectImages: string[] = [];
             if (!initialZipUrl && data.results && data.results.length > 0) {
               const pngResults = data.results.filter((r) =>
-                r.outputType === 'png' || r.outputType === 'webp' ||
-                r.fileType === 'png' || r.fileType === 'webp' ||
-                r.url?.match(/\.(png|webp)(\?|$)/i)
+                r.outputType === 'png' || r.outputType === 'webp' || r.outputType === 'jpg' || r.outputType === 'jpeg' ||
+                r.fileType === 'png' || r.fileType === 'webp' || r.fileType === 'jpg' || r.fileType === 'jpeg' ||
+                r.url?.match(/\.(png|webp|jpg|jpeg)(\?|$)/i)
               );
               if (pngResults.length > 0) {
                 initialDirectImages = pngResults.map((r) => r.url).filter(Boolean) as string[];

@@ -22,7 +22,9 @@ export interface Txt2ImgNodeOptions {
   threeLoraRandomPrompt?: boolean;
 }
 
-const NEGATIVE_PROMPT_DEFAULT = 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, bad feet';
+// Krea2-optimized negative prompt: align with Krea2 handbook — focus on concrete
+// artifact removals rather than generic SD/Flux noise tags.
+const NEGATIVE_PROMPT_DEFAULT = 'deformed, disfigured face, misplaced facial features, extra fingers, missing fingers, distorted limbs, bad hands, bad anatomy, blurry, watermark, text, signature, ugly, over-smoothed skin, plastic silicone face, pale washed-out skin, heavy filter, cartoon, anime, illustration, broken hands, low resolution, heavy noise';
 
 interface DimNode {
   nodeId: string;

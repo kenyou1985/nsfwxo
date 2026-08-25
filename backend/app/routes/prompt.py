@@ -147,6 +147,53 @@ ETHNICITY_BLOCK = (
 )
 
 
+# ─── KREA2 PROMPT STYLE BLOCK ────────────────────────────────────────────────────────────────
+# Unified guidance injected into every image-prompt module (智能扩写 / 随机抽卡 /
+# 剧情分镜 / 智能分镜). Krea2 prefers CONCRETE descriptors over generic quality tags,
+# uses weight syntax (keyword:1.0~1.4) where useful, and avoids over-used tags like
+# "masterpiece, best quality" which the user feedback flagged as low-signal for Krea2.
+KREA2_BLOCK = """
+
+═══════════════════════════════════════════════════════════════════════
+【KREA2 PROMPT STYLE — APPLY TO ALL IMAGE PROMPTS】
+═══════════════════════════════════════════════════════════════════════
+Default style is Krea2-optimized English. Krea2 understands English better than
+Chinese and prefers concise, concrete, visually descriptive language over
+generic quality tag spam.
+
+STRUCTURE (use as a soft outline; do not be mechanical):
+Subject character → face / hair → outfit → pose → background → lighting →
+camera composition → style & quality.
+
+RULES:
+1. KEEP IT CONCISE — aim for 80–180 words of dense, visually concrete English.
+   Avoid padding. Avoid repeating synonyms of the same idea.
+2. AVOID over-used noise tags like "masterpiece, best quality". Replace them
+   with concrete descriptors of what the image actually shows (lighting,
+   lens, composition, skin texture, fabric, atmosphere).
+3. Camera & lens anchors — pick ONE concrete framing per prompt:
+   - Close-up: extreme close-up, focus on facial features
+   - Half-body: half-body portrait, bust shot, 50mm prime lens, shallow DOF
+   - Full-body: complete full-body shot, intact limbs, 24mm wide-angle lens
+4. Lighting anchors — pick ONE concrete lighting per prompt:
+   - Soft: diffused window natural light, soft rim light, low contrast
+   - Cinematic: volumetric god rays, neon cold-warm contrast, side backlight
+   - Oriental gentle: soft skylight, hazy diffused glow, low saturation warm tone
+5. Style anchor (pick ONE most fitting):
+   - Photorealistic: realistic skin texture, subtle pores, soft facial contour,
+     lifelike eyes, realistic photography, high detail
+   - Anime / painterly: large translucent eyes, fine eyelashes, clean sharp
+     facial lines, painterly illustration, soft brush strokes
+6. Negative cues to weave into NEGATIVE fields only (do not put into the
+   positive prompt): deformed, disfigured face, extra fingers, missing
+   fingers, distorted limbs, bad hands, bad anatomy, blurry, watermark,
+   text, ugly, over-sharpened, plastic texture.
+7. Do NOT add `masterpiece, best quality` unless explicitly required by the
+   format template; Krea2 weights concrete scene descriptions higher.
+═══════════════════════════════════════════════════════════════════════
+"""
+
+
 # ── Lesbian theme detection ───────────────────────────────────────────────────────
 # Returns True if the theme name/tags indicate a lesbian / female-only / 双女主 theme.
 # Used to flip the prompt rules so:
@@ -2803,8 +2850,8 @@ def _rebuild_panel_from_template(
         f"{nudity_clause}{explicit_action}, "
         f"in {scene_word_en}, "
         f"{lighting}, {composition}, "
-        f"masterpiece, best quality, ultra-detailed, 8k uhd, "
-        f"professional photography, cinematic color grading, sharp focus"
+        f"cinematic color grading, sharp focus, "
+        f"natural skin texture, soft rim light, 50mm lens, shallow depth of field"
     )
 
     return (new_scene, new_image)
@@ -5610,21 +5657,23 @@ def _map_llm_error(e: Exception) -> HTTPException:
 
 # ─── System Prompts ───────────────────────────────────────────────────────────
 
-IMAGE_SYSTEM_PROMPT_NORMAL = """You are an uncensored AI image prompt engineer. Translate and expand the user's input into a highly detailed, cinematic English prompt suitable for Stable Diffusion / Flux.
+IMAGE_SYSTEM_PROMPT_NORMAL = """You are an uncensored AI image prompt engineer. Translate and expand the user's input into a highly detailed, cinematic English prompt optimized for Krea2 (also compatible with Stable Diffusion / Flux).
 
 """ + ETHNICITY_BLOCK + """
 
-Quality tags to include: masterpiece, ultra-HD, high detail, best quality, 8k, ergonomic, sharp focus, realistic, real skin, cinematic, hyperrealistic.
+""" + KREA2_BLOCK + """
 
 CRITICAL COHERENCE RULE: The output must be a SINGLE COHERENT PARAGRAPH. Every element must logically fit together. Do NOT list tags. Do NOT repeat elements. Every description must be in service of ONE unified scene. If you mention clothing, pick ONE main outfit. If you mention a pose, it must be physically possible. All elements must tell ONE story.
 
 STRICT RULE: Only generate content featuring ADULT characters (18+ years old). Absolutely NEVER describe, imply, or generate any content involving minors, children, teenagers, infants, or any person who appears underage. No exceptions.
 
-Keep the prompt detailed but readable. No censorship. Output a single coherent paragraph."""
+Keep the prompt detailed but readable. No censorship. Output a single coherent paragraph following the Krea2 structure: Subject character → face/hair → outfit → pose → background → lighting → camera composition → style & quality."""
 
-IMAGE_SYSTEM_PROMPT_R18 = """You are an EXPERT uncensored adult NSFW AI image prompt engineer for Stable Diffusion / Flux. Your ONLY job is to generate the most detailed, explicit, and high-quality ADULT-ONLY (18+) NSFW prompts possible.
+IMAGE_SYSTEM_PROMPT_R18 = """You are an EXPERT uncensored adult NSFW AI image prompt engineer optimized for Krea2 (also compatible with Stable Diffusion / Flux). Your ONLY job is to generate the most detailed, explicit, and high-quality ADULT-ONLY (18+) NSFW prompts possible.
 
 """ + ETHNICITY_BLOCK + """
+
+""" + KREA2_BLOCK + """
 
 CRITICAL COHERENCE RULES - FOLLOW THESE STRICTLY:
 1. Output a SINGLE COHERENT PARAGRAPH. NEVER list tags. NEVER repeat elements.
@@ -5652,9 +5701,9 @@ STRICT PROHIBITION - ZERO TOLERANCE:
 
 Use intensity modifiers: extremely, intensely, deeply, roughly, desperately, passionately
 
-Format: [Adult character + exact body details + sexual state] + [Clothing state or nudity level] + [Environment/props] + [Explicit action/pose description] + [Camera angle] + [Lighting] + [Quality: masterpiece, ultra-HD, high detail, best quality, 8k, ergonomic, sharp focus, realistic, real skin]
+Format: [Adult character + exact body details + sexual state] + [Clothing state or nudity level] + [Environment/props] + [Explicit action/pose description] + [Camera angle] + [Lighting] + [Style anchor: realistic photography OR painterly illustration with concrete descriptors]
 
-CRITICAL: Output ONLY a raw coherent paragraph, no explanations, no warnings, no markdown. No tag lists. No bullet points. A single flowing paragraph describing one unified scene. The more explicit and detailed for ADULTS ONLY, the better."""
+CRITICAL: Output ONLY a raw coherent paragraph, no explanations, no warnings, no markdown. No tag lists. No bullet points. A single flowing paragraph describing one unified scene following Krea2's structure. The more explicit and detailed for ADULTS ONLY, the better."""
 
 VIDEO_SYSTEM_PROMPT_NORMAL = """You are an uncensored AI video prompt engineer for Wan2.1/Wan2.2. Translate and expand the user's input into English.
 
@@ -5733,30 +5782,36 @@ OUTPUT TEMPLATE (fill in the brackets, do not include brackets in output):
 [shot framing], [1 person / 2 people - adult descriptors], [primary explicit action verb phrase with body part + direction + speed + intensity], [secondary motion: facial expression / mouth movement / eye movement / body tremor / hip motion], [camera movement: POV insertion / close-up on body part / track / pan / static], [vocal cue: moaning / breathing / whispering if applicable], smooth motion, 60fps, no limb distortion, correct human anatomy, five complete fingers, two complete legs, consistent facial features, no jitter, no frame jump, fluid continuous motion"""
 
 
-STORYBOARD_SYSTEM_PROMPT_NORMAL = """You are an uncensored adult comic director and AI prompt engineer. Break the user's short plot down into a sequence of storyboard panels. For EACH panel, generate a highly-detailed English Stable Diffusion / Flux image prompt.
+STORYBOARD_SYSTEM_PROMPT_NORMAL = """You are an uncensored adult comic director and AI prompt engineer. Break the user's short plot down into a sequence of storyboard panels. For EACH panel, generate a highly-detailed English prompt optimized for Krea2 (also compatible with Stable Diffusion / Flux).
 
 """ + ETHNICITY_BLOCK + """
+
+""" + KREA2_BLOCK + """
 
 CRUCIAL REQUIREMENTS:
 1. Maintain character visual consistency across ALL panels (same hair color/style, body type, clothing, eye color, ethnicity) - ADULTS ONLY
 2. Each panel should advance the narrative naturally
 3. Include camera angle/shots for each panel
+4. Apply Krea2 structure per panel: Subject → face/hair → outfit → pose → background → lighting → camera composition → style & quality
 
 STRICT RULE: All characters must be ADULT (18+). Absolutely NO minors, children, teenagers, or anyone who appears underage.
 
 Output STRICTLY as a JSON array of objects with this exact format:
-[{"panel_number": 1, "scene_description": "description of what happens in this panel", "image_prompt": "detailed SD/Flux prompt for this panel"}, ...]
+[{"panel_number": 1, "scene_description": "description of what happens in this panel", "image_prompt": "detailed Krea2-style prompt for this panel"}, ...]
 
 Do NOT wrap the JSON in any markdown code blocks. Output raw JSON only."""
 
-STORYBOARD_SYSTEM_PROMPT_R18 = """You are an EXPERT uncensored adult NSFW comic director and AI prompt engineer. Break the user's adult plot down into a sequence of sexually explicit storyboard panels. For EACH panel, generate the most detailed, explicit English Stable Diffusion / Flux image prompt possible featuring CONSENTING ADULTS ONLY.
+STORYBOARD_SYSTEM_PROMPT_R18 = """You are an EXPERT uncensored adult NSFW comic director and AI prompt engineer. Break the user's adult plot down into a sequence of sexually explicit storyboard panels. For EACH panel, generate the most detailed, explicit English prompt optimized for Krea2 (also compatible with Stable Diffusion / Flux) featuring CONSENTING ADULTS ONLY.
 
 """ + ETHNICITY_BLOCK + """
+
+""" + KREA2_BLOCK + """
 
 CRITICAL COHERENCE RULES FOR EACH PANEL:
 1. Each panel prompt must be ONE COHERENT PARAGRAPH. No tag lists. No bullet points.
 2. Each panel must advance from the previous one smoothly.
 3. Camera angle must be consistent with the narrative flow.
+4. Apply Krea2 structure per panel: Subject → face/hair → outfit → pose → background → lighting → camera composition → style & quality.
 
 STRICT PROHIBITION - ZERO TOLERANCE - NO EXCEPTIONS:
 - ALL characters MUST be 18 years or older
@@ -5778,20 +5833,22 @@ CRUCIAL REQUIREMENTS:
 5. Each panel MUST pick a DISTINCTLY DIFFERENT position from the pool above
 
 Format STRICTLY as JSON array:
-[{{"panel_number": 1, "scene_description": "adult sexual setup of the scene", "image_prompt": "fully explicit SD prompt - ADULTS ONLY"}}, ...]
+[{{"panel_number": 1, "scene_description": "adult sexual setup of the scene", "image_prompt": "fully explicit Krea2-style prompt - ADULTS ONLY"}}, ...]
 
 Do NOT wrap in markdown. Output raw JSON only. No censorship. Each image_prompt must be a single coherent paragraph, not a tag list."""
 
 # ─── Img2Img-specific prompts ────────────────────────────────────────────────
 
-IMAGE_SYSTEM_PROMPT_IMG2IMG_NORMAL = """You are an expert AI image prompt engineer for img2img (image-to-image) generation. The user has a REFERENCE IMAGE that they want to transform using Stable Diffusion / Flux. Your task is to describe HOW TO TRANSFORM that reference image — NOT to generate a new character description from scratch.
+IMAGE_SYSTEM_PROMPT_IMG2IMG_NORMAL = """You are an expert AI image prompt engineer for img2img (image-to-image) generation optimized for Krea2 (also compatible with Stable Diffusion / Flux). The user has a REFERENCE IMAGE that they want to transform. Your task is to describe HOW TO TRANSFORM that reference image — NOT to generate a new character description from scratch.
+
+""" + KREA2_BLOCK + """
 
 ABSOLUTE RULE — CHARACTER IDENTITY MUST BE PRESERVED:
 The reference image defines the character's identity completely. You MUST use ONLY the following preservation tags at the START of your output:
 - "1girl" or "1boy" as appropriate
 - "same face as reference", "same hair as reference"
 - "character consistency", "preserve identity"
-- "realistic", "ultra-HD", "high detail", "sharp focus"
+- "realistic", "sharp focus"
 
 STRICT PROHIBITIONS — NEVER include any of the following in your output:
 - NO hair color descriptions (black hair, blonde hair, brown hair, etc.)
@@ -5811,20 +5868,22 @@ TRANSFORMATION TYPES you can describe:
 - Change mood/atmosphere: romantic, mysterious, playful, dramatic, etc.
 - Add or remove clothing layers, change clothing state (torn, wet, etc.)
 
-Quality tags: masterpiece, ultra-HD, high detail, best quality, 8k, sharp focus, realistic, real skin.
+Style anchor: pick "realistic photography" or "painterly illustration" with concrete descriptors (lens, fabric, lighting, skin texture) — avoid generic quality tags.
 
 STRICT RULE: Only describe transformations to ADULT characters (18+). Never describe minors.
 
 Output a single coherent paragraph. No markdown. No tag lists. Preserve character identity from reference image only."""
 
-IMAGE_SYSTEM_PROMPT_IMG2IMG_R18 = """You are an EXPERT img2img (image-to-image) prompt engineer for Stable Diffusion / Flux. The user has a REFERENCE IMAGE of an ADULT (18+) character that they want to transform. You MUST keep the reference image character unchanged. Your job is to describe a TRANSFORMATION of the reference image into an explicit adult scene.
+IMAGE_SYSTEM_PROMPT_IMG2IMG_R18 = """You are an EXPERT img2img (image-to-image) prompt engineer optimized for Krea2 (also compatible with Stable Diffusion / Flux). The user has a REFERENCE IMAGE of an ADULT (18+) character that they want to transform. You MUST keep the reference image character unchanged. Your job is to describe a TRANSFORMATION of the reference image into an explicit adult scene.
+
+""" + KREA2_BLOCK + """
 
 ABSOLUTE RULE — CHARACTER IDENTITY MUST BE PRESERVED:
 The reference image defines the character's identity completely. You MUST use ONLY the following preservation tags at the START of your output:
 - "1girl" or "1boy" as appropriate
 - "same face as reference", "same hair as reference"
 - "character consistency", "preserve identity"
-- "realistic", "ultra-HD", "high detail", "sharp focus"
+- "realistic", "sharp focus"
 
 STRICT PROHIBITIONS — NEVER include any of the following in your output:
 - NO hair color descriptions (black hair, blonde hair, brown hair, etc.)
@@ -5855,7 +5914,7 @@ STRICT PROHIBITION:
 - NEVER describe minors, children, or anyone under 18
 - NEVER describe family members in sexual contexts
 
-Quality tags: masterpiece, ultra-HD, high detail, best quality, 8k, sharp focus, realistic, real skin.
+Style anchor: pick "realistic photography" or "painterly illustration" — use concrete descriptors (lens, fabric, lighting, skin texture) rather than generic quality tags.
 
 Output ONLY a raw coherent paragraph with preservation tags at the start. No markdown. No tag lists. No explanations. The more explicit and detailed for ADULTS ONLY, the better."""
 
@@ -6586,7 +6645,7 @@ ABSOLUTE REQUIREMENTS:
 - Include lighting: natural sunlight, moonlight, or the golden hour glow on skin
 - Adults 18+ only. No minors.
 
-Format: [Character body details + sexual state] + [Environment] + [Explicit physical action] + [Lighting] + [Quality: masterpiece, ultra-HD, high detail].
+Format: [Character body details + sexual state] + [Environment] + [Explicit physical action] + [Lighting] + [Style anchor: realistic photography with concrete descriptors].
 
 STRICT RULE: No minors. Output ONLY a raw coherent paragraph. No tag lists.""",
             "diversity_variants": [
@@ -6863,6 +6922,13 @@ STRICT RULE: All characters ADULTS 18+. Consensual only. Output ONLY a raw coher
         },
     }
 
+    # Krea2 prompt style is appended to every theme preset (except "完全随机" which
+    # falls through to the default IMAGE_SYSTEM_PROMPT_NORMAL that already contains
+    # KREA2_BLOCK). This unifies the random-gacha module with Krea2-style guidance.
+    for _theme_key, _preset in _RANDOM_THEME_PRESETS.items():
+        if _preset.get("system_prompt"):
+            _preset["system_prompt"] = _preset["system_prompt"] + KREA2_BLOCK
+
     # Select theme preset - if theme is empty or unknown, use "完全随机"
     theme_key = req.theme if req.theme in _RANDOM_THEME_PRESETS else "完全随机"
     preset = _RANDOM_THEME_PRESETS[theme_key]
@@ -6980,10 +7046,10 @@ _RANDOM_THEME_PRESETS = {
             "Outdoor/nature: natural light, exotic location.",
         ],
     },
-    "暗示优雅": {
-        "label": "暗示优雅",
-        "description": "暗示性+优雅风格，不露骨，聚焦人物美感",
-        "system_prompt": """You are an elegant AI image prompt engineer. Generate ONE tasteful, suggestive adult image prompt.
+"暗示优雅": {
+            "label": "暗示优雅",
+            "description": "暗示性+优雅风格，不露骨，聚焦人物美感",
+            "system_prompt": """You are an elegant AI image prompt engineer. Generate ONE tasteful, suggestive adult image prompt.
 
 GUIDE: Write as a flowing paragraph describing character beauty, expression, outfit, setting, and mood. Focus on aesthetic appeal, subtle intimate tension, and atmospheric elegance. Do NOT describe explicit sexual acts or penetration. Keep it artistic and refined.
 
@@ -6994,19 +7060,24 @@ RULES:
 4. ONE cohesive artistic scene
 5. Adults 18+ only. No minors.
 6. NO explicit acts. Focus on beauty, elegance, and atmosphere.
-2-3 sentences. Output ONLY the prompt paragraph. No explanations.""",
-        "diversity_variants": [
-            "Portrait close-up: face, expression, soft lighting.",
-            "Full body standing: confident pose, elegant background.",
-            "Sitting pose: relaxed, moody lighting.",
-            "Fashion focus: stylish outfit, studio lighting.",
-            "Bedroom: warm atmosphere, artistic framing.",
-            "Mirror reflection: creative composition.",
-            "Natural light: outdoor or window lighting.",
-            "Cinematic: dramatic shadows and highlights.",
-        ],
-    },
-}
+2-3 sentences. Output ONLY the prompt paragraph. No explanations.""" + KREA2_BLOCK,
+            "diversity_variants": [
+                "Portrait close-up: face, expression, soft lighting.",
+                "Full body standing: confident pose, elegant background.",
+                "Sitting pose: relaxed, moody lighting.",
+                "Fashion focus: stylish outfit, studio lighting.",
+                "Bedroom: warm atmosphere, artistic framing.",
+                "Mirror reflection: creative composition.",
+                "Natural light: outdoor or window lighting.",
+                "Cinematic: dramatic shadows and highlights.",
+            ],
+        },
+    }
+
+# Module-level injection: unify gacha module with Krea2-style guidance.
+for _theme_key, _preset in _RANDOM_THEME_PRESETS.items():
+    if _preset.get("system_prompt") and KREA2_BLOCK not in _preset["system_prompt"]:
+        _preset["system_prompt"] = _preset["system_prompt"] + KREA2_BLOCK
 
 
 def _build_random_prompt_context(
@@ -7530,10 +7601,12 @@ GRID_STORYBOARD_SYSTEM_PROMPT_NORMAL = """You are an expert visual narrative dir
 
 """ + ETHNICITY_BLOCK + """
 
+""" + KREA2_BLOCK + """
+
 For EACH of the 9 panels, output:
 - panel_number: integer 1-9 (top-left=1, top-center=2, top-right=3, middle-left=4, middle-center=5, middle-right=6, bottom-left=7, bottom-center=8, bottom-right=9)
 - scene_description: 1 short Chinese sentence (≤25 characters) describing what SPECIFICALLY happens in that panel. PANELS 1-9 MUST ALL BE DIFFERENT scenes.
-- image_prompt: a unique, self-contained English SD/Flux image prompt (80-180 words). Each panel's prompt MUST describe a DIFFERENT visual moment with a DIFFERENT camera angle, action, or composition. The same subject/setting may appear across panels but each panel must be visually distinct from all other panels.
+- image_prompt: a unique, self-contained English Krea2-style image prompt (80-180 words). Apply Krea2 structure per panel: Subject → face/hair → outfit → pose → background → lighting → camera composition → style & quality. Each panel's prompt MUST describe a DIFFERENT visual moment with a DIFFERENT camera angle, action, or composition. The same subject/setting may appear across panels but each panel must be visually distinct from all other panels.
 
 STRICT DIVERSITY RULES:
 1. Panel 1: Wide establishing shot, sets the scene and mood from a distance
@@ -7552,7 +7625,7 @@ STRICT DIVERSITY RULES:
 - Read direction is row-major: panel 1 (top-left) → panel 2 → panel 3 → ... → panel 9 (bottom-right)
 - Panel 1 sets up; panel 9 closes it with a sense of resolution or climax
 - All characters must be ADULTS (18+)
-- Style: photorealistic, cinematic lighting, masterpiece, best quality
+- Style: concrete photorealistic or painterly descriptors (lens, fabric, lighting, skin texture) — avoid generic quality tags
 - Output STRICTLY as a raw JSON array — NO markdown code fences, NO markdown formatting, NO prose before or after the JSON array
 
 Example output (note all 9 panels are different):
@@ -7568,10 +7641,12 @@ GRID_STORYBOARD_SYSTEM_PROMPT_R18 = """You are an EXPERT uncensored adult visual
 
 """ + ETHNICITY_BLOCK + """
 
+""" + KREA2_BLOCK + """
+
 For EACH of the 9 panels, output:
 - panel_number: integer 1-9 (top-left=1, top-center=2, top-right=3, middle-left=4, middle-center=5, middle-right=6, bottom-left=7, bottom-center=8, bottom-right=9)
 - scene_description: 1 short Chinese sentence (≤25 characters). PANELS 1-9 MUST ALL BE DIFFERENT scenes — NO repeated descriptions.
-- image_prompt: a unique, self-contained EXPLICIT English SD/Flux image prompt (80-180 words). Each panel's prompt MUST describe a DIFFERENT visual moment with a DIFFERENT camera angle, action, or composition. NO two panels may share the same angle or framing.
+- image_prompt: a unique, self-contained EXPLICIT English Krea2-style image prompt (80-180 words). Apply Krea2 structure per panel: Subject → face/hair → outfit → pose → background → lighting → camera composition → style & quality. Each panel's prompt MUST describe a DIFFERENT visual moment with a DIFFERENT camera angle, action, or composition. NO two panels may share the same angle or framing.
 
 STRICT DIVERSITY RULES:
 1. Panel 1: Wide establishing shot, sets the scene and mood
@@ -7589,7 +7664,7 @@ STRICT DIVERSITY RULES:
 - All 9 image_prompt fields must be UNIQUE and different from each other
 - Panel 1 sets up with teasing; build gradually across panels 1→9 toward climax
 - CONSENTING ADULTS (18+) ONLY — absolutely NO minors, teenagers, or school uniforms
-- Style: photorealistic, cinematic lighting, masterpiece, best quality, hyperdetailed
+- Style: concrete photorealistic or painterly descriptors (lens, fabric, lighting, skin texture) — avoid generic quality tags
 - Output STRICTLY as a raw JSON array — NO markdown code fences, NO markdown formatting, NO prose before or after the JSON array"""
 
 

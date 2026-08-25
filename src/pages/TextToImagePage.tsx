@@ -18,7 +18,7 @@ import { expandPrompt } from '../services/promptApi';
 import { PosePresetSelector } from '../components/PosePresetSelector';
 import { addFavorite, removeFavorite, getFavorites } from '../services/storage';
 import { logger } from '../utils/clientLogger';
-import { getLoraDefault, getCheckpointDefault, getDefaultWorkflow, setDefaultWorkflow } from '../services/modelDefaultsService';
+import { getLoraDefault, getCheckpointDefault, getUnetDefault, getDefaultWorkflow, setDefaultWorkflow } from '../services/modelDefaultsService';
 
 interface SelectedTag {
   tag: string;
@@ -50,6 +50,7 @@ export function TextToImagePage({
     const l3 = getLoraDefault('lora3');
     const wf = getDefaultWorkflow();
     const ckpt = getCheckpointDefault(wf);
+    const unetDefault = getUnetDefault();
     const isKREA2 = wf === WORKFLOW.KREA2;
     return {
       ...DEFAULT_TXT2IMG_PARAMS,
@@ -66,7 +67,7 @@ export function TextToImagePage({
       lora3Name: l3?.name ?? (isKREA2 ? KREA2_TXT2IMG_PARAMS.lora3Name : DEFAULT_TXT2IMG_PARAMS.lora3Name),
       lora3Weight: l3?.weight ?? (isKREA2 ? KREA2_TXT2IMG_PARAMS.lora3Weight : DEFAULT_TXT2IMG_PARAMS.lora3Weight),
       checkpoint: ckpt?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
-      unet: isKREA2 ? (KREA2_TXT2IMG_PARAMS.unet ?? '') : '',
+      unet: isKREA2 ? (unetDefault?.name ?? KREA2_TXT2IMG_PARAMS.unet ?? '') : '',
     };
   });
 

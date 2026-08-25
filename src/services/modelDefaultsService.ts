@@ -22,6 +22,8 @@ export interface ModelDefaults {
   lora3?: ModelDefaultEntry;
   /** Checkpoint 默认（按工作流分别存） */
   checkpoints: Partial<Record<string, ModelDefaultEntry>>;
+  /** UNet 默认（仅 KREA2 工作流） */
+  unet?: ModelDefaultEntry;
 }
 
 const EMPTY_DEFAULTS: ModelDefaults = { checkpoints: {} };
@@ -38,6 +40,7 @@ function readAll(): ModelDefaults {
       lora2: sanitizeEntry(parsed.lora2),
       lora3: sanitizeEntry(parsed.lora3),
       checkpoints: parsed.checkpoints && typeof parsed.checkpoints === 'object' ? parsed.checkpoints : {},
+      unet: sanitizeEntry(parsed.unet),
     };
   } catch {
     return { checkpoints: {} };
@@ -79,7 +82,7 @@ export function getModelDefaults(): ModelDefaults {
 }
 
 export function getDefaultWorkflow(): string {
-  return readAll().defaultWorkflow ?? WORKFLOW.THREE_LORA;
+  return readAll().defaultWorkflow ?? WORKFLOW.KREA2;
 }
 
 export function setDefaultWorkflow(workflowId: string): void {
@@ -129,6 +132,27 @@ export function isLoraDefault(slot: 'lora1' | 'lora2' | 'lora3', name: string | 
 export function isCheckpointDefault(workflowId: string | undefined, name: string | undefined | null): boolean {
   if (!name) return false;
   return readAll().checkpoints[workflowId || getDefaultWorkflow()]?.name === name;
+}
+
+export function getUnetDefault(): ModelDefaultEntry | undefined {
+  return readAll().unet;
+}
+
+export function setUnetDefault(entry: ModelDefaultEntry | null): void {
+  const all = readAll();
+  if (entry === null) {
+    delete all.unet;
+  } else {
+    all.unet = entry;
+  }
+  writeAll(all);
+  notify();
+}
+
+export function isUnetDefault(name: string | undefined | null): boolean {
+  if (!name) return false;
+  const cur = readAll().unet;
+  return !!cur && cur.name === name;
 }
 
 export function clearAllModelDefaults(): void {

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Trash2, Image as ImageIcon, Clock, X, RotateCcw, Loader2, Video, Heart, Download, AlertTriangle, HardDrive, Bookmark, Layers, Check, Circle, Palette, Copy } from 'lucide-react';
 import { getRecords, deleteRecord, clearAllHistory, type HistoryRecord } from '../services/historyService';
 import { loadCachedOrExtractedImages, getCachedImages } from '../services/imageCacheService';
-import { extractImagesFromZipAsDataUrls } from '../services/runninghub';
+import { extractImagesFromZipAsDataUrls, extractImagesFromLocalZip, deleteLocalZip } from '../services/runninghub';
 import { getFavorites, addFavorite, removeFavorite, clearFavorites, type FavoriteItem } from '../services/storage';
 import { getStorageStats, getLocalStorageStats, getUnifiedCacheStats } from '../services/storageQuota';
 import { LightboxViewer } from '../components/LightboxViewer';
@@ -117,14 +117,27 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
     setLoadedImages((prev) => ({ ...prev, [record.id]: [] }));
 
     try {
-      // Synthetic `direct:` keys are produced by useTaskManager for tasks
-      // that returned direct image URLs (no zip). Those entries have no
-      // upstream URL to fall back on, so skip zip extraction entirely —
-      // just read the cache and bail if it's empty.
+      // `packed:<taskId>` keys are produced by useTaskManager for img2img tasks
+      // whose workflow returns direct image URLs instead of a zip. The images
+      // are packed into a local zip Blob stored in IndexedDB, so we read from
+      // there. Falls back to the generic cache if the local zip is missing.
+      //
+      // Legacy `direct:<taskId>` keys (from older app versions) only have a
+      // localStorage cache entry — once evicted the images are gone. We still
+      // try the cache for backward compatibility.
       let dataUrls: string[];
-      if (record.zipUrl.startsWith('direct:')) {
-        const cached = await getCachedImages(record.zipUrl, 10);
-        dataUrls = cached.filter(Boolean);
+      if (record.zipUrl.startsWith('packed:') || record.zipUrl.startsWith('direct:')) {
+        const cached = (await getCachedImages(record.zipUrl, 10)).filter(Boolean);
+        if (cached.length > 0) {
+          dataUrls = cached;
+        } else if (record.zipUrl.startsWith('packed:')) {
+          dataUrls = await extractImagesFromLocalZip(record.zipUrl);
+          if (dataUrls.length > 0) {
+            void loadCachedOrExtractedImages(record.zipUrl, async () => dataUrls);
+          }
+        } else {
+          dataUrls = [];
+        }
       } else {
         dataUrls = await loadCachedOrExtractedImages(record.zipUrl, () => extractImagesFromZipAsDataUrls(record.zipUrl ?? ''));
       }
@@ -199,9 +212,13 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
   }, []);
 
   const handleDelete = useCallback((id: string) => {
+    const rec = records.find((r) => r.id === id);
     deleteRecord(id);
+    if (rec?.zipUrl?.startsWith('packed:')) {
+      void deleteLocalZip(rec.zipUrl);
+    }
     refreshRecords();
-  }, [refreshRecords]);
+  }, [refreshRecords, records]);
 
   const handleDeleteGpt2 = useCallback((id: string) => {
     deleteGpt2Record(id);
@@ -325,6 +342,12 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
 
   const handleClearAll = useCallback(() => {
     if (confirm('确定清除所有历史记录？')) {
+      // Drop any local-zip blobs stored in IndexedDB for history records
+      records.forEach((r) => {
+        if (r.zipUrl?.startsWith('packed:')) {
+          void deleteLocalZip(r.zipUrl);
+        }
+      });
       clearAllHistory();
       setRecords([]);
       setLoadedImages({});
@@ -333,7 +356,7 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
       localStorage.removeItem('nsfwxo_video_history');
       setVideoRecords([]);
     }
-  }, []);
+  }, [records]);
 
   const openLightbox = (recordIndex: number, imageIndex: number) => {
     setLightboxRecordIndex(recordIndex);

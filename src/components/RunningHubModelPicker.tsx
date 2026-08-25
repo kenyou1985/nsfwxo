@@ -15,8 +15,8 @@ import {
   type ModelFavorite,
 } from '../services/modelFavoritesService';
 import {
-  setLoraDefault, setCheckpointDefault,
-  isLoraDefault, isCheckpointDefault,
+  setLoraDefault, setCheckpointDefault, setUnetDefault,
+  isLoraDefault, isCheckpointDefault, isUnetDefault,
   subscribeModelDefaults, getDefaultWorkflow,
 } from '../services/modelDefaultsService';
 import { WORKFLOW } from '../services/runninghub';
@@ -78,6 +78,8 @@ export function RunningHubModelPicker({
       setIsDefault(isLoraDefault(loraSlot, value));
     } else if (kind === 'checkpoint') {
       setIsDefault(isCheckpointDefault(workflowId, value));
+    } else if (kind === 'unet') {
+      setIsDefault(isUnetDefault(value));
     } else {
       setIsDefault(false);
     }
@@ -111,11 +113,17 @@ export function RunningHubModelPicker({
       } else {
         setCheckpointDefault(wf, { name: value, label: labelText });
       }
+    } else if (kind === 'unet') {
+      if (isUnetDefault(value)) {
+        setUnetDefault(null);
+      } else {
+        setUnetDefault({ name: value, label: labelText });
+      }
     }
     recomputeIsDefault();
   };
 
-  const showDefaultButton = (kind === 'lora' && !!loraSlot) || kind === 'checkpoint';
+  const showDefaultButton = (kind === 'lora' && !!loraSlot) || kind === 'checkpoint' || kind === 'unet';
 
   // 懒加载数据库（首次展开时）
   useEffect(() => {
