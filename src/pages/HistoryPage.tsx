@@ -151,7 +151,7 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
         console.log(`[loadImagesForRecord] direct image URL: ${record.zipUrl}`);
         dataUrls = [record.zipUrl];
         void fetchImageAsDataUrl(record.zipUrl).then((dataUrl) => {
-          if (dataUrl) {
+          if (dataUrl && record.zipUrl) {
             void cacheImages(record.zipUrl, [dataUrl]);
           }
         });
