@@ -530,7 +530,7 @@ export function StoryboardSection({
 
           {/* Panels list */}
           {result && (
-            <div className="space-y-2 max-h-[500px] overflow-y-auto">
+            <div className="space-y-2">
               {result.panels.map((panel, idx) => {
                 const imgs = displayImages(idx);
                 const isSubmitted = submittedPanels.has(idx);

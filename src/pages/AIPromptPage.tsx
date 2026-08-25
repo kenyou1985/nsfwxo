@@ -127,7 +127,7 @@ import { GirlfriendSelector } from '../components/GirlfriendSelector';
 import { StoryboardSection } from '../components/StoryboardSection';
 import { buildTxt2ImgNodeList } from '../utils/txt2imgNodeBuilder';
 import type { QueuedTask, TabType, NodeInfo } from '../types';
-import { DEFAULT_TXT2IMG_PARAMS, QUALITY_BOOST_PROMPT } from '../constants';
+import { DEFAULT_TXT2IMG_PARAMS, withQualityBoost } from '../constants';
 import { WORKFLOW, getWorkflowFormat, uploadImage, ensureDataUrl } from '../services/runninghub';
 import { getCheckpointDefault, getLoraDefault, getDefaultWorkflow } from '../services/modelDefaultsService';
 
@@ -900,7 +900,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         setGenStates((prev) => { const next = { ...prev }; delete next[key]; return next; });
       }
     } else {
-      const finalPrompt = `${QUALITY_BOOST_PROMPT}, ${prompt}`;
+      const finalPrompt = withQualityBoost(prompt);
       const nodes = buildTxt2ImgNodeList({
         width: DEFAULT_TXT2IMG_PARAMS.width,
         height: DEFAULT_TXT2IMG_PARAMS.height,
@@ -1044,7 +1044,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         });
         await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, panelStoryboardInfo, 'storyboard', plotLabel, panelNum);
       } else {
-        const finalPrompt = `${QUALITY_BOOST_PROMPT}, ${panel.image_prompt}`;
+        const finalPrompt = withQualityBoost(panel.image_prompt);
         const nodes = buildTxt2ImgNodeList({
           width: DEFAULT_TXT2IMG_PARAMS.width,
           height: DEFAULT_TXT2IMG_PARAMS.height,
@@ -3700,7 +3700,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         setGenStates((prev) => { const next = { ...prev }; delete next[key]; return next; });
       }
     } else {
-      const finalPrompt = `${QUALITY_BOOST_PROMPT}, ${prompt}`;
+      const finalPrompt = withQualityBoost(prompt);
       const nodes = buildTxt2ImgNodeList({
         width: DEFAULT_TXT2IMG_PARAMS.width,
         height: DEFAULT_TXT2IMG_PARAMS.height,
@@ -4008,7 +4008,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
           });
           await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, panelStoryboardInfo, 'storyboard', themeForTask, panelNum);
         } else {
-          const finalPrompt = `${QUALITY_BOOST_PROMPT}, ${panel.image_prompt}`;
+          const finalPrompt = withQualityBoost(panel.image_prompt);
           const nodes = buildTxt2ImgNodeList({
             width: DEFAULT_TXT2IMG_PARAMS.width,
             height: DEFAULT_TXT2IMG_PARAMS.height,

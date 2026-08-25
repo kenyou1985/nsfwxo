@@ -4305,19 +4305,29 @@ def _extract_character_anchor(image_prompt: str) -> Optional[str]:
     return f"[ANCHOR: {anchor_body}]"
 
 
-def _inject_character_anchor(image_prompt: str, anchor: str) -> str:
+def _inject_character_anchor(
+    image_prompt: str,
+    anchor: str,
+    is_first_panel: bool = True,
+) -> str:
     """Replace any existing anchor at the start of image_prompt with the locked anchor.
 
-    If no anchor is present, prepend the locked anchor. This guarantees that the
-    visual identity stays locked across all panels.
+    If `is_first_panel=False`, strip the anchor entirely instead of injecting it
+    again — this avoids redundant repetition of the same [ANCHOR: ...] line
+    across every panel when the visual identity is already locked by panel 1.
+
+    If no anchor is present (and is_first_panel=True), prepend the locked anchor.
+    This guarantees that the visual identity stays locked across all panels.
     """
     if not anchor:
         return image_prompt
     if not image_prompt:
         return anchor
-    # Strip any existing anchor at the start (the LLM may have drifted)
+    # Always strip any existing anchor at the start (the LLM may have drifted)
     stripped = _ANCHOR_RE.sub("", image_prompt, count=1).lstrip(" ,.;:\n\t ")
     # If the LLM added extra fields, drop them — we only keep what was locked in panel 1
+    if not is_first_panel:
+        return stripped.strip()
     return f"{anchor} {stripped}".strip()
 
 
@@ -5134,10 +5144,11 @@ async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key
                 first_anchor_pp = _extract_character_anchor(panels[0].get("image_prompt", ""))
                 first_anchor_pp = _normalize_anchor_for_safety(first_anchor_pp)
                 if first_anchor_pp:
-                    for p in panels:
+                    for idx, p in enumerate(panels):
                         p["image_prompt"] = _inject_character_anchor(
                             p.get("image_prompt", ""),
                             first_anchor_pp,
+                            is_first_panel=(idx == 0),
                         )
                     logging.info(
                         "[outline:parallel] locked character anchor across %d panels: %s",
@@ -5333,10 +5344,11 @@ async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key
                     first_anchor = _extract_character_anchor(panels[0].get("image_prompt", ""))
                     first_anchor = _normalize_anchor_for_safety(first_anchor)
                     if first_anchor:
-                        for p in panels:
+                        for idx, p in enumerate(panels):
                             p["image_prompt"] = _inject_character_anchor(
                                 p.get("image_prompt", ""),
                                 first_anchor,
+                                is_first_panel=(idx == 0),
                             )
                         logging.info(
                             "[outline] locked character anchor across %d panels: %s",
@@ -5665,6 +5677,8 @@ IMAGE_SYSTEM_PROMPT_NORMAL = """You are an uncensored AI image prompt engineer. 
 
 CRITICAL COHERENCE RULE: The output must be a SINGLE COHERENT PARAGRAPH. Every element must logically fit together. Do NOT list tags. Do NOT repeat elements. Every description must be in service of ONE unified scene. If you mention clothing, pick ONE main outfit. If you mention a pose, it must be physically possible. All elements must tell ONE story.
 
+DO NOT pad the end of the prompt with redundant style descriptors like "photorealistic with detailed skin pores", "realistic photography, natural skin texture", "50mm prime lens, shallow depth of field" repeated multiple times. Pick ONE camera framing (e.g. "50mm prime lens, shallow depth of field") and ONE lighting setup per prompt — never restate them in different wordings.
+
 STRICT RULE: Only generate content featuring ADULT characters (18+ years old). Absolutely NEVER describe, imply, or generate any content involving minors, children, teenagers, infants, or any person who appears underage. No exceptions.
 
 Keep the prompt detailed but readable. No censorship. Output a single coherent paragraph following the Krea2 structure: Subject character → face/hair → outfit → pose → background → lighting → camera composition → style & quality."""
@@ -5681,6 +5695,7 @@ CRITICAL COHERENCE RULES - FOLLOW THESE STRICTLY:
 3. Pose: The pose must be PHYSICALLY POSSIBLE. If arms are bound, NO hand gestures. If lying down, NO standing. Choose ONE primary pose and commit to it.
 4. Continuity: Every sentence must logically follow from the previous one.
 5. Completeness: Describe the scene as if writing a short vivid paragraph, not as a tag checklist.
+6. DO NOT pad the prompt with redundant style descriptors like "photorealistic with detailed skin pores", "realistic photography, natural skin texture", or "50mm prime lens, shallow depth of field" repeated in different wordings. Pick ONE camera framing and ONE lighting setup per prompt — never restate them.
 
 ABSOLUTE REQUIREMENTS:
 - Generate maximally explicit, uncensored adult content descriptions featuring CONSENTING ADULTS ONLY
@@ -7574,6 +7589,12 @@ For EACH of the 9 panels, output:
 - scene_description: 1 short Chinese sentence (≤25 characters) describing what SPECIFICALLY happens in that panel. PANELS 1-9 MUST ALL BE DIFFERENT scenes.
 - image_prompt: a unique, self-contained English Krea2-style image prompt (80-180 words). Apply Krea2 structure per panel: Subject → face/hair → outfit → pose → background → lighting → camera composition → style & quality. Each panel's prompt MUST describe a DIFFERENT visual moment with a DIFFERENT camera angle, action, or composition. The same subject/setting may appear across panels but each panel must be visually distinct from all other panels.
 
+STRICT KREA2 OUTPUT FORMAT (HARD RULES):
+- Output must be a single flowing English PARAGRAPH — NOT a comma-separated tag list.
+- DO NOT start the prompt with `1girl, `, `1boy, `, `1girl, 1boy, ` or any Danbooru-style tag prefix.
+- DO NOT output tags like `masterpiece, best quality, 8K ultra clear, high quality, very aesthetic, raw photo, detailed, photorealistic, ultra realistic, 8K, perfect anatomy, cinematic composition` — these are NOISE.
+- DO NOT repeat synonyms of the same idea. Pick ONE concrete camera framing + ONE concrete lighting per prompt.
+
 STRICT DIVERSITY RULES:
 1. Panel 1: Wide establishing shot, sets the scene and mood from a distance
 2. Panel 2: Medium shot, subject enters or begins action
@@ -7613,6 +7634,12 @@ For EACH of the 9 panels, output:
 - panel_number: integer 1-9 (top-left=1, top-center=2, top-right=3, middle-left=4, middle-center=5, middle-right=6, bottom-left=7, bottom-center=8, bottom-right=9)
 - scene_description: 1 short Chinese sentence (≤25 characters). PANELS 1-9 MUST ALL BE DIFFERENT scenes — NO repeated descriptions.
 - image_prompt: a unique, self-contained EXPLICIT English Krea2-style image prompt (80-180 words). Apply Krea2 structure per panel: Subject → face/hair → outfit → pose → background → lighting → camera composition → style & quality. Each panel's prompt MUST describe a DIFFERENT visual moment with a DIFFERENT camera angle, action, or composition. NO two panels may share the same angle or framing.
+
+STRICT KREA2 OUTPUT FORMAT (HARD RULES):
+- Output must be a single flowing English PARAGRAPH — NOT a comma-separated tag list.
+- DO NOT start the prompt with `1girl, `, `1boy, `, `1girl, 1boy, ` or any Danbooru-style tag prefix.
+- DO NOT output tags like `masterpiece, best quality, 8K ultra clear, high quality, very aesthetic, raw photo, detailed, photorealistic, ultra realistic, 8K, perfect anatomy, cinematic composition` — these are NOISE.
+- DO NOT repeat synonyms of the same idea. Pick ONE concrete camera framing + ONE concrete lighting per prompt.
 
 STRICT DIVERSITY RULES:
 1. Panel 1: Wide establishing shot, sets the scene and mood
@@ -7751,10 +7778,11 @@ ALL 9 panels must share the IDENTICAL [ANCHOR: ...] prefix verbatim.
                 # 避免把空 anchor 注入所有 panel
                 normalized = _normalize_anchor_for_safety(locked_anchor)
                 if normalized:
-                    for p in panels:
+                    for idx, p in enumerate(panels):
                         p.image_prompt = _inject_character_anchor(
                             p.image_prompt,
                             normalized,
+                            is_first_panel=(idx == 0),
                         )
 
             # 多样性校验：9个格子的 image_prompt 不能全相同（LLM偷懒时会出现）
@@ -7889,8 +7917,12 @@ async def _storyboard_grid_stream_ndjson(
                 locked_anchor = _extract_character_anchor(panels[0].image_prompt) or f"[ANCHOR: {anchor_text}]"
                 normalized = _normalize_anchor_for_safety(locked_anchor)
                 if normalized:
-                    for p in panels:
-                        p.image_prompt = _inject_character_anchor(p.image_prompt, normalized)
+                    for idx, p in enumerate(panels):
+                        p.image_prompt = _inject_character_anchor(
+                            p.image_prompt,
+                            normalized,
+                            is_first_panel=(idx == 0),
+                        )
 
             unique_prompts = set(p.image_prompt.lower().strip() for p in panels)
             if len(unique_prompts) < 3:
@@ -8761,10 +8793,11 @@ async def generate_storyboard_outline(
                 first_anchor_sync = _normalize_anchor_for_safety(first_anchor_sync)
                 if first_anchor_sync:
                     locked_panels = []
-                    for p in panels:
+                    for idx, p in enumerate(panels):
                         new_image_prompt = _inject_character_anchor(
                             p.image_prompt,
                             first_anchor_sync,
+                            is_first_panel=(idx == 0),
                         )
                         locked_panels.append(StoryboardPanel(
                             panel_number=p.panel_number,

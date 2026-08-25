@@ -857,6 +857,38 @@ export const LORA_PRESETS: LORAPreset[] = [
 // Krea2 prefers concise, visually-grounded language over "masterpiece, best quality" spam.
 export const QUALITY_BOOST_PROMPT = 'realistic photography, natural skin texture, subtle skin pores, soft facial contour, lifelike eyes, sharp fine details, exquisite rendering, cinematic soft glow, gentle shadow, soft natural window light, shallow depth of field, 50mm prime lens, rich saturated colors, high detail';
 
+// Anchors used to detect whether an LLM-generated Krea2 paragraph already
+// includes the quality boost content. If any anchor is found in the trailing
+// 30% of the prompt, we skip appending QUALITY_BOOST_PROMPT to avoid the
+// "photorealistic / skin pores / 50mm lens" redundancy that Krea2 rule #1
+// ("Avoid padding. Avoid repeating synonyms of the same idea") forbids.
+const QUALITY_BOOST_ANCHORS = [
+  'realistic photography',
+  'natural skin texture',
+  'subtle skin pores',
+  'soft facial contour',
+  'lifelike eyes',
+  '50mm prime lens',
+  'photorealistic',
+  'skin pores',
+  'soft window light',
+  'shallow depth of field',
+];
+
+/**
+ * Append QUALITY_BOOST_PROMPT only if the prompt's tail does not already
+ * include any of the quality-boost anchors. Falls back to plain concatenation
+ * when no overlap is detected.
+ */
+export function withQualityBoost(prompt: string, options?: { force?: boolean }): string {
+  const text = (prompt || '').trim();
+  if (!text) return QUALITY_BOOST_PROMPT;
+  if (options?.force) return `${QUALITY_BOOST_PROMPT}, ${text}`;
+  const tail = text.slice(Math.floor(text.length * 0.7)).toLowerCase();
+  const alreadyIncludes = QUALITY_BOOST_ANCHORS.some((a) => tail.includes(a));
+  return alreadyIncludes ? text : `${QUALITY_BOOST_PROMPT}, ${text}`;
+}
+
 export const DEFAULT_TXT2IMG_PARAMS = {
   width: 1024,
   height: 1536,
