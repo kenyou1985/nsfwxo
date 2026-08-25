@@ -89,8 +89,9 @@ export function TextToImagePage({
   const [isR18Enabled, setIsR18Enabled] = useState(false);
   const [displayLang, setDisplayLang] = useState<'en' | 'zh'>('en');
 
-  // UI state
+  // UI state — 桌面端两个折叠面板各自独立的 open 状态，避免和移动端的 advancedOpen 互相影响
   const [basicOpen, setBasicOpen] = useState(true);
+  const [loraOpen, setLoraOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [isGeneratingFromPrompt, setIsGeneratingFromPrompt] = useState(false);
@@ -468,10 +469,10 @@ export function TextToImagePage({
         {/* 预设姿势 */}
         <PosePresetSelector type="image" onSelect={handlePoseSelect} disabled={taskManager.isFull} forceUnlock={true} />
 
-        {/* LoRA & Advanced — 直接复用 PosePresetSelector 的折叠面板模式 */}
+        {/* LoRA 参数 — 桌面端独立折叠面板 */}
         <div className="border border-border rounded-xl bg-white overflow-hidden">
           <div
-            onClick={() => { logger.logSectionToggle('LoRA 参数', !advancedOpen); setAdvancedOpen((v) => !v); }}
+            onClick={() => { logger.logSectionToggle('LoRA 参数', !loraOpen); setLoraOpen((v) => !v); }}
             className="w-full px-4 py-3 flex items-center justify-between bg-bg-elevated hover:bg-bg-hover transition-colors cursor-pointer select-none disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <div className="flex items-center gap-2">
@@ -479,7 +480,7 @@ export function TextToImagePage({
               <span className="text-sm font-medium text-text-primary">LoRA 参数</span>
             </div>
             <svg
-              className={`w-4 h-4 text-text-tertiary transition-transform ${advancedOpen ? 'rotate-180' : ''}`}
+              className={`w-4 h-4 text-text-tertiary transition-transform ${loraOpen ? 'rotate-180' : ''}`}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -488,7 +489,7 @@ export function TextToImagePage({
             </svg>
           </div>
 
-          {advancedOpen && (
+          {loraOpen && (
             <div className="p-3 border-t border-border">
               <ErrorBoundary name="LoRA参数">
                 <div className="grid grid-cols-1 gap-4">
@@ -575,6 +576,146 @@ export function TextToImagePage({
                       disabled={taskManager.isFull}
                     />
                   </div>
+                </div>
+              </ErrorBoundary>
+            </div>
+          )}
+        </div>
+
+        {/* 高级选项 — 桌面端独立折叠面板（与移动端内容一致：工作流选择 / 默认模型开关 / Checkpoint / 3LoRA 随机提示词） */}
+        <div className="border border-border rounded-xl bg-white overflow-hidden">
+          <div
+            onClick={() => { logger.logSectionToggle('高级选项', !advancedOpen); setAdvancedOpen((v) => !v); }}
+            className="w-full px-4 py-3 flex items-center justify-between bg-bg-elevated hover:bg-bg-hover transition-colors cursor-pointer select-none disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <div className="flex items-center gap-2">
+              <Settings2 size={14} className="text-text-tertiary" />
+              <span className="text-sm font-medium text-text-primary">高级选项</span>
+            </div>
+            <svg
+              className={`w-4 h-4 text-text-tertiary transition-transform ${advancedOpen ? 'rotate-180' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+
+          {advancedOpen && (
+            <div className="p-3 border-t border-border">
+              <ErrorBoundary name="高级选项">
+                <div className="space-y-4">
+                  {/* RunningHub 工作流 */}
+                  <div className="space-y-2">
+                    <div className="text-xs text-text-tertiary font-medium">RunningHub 模型</div>
+                    <ParameterSelect
+                      label="RunningHub 模型"
+                      value={params.workflowId || ''}
+                      options={[
+                        { value: '', label: `默认（${currentDefaultLabel}）` },
+                        { value: WORKFLOW.THREE_LORA, label: '3LoRA 模型' },
+                        { value: WORKFLOW.REALISTIC_BATCH, label: '真实系批量文生图' },
+                        { value: WORKFLOW.REALISTIC_V3, label: '真实 V3 模型' },
+                        { value: WORKFLOW.KREA2, label: 'Krea2 文生图' },
+                      ]}
+                      onChange={(val) => {
+                        updateParam('workflowId', val);
+                        // 切换到 Krea2 时，自动更新宽高和 LoRA 默认值
+                        if (val === WORKFLOW.KREA2) {
+                          updateParam('width', KREA2_TXT2IMG_PARAMS.width);
+                          updateParam('height', KREA2_TXT2IMG_PARAMS.height);
+                          updateParam('imageCount', KREA2_TXT2IMG_PARAMS.imageCount);
+                          updateParam('lora1Name', KREA2_TXT2IMG_PARAMS.lora1Name);
+                          updateParam('lora1Weight', KREA2_TXT2IMG_PARAMS.lora1Weight);
+                          updateParam('lora2Name', KREA2_TXT2IMG_PARAMS.lora2Name);
+                          updateParam('lora2Weight', KREA2_TXT2IMG_PARAMS.lora2Weight);
+                          updateParam('lora3Name', KREA2_TXT2IMG_PARAMS.lora3Name);
+                          updateParam('lora3Weight', KREA2_TXT2IMG_PARAMS.lora3Weight);
+                          updateParam('unet', KREA2_TXT2IMG_PARAMS.unet ?? '');
+                          updateParam('checkpoint', '');
+                        }
+                      }}
+                      disabled={taskManager.isFull}
+                    />
+                  </div>
+                  {/* 默认模型开关 */}
+                  <div className="border-t border-border/50 pt-3">
+                    <label className="flex items-center justify-between cursor-pointer">
+                      <span className="text-xs text-text-secondary">设为默认模型</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-text-tertiary">
+                          {params.workflowId === getDefaultWorkflow() ? '当前默认' : '点击启用'}
+                        </span>
+                        <div
+                          onClick={() => {
+                            if (params.workflowId && params.workflowId !== getDefaultWorkflow()) {
+                              setDefaultWorkflow(params.workflowId);
+                            }
+                          }}
+                          className={`
+                            relative w-9 h-5 rounded-full transition-colors cursor-pointer
+                            ${params.workflowId === getDefaultWorkflow() ? 'bg-primary/60' : 'bg-bg-elevated border border-border'}
+                          `}
+                        >
+                          <div
+                            className={`
+                              absolute top-0.5 w-4 h-4 rounded-full transition-all shadow
+                              ${params.workflowId === getDefaultWorkflow() ? 'left-[18px] bg-primary' : 'left-0.5 bg-slate-500'}
+                            `}
+                          />
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                  {/* KREA2 专用：UNet 模型；其他工作流：Checkpoint 模型 */}
+                  <div className="border-t border-border/50 pt-3">
+                    {params.workflowId === WORKFLOW.KREA2 ? (
+                      <RunningHubModelPicker
+                        label="UNet 模型"
+                        kind="unet"
+                        value={params.unet || ''}
+                        onChange={(name) => updateParam('unet', name)}
+                        placeholder="默认 krea-2-raw (官方底模)"
+                        disabled={taskManager.isFull}
+                      />
+                    ) : (
+                      <RunningHubModelPicker
+                        label="Checkpoint 模型"
+                        kind="checkpoint"
+                        workflowId={params.workflowId || getDefaultWorkflow()}
+                        value={params.checkpoint || ''}
+                        onChange={(name) => updateParam('checkpoint', name)}
+                        placeholder="留空使用工作流默认模型"
+                        disabled={taskManager.isFull}
+                      />
+                    )}
+                  </div>
+                  {/* 3LoRA 专用：随机提示词开关 */}
+                  {params.workflowId === WORKFLOW.THREE_LORA && (
+                    <div className="border-t border-border/50 pt-3">
+                      <label className="flex items-center justify-between cursor-pointer">
+                        <span className="text-xs text-text-secondary">随机提示词</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-text-tertiary">{params.threeLoraRandomPrompt ? '开启' : '关闭'}</span>
+                          <div
+                            onClick={() => updateParam('threeLoraRandomPrompt', !params.threeLoraRandomPrompt)}
+                            className={`
+                              relative w-9 h-5 rounded-full transition-colors
+                              ${params.threeLoraRandomPrompt ? 'bg-primary/60' : 'bg-bg-elevated border border-border'}
+                            `}
+                          >
+                            <div
+                              className={`
+                                absolute top-0.5 w-4 h-4 rounded-full transition-all shadow
+                                ${params.threeLoraRandomPrompt ? 'left-[18px] bg-primary' : 'left-0.5 bg-slate-500'}
+                              `}
+                            />
+                          </div>
+                        </div>
+                      </label>
+                    </div>
+                  )}
                 </div>
               </ErrorBoundary>
             </div>
