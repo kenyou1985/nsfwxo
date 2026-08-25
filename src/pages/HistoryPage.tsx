@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Trash2, Image as ImageIcon, Clock, X, RotateCcw, Loader2, Video, Heart, Download, AlertTriangle, HardDrive, Bookmark, Layers, Check, Circle, Palette, Copy } from 'lucide-react';
 import { getRecords, deleteRecord, clearAllHistory, type HistoryRecord } from '../services/historyService';
-import { loadCachedOrExtractedImages } from '../services/imageCacheService';
+import { loadCachedOrExtractedImages, getCachedImages } from '../services/imageCacheService';
 import { extractImagesFromZipAsDataUrls } from '../services/runninghub';
 import { getFavorites, addFavorite, removeFavorite, clearFavorites, type FavoriteItem } from '../services/storage';
 import { getStorageStats, getLocalStorageStats, getUnifiedCacheStats } from '../services/storageQuota';
@@ -117,7 +117,17 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
     setLoadedImages((prev) => ({ ...prev, [record.id]: [] }));
 
     try {
-      const dataUrls = await loadCachedOrExtractedImages(record.zipUrl, () => extractImagesFromZipAsDataUrls(record.zipUrl ?? ''));
+      // Synthetic `direct:` keys are produced by useTaskManager for tasks
+      // that returned direct image URLs (no zip). Those entries have no
+      // upstream URL to fall back on, so skip zip extraction entirely —
+      // just read the cache and bail if it's empty.
+      let dataUrls: string[];
+      if (record.zipUrl.startsWith('direct:')) {
+        const cached = await getCachedImages(record.zipUrl, 10);
+        dataUrls = cached.filter(Boolean);
+      } else {
+        dataUrls = await loadCachedOrExtractedImages(record.zipUrl, () => extractImagesFromZipAsDataUrls(record.zipUrl ?? ''));
+      }
       loadedImagesRef.current[record.id] = dataUrls;
       setLoadedImages((prev) => ({ ...prev, [record.id]: dataUrls }));
     } catch (err) {

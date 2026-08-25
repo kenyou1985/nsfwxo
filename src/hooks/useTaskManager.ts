@@ -9,6 +9,7 @@ import {
 } from '../services/runninghub';
 import { getDefaultWorkflow } from '../services/modelDefaultsService';
 import { cacheImages, getOrFetchTaskImages } from '../services/imageCacheService';
+import { fetchImageAsDataUrl } from '../services/runninghub';
 import type {
   QueuedTask,
   TaskStatus,
@@ -279,7 +280,31 @@ export function useTaskManager({
         return { updatedTask };
       }
     } else if (directImageUrls.length > 0) {
-      const finalImages = await getOrFetchTaskImages('', directImageUrls);
+      // Some workflows (notably the img2img workflow 2083569010550423553)
+      // return direct image URLs (png/jpg) instead of a zip. Those URLs
+      // expire on the RunningHub CDN, so we must convert them to data URLs
+      // and cache them — otherwise the history page can never display
+      // them after the page is refreshed.
+      const dataUrls: string[] = [];
+      for (const url of directImageUrls) {
+        if (url.startsWith('data:')) {
+          dataUrls.push(url);
+        } else {
+          const dataUrl = await fetchImageAsDataUrl(url);
+          if (dataUrl) dataUrls.push(dataUrl);
+        }
+      }
+      const finalImages = dataUrls;
+
+      // Synthetic cache key so HistoryPage can look up the cached images.
+      // Real zip URLs are reused on subsequent loads; this synthetic key
+      // stands in for "cache by task id" since there's no zip URL.
+      const syntheticKey = `direct:${task.id}`;
+      if (finalImages.length > 0) {
+        await cacheImages(syntheticKey, finalImages);
+      }
+      zipUrl = syntheticKey;
+
       setTasks((prev) =>
         prev.map((t) =>
           t.id === task.id ? { ...t, status: 'FINISHED', images: finalImages, zipUrl, coins, elapsedSeconds: elapsed } : t
