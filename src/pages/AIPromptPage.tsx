@@ -34,13 +34,27 @@ function deriveThemeLabel(prompt: string): string {
   // the badge is for the user to quickly see the scene in Chinese, and
   // showing English here would defeat that purpose.
   if (!containsCJK(text)) return '';
-  const head = text.split(/[,,]/)[0] || '';
-  // Strip stray leading "a"/"an"/"the" and excess whitespace.
-  const cleaned = head.replace(/^\s*(an?\s+|the\s+)/i, '').trim();
+  // The English prefix ("20-year-old East Asian woman, smiling, ...") is
+  // always at the start and can be arbitrarily long. Scan the full prompt
+  // for the first CJK character and extract from there, so we capture the
+  // actual scene/clothing/setting clause regardless of how long the
+  // English prefix is. This is the fix for "主题 1/2" fallback when the
+  // Chinese theme label is buried after a long English descriptor list.
+  let cjkStart = -1;
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code >= 0x4e00 && code <= 0x9fff) { cjkStart = i; break; }
+  }
+  if (cjkStart === -1) return '';
+  // Strip trailing English after the last CJK block to avoid garbled suffix.
+  let cjkEnd = text.length;
+  for (let i = text.length - 1; i >= cjkStart; i--) {
+    const code = text.charCodeAt(i);
+    if (code >= 0x4e00 && code <= 0x9fff) { cjkEnd = i + 1; break; }
+  }
+  let cleaned = text.slice(cjkStart, cjkEnd).trim();
   if (!cleaned) return '';
-  // Cap to a visually-reasonable width in the badge. 24 chars is the
-  // sweet spot — long enough to carry scene + pose (e.g. "20岁东方女性
-  // 微笑地跪在昏暗地牢..."), short enough to fit one line.
+  // Cap to a visually-reasonable width in the badge.
   const MAX = 24;
   if (cleaned.length <= MAX) return cleaned;
   // Try to cut at a word-ish boundary.
@@ -1617,6 +1631,16 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
             });
           },
           onEnd: ({ index, theme_label, prompt }) => {
+            // When the backend sends an empty `theme_label` (second-pass LLM
+            // call failed or returned non-Chinese), derive one locally from
+            // the prompt itself. The prompt often starts with English
+            // descriptors ("20-year-old East Asian woman, smiling...") so
+            // deriveThemeLabel() strips the English prefix and returns the
+            // first meaningful Chinese clause. If that also yields nothing,
+            // fall back to the index so we always show SOMETHING in the
+            // badge — never a bare "提示词" with no scene label.
+            const fallbackLabel = deriveThemeLabel(prompt) || (prompt ? '' : `主题 ${index + 1}`);
+            const finalLabel = (theme_label && theme_label.trim()) ? theme_label.trim() : fallbackLabel;
             setResults((prev) => {
               const next = [...prev];
               while (next.length <= index) {
@@ -1624,7 +1648,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               }
               next[index] = {
                 ...next[index],
-                theme_label: theme_label || next[index].theme_label || '',
+                theme_label: finalLabel,
                 prompt,
               };
               return next;
