@@ -6922,12 +6922,22 @@ STRICT RULE: All characters ADULTS 18+. Consensual only. Output ONLY a raw coher
         },
     }
 
-    # Krea2 prompt style is appended to every theme preset (except "完全随机" which
-    # falls through to the default IMAGE_SYSTEM_PROMPT_NORMAL that already contains
-    # KREA2_BLOCK). This unifies the random-gacha module with Krea2-style guidance.
+    # ─── Krea2 prompt style mapping — single source of truth ────────────────
+    # This is the unified Krea2 prompt style mapping call site for the entire
+    # random-gacha module. Every theme preset's `system_prompt` is augmented
+    # with KREA2_BLOCK so the LLM is guided to output Krea2-style flowing
+    # paragraphs instead of Danbooru-style tag spam.
+    #
+    # "完全随机" is exempt (system_prompt: None) because it falls through to
+    # IMAGE_SYSTEM_PROMPT_NORMAL which already contains KREA2_BLOCK.
+    #
+    # NOTE: this function rebuilds _RANDOM_THEME_PRESETS on every call, so the
+    # guard against double-append is required to prevent KREA2_BLOCK from
+    # accumulating when call_grok() retries inside this same call.
     for _theme_key, _preset in _RANDOM_THEME_PRESETS.items():
-        if _preset.get("system_prompt"):
-            _preset["system_prompt"] = _preset["system_prompt"] + KREA2_BLOCK
+        sp = _preset.get("system_prompt")
+        if sp and KREA2_BLOCK not in sp:
+            _preset["system_prompt"] = sp + KREA2_BLOCK
 
     # Select theme preset - if theme is empty or unknown, use "完全随机"
     theme_key = req.theme if req.theme in _RANDOM_THEME_PRESETS else "完全随机"
@@ -6968,6 +6978,10 @@ STRICT RULE: All characters ADULTS 18+. Consensual only. Output ONLY a raw coher
         f"Theme: {preset['label']} - {preset['description']}\n\n"
         f"Creative focus: {diversity_variant}\n\n"
         f"Generate ONE cohesive image prompt following the theme and focus above. "
+        f"Output format: a single flowing paragraph in Krea2 style — concrete scene description, NOT a comma-separated tag list. "
+        f"The `Tags:` line above is scene content reference only (props, environment, action cues). DO NOT copy them as raw Danbooru tags. "
+        f"DO NOT output Chinese, Japanese or anime-style parenthetical cues like 【国漫风】, 【触手】, 【萧条】. "
+        f"Output language: English only. "
         f"Return ONLY the prompt paragraph."
     )
 
@@ -7026,58 +7040,6 @@ STRICT RULE: All characters ADULTS 18+. Consensual only. Output ONLY a raw coher
 
 
 # ─── Route: Random ───────────────────────────────────────────────────────────
-
-# ─── Random theme presets (module-level so streaming variant can reuse them) ──
-_RANDOM_THEME_PRESETS = {
-    "完全随机": {
-        "label": "完全随机",
-        "description": "混合各种风格，完全随机生成",
-        "system_prompt": None,  # Use default
-        "diversity_variants": [
-            "Portrait focus: facial expression, intimate mood.",
-            "Full body: casual pose, indoor natural setting.",
-            "Standing pose: confident posture, outdoor background.",
-            "Reclining pose: soft lighting, relaxed atmosphere.",
-            "Fashion/lingerie: elegant, stylish atmosphere.",
-            "Cinematic framing: dramatic mood, moody lighting.",
-            "Themed costume: roleplay atmosphere, character-focused.",
-            "Bedroom scene: intimate setting, warm lighting.",
-            "Artistic composition: mirror/reflection, creative angle.",
-            "Outdoor/nature: natural light, exotic location.",
-        ],
-    },
-"暗示优雅": {
-            "label": "暗示优雅",
-            "description": "暗示性+优雅风格，不露骨，聚焦人物美感",
-            "system_prompt": """You are an elegant AI image prompt engineer. Generate ONE tasteful, suggestive adult image prompt.
-
-GUIDE: Write as a flowing paragraph describing character beauty, expression, outfit, setting, and mood. Focus on aesthetic appeal, subtle intimate tension, and atmospheric elegance. Do NOT describe explicit sexual acts or penetration. Keep it artistic and refined.
-
-RULES:
-1. Character: detailed appearance, ethnicity (rotate among 亚洲人 / 黄种人 / 中国人 / 日本人 / 韩国人 / 泰国人 / 越南人 / 印度人 / 伊朗人 / 中东人 / 白人 / 欧洲人 / 意大利人 / 法国人 / 德国人 / 俄罗斯人 / 美国人 / 拉丁人 / 拉美人 / 巴西人 / 墨西哥人 / 非洲人 / 混血儿 — match skin tone + facial features to chosen ethnicity), expression, posture
-2. Setting: elegant environment, props, lighting
-3. Mood: subtle intimate tension, emotional depth
-4. ONE cohesive artistic scene
-5. Adults 18+ only. No minors.
-6. NO explicit acts. Focus on beauty, elegance, and atmosphere.
-2-3 sentences. Output ONLY the prompt paragraph. No explanations.""" + KREA2_BLOCK,
-            "diversity_variants": [
-                "Portrait close-up: face, expression, soft lighting.",
-                "Full body standing: confident pose, elegant background.",
-                "Sitting pose: relaxed, moody lighting.",
-                "Fashion focus: stylish outfit, studio lighting.",
-                "Bedroom: warm atmosphere, artistic framing.",
-                "Mirror reflection: creative composition.",
-                "Natural light: outdoor or window lighting.",
-                "Cinematic: dramatic shadows and highlights.",
-            ],
-        },
-    }
-
-# Module-level injection: unify gacha module with Krea2-style guidance.
-for _theme_key, _preset in _RANDOM_THEME_PRESETS.items():
-    if _preset.get("system_prompt") and KREA2_BLOCK not in _preset["system_prompt"]:
-        _preset["system_prompt"] = _preset["system_prompt"] + KREA2_BLOCK
 
 
 def _build_random_prompt_context(
@@ -7142,6 +7104,10 @@ def _build_random_prompt_context(
         f"Theme: {preset['label']} - {preset['description']}\n\n"
         f"Creative focus: {diversity_variant}\n\n"
         f"Generate ONE cohesive image prompt following the theme and focus above. "
+        f"Output format: a single flowing paragraph in Krea2 style — concrete scene description, NOT a comma-separated tag list. "
+        f"The `Tags:` line above is scene content reference only (props, environment, action cues). DO NOT copy them as raw Danbooru tags. "
+        f"DO NOT output Chinese, Japanese or anime-style parenthetical cues like 【国漫风】, 【触手】, 【萧条】. "
+        f"Output language: English only. "
         f"Return ONLY the prompt paragraph."
     )
 

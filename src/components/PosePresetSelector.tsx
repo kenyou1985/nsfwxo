@@ -17,12 +17,14 @@ interface PosePresetSelectorProps {
 }
 
 function buildIdentityPrefix(gf: GirlfriendPreset | null, maleCharId: MaleCharacterId): string {
+  // Krea2 style: no Danbooru-style tag spam ("Fully naked, completely nude, no clothes").
+  // Use a single coherent sentence instead.
   const malePrompt = getMaleCharacterPrompt(maleCharId);
   const malePrefix = malePrompt
-    ? `Fully naked, completely nude with no clothes. High-precision realistic hardcore sex photo, ${malePrompt}, `
-    : '';
+    ? `Both subjects fully unclothed, intimately intertwined. ${malePrompt}, `
+    : 'Both subjects fully unclothed, intimately intertwined. ';
   if (!gf) return malePrefix;
-  return `${malePrefix}${gf.characterPrompt}, Strictly preserve the exact identity, character, and features of ${gf.nameZh} (ID:${gf.id.toUpperCase()}). Do not alter the character at all. `;
+  return `${malePrefix}${gf.characterPrompt}. Strictly preserve the exact identity, character, and features of ${gf.nameZh} (ID:${gf.id.toUpperCase()}); do not alter the character at all. `;
 }
 
 export function PosePresetSelector({ type, onSelect, disabled, selectedGirlfriend = null, forceUnlock = false }: PosePresetSelectorProps) {

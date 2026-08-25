@@ -60,7 +60,7 @@ export const IMAGE_POSE_PRESETS: ImagePosePreset[] = [
     id: 'pose_5',
     name: '#5 Reverse Cowgirl',
     nameZh: 'Reverse Cowgirl反向女上位',
-    prompt: "An intimate rear-view composition captured with cinematic warmth. A young woman with long flowing hair sits facing away from her partner who lies on his back beneath her, her hips rolling in a slow and sensual rhythm. The soft curve of her back catches warm ambient bedroom light. Both unclothed, with skin tones glowing softly against darker shadowed surroundings. Shot with a shallow depth of field 50mm prime lens, the background dissolving into creamy bokeh. Film grain, warm golden tones, natural skin texture with subtle highlights, candid and emotionally charged atmosphere, photographic masterpiece of intimacy.",
+    prompt: "An intimate rear-view composition captured with cinematic warmth. A young woman with long flowing hair sits facing away from her partner who lies on his back beneath her, her hips rolling in a slow and sensual rhythm. The soft curve of her back catches warm ambient bedroom light. Both unclothed, with skin tones glowing softly against darker shadowed surroundings. Shot with a shallow depth of field 50mm prime lens, the background dissolving into creamy bokeh. Film grain, warm golden tones, natural skin texture with subtle highlights, candid and emotionally charged atmosphere, photographic portrait of intimacy.",
   },
 
   {
