@@ -5,7 +5,7 @@ const BASE_URL = 'https://www.runninghub.ai/openapi/v2';
 
 export const WORKFLOW = {
   TEXT_TO_IMAGE: '2016821668009742337',
-  IMAGE_TO_IMAGE: '2016833201292976129',
+  IMAGE_TO_IMAGE: '2083569010550423553',
   IMAGE_TO_VIDEO: '2018678819216953345',
   /** 真实系批量文生图 — 默认 */
   REALISTIC_BATCH: '2016821668009742337',
@@ -13,6 +13,8 @@ export const WORKFLOW = {
   THREE_LORA: '2018668091206537217',
   /** 真实 V3 模型 */
   REALISTIC_V3: '2018672045172723713',
+  /** Krea2 文生图模型 */
+  KREA2: '2082140662178611201',
 } as const;
 
 export interface WorkflowNode {
@@ -338,6 +340,7 @@ export async function getTaskResults(
   if (code === 0 && outputsData.data && Array.isArray(outputsData.data)) {
     const data = outputsData.data as Array<{
       fileUrl?: string;
+      url?: string;
       fileType?: string;
       taskCostTime?: string | number;
       nodeId?: string;
@@ -353,7 +356,7 @@ export async function getTaskResults(
       errorCode: '',
       errorMessage: '',
       results: data.map((item) => ({
-        url: item.fileUrl || '',
+        url: item.url || item.fileUrl || '',
         nodeId: item.nodeId || '',
         outputType: item.fileType || '',
         text: null,
@@ -731,7 +734,7 @@ export async function uploadImage(
   apiKey: string,
   file: File,
   retries = 3
-): Promise<{ imagePath: string }> {
+): Promise<{ imagePath: string; downloadUrl: string }> {
   const formData = new FormData();
   formData.append('file', file);
 
@@ -777,11 +780,12 @@ export async function uploadImage(
       }
 
       const fileName = data.data?.fileName;
+      const downloadUrl = data.data?.download_url || '';
       if (!fileName) {
         throw new Error('Upload response missing fileName');
       }
 
-      return { imagePath: fileName };
+      return { imagePath: fileName, downloadUrl };
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
 

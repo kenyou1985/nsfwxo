@@ -10,7 +10,7 @@ import { AIPromptPage } from './pages/AIPromptPage';
 import { GPTImage2Page } from './pages/GPTImage2Page';
 import { ModelLibraryPage } from './pages/ModelLibraryPage';
 import { useApiKey } from './hooks/useApiKey';
-import { getCheckpointDefault, getLoraDefault } from './services/modelDefaultsService';
+import { getCheckpointDefault, getLoraDefault, getDefaultWorkflow } from './services/modelDefaultsService';
 import { useYunwuKey } from './hooks/useYunwuKey';
 import { useBackendUrl } from './hooks/useBackendUrl';
 import { useToast } from './hooks/useToast';
@@ -149,16 +149,31 @@ function App() {
           lora1Weight: getLoraDefault('lora1')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora1Weight,
           lora2Name: getLoraDefault('lora2')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora2Name,
           lora2Weight: getLoraDefault('lora2')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora2Weight,
-          workflowId: WORKFLOW.THREE_LORA,
-          checkpoint: getCheckpointDefault(WORKFLOW.THREE_LORA)?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
+          workflowId: getDefaultWorkflow(),
+          checkpoint: getCheckpointDefault(getDefaultWorkflow())?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
         });
-        taskManager.addTaskWithNodeList('txt2img', nodes, prompt, WORKFLOW.THREE_LORA);
+        taskManager.addTaskWithNodeList('txt2img', nodes, prompt, getDefaultWorkflow());
         toast.success('任务已提交，请到文生图查看生成结果');
         setActiveTab('txt2img');
         return;
       }
 
       if (record.workflowType === 'img2img') {
+        // 图生图：需要参考图片，检查 nodeInfoList 中是否有参考图
+        if (taskManager.isFull) {
+          toast.error('任务队列已满，请等待');
+          return;
+        }
+
+        // 从 nodeInfoList 获取参考图片
+        const imageNode = record.nodeInfoList?.find(n => n.fieldName === 'image' && n.fieldValue);
+        const referenceImageUrl = imageNode?.fieldValue;
+
+        if (!referenceImageUrl) {
+          toast.error('该图生图记录没有参考图片，无法重新生成');
+          return;
+        }
+
         // 检查数字人锚定
         const anchorMatch = prompt.match(/ID:([A-Za-z0-9_]+)/);
         const anchorId = anchorMatch ? anchorMatch[1].toUpperCase() : null;
@@ -177,9 +192,19 @@ function App() {
           setActiveTab('img2img');
           toast.success('已检测到数字人锚定，正在自动重新生成');
         } else {
-          // 无锚定：跳转 img2img 让用户上传参考图
-          setImg2imgPendingPrompt(prompt);
-          setRegenerateWithGirlfriendId('');
+          // 无锚定但有参考图：直接提交任务
+          const widthRatio = '9'; // 默认竖屏
+          const heightRatio = '16';
+          const nodeList = [
+            { nodeId: '291', fieldName: 'prompt', fieldValue: prompt, description: 'prompt' },
+            { nodeId: '172', fieldName: 'value', fieldValue: widthRatio, description: 'width' },
+            { nodeId: '173', fieldName: 'value', fieldValue: heightRatio, description: 'height' },
+            { nodeId: '269', fieldName: 'value', fieldValue: '2', description: 'count' },
+            { nodeId: '104', fieldName: 'image', fieldValue: referenceImageUrl, description: 'image' },
+            { nodeId: '273', fieldName: 'value', fieldValue: 'false', description: 'enhance' },
+          ];
+          taskManager.addTask('img2img', nodeList, prompt, WORKFLOW.IMAGE_TO_IMAGE);
+          toast.success('任务已提交，请到图生图查看生成结果');
           setActiveTab('img2img');
         }
         return;

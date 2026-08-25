@@ -24,6 +24,7 @@ interface StoryboardSectionProps {
   onGenerateStoryboard: (
     panels: GeneratedStoryboard['panels'],
     sceneName: string,
+    themeTitle: string,
     isR18: boolean,
     onSuccess: (msg: string) => void,
     onError: (msg: string) => void
@@ -174,7 +175,7 @@ export function StoryboardSection({
     setIsSubmitting(true);
     setSubmittedPanels(new Set(result.panels.map((_, i) => i)));
     panelsRef.current = result.panels;
-    onGenerateStoryboard(result.panels, result.scene.nameZh, result.is_r18, (msg) => {
+    onGenerateStoryboard(result.panels, result.scene.nameZh, result.scene.nameZh, result.is_r18, (msg) => {
       onSuccess(msg);
       setIsSubmitting(false);
     }, (msg) => {

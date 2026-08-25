@@ -1,5 +1,6 @@
 import type { NodeInfo } from '../types';
 import { WORKFLOW } from '../services/runninghub';
+import { getDefaultWorkflow } from '../services/modelDefaultsService';
 
 export interface Txt2ImgNodeOptions {
   workflowId?: string;
@@ -15,6 +16,8 @@ export interface Txt2ImgNodeOptions {
   lora3Name?: string;
   lora3Weight?: number;
   checkpoint?: string;
+  /** KREA2 工作流专用：UNet 模型 */
+  unet?: string;
   /** 3LoRA 模型专用：随机提示词开关（对应 nodeId 105） */
   threeLoraRandomPrompt?: boolean;
 }
@@ -108,12 +111,30 @@ const REALISTIC_V3_NODES: NodeIds = {
   checkpoint: undefined,
 };
 
+/** Krea2 文生图模型 — 基于 RunningHub 2082140662178611201 */
+const KREA2_NODES: NodeIds = {
+  width: { nodeId: '122', fieldName: 'value' },
+  height: { nodeId: '119', fieldName: 'value' },
+  batchSize: { nodeId: '52', fieldName: 'batch_size' },
+  positivePrompt: '103',
+  negativePrompt: undefined,
+  lora1: '85',
+  lora2: '83',
+  lora3: '99',
+  checkpoint: '55',
+  extra: {
+    negPromptEnable: { nodeId: '118', fieldName: 'value' },
+  },
+};
+
 function getNodeIds(workflowId: string): NodeIds {
   switch (workflowId) {
     case WORKFLOW.THREE_LORA:
       return THREE_LORA_NODES;
     case WORKFLOW.REALISTIC_V3:
       return REALISTIC_V3_NODES;
+    case WORKFLOW.KREA2:
+      return KREA2_NODES;
     default:
       return DEFAULT_NODES;
   }
@@ -134,10 +155,11 @@ export function buildTxt2ImgNodeList(options: Txt2ImgNodeOptions): NodeInfo[] {
     lora3Name,
     lora3Weight = 1.0,
     checkpoint,
+    unet,
     threeLoraRandomPrompt = false,
   } = options;
 
-  const ids = getNodeIds(workflowId || WORKFLOW.THREE_LORA);
+  const ids = getNodeIds(workflowId || getDefaultWorkflow());
 
   // Helper to format float weights to a clean decimal string (avoid JS float precision issues like 0.7500000000000001)
   const fmt = (n: number) => {
@@ -161,6 +183,11 @@ export function buildTxt2ImgNodeList(options: Txt2ImgNodeOptions): NodeInfo[] {
   if (workflowId === WORKFLOW.THREE_LORA) {
     nodes.push({ nodeId: '100', fieldName: 'value', fieldValue: 'false', description: '启用反向提示词' });
     nodes.push({ nodeId: '105', fieldName: 'value', fieldValue: threeLoraRandomPrompt ? 'true' : 'false', description: '添加随机提示词' });
+  }
+
+  // Krea2 — 负面提示词开关（默认关闭）
+  if (workflowId === WORKFLOW.KREA2) {
+    nodes.push({ nodeId: '118', fieldName: 'value', fieldValue: 'false', description: '启用反向提示词' });
   }
 
   // 真实系默认模型有反向提示词节点
@@ -203,9 +230,14 @@ export function buildTxt2ImgNodeList(options: Txt2ImgNodeOptions): NodeInfo[] {
     }
   }
 
-  // Checkpoint — 用户未设置时直接不推 ckpt_name 节点（让 RunningHub 工作流使用自身默认）
-  if (checkpoint && ids.checkpoint) {
+  // Checkpoint — 仅非 KREA2 工作流推送（KREA2 用 UNet 而非 checkpoint）
+  if (checkpoint && ids.checkpoint && workflowId !== WORKFLOW.KREA2) {
     nodes.push({ nodeId: ids.checkpoint, fieldName: 'ckpt_name', fieldValue: checkpoint, description: 'Checkpoint模型' });
+  }
+
+  // KREA2 — UNet 模型（与 checkpoint 共用同一节点，unet_name 字段）
+  if (workflowId === WORKFLOW.KREA2 && unet && ids.checkpoint) {
+    nodes.push({ nodeId: ids.checkpoint, fieldName: 'unet_name', fieldValue: unet, description: 'UNet模型' });
   }
 
   return nodes;

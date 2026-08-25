@@ -29,6 +29,10 @@ class PromptTask:
     result: Optional[dict] = None
     error: Optional[str] = None
     params: dict = field(default_factory=dict)
+    # Human-readable progress string for the UI. Updated by background
+    # runners so the frontend can show "正在调用 LLM", "已生成 3/5 分镜"
+    # etc. instead of a bare "生成中..." spinner.
+    progress: Optional[str] = None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -92,6 +96,15 @@ class TaskStore:
 
     def mark_running(self, task_id: str) -> Optional[PromptTask]:
         return self.update(task_id, status=TaskStatus.RUNNING, started_at=time.time())
+
+    def set_progress(self, task_id: str, progress: str) -> Optional[PromptTask]:
+        """Update the human-readable progress string for an in-flight task.
+
+        Cheap (no status/state change), safe to call many times per
+        second. The frontend polls the task every 2s and renders this
+        string in the "生成中..." UI to give users real-time feedback.
+        """
+        return self.update(task_id, progress=progress)
 
     def mark_done(self, task_id: str, result: dict) -> Optional[PromptTask]:
         return self.update(

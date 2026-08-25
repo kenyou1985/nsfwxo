@@ -8,10 +8,77 @@ import {
   Image, Zap, X, Download, User, Heart, Star, Clapperboard,
   ChevronLeft, ChevronRight, Video, ZoomIn, RefreshCw, Bookmark,
 } from 'lucide-react';
+
+/**
+ * Build a short, scene-and-pose-flavored Chinese summary for a抽卡 result.
+ *
+ * The backend already attempts to summarize via a second-pass LLM call
+ * (`/api/prompt/_/stream` end event's `theme_label`), but that:
+ *   - costs one extra round-trip (visible as delayed label updates)
+ *   - sometimes returns the preset name or an empty string on failure
+ *   - sometimes returns English verbatim if the model misbehaves
+ *
+ * So when `theme_label` is missing/empty/non-Chinese we extract an
+ * 8-char Chinese noun cluster from the prompt itself. The image-prompt
+ * paragraph follows the backend's `Format:` template — "[character],
+ * [clothing], [env], [action], [camera], [lighting], [quality]" — so
+ * the FIRST clause (before the first comma) usually names the scene +
+ * pose naturally. If the prompt is entirely English (random mode
+ * without theme) we return empty so the caller falls back to
+ * `主题 N` rather than showing English text in a Chinese badge.
+ */
+function deriveThemeLabel(prompt: string): string {
+  const text = (prompt || '').trim();
+  if (!text) return '';
+  // If the prompt has no CJK characters at all, refuse to summarize —
+  // the badge is for the user to quickly see the scene in Chinese, and
+  // showing English here would defeat that purpose.
+  if (!containsCJK(text)) return '';
+  const head = text.split(/[,,]/)[0] || '';
+  // Strip stray leading "a"/"an"/"the" and excess whitespace.
+  const cleaned = head.replace(/^\s*(an?\s+|the\s+)/i, '').trim();
+  if (!cleaned) return '';
+  // Cap to a visually-reasonable width in the badge. 24 chars is the
+  // sweet spot — long enough to carry scene + pose (e.g. "20岁东方女性
+  // 微笑地跪在昏暗地牢..."), short enough to fit one line.
+  const MAX = 24;
+  if (cleaned.length <= MAX) return cleaned;
+  // Try to cut at a word-ish boundary.
+  const sliced = cleaned.slice(0, MAX);
+  const lastSpace = sliced.lastIndexOf(' ');
+  return (lastSpace > MAX * 0.6 ? sliced.slice(0, lastSpace) : sliced) + '…';
+}
+
+/** True if the string contains at least one CJK Unified Ideograph. */
+function containsCJK(text: string): boolean {
+  if (!text) return false;
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code >= 0x4e00 && code <= 0x9fff) return true;
+  }
+  return false;
+}
+
+/**
+ * Render a human-friendly Chinese elapsed-time string for the "已等待
+ * X" label next to the in-flight outline card. The shape is fixed-width
+ * enough that the badge doesn't reflow every second.
+ */
+function formatElapsed(ms: number): string {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  if (totalSec < 60) return `${totalSec} 秒`;
+  const minutes = Math.floor(totalSec / 60);
+  const seconds = totalSec % 60;
+  if (minutes < 60) return `${minutes} 分${seconds.toString().padStart(2, '0')} 秒`;
+  const hours = Math.floor(minutes / 60);
+  const remMin = minutes % 60;
+  return `${hours} 时${remMin.toString().padStart(2, '0')} 分`;
+}
 import {
   expandPrompt,
   expandVideoFromImage,
   randomPrompt,
+  streamRandomPrompt,
   generateStoryboard,
   generateStoryboardThemes,
   generateStoryboardOutline,
@@ -47,7 +114,7 @@ import { buildTxt2ImgNodeList } from '../utils/txt2imgNodeBuilder';
 import type { QueuedTask, TabType, NodeInfo } from '../types';
 import { DEFAULT_TXT2IMG_PARAMS, QUALITY_BOOST_PROMPT } from '../constants';
 import { WORKFLOW, getWorkflowFormat, uploadImage, ensureDataUrl } from '../services/runninghub';
-import { getCheckpointDefault, getLoraDefault } from '../services/modelDefaultsService';
+import { getCheckpointDefault, getLoraDefault, getDefaultWorkflow } from '../services/modelDefaultsService';
 
 /**
  * 将 GirlfriendPreset.portraitUrl 转为 File 对象用于上传。
@@ -57,6 +124,27 @@ async function gfUrlToFile(portraitUrl: string, id: string): Promise<File> {
   const res = await fetch(portraitUrl);
   const blob = await res.blob();
   return new File([blob], `${id}.jpg`, { type: blob.type || 'image/jpeg' });
+}
+
+/**
+ * 构建图生图节点列表（新的工作流 2083569010550423553）
+ */
+function buildImg2ImgNodeList(params: {
+  prompt: string;
+  imagePath: string;
+  aspectRatio: 'portrait' | 'landscape';
+  count?: number;
+}): NodeInfo[] {
+  const widthRatio = params.aspectRatio === 'portrait' ? '9' : '16';
+  const heightRatio = params.aspectRatio === 'portrait' ? '16' : '9';
+  return [
+    { nodeId: '291', fieldName: 'prompt', fieldValue: params.prompt, description: 'prompt' },
+    { nodeId: '172', fieldName: 'value', fieldValue: widthRatio, description: 'width' },
+    { nodeId: '173', fieldName: 'value', fieldValue: heightRatio, description: 'height' },
+    { nodeId: '269', fieldName: 'value', fieldValue: String(params.count ?? 2), description: 'count' },
+    { nodeId: '104', fieldName: 'image', fieldValue: params.imagePath, description: 'image' },
+    { nodeId: '273', fieldName: 'value', fieldValue: 'false', description: 'enhance' },
+  ];
 }
 
 type PromptMode = 'expand' | 'random' | 'storyboard';
@@ -77,6 +165,8 @@ export function AIPromptPage({ onError, onSuccess, onOpenSettings, taskManager, 
   const [r18Mode, setR18Mode] = useState(false);
   const [digitalHumanMode, setDigitalHumanMode] = useState(false);
   const [selectedGirlfriend, setSelectedGirlfriend] = useState<GirlfriendPreset | null>(null);
+  // Aspect ratio for img2img: 'portrait' (9:16) or 'landscape' (16:9)
+  const [img2imgAspectRatio, setImg2imgAspectRatio] = useState<'portrait' | 'landscape'>('portrait');
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -173,9 +263,9 @@ export function AIPromptPage({ onError, onSuccess, onOpenSettings, taskManager, 
         )}
       </div>
 
-      {activeMode === 'expand' && <ExpandMode onError={onError} onSuccess={onSuccess} loading={loading} setLoading={setLoading} r18Mode={r18Mode} taskManager={taskManager} apiKey={apiKey} digitalHumanMode={digitalHumanMode} selectedGirlfriend={selectedGirlfriend} onNavigate={onNavigate} setDigitalHumanMode={setDigitalHumanMode} setSelectedGirlfriend={setSelectedGirlfriend} />}
-      {activeMode === 'random' && <RandomMode onError={onError} onSuccess={onSuccess} loading={loading} setLoading={setLoading} r18Mode={r18Mode} taskManager={taskManager} apiKey={apiKey} digitalHumanMode={digitalHumanMode} selectedGirlfriend={selectedGirlfriend} onNavigate={onNavigate} setDigitalHumanMode={setDigitalHumanMode} setSelectedGirlfriend={setSelectedGirlfriend} />}
-      {activeMode === 'storyboard' && <StoryboardMode onError={onError} onSuccess={onSuccess} loading={loading} setLoading={setLoading} r18Mode={r18Mode} taskManager={taskManager} apiKey={apiKey} digitalHumanMode={digitalHumanMode} selectedGirlfriend={selectedGirlfriend} onNavigate={onNavigate} setDigitalHumanMode={setDigitalHumanMode} setSelectedGirlfriend={setSelectedGirlfriend} />}
+      {activeMode === 'expand' && <ExpandMode onError={onError} onSuccess={onSuccess} loading={loading} setLoading={setLoading} r18Mode={r18Mode} taskManager={taskManager} apiKey={apiKey} digitalHumanMode={digitalHumanMode} selectedGirlfriend={selectedGirlfriend} onNavigate={onNavigate} setDigitalHumanMode={setDigitalHumanMode} setSelectedGirlfriend={setSelectedGirlfriend} img2imgAspectRatio={img2imgAspectRatio} />}
+      {activeMode === 'random' && <RandomMode onError={onError} onSuccess={onSuccess} loading={loading} setLoading={setLoading} r18Mode={r18Mode} taskManager={taskManager} apiKey={apiKey} digitalHumanMode={digitalHumanMode} selectedGirlfriend={selectedGirlfriend} onNavigate={onNavigate} setDigitalHumanMode={setDigitalHumanMode} setSelectedGirlfriend={setSelectedGirlfriend} img2imgAspectRatio={img2imgAspectRatio} />}
+      {activeMode === 'storyboard' && <StoryboardMode onError={onError} onSuccess={onSuccess} loading={loading} setLoading={setLoading} r18Mode={r18Mode} taskManager={taskManager} apiKey={apiKey} digitalHumanMode={digitalHumanMode} selectedGirlfriend={selectedGirlfriend} onNavigate={onNavigate} setDigitalHumanMode={setDigitalHumanMode} setSelectedGirlfriend={setSelectedGirlfriend} img2imgAspectRatio={img2imgAspectRatio} />}
     </div>
   );
 }
@@ -211,10 +301,11 @@ function formatTime(seconds: number): string {
 
 // ─── Expand Mode ─────────────────────────────────────────────────────────────
 
-function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskManager, apiKey, onNavigate, digitalHumanMode, setDigitalHumanMode, selectedGirlfriend, setSelectedGirlfriend }: {
+function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskManager, apiKey, onNavigate, digitalHumanMode, setDigitalHumanMode, selectedGirlfriend, setSelectedGirlfriend, img2imgAspectRatio }: {
   onError: (msg: string) => void; onSuccess: (msg: string) => void; loading: boolean; setLoading: (v: boolean) => void; r18Mode: boolean;
   taskManager: TaskManagerReturn; apiKey: string; onNavigate?: (tab: TabType) => void;
   digitalHumanMode: boolean; setDigitalHumanMode: (v: boolean) => void; selectedGirlfriend: GirlfriendPreset | null; setSelectedGirlfriend: (gf: GirlfriendPreset | null) => void;
+  img2imgAspectRatio: 'portrait' | 'landscape';
 }) {
   const savedExpand = getExpandSession();
   const [input, setInput] = useState(savedExpand?.input || '');
@@ -364,12 +455,14 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     setGeneratingMain(true);
     try {
       let imagePath = selectedGirlfriend?.portraitUrl || '';
+      let downloadUrl = '';
       if (digitalHumanMode && selectedGirlfriend) {
         setGirlfriendUploading(true);
         try {
           const file = await gfUrlToFile(selectedGirlfriend.portraitUrl, selectedGirlfriend.id);
           const result = await uploadImage(apiKey, file);
           imagePath = result.imagePath;
+          downloadUrl = result.downloadUrl;
         } catch {
           onError('AI 女友图片上传失败，请重试');
           return;
@@ -378,12 +471,12 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         }
       }
       if (digitalHumanMode && selectedGirlfriend) {
-        const nodes = [
-        { nodeId: '7', fieldName: 'image', fieldValue: imagePath, description: 'image' },
-        { nodeId: '9', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: 'batch_size' },
-        { nodeId: '33', fieldName: 'text', fieldValue: outputText, description: 'text' },
-      ];
-      await taskManager.addTask('img2img', nodes, outputText, WORKFLOW.IMAGE_TO_IMAGE, undefined, undefined, 'expand');
+        const nodes = buildImg2ImgNodeList({
+          prompt: outputText,
+          imagePath: downloadUrl || imagePath,
+          aspectRatio: img2imgAspectRatio,
+        });
+        await taskManager.addTask('img2img', nodes, outputText, WORKFLOW.IMAGE_TO_IMAGE, undefined, undefined, 'expand');
         onSuccess('任务已提交，请到图生图查看生成结果');
         if (onNavigate) onNavigate('img2img');
       } else {
@@ -396,8 +489,8 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           lora1Weight: getLoraDefault('lora1')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora1Weight,
           lora2Name: getLoraDefault('lora2')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora2Name,
           lora2Weight: getLoraDefault('lora2')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora2Weight,
-          workflowId: WORKFLOW.THREE_LORA,
-          checkpoint: getCheckpointDefault(WORKFLOW.THREE_LORA)?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
+          workflowId: getDefaultWorkflow(),
+          checkpoint: getCheckpointDefault(getDefaultWorkflow())?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
         });
         await taskManager.addTask('txt2img', nodes, outputText, undefined, undefined, undefined, 'expand');
         onSuccess('任务已提交，请到文生图查看生成结果');
@@ -417,11 +510,13 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     }
     setGenState((prev) => ({ ...prev, [result.id]: { loading: true, images: [], taskId: null } }));
     let imagePath = selectedGirlfriend?.portraitUrl || '';
+    let downloadUrl = '';
     if (digitalHumanMode && selectedGirlfriend) {
       try {
         const file = await gfUrlToFile(selectedGirlfriend.portraitUrl, selectedGirlfriend.id);
         const uploadResult = await uploadImage(apiKey, file);
         imagePath = uploadResult.imagePath;
+        downloadUrl = uploadResult.downloadUrl;
       } catch {
         setGenState((prev) => {
           const next = { ...prev };
@@ -433,11 +528,11 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       }
     }
     if (digitalHumanMode && selectedGirlfriend) {
-      const nodes = [
-        { nodeId: '7', fieldName: 'image', fieldValue: imagePath, description: 'image' },
-        { nodeId: '9', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: 'batch_size' },
-        { nodeId: '33', fieldName: 'text', fieldValue: result.prompt, description: 'text' },
-      ];
+      const nodes = buildImg2ImgNodeList({
+        prompt: result.prompt,
+        imagePath: downloadUrl || imagePath,
+        aspectRatio: img2imgAspectRatio,
+      });
       try {
         await taskManager.addTask('img2img', nodes, result.prompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, undefined, 'expand');
         onSuccess('任务已提交，请到图生图查看生成结果');
@@ -460,8 +555,8 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         lora1Weight: getLoraDefault('lora1')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora1Weight,
         lora2Name: getLoraDefault('lora2')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora2Name,
         lora2Weight: getLoraDefault('lora2')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora2Weight,
-        workflowId: WORKFLOW.THREE_LORA,
-        checkpoint: getCheckpointDefault(WORKFLOW.THREE_LORA)?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
+        workflowId: getDefaultWorkflow(),
+        checkpoint: getCheckpointDefault(getDefaultWorkflow())?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
       });
       try {
         await taskManager.addTask('txt2img', nodes, result.prompt, undefined, undefined, undefined, 'expand');
@@ -488,11 +583,13 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     setBatchLoading(true);
     let submitted = 0;
     let imagePath = selectedGirlfriend?.portraitUrl || '';
+    let downloadUrl = '';
     if (digitalHumanMode && selectedGirlfriend) {
       try {
         const file = await gfUrlToFile(selectedGirlfriend.portraitUrl, selectedGirlfriend.id);
         const uploadResult = await uploadImage(apiKey, file);
         imagePath = uploadResult.imagePath;
+        downloadUrl = uploadResult.downloadUrl;
       } catch {
         setBatchLoading(false);
         onError('AI 女友图片上传失败，请重试');
@@ -502,11 +599,11 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     const toSubmit = results.slice(0, availableSlots);
     const tasks = toSubmit.map(async (result) => {
       if (digitalHumanMode && selectedGirlfriend) {
-        const nodes = [
-          { nodeId: '7', fieldName: 'image', fieldValue: imagePath, description: 'image' },
-          { nodeId: '9', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: 'batch_size' },
-          { nodeId: '33', fieldName: 'text', fieldValue: result.prompt, description: 'text' },
-        ];
+        const nodes = buildImg2ImgNodeList({
+          prompt: result.prompt,
+          imagePath: downloadUrl || imagePath,
+          aspectRatio: img2imgAspectRatio,
+        });
         await taskManager.addTask('img2img', nodes, result.prompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, undefined, 'expand');
       } else {
         const nodes = buildTxt2ImgNodeList({
@@ -518,8 +615,8 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           lora1Weight: getLoraDefault('lora1')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora1Weight,
           lora2Name: getLoraDefault('lora2')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora2Name,
           lora2Weight: getLoraDefault('lora2')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora2Weight,
-          workflowId: WORKFLOW.THREE_LORA,
-          checkpoint: getCheckpointDefault(WORKFLOW.THREE_LORA)?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
+          workflowId: getDefaultWorkflow(),
+          checkpoint: getCheckpointDefault(getDefaultWorkflow())?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
         });
         await taskManager.addTask('txt2img', nodes, result.prompt, undefined, undefined, undefined, 'expand');
       }
@@ -565,11 +662,13 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     const storyboardInfo = { historyId: hid, panelIdx };
     setGenStates((prev) => ({ ...prev, [key]: { loading: true, images: [] } }));
     let imagePath = selectedGirlfriend?.portraitUrl || '';
+    let downloadUrl = '';
     if (digitalHumanMode && selectedGirlfriend) {
       try {
         const file = await gfUrlToFile(selectedGirlfriend.portraitUrl, selectedGirlfriend.id);
         const uploadResult = await uploadImage(apiKey, file);
         imagePath = uploadResult.imagePath;
+        downloadUrl = uploadResult.downloadUrl;
       } catch {
         setGenStates((prev) => { const next = { ...prev }; delete next[key]; return next; });
         onError('AI 女友图片上传失败'); return;
@@ -579,11 +678,11 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       const charId = (selectedGirlfriend.id as string).toUpperCase().slice(0, 4);
       const anchorPrompt = `【严格锁定】严格锁定图中22岁女性（ID:${charId}），完全保留原有面部特征，五官轮廓、脸型、眼睛、鼻子、嘴唇、发型、肤色、身材比例完全不变，不做任何面部修改，动作流畅不僵硬。超高清8K，写实细节，皮肤质感细腻，无畸变、无模糊、无穿模。`;
       const finalPrompt = `${anchorPrompt}\n\n${prompt}`;
-      const nodes = [
-        { nodeId: '7', fieldName: 'image', fieldValue: imagePath, description: 'image' },
-        { nodeId: '9', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: 'batch_size' },
-        { nodeId: '33', fieldName: 'text', fieldValue: finalPrompt, description: 'text' },
-      ];
+      const nodes = buildImg2ImgNodeList({
+        prompt: finalPrompt,
+        imagePath: downloadUrl || imagePath,
+        aspectRatio: img2imgAspectRatio,
+      });
       try {
         await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, storyboardInfo, 'smart-storyboard', context?.themeTitle, context?.panelNumber);
         onSuccess('分镜图片任务已提交');
@@ -602,8 +701,8 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         lora1Weight: getLoraDefault('lora1')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora1Weight,
         lora2Name: getLoraDefault('lora2')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora2Name,
         lora2Weight: getLoraDefault('lora2')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora2Weight,
-        workflowId: WORKFLOW.THREE_LORA,
-        checkpoint: getCheckpointDefault(WORKFLOW.THREE_LORA)?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
+        workflowId: getDefaultWorkflow(),
+        checkpoint: getCheckpointDefault(getDefaultWorkflow())?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
       });
       try {
         await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, storyboardInfo, 'smart-storyboard', context?.themeTitle, context?.panelNumber);
@@ -682,6 +781,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   const handleGenerateStoryboard = useCallback(async (
     panels: { panel_number: number; scene_description: string; image_prompt: string }[],
     sceneName: string,
+    themeTitle: string,
     isR18: boolean,
     onSuccessMsg: (msg: string) => void,
     onErrorMsg: (msg: string) => void,
@@ -690,8 +790,14 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     const availableSlots = MAX_TASKS - taskManager.tasks.length;
     if (availableSlots <= 0) { onErrorMsg('任务队列已满'); return; }
 
+    // Use the real theme title as the history plot identifier. The
+    // `sceneName` (scene.nameZh like "豪华酒店套房") is the SCENE
+    // within the storyboard, while `themeTitle` is the actual theme the
+    // user selected or the scene itself for Smart Storyboard. Pass both
+    // so the history record is identifiable by its real name.
+    const plotLabel = themeTitle || sceneName || '剧情分镜';
     const newHistoryId = addStoryboardHistory({
-      plot: sceneName,
+      plot: plotLabel,
       panel_count: panels.length,
       r18: isR18,
       panels,
@@ -701,11 +807,13 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     sessionStorage.setItem(`sb_panel_${newHistoryId}_submitted`, JSON.stringify(true));
 
     let imagePath = selectedGirlfriend?.portraitUrl || '';
+    let downloadUrl = '';
     if (digitalHumanMode && selectedGirlfriend) {
       try {
         const file = await gfUrlToFile(selectedGirlfriend.portraitUrl, selectedGirlfriend.id);
         const uploadResult = await uploadImage(apiKey, file);
         imagePath = uploadResult.imagePath;
+        downloadUrl = uploadResult.downloadUrl;
       } catch {
         onErrorMsg('AI 女友图片上传失败'); return;
       }
@@ -720,12 +828,12 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         const charId = (selectedGirlfriend.id as string).toUpperCase().slice(0, 4);
         const anchorPrompt = `【严格锁定】严格锁定图中22岁女性（ID:${charId}），完全保留原有面部特征，五官轮廓、脸型、眼睛、鼻子、嘴唇、发型、肤色、身材比例完全不变，不做任何面部修改，动作流畅不僵硬。超高清8K，写实细节，皮肤质感细腻，无畸变、无模糊、无穿模。`;
         const finalPrompt = `${anchorPrompt}\n\n${panel.image_prompt}`;
-        const nodes = [
-          { nodeId: '7', fieldName: 'image', fieldValue: imagePath, description: 'image' },
-          { nodeId: '9', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: 'batch_size' },
-          { nodeId: '33', fieldName: 'text', fieldValue: finalPrompt, description: 'text' },
-        ];
-        await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, panelStoryboardInfo, 'storyboard', sceneName || undefined, panelNum);
+        const nodes = buildImg2ImgNodeList({
+          prompt: finalPrompt,
+          imagePath: downloadUrl || imagePath,
+          aspectRatio: img2imgAspectRatio,
+        });
+        await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, panelStoryboardInfo, 'storyboard', plotLabel, panelNum);
       } else {
         const finalPrompt = `${QUALITY_BOOST_PROMPT}, ${panel.image_prompt}`;
         const nodes = buildTxt2ImgNodeList({
@@ -737,10 +845,10 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           lora1Weight: getLoraDefault('lora1')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora1Weight,
           lora2Name: getLoraDefault('lora2')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora2Name,
           lora2Weight: getLoraDefault('lora2')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora2Weight,
-          workflowId: WORKFLOW.THREE_LORA,
-          checkpoint: getCheckpointDefault(WORKFLOW.THREE_LORA)?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
+          workflowId: getDefaultWorkflow(),
+          checkpoint: getCheckpointDefault(getDefaultWorkflow())?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
         });
-        await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, panelStoryboardInfo, 'storyboard', sceneName || undefined, panelNum);
+        await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, panelStoryboardInfo, 'storyboard', plotLabel, panelNum);
       }
     });
 
@@ -1108,10 +1216,11 @@ function ExpandResultCard({ result, r18Mode, isCopied, genState, onCopy, onDelet
 
 // ─── Random Mode ─────────────────────────────────────────────────────────────
 
-function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskManager, apiKey, onNavigate, digitalHumanMode, setDigitalHumanMode, selectedGirlfriend, setSelectedGirlfriend }: {
+function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskManager, apiKey, onNavigate, digitalHumanMode, setDigitalHumanMode, selectedGirlfriend, setSelectedGirlfriend, img2imgAspectRatio }: {
   onError: (msg: string) => void; onSuccess: (msg: string) => void; loading: boolean; setLoading: (v: boolean) => void; r18Mode: boolean;
   taskManager: TaskManagerReturn; apiKey: string; onNavigate?: (tab: TabType) => void;
   digitalHumanMode: boolean; setDigitalHumanMode: (v: boolean) => void; selectedGirlfriend: GirlfriendPreset | null; setSelectedGirlfriend: (gf: GirlfriendPreset | null) => void;
+  img2imgAspectRatio: 'portrait' | 'landscape';
 }) {
   const savedRandom = getRandomSession();
   const [type, setType] = useState<'image' | 'video'>(savedRandom?.type || 'image');
@@ -1126,6 +1235,11 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   const [genStates, setGenStates] = useState<Record<number, { loading: boolean; images: string[] }>>({});
   const [batchLoading, setBatchLoading] = useState(false);
   const [favorites, setFavorites] = useState<FavoriteItem[]>(() => getFavorites());
+
+  // Latest results mirror for use inside async callbacks (the `results` state
+  // closure value would be stale by the time the stream finishes).
+  const resultsRef = useRef<PromptResult[]>(results);
+  useEffect(() => { resultsRef.current = results; }, [results]);
 
   const handleToggleFavorite = (imageUrl: string, prompt?: string) => {
     // Use imageRef for lookup since addFavorite stores the URL in imageRef field
@@ -1191,29 +1305,115 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   ];
 
   const handleGenerate = async () => {
+    if (!getYunwuKey()) { onError('请先在设置中配置 OpenLux API Key'); return; }
     setLoading(true);
+    setExpandedIdx(null);
+
+    // Seed N placeholder cards so the UI renders an empty shell for every
+    // slot immediately, then we stream text into them as NDJSON chunks
+    // arrive. This is what eliminates the "stuck at 抽卡中" feeling — the
+    // user sees the card slot populate the instant the LLM emits its
+    // first text chunk (~0.5-1s after request start), instead of waiting
+    // for the slowest of N parallel generations to finish.
+    const initialResults: PromptResult[] = Array.from({ length: count }).map(() => ({
+      theme_label: '',
+      theme: '',
+      tags_used: {},
+      prompt: '',
+    }));
+    setResults(initialResults);
+
     try {
-      const res = await randomPrompt(
+      await streamRandomPrompt(
         type, r18Mode, count, theme,
         digitalHumanMode,
         digitalHumanMode ? selectedGirlfriend?.portraitUrl : undefined,
         digitalHumanMode ? selectedGirlfriend?.characterPrompt : undefined,
+        {
+          onStart: ({ index, theme: presetLabel, tags_used }) => {
+            setResults((prev) => {
+              const next = [...prev];
+              while (next.length <= index) {
+                next.push({ theme_label: '', theme: '', tags_used: {}, prompt: '' });
+              }
+              next[index] = {
+                ...next[index],
+                theme: presetLabel,
+                tags_used: tags_used ?? next[index].tags_used ?? {},
+              };
+              return next;
+            });
+          },
+          onDelta: ({ index, text }) => {
+            setResults((prev) => {
+              const next = [...prev];
+              while (next.length <= index) {
+                next.push({ theme_label: '', theme: '', tags_used: {}, prompt: '' });
+              }
+              next[index] = {
+                ...next[index],
+                prompt: (next[index].prompt || '') + text,
+              };
+              return next;
+            });
+          },
+          onEnd: ({ index, theme_label, prompt }) => {
+            setResults((prev) => {
+              const next = [...prev];
+              while (next.length <= index) {
+                next.push({ theme_label: '', theme: '', tags_used: {}, prompt: '' });
+              }
+              next[index] = {
+                ...next[index],
+                theme_label: theme_label || next[index].theme_label || '',
+                prompt,
+              };
+              return next;
+            });
+          },
+          onError: ({ index, message }) => {
+            // Per-slot errors don't stop the whole batch — show inline
+            // on the affected card. Global (no index) errors fall through
+            // to the catch.
+            if (index === undefined) {
+              onError(message);
+              return;
+            }
+            setResults((prev) => {
+              const next = [...prev];
+              while (next.length <= index) {
+                next.push({ theme_label: '', theme: '', tags_used: {}, prompt: '' });
+              }
+              next[index] = {
+                ...next[index],
+                theme_label: next[index].theme_label || '生成失败',
+                prompt: next[index].prompt
+                  ? `${next[index].prompt}\n\n[错误] ${message}`
+                  : `[错误] ${message}`,
+              };
+              return next;
+            });
+          },
+          onDone: ({ successful }) => {
+            addRandomHistory({
+              type,
+              r18: r18Mode,
+              theme,
+              // Snapshot only fully-completed slots (have non-empty prompt).
+              results: resultsRef.current
+                .filter((r) => r.prompt && !r.prompt.startsWith('[错误]'))
+                .map((r) => ({
+                  prompt: r.prompt,
+                  tags_used: r.tags_used,
+                  theme_label: r.theme_label,
+                })),
+            });
+            setHistory(getRandomHistory());
+            const themeName = THEMES.find((t) => t.key === theme)?.label || '完全随机';
+            onSuccess(`[${themeName}] 抽卡完成，成功 ${successful}/${count} 个提示词`);
+          },
+        },
       );
-      setResults(res.results);
-      setExpandedIdx(null);
-      addRandomHistory({
-        type,
-        r18: r18Mode,
-        theme,
-        results: res.results.map((r) => ({
-          prompt: r.prompt,
-          tags_used: r.tags_used,
-          theme_label: r.theme_label,
-        })),
-      });
-      setHistory(getRandomHistory());
-      const themeName = THEMES.find((t) => t.key === theme)?.label || '完全随机';
-      onSuccess(`[${themeName}] 抽卡成功，生成了 ${res.results.length} 个提示词`);
     } catch (err) {
       onError(err instanceof Error ? err.message : '抽卡失败');
     } finally {
@@ -1253,13 +1453,15 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     const resultForIdx = results[idx];
     const randomTheme = resultForIdx?.theme_label || '';
     let imagePath = selectedGirlfriend?.portraitUrl || '';
+    let downloadUrl = '';
     let referenceImageUrl = '';
     if (digitalHumanMode && selectedGirlfriend) {
       try {
         const file = await gfUrlToFile(selectedGirlfriend.portraitUrl, selectedGirlfriend.id);
         const uploadResult = await uploadImage(apiKey, file);
         imagePath = uploadResult.imagePath;
-        referenceImageUrl = imagePath;
+        downloadUrl = uploadResult.downloadUrl;
+        referenceImageUrl = downloadUrl || imagePath;
       } catch {
         setGenStates((prev) => {
           const next = { ...prev };
@@ -1271,11 +1473,11 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       }
     }
     if (digitalHumanMode && selectedGirlfriend) {
-      const nodes = [
-        { nodeId: '7', fieldName: 'image', fieldValue: imagePath, description: 'image' },
-        { nodeId: '9', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: 'batch_size' },
-        { nodeId: '33', fieldName: 'text', fieldValue: prompt, description: 'text' },
-      ];
+      const nodes = buildImg2ImgNodeList({
+        prompt,
+        imagePath: downloadUrl || imagePath,
+        aspectRatio: img2imgAspectRatio,
+      });
       try {
         await taskManager.addTask('img2img', nodes, prompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, undefined, 'random', randomTheme || undefined);
         onSuccess('任务已提交，请到图生图查看生成结果');
@@ -1298,8 +1500,8 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         lora1Weight: getLoraDefault('lora1')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora1Weight,
         lora2Name: getLoraDefault('lora2')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora2Name,
         lora2Weight: getLoraDefault('lora2')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora2Weight,
-        workflowId: WORKFLOW.THREE_LORA,
-        checkpoint: getCheckpointDefault(WORKFLOW.THREE_LORA)?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
+        workflowId: getDefaultWorkflow(),
+        checkpoint: getCheckpointDefault(getDefaultWorkflow())?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
       });
       try {
         await taskManager.addTask('txt2img', nodes, prompt, undefined, undefined, undefined, 'random', randomTheme || undefined);
@@ -1326,11 +1528,13 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     setBatchLoading(true);
     let submitted = 0;
     let imagePath = selectedGirlfriend?.portraitUrl || '';
+    let downloadUrl = '';
     if (digitalHumanMode && selectedGirlfriend) {
       try {
         const file = await gfUrlToFile(selectedGirlfriend.portraitUrl, selectedGirlfriend.id);
         const uploadResult = await uploadImage(apiKey, file);
         imagePath = uploadResult.imagePath;
+        downloadUrl = uploadResult.downloadUrl;
       } catch {
         setBatchLoading(false);
         onError('AI 女友图片上传失败，请重试');
@@ -1347,11 +1551,11 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     const tasks = toSubmit.map(async (result) => {
       const perTaskTheme = result.theme_label || '';
       if (digitalHumanMode && selectedGirlfriend) {
-        const nodes = [
-          { nodeId: '7', fieldName: 'image', fieldValue: imagePath, description: 'image' },
-          { nodeId: '9', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: 'batch_size' },
-          { nodeId: '33', fieldName: 'text', fieldValue: result.prompt, description: 'text' },
-        ];
+        const nodes = buildImg2ImgNodeList({
+          prompt: result.prompt,
+          imagePath: downloadUrl || imagePath,
+          aspectRatio: img2imgAspectRatio,
+        });
         await taskManager.addTask('img2img', nodes, result.prompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, undefined, 'random', perTaskTheme || undefined);
       } else {
         const nodes = buildTxt2ImgNodeList({
@@ -1363,8 +1567,8 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           lora1Weight: getLoraDefault('lora1')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora1Weight,
           lora2Name: getLoraDefault('lora2')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora2Name,
           lora2Weight: getLoraDefault('lora2')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora2Weight,
-          workflowId: WORKFLOW.THREE_LORA,
-          checkpoint: getCheckpointDefault(WORKFLOW.THREE_LORA)?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
+          workflowId: getDefaultWorkflow(),
+          checkpoint: getCheckpointDefault(getDefaultWorkflow())?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
         });
         await taskManager.addTask('txt2img', nodes, result.prompt, undefined, undefined, undefined, 'random', perTaskTheme || undefined);
       }
@@ -1547,9 +1751,12 @@ function RandomHistoryPanel({ history, r18Mode, onLoad, onDelete, onClear, onCop
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <div className="flex flex-wrap gap-1">
-                        {(h.results ?? []).slice(0, 3).map((r, ri) => (
-                          <span key={ri} className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${r18Mode ? 'bg-red-100 text-red-600' : 'bg-primary/8 text-primary'}`}>{r.theme_label || '主题'}</span>
-                        ))}
+                        {(h.results ?? []).slice(0, 3).map((r, ri) => {
+                          const lbl = containsCJK(r.theme_label || '') ? r.theme_label : '主题';
+                          return (
+                            <span key={ri} className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${r18Mode ? 'bg-red-100 text-red-600' : 'bg-primary/8 text-primary'}`}>{lbl}</span>
+                          );
+                        })}
                         {(h.results ?? []).length > 3 && <span className="text-[10px] text-text-tertiary">+{(h.results ?? []).length - 3}</span>}
                       </div>
                       <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-bg-elevated text-text-tertiary flex-shrink-0">{(h.results ?? []).length} 个</span>
@@ -1570,7 +1777,7 @@ function RandomHistoryPanel({ history, r18Mode, onLoad, onDelete, onClear, onCop
                       <div className="flex items-center justify-between mb-1.5">
                         <div className="flex items-center gap-2">
                           <span className="text-[10px] font-medium text-text-tertiary">{ri + 1}</span>
-                          <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${r18Mode ? 'bg-red-200 text-red-700' : 'bg-primary/10 text-primary'}`}>{r.theme_label || ''}</span>
+                          <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${r18Mode ? 'bg-red-200 text-red-700' : 'bg-primary/10 text-primary'}`}>{containsCJK(r.theme_label || '') ? r.theme_label : ''}</span>
                         </div>
                         <button onClick={() => copy(`${h.id}-${ri}`, r.prompt)}
                           className={`flex items-center gap-1 text-[10px] transition-colors ${copiedId === `${h.id}-${ri}` ? 'text-green-500' : 'text-text-tertiary hover:text-primary'}`}>
@@ -1598,11 +1805,35 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
   taskManager: TaskManagerReturn;
   digitalHumanMode?: boolean; selectedGirlfriend?: GirlfriendPreset | null;
 }) {
-  const themeLabel = result.theme_label || `主题 ${index + 1}`;
+  // A card is "generating" until the LLM has produced at least one chunk
+  // for it. With the streaming backend, prompt stays "" for ~0.5-2s after
+  // the user clicks "抽卡", so we render an explicit loading affordance
+  // instead of an empty card (which the user reported as "看不出是否在
+  // 生成" — they only saw "主题 1/2/3..." placeholders with no spinner).
+  const isPromptLoading = !result.prompt;
+  // Prefer the server-generated theme_label (e.g. "森林绳缚", "酒店女仆").
+  // If it's empty — happens when the second-pass LLM call for the label
+  // failed and the backend fell back to the preset name — synthesize one
+  // from the prompt itself so the user always sees a meaningful summary
+  // ("主题 1..5" placeholders are useless in the UI).
+  const serverLabelRaw = result.theme_label?.trim() ?? '';
+  // Defence in depth: if the backend ever returns an English label
+  // (e.g. the user is running a build before the backend fix lands, or
+  // a model outputs mixed-language for a niche topic), don't show it.
+  // Frontend fallback to deriveThemeLabel will still surface SOMETHING
+  // from the prompt — and if the prompt itself is English, fall back
+  // to the placeholder so we never show a half-English badge.
+  const serverLabel = serverLabelRaw && containsCJK(serverLabelRaw) ? serverLabelRaw : '';
+  const autoLabel = serverLabel ? '' : deriveThemeLabel(result.prompt);
+  const themeLabel = serverLabel || autoLabel || (isPromptLoading ? `主题 ${index + 1}` : `主题 ${index + 1}`);
   const totalTags = Object.values(result.tags_used || {}).flat().length;
   const accentColor = r18Mode ? 'border-red-200' : 'border-border';
   const headerBg = r18Mode ? 'bg-red-50/60' : 'bg-bg-elevated';
-  const badgeBg = r18Mode ? 'bg-gradient-to-r from-red-500 to-pink-500' : 'bg-gradient-to-r from-primary to-indigo-500';
+  const badgeBg = isPromptLoading
+    ? 'bg-gradient-to-r from-slate-400 to-slate-500'
+    : r18Mode
+      ? 'bg-gradient-to-r from-red-500 to-pink-500'
+      : 'bg-gradient-to-r from-primary to-indigo-500';
   const isGenLoading = genState?.loading;
   const displayImages = genState?.images ?? [];
 
@@ -1614,17 +1845,44 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
   const allDisplayImages = displayImages.length > 0 ? displayImages : relatedTasks.flatMap((t: QueuedTask) => t.images);
 
   return (
-    <div className={`rounded-2xl bg-white border shadow-card overflow-hidden ${accentColor}`}>
+    <div className={`rounded-2xl bg-white border shadow-card overflow-hidden ${accentColor} ${isPromptLoading ? 'ring-1 ring-primary/20' : ''}`}>
       <div role="button" tabIndex={0} onClick={onToggle} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onToggle(); }}
         className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-bg-hover/50 transition-colors cursor-pointer ${headerBg}`}>
-        <div className={`flex-shrink-0 px-3 py-1 rounded-full text-white text-xs font-bold shadow-sm ${badgeBg}`}>{themeLabel}</div>
+        <div className={`flex-shrink-0 px-3 py-1 rounded-full text-white text-xs font-bold shadow-sm flex items-center gap-1.5 ${badgeBg}`}>
+          {isPromptLoading && <Loader2 size={11} className="animate-spin" />}
+          {themeLabel}
+        </div>
         <div className="flex-1 min-w-0 text-left">
-          <p className={`text-sm line-clamp-1 ${r18Mode ? 'text-red-700/80' : 'text-text-secondary'}`}>{result.prompt.slice(0, 80)}{result.prompt.length > 80 ? '...' : ''}</p>
-          {tagsVisible && totalTags > 0 && <p className="text-[10px] text-text-tertiary flex items-center gap-0.5 mt-0.5"><Tag size={10} />{totalTags} 标签</p>}
+          {isPromptLoading ? (
+            <div className="flex items-center gap-2">
+              <p className={`text-sm ${r18Mode ? 'text-red-600/70' : 'text-text-tertiary'}`}>
+                {result.theme ? `生成 [${result.theme}] 中` : '生成中'}
+                <span className="inline-flex ml-0.5">
+                  <span className="animate-pulse">.</span>
+                  <span className="animate-pulse" style={{ animationDelay: '0.2s' }}>.</span>
+                  <span className="animate-pulse" style={{ animationDelay: '0.4s' }}>.</span>
+                </span>
+              </p>
+            </div>
+          ) : (
+            <>
+              <p className={`text-sm line-clamp-1 ${r18Mode ? 'text-red-700/80' : 'text-text-secondary'}`}>{result.prompt.slice(0, 80)}{result.prompt.length > 80 ? '...' : ''}</p>
+              {tagsVisible && totalTags > 0 && <p className="text-[10px] text-text-tertiary flex items-center gap-0.5 mt-0.5"><Tag size={10} />{totalTags} 标签</p>}
+            </>
+          )}
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <button onClick={(e) => { e.stopPropagation(); onCopy(); }}
-            className={`p-1.5 rounded-lg text-xs transition-all ${isCopied ? 'bg-green-500/10 text-green-500' : r18Mode ? 'text-red-500 hover:bg-red-50' : 'text-text-tertiary hover:bg-bg-hover'}`}>
+            disabled={isPromptLoading}
+            className={`p-1.5 rounded-lg text-xs transition-all ${
+              isPromptLoading
+                ? 'opacity-40 cursor-not-allowed text-text-tertiary'
+                : isCopied
+                  ? 'bg-green-500/10 text-green-500'
+                  : r18Mode
+                    ? 'text-red-500 hover:bg-red-50'
+                    : 'text-text-tertiary hover:bg-bg-hover'
+            }`}>
             {isCopied ? <Check size={14} /> : <Copy size={14} />}
           </button>
           <span className={`text-text-tertiary transition-transform ${isExpanded ? 'rotate-180' : ''}`}><ChevronDown size={16} /></span>
@@ -1635,12 +1893,15 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
         <div className={`border-t px-4 pb-4 pt-3 ${r18Mode ? 'border-red-100' : 'border-border/50'}`}>
           <div className="mb-3">
             <div className="flex items-center justify-between mb-1.5">
-              <span className={`text-xs font-medium ${r18Mode ? 'text-red-500' : 'text-text-tertiary'}`}>提示词</span>
+              <span className={`text-xs font-medium flex items-center gap-1.5 ${r18Mode ? 'text-red-500' : 'text-text-tertiary'}`}>
+                {isPromptLoading && <Loader2 size={11} className="animate-spin" />}
+                提示词 {isPromptLoading && <span className="text-text-tertiary/70">· 生成中...</span>}
+              </span>
               <button
                 onClick={onGenerateImage}
-                disabled={isGenLoading || (digitalHumanMode && !selectedGirlfriend)}
+                disabled={isGenLoading || isPromptLoading || (digitalHumanMode && !selectedGirlfriend)}
                 className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
-                  isGenLoading || (digitalHumanMode && !selectedGirlfriend)
+                  isGenLoading || isPromptLoading || (digitalHumanMode && !selectedGirlfriend)
                     ? 'bg-blue-100 text-blue-400 cursor-not-allowed'
                     : 'bg-blue-500 text-white hover:bg-blue-600'
                 }`}
@@ -1648,7 +1909,17 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
                 {isGenLoading ? <><Loader2 size={11} className="animate-spin" /> 生成中</> : <><Image size={11} />{digitalHumanMode && selectedGirlfriend ? '图生图' : '生图'}</>}
               </button>
             </div>
-            <div className={`rounded-xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${r18Mode ? 'bg-red-50/70 text-red-800 border border-red-100' : 'bg-bg-elevated text-text-secondary'}`}>{result.prompt}</div>
+            <div className={`rounded-xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap min-h-[3.5rem] ${r18Mode ? 'bg-red-50/70 text-red-800 border border-red-100' : 'bg-bg-elevated text-text-secondary'} ${isPromptLoading ? 'animate-pulse' : ''}`}>
+              {isPromptLoading ? (
+                <div className="space-y-2">
+                  <div className={`h-3 rounded w-[90%] ${r18Mode ? 'bg-red-200/70' : 'bg-text-tertiary/15'}`} />
+                  <div className={`h-3 rounded w-[70%] ${r18Mode ? 'bg-red-200/70' : 'bg-text-tertiary/15'}`} />
+                  <div className={`h-3 rounded w-[80%] ${r18Mode ? 'bg-red-200/70' : 'bg-text-tertiary/15'}`} />
+                </div>
+              ) : (
+                result.prompt
+              )}
+            </div>
           </div>
 
           {/* Generated images preview */}
@@ -1701,10 +1972,11 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
 
 // ─── Storyboard Mode ────────────────────────────────────────────────────────
 
-function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, taskManager, apiKey, onNavigate, digitalHumanMode, setDigitalHumanMode, selectedGirlfriend, setSelectedGirlfriend }: {
+function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, taskManager, apiKey, onNavigate, digitalHumanMode, setDigitalHumanMode, selectedGirlfriend, setSelectedGirlfriend, img2imgAspectRatio }: {
   onError: (msg: string) => void; onSuccess: (msg: string) => void; loading: boolean; setLoading: (v: boolean) => void; r18Mode: boolean;
   taskManager: TaskManagerReturn; apiKey: string; onNavigate?: (tab: TabType) => void;
   digitalHumanMode: boolean; setDigitalHumanMode: (v: boolean) => void; selectedGirlfriend: GirlfriendPreset | null; setSelectedGirlfriend: (gf: GirlfriendPreset | null) => void;
+  img2imgAspectRatio: 'portrait' | 'landscape';
 }) {
   const savedStoryboard = getStoryboardSession();
   const [plot, setPlot] = useState(savedStoryboard?.plot || '');
@@ -1747,6 +2019,12 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   const [outlineArc, setOutlineArc] = useState(savedStoryboard?.outlineArc || '');
   const [outlineScenes, setOutlineScenes] = useState<string[]>(savedStoryboard?.outlineScenes || []);
   const [generatingOutline, setGeneratingOutline] = useState(false);
+  // Latest in-flight progress string for the single-theme outline
+  // generation flow. Set by `handlePromptTaskResult` from
+  // `status.progress`, cleared when the task ends. Rendered next to
+  // the spinner so the user can see what the backend is actually
+  // doing instead of a frozen "生成中..." with no feedback.
+  const [outlineProgress, setOutlineProgress] = useState<string | null>(null);
 
   // Refs for callbacks used inside async effects — avoids stale closure issues
   const onSuccessRef = useRef(onSuccess);
@@ -1804,7 +2082,32 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
 
   // ── Core: handle a single task completing (or still running) ──
   const handlePromptTaskResult = useCallback((taskId: string, taskType: string, status: PromptTaskStatus) => {
+    const tCallMs = Date.now();
+    console.log('[handlePromptTaskResult]', { taskId, taskType, status: status.status, progress: status.progress ?? null, hasResult: !!status.result });
     const res = status.result;
+    // Live progress updates: every poll (even RUNNING) carries a
+    // human-readable `status.progress` string from the backend. Mirror
+    // it into the per-theme UI state so users see "正在调用 LLM..." /
+    // "正在校验第 3/5 个分镜..." instead of a frozen "生成中..." spinner.
+    if (status.progress) {
+      const themeKey = res?.theme_id;
+      if (typeof themeKey === 'number' && taskType === 'outline') {
+        setThemeOutlineStates((prev) => {
+          const existing = prev[themeKey];
+          if (!existing?.generating) return prev;
+          return {
+            ...prev,
+            [themeKey]: { ...existing, progress: status.progress ?? undefined },
+          };
+        });
+      }
+      // Single-theme outline flow: mirror the same progress string
+      // into the top-level `outlineProgress` state so the user sees
+      // "正在调用 LLM..." etc. alongside the per-theme cards.
+      if (taskType === 'outline' && status.status === 'RUNNING') {
+        setOutlineProgress(status.progress);
+      }
+    }
     if (status.status === 'DONE') {
       if (taskType === 'themes' && res?.themes) {
         setThemeOptions(res.themes);
@@ -1814,6 +2117,9 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       } else if (taskType === 'outline' && res?.storyboard) {
         const panels = res.storyboard;
         const themeKey = res.theme_id;
+        // Clear the single-theme progress indicator as soon as we have
+        // a result — the UI jumps to the panels step right after this.
+        setOutlineProgress(null);
         // CRITICAL: if the LLM returned ZERO panels (all were filtered by
         // safety / coherence / placeholder checks), DON'T push an empty
         // storyboard into history. Doing so left the previous round's
@@ -1913,6 +2219,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       }
       setPendingPromptTasks((prev) => { const n = { ...prev }; delete n[taskId]; return n; });
     } else if (status.status === 'FAILED') {
+      setOutlineProgress(null);
       onErrorRef.current(status.error ?? '任务失败');
       // Clear the per-theme "generating" flag so the UI stops showing
       // "生成中" on a failed outline task. Without this, a theme tab that
@@ -1985,7 +2292,17 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       await Promise.allSettled(
         currentTasks.map(async ([taskId, taskType]) => {
           try {
-            const status = await pollPromptTask(taskId);
+            // Non-blocking single status check. Use this (not the
+            // blocking `pollPromptTask` loop) so the setInterval
+            // cadence stays at ~3s — otherwise a single slow task
+            // could hold the polling loop open for the full 5-minute
+            // `POLL_MAX_ATTEMPTS * POLL_INTERVAL_MS` window and starve
+            // peer tasks of progress updates.
+            const status = await getPromptTaskStatus(taskId);
+            // Mirror RUNNING updates into the UI even when status
+            // doesn't change — the backend updates the in-memory
+            // `progress` string every few seconds, which we want to
+            // surface immediately rather than only on status change.
             handlePromptTaskResult(taskId, taskType, status);
           } catch (err) {
             if (dropIfNotFound(taskId, err)) return;
@@ -2006,7 +2323,47 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     panels: { panel_number: number; scene_description: string; image_prompt: string }[];
     historyId?: string;
     error?: string; // error message when generation failed
+    startedAt?: number; // Date.now() when generating flipped to true
+    progress?: string; // live progress string from the backend (e.g. "正在校验第 3/5 个分镜...")
   }>>({});
+
+  // Tick once per second so the "已等待 X 秒" label and the soft-timeout
+  // check can re-render. Re-rendering 1 Hz is fine — these labels only
+  // exist on at most a handful of theme cards and the cost is trivial.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const hasAnyGenerating = Object.values(themeOutlineStates).some((s) => s.generating);
+    if (!hasAnyGenerating) return;
+    const id = window.setInterval(() => setTick((n) => (n + 1) % 1_000_000), 1000);
+    return () => window.clearInterval(id);
+  }, [themeOutlineStates]);
+
+  // Client-side safety net: if the backend task never reports back
+  // (polling drops, backend silently fails to set FAILED, etc.), force
+  // the per-theme "生成中" UI into an error state after this many ms so
+  // the user isn't stuck staring at a spinner with no feedback.
+  // 10 min matches the server's hard cap on long-running prompt tasks.
+  const OUTLINE_GENERATION_TIMEOUT_MS = 10 * 60 * 1000;
+  useEffect(() => {
+    const entries = Object.entries(themeOutlineStates).filter(
+      ([, s]) => s.generating && typeof s.startedAt === 'number'
+        && Date.now() - (s.startedAt as number) > OUTLINE_GENERATION_TIMEOUT_MS
+    );
+    if (entries.length === 0) return;
+    setThemeOutlineStates((prev) => {
+      const next = { ...prev };
+      for (const [k, s] of entries) {
+        next[Number(k)] = {
+          ...s,
+          generating: false,
+          error: '大纲生成超时（10分钟），后端可能仍在后台运行。可手动重试，或到控制台查看任务状态。',
+        };
+      }
+      return next;
+    });
+    const ids = entries.map(([k]) => Number(k)).join(', ');
+    onErrorRef.current?.(`主题大纲生成超时（10分钟）— theme id(s): ${ids}`);
+  }, [themeOutlineStates]);
 
   // Active theme tab (for tab switching between themes) — MUST be declared before sbHistoryId
   const [activeThemeTab, setActiveThemeTab] = useState<number | null>(null);
@@ -2457,7 +2814,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     // Mark this theme as generating, clear any previous error
     setThemeOutlineStates((prev) => ({
       ...prev,
-      [theme.id]: { generating: true, outlineArc: '', outlineScenes: [], panels: [], historyId: undefined, error: undefined },
+      [theme.id]: { generating: true, outlineArc: '', outlineScenes: [], panels: [], historyId: undefined, error: undefined, startedAt: Date.now() },
     }));
     try {
       const res = await generateStoryboardOutline(theme.id, theme.title, panelCount, r18Mode, true);
@@ -2465,6 +2822,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       // Async mode: if task_id returned, track for polling
       if (res.task_id) {
         setPendingPromptTasks((prev) => ({ ...prev, [res.task_id!]: 'outline' }));
+        onSuccess(`「${theme.title}」大纲生成任务已提交，正在后台运行（最长约 10 分钟）`);
         return;
       }
 
@@ -2554,7 +2912,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     // Mark as generating immediately so UI reflects live progress
     setThemeOutlineStates((prev) => ({
       ...prev,
-      [theme.id]: { generating: true, outlineArc: '', outlineScenes: [], panels: [], historyId: prev[theme.id]?.historyId, error: undefined },
+      [theme.id]: { generating: true, outlineArc: '', outlineScenes: [], panels: [], historyId: prev[theme.id]?.historyId, error: undefined, startedAt: Date.now() },
     }));
     try {
       const res = await generateStoryboardOutline(theme.id, theme.title, panelCount, r18Mode, true);
@@ -2562,6 +2920,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       // Async mode: track for polling
       if (res.task_id) {
         setPendingPromptTasks((prev) => ({ ...prev, [res.task_id!]: 'outline' }));
+        onSuccess(`「${theme.title}」大纲生成任务已提交，正在后台运行（最长约 10 分钟）`);
         return;
       }
 
@@ -2907,11 +3266,13 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     const storyboardInfo = { historyId: hid, panelIdx };
     setGenStates((prev) => ({ ...prev, [key]: { loading: true, images: [] } }));
     let imagePath = selectedGirlfriend?.portraitUrl || '';
+    let downloadUrl = '';
     if (digitalHumanMode && selectedGirlfriend) {
       try {
         const file = await gfUrlToFile(selectedGirlfriend.portraitUrl, selectedGirlfriend.id);
         const uploadResult = await uploadImage(apiKey, file);
         imagePath = uploadResult.imagePath;
+        downloadUrl = uploadResult.downloadUrl;
       } catch {
         setGenStates((prev) => { const next = { ...prev }; delete next[key]; return next; });
         onError('AI 女友图片上传失败'); return;
@@ -2921,11 +3282,11 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       const charId = (selectedGirlfriend.id as string).toUpperCase().slice(0, 4);
       const anchorPrompt = `【严格锁定】严格锁定图中22岁女性（ID:${charId}），完全保留原有面部特征，五官轮廓、脸型、眼睛、鼻子、嘴唇、发型、肤色、身材比例完全不变，不做任何面部修改，动作流畅不僵硬。超高清8K，写实细节，皮肤质感细腻，无畸变、无模糊、无穿模。`;
       const finalPrompt = `${anchorPrompt}\n\n${prompt}`;
-      const nodes = [
-        { nodeId: '7', fieldName: 'image', fieldValue: imagePath, description: 'image' },
-        { nodeId: '9', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: 'batch_size' },
-        { nodeId: '33', fieldName: 'text', fieldValue: finalPrompt, description: 'text' },
-      ];
+      const nodes = buildImg2ImgNodeList({
+        prompt: finalPrompt,
+        imagePath: downloadUrl || imagePath,
+        aspectRatio: img2imgAspectRatio,
+      });
       try {
         await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, storyboardInfo, 'storyboard', activeThemeInfo?.title || plot || undefined, panelIdx + 1);
         onSuccess('分镜图片任务已提交');
@@ -2944,8 +3305,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         lora1Weight: getLoraDefault('lora1')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora1Weight,
         lora2Name: getLoraDefault('lora2')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora2Name,
         lora2Weight: getLoraDefault('lora2')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora2Weight,
-        workflowId: WORKFLOW.THREE_LORA,
-        checkpoint: getCheckpointDefault(WORKFLOW.THREE_LORA)?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
+        workflowId: getDefaultWorkflow(),
+        checkpoint: getCheckpointDefault(getDefaultWorkflow())?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
       });
       try {
         await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, storyboardInfo, 'storyboard', activeThemeInfo?.title || plot || undefined, panelIdx + 1);
@@ -3206,11 +3567,13 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       return next;
     });
     let imagePath = selectedGirlfriend?.portraitUrl || '';
+    let downloadUrl = '';
     if (digitalHumanMode && selectedGirlfriend) {
       try {
         const file = await gfUrlToFile(selectedGirlfriend.portraitUrl, selectedGirlfriend.id);
         const uploadResult = await uploadImage(apiKey, file);
         imagePath = uploadResult.imagePath;
+        downloadUrl = uploadResult.downloadUrl;
       } catch {
         setBatchLoading(false);
         onError('AI 女友图片上传失败'); return;
@@ -3233,11 +3596,11 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
           const charId = (selectedGirlfriend.id as string).toUpperCase().slice(0, 4);
           const anchorPrompt = `【严格锁定】严格锁定图中22岁女性（ID:${charId}），完全保留原有面部特征，五官轮廓、脸型、眼睛、鼻子、嘴唇、发型、肤色、身材比例完全不变，不做任何面部修改，动作流畅不僵硬。超高清8K，写实细节，皮肤质感细腻，无畸变、无模糊、无穿模。`;
           const finalPrompt = `${anchorPrompt}\n\n${panel.image_prompt}`;
-          const nodes = [
-            { nodeId: '7', fieldName: 'image', fieldValue: imagePath, description: 'image' },
-            { nodeId: '9', fieldName: 'batch_size', fieldValue: String(DEFAULT_TXT2IMG_PARAMS.imageCount), description: 'batch_size' },
-            { nodeId: '33', fieldName: 'text', fieldValue: finalPrompt, description: 'text' },
-          ];
+          const nodes = buildImg2ImgNodeList({
+            prompt: finalPrompt,
+            imagePath: downloadUrl || imagePath,
+            aspectRatio: img2imgAspectRatio,
+          });
           await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, panelStoryboardInfo, 'storyboard', themeForTask, panelNum);
         } else {
           const finalPrompt = `${QUALITY_BOOST_PROMPT}, ${panel.image_prompt}`;
@@ -3250,8 +3613,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
             lora1Weight: getLoraDefault('lora1')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora1Weight,
             lora2Name: getLoraDefault('lora2')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora2Name,
             lora2Weight: getLoraDefault('lora2')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora2Weight,
-            workflowId: WORKFLOW.THREE_LORA,
-            checkpoint: getCheckpointDefault(WORKFLOW.THREE_LORA)?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
+            workflowId: getDefaultWorkflow(),
+            checkpoint: getCheckpointDefault(getDefaultWorkflow())?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
           });
           await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, panelStoryboardInfo, 'storyboard', themeForTask, panelNum);
         }
@@ -3747,14 +4110,46 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                           {theme.r18_level === 'hard' ? '高强度' : theme.r18_level === 'medium' ? '中等' : '柔和'}
                         </span>
                         {isDone && <span className="text-[9px] text-green-600 font-medium">已生成</span>}
-                        {isGenerating && <span className="text-[9px] text-yellow-600 font-medium animate-pulse">生成中...</span>}
+                        {isGenerating && state?.startedAt && (
+                          <span className="text-[9px] text-yellow-600 font-medium animate-pulse">
+                            生成中… {formatElapsed(Date.now() - state.startedAt)}
+                          </span>
+                        )}
+                        {isGenerating && !state?.startedAt && (
+                          <span className="text-[9px] text-yellow-600 font-medium animate-pulse">生成中...</span>
+                        )}
                         {hasError && <span className="text-[9px] text-red-500 font-medium">失败</span>}
                       </div>
+                      {isGenerating && state?.startedAt && (() => {
+                        const elapsedMs = Date.now() - state.startedAt;
+                        // Warn at 2 min ("可能较慢"), be explicit at 5 min
+                        // ("可后台等待") — this is the user's only signal
+                        // that the request is still alive but the LLM is
+                        // slow. The hard 10-min cap is enforced separately.
+                        if (elapsedMs < 2 * 60 * 1000) return null;
+                        const warn = elapsedMs >= 5 * 60 * 1000
+                          ? '已超过 5 分钟，任务仍在后台运行，可关闭此页面稍后回来查看。'
+                          : '生成时间较长，请耐心等待。';
+                        return (
+                          <p className={`text-[10px] mt-0.5 ${elapsedMs >= 5 * 60 * 1000 ? 'text-orange-600' : 'text-text-tertiary'}`}>
+                            {warn}
+                          </p>
+                        );
+                      })()}
                       {hasError ? (
                         <p className="text-[11px] text-red-400 leading-relaxed line-clamp-1">{state.error}</p>
                       ) : (
                         <p className="text-[11px] text-text-tertiary leading-relaxed line-clamp-1">
                           {isDone && state ? state.outlineArc : theme.description}
+                        </p>
+                      )}
+                      {/* Live progress string from the backend, e.g.
+                          "正在校验第 3/5 个分镜...". Shown only while
+                          generating. Lives below the description so it
+                          doesn't push out the theme description. */}
+                      {isGenerating && state?.progress && (
+                        <p className="text-[10px] text-primary mt-0.5 line-clamp-1" title={state.progress}>
+                          {state.progress}
                         </p>
                       )}
                       {isDone && (

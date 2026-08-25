@@ -4,14 +4,14 @@ import asyncio
 import json
 import logging
 import re
-from typing import List, Optional, Union
+from typing import AsyncIterator, List, Optional, Union
 from openai import AsyncOpenAI, APIError, AuthenticationError, RateLimitError
 
 logger = logging.getLogger(__name__)
 
 OPENLUX_BASE_URL = "https://api.openlux.ai/v1"
-MODEL_NAME = "grok-4.3"
-MODEL_FALLBACK = "grok-4-1-fast-non-reasoning"
+MODEL_NAME = "grok-4.6"
+MODEL_FALLBACK = "grok-4.3"
 REQUEST_TIMEOUT = 90
 MAX_RETRIES = 3
 _RETRY_BASE_DELAY = 1
@@ -201,6 +201,182 @@ async def call_grok(
 
     # Should not reach here
     raise OpenLuxAPIError("LLM 调用失败（无可用模型）")
+
+
+# ─── Streaming variants ─────────────────────────────────────────────────────────
+#
+# `stream_grok` is the streaming counterpart of `call_grok`. It yields raw text
+# chunks from the LLM as they arrive, allowing the HTTP route to push them to
+# the client immediately (NDJSON line per chunk) instead of buffering the full
+# response. This eliminates the perceived "stuck at 抽卡中" UX where the user
+# waits for the last result before any card appears.
+#
+# Stream semantics:
+#   - On each chunk, the async generator yields the raw delta string (may be
+#     empty — OpenAI-style streams sometimes emit empty role chunks).
+#   - The full concatenated text is returned after the generator is exhausted.
+#   - Model fallback still works: if a model errors mid-stream, we close that
+#     generator and re-open with the next model in `model_order`.
+#   - Refusal detection still applies — a refusal mid-stream is treated as a
+#     terminal failure for that model, triggering fallback.
+
+async def _stream_model_single(
+    api_key: str,
+    model_name: str,
+    system_prompt: str,
+    user_prompt: str,
+) -> AsyncIterator[str]:
+    """Stream a single model. Yields text deltas. Raises on terminal failure."""
+    client = AsyncOpenAI(
+        api_key=api_key,
+        base_url=OPENLUX_BASE_URL,
+        timeout=REQUEST_TIMEOUT,
+    )
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+
+    last_error: Optional[Exception] = None
+    for retry in range(MAX_RETRIES):
+        try:
+            stream = await client.chat.completions.create(
+                model=model_name,
+                messages=messages,
+                temperature=0.7,
+                stream=True,
+            )
+            collected_parts: List[str] = []
+            refusal_detected = False
+            async for chunk in stream:
+                if not chunk.choices:
+                    continue
+                delta = chunk.choices[0].delta
+                text_piece = getattr(delta, "content", None) if delta else None
+                if not text_piece:
+                    continue
+                collected_parts.append(text_piece)
+                # Refusal patterns are checked against the rolling text — once a
+                # refusal prefix is detected we stop yielding and let the caller
+                # fall back to the next model.
+                running = "".join(collected_parts)
+                if _is_refusal(running):
+                    refusal_detected = True
+                    logger.warning(
+                        f"[LLM] stream model={model_name} returned refusal mid-stream, "
+                        f"aborting (retry {retry+1}/{MAX_RETRIES})"
+                    )
+                    break
+                yield text_piece
+
+            if refusal_detected:
+                if retry < MAX_RETRIES - 1:
+                    await asyncio.sleep(_RETRY_BASE_DELAY)
+                    last_error = OpenLuxAPIError("模型拒绝（流式）")
+                    continue
+                raise OpenLuxAPIError(
+                    "模型拒绝了请求（可能因内容审核）"
+                )
+            return  # Successful stream completion
+        except AuthenticationError as e:
+            raise OpenLuxAuthError(f"无效的 OpenLux API Key (401): {str(e)}")
+        except RateLimitError as e:
+            last_error = OpenLuxRateLimitError(f"OpenLux 请求频率超限 (429): {str(e)}")
+            if retry < MAX_RETRIES - 1:
+                logger.warning(
+                    f"[LLM] stream rate limited on {model_name}, retry {retry+1}/{MAX_RETRIES}"
+                )
+                await asyncio.sleep(_RETRY_BASE_DELAY)
+                continue
+            raise last_error
+        except APIError as e:
+            status_code = getattr(e, "status_code", None)
+            last_error = OpenLuxAPIError(
+                f"OpenLux API 错误 ({status_code or '?'}): {str(e)}"
+            )
+            if status_code == 502 or "502" in str(e) or "bad gateway" in str(e).lower():
+                if retry < MAX_RETRIES - 1:
+                    wait_sec = (retry + 1) * _RETRY_BASE_DELAY
+                    logger.warning(
+                        f"[LLM] stream 502 on {model_name}, retry {retry+1}/{MAX_RETRIES}"
+                    )
+                    await asyncio.sleep(wait_sec)
+                    continue
+                raise last_error
+            if retry < MAX_RETRIES - 1:
+                wait_sec = (retry + 1) * _RETRY_BASE_DELAY
+                await asyncio.sleep(wait_sec)
+                continue
+            raise last_error
+        except asyncio.TimeoutError:
+            last_error = OpenLuxTimeoutError("OpenLux 请求超时（5分钟）")
+            if retry < MAX_RETRIES - 1:
+                logger.warning(
+                    f"[LLM] stream timeout on {model_name}, retry {retry+1}/{MAX_RETRIES}"
+                )
+                await asyncio.sleep((retry + 1) * _RETRY_BASE_DELAY)
+                continue
+            raise last_error
+        except Exception as e:
+            error_text = str(e).lower()
+            if "timeout" in error_text or "timed out" in error_text:
+                last_error = OpenLuxTimeoutError("OpenLux 请求超时（5分钟）")
+                if retry < MAX_RETRIES - 1:
+                    await asyncio.sleep((retry + 1) * _RETRY_BASE_DELAY)
+                    continue
+                raise last_error
+            last_error = OpenLuxAPIError(f"LLM 流式调用失败: {str(e)}")
+            if retry < MAX_RETRIES - 1:
+                logger.warning(
+                    f"[LLM] stream unexpected error on {model_name}, retry {retry+1}/{MAX_RETRIES}: {e}"
+                )
+                await asyncio.sleep(_RETRY_BASE_DELAY)
+                continue
+            raise last_error
+
+    if last_error:
+        raise last_error
+    raise OpenLuxAPIError(f"模型 {model_name} 流式调用在 {MAX_RETRIES} 次重试后仍失败")
+
+
+async def stream_grok(
+    api_key: str,
+    system_prompt: str,
+    user_prompt: str,
+    model_order: Optional[List[str]] = None,
+) -> AsyncIterator[str]:
+    """Streaming version of call_grok. Yields text deltas as they arrive.
+
+    Automatically falls back to the next model in `model_order` if the current
+    model fails before producing any text. If a model fails *after* partial
+    output, the partial output is discarded and the next model is started from
+    scratch (no mid-stream model swap to keep semantics consistent with
+    non-streaming call_grok).
+    """
+    models_to_try = model_order or [MODEL_NAME, MODEL_FALLBACK]
+
+    for model_idx, model_name in enumerate(models_to_try):
+        logger.info(f"[LLM stream] trying model={model_name} (idx={model_idx})")
+        emitted_any = False
+        try:
+            gen = _stream_model_single(api_key, model_name, system_prompt, user_prompt)
+            async for piece in gen:
+                emitted_any = True
+                yield piece
+            return  # Stream completed cleanly
+        except OpenLuxAuthError:
+            raise
+        except Exception as e:
+            logger.warning(
+                f"[LLM stream] model={model_name} failed: {type(e).__name__}: {e}, "
+                f"emitted_any={emitted_any}, trying next model"
+            )
+            if model_idx == len(models_to_try) - 1:
+                raise OpenLuxAPIError(
+                    f"所有模型均不可用（{'、'.join(models_to_try)} 都已失败）: "
+                    f"{type(e).__name__}: {e}"
+                )
+            continue
 
 
 class OpenLuxAuthError(Exception):

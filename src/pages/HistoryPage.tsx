@@ -545,6 +545,25 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
               >
                 <div className="flex items-start justify-between gap-2 mb-3">
                   <div className="min-w-0 flex-1">
+                    {/* Theme / source heading — primary identifier is the
+                        themeTitle when available. source is a secondary
+                        tag so users can distinguish random / storyboard
+                        / smart-storyboard at a glance. Per the user's
+                        feedback, the historical cards were showing only
+                        "随机抽卡" / "剧情分镜" with no visible theme
+                        context — putting the theme name in a prominent
+                        bold line makes it the dominant identifier. */}
+                    {showThemeBadge && (
+                      <h3
+                        className="text-sm font-semibold text-text-primary truncate mb-1"
+                        title={record.themeTitle}
+                      >
+                        {record.themeTitle}
+                        {showPanelBadge && record.panelNumber !== undefined && (
+                          <span className="ml-2 text-xs font-normal text-text-tertiary">· 第 {record.panelNumber} 镜</span>
+                        )}
+                      </h3>
+                    )}
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                       {sourceBadge && (
                         <span className={`text-xs px-2 py-0.5 rounded-full text-[10px] font-medium ${sourceBadge.className}`}>
@@ -554,13 +573,13 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
                       <span className="text-xs px-2 py-0.5 rounded-full bg-primary/20 text-primary text-[10px]">
                         {record.workflowType === 'txt2img' ? '文生图' : '图生图'}
                       </span>
-                      {showThemeBadge && (
+                      {showThemeBadge && !showPanelBadge && (
                         <span
                           className="inline-flex items-center gap-1 max-w-[200px] px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-500 text-[10px] font-medium border border-purple-500/20"
                           title={`主题：${record.themeTitle}`}
                         >
-                          {showPanelBadge ? <Bookmark size={10} className="flex-shrink-0" /> : <Layers size={10} className="flex-shrink-0" />}
-                          <span className="truncate">{showPanelBadge ? `剧情：${record.themeTitle}` : `主题：${record.themeTitle}`}</span>
+                          <Layers size={10} className="flex-shrink-0" />
+                          <span className="truncate">主题：{record.themeTitle}</span>
                         </span>
                       )}
                       {showPanelBadge && (

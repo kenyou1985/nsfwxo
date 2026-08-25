@@ -7,7 +7,7 @@ import { ParameterSelect } from '../components/ParameterSelect';
 import { GenerateButton } from '../components/GenerateButton';
 import { VideoTaskList } from '../components/VideoTaskList';
 import { uploadImage } from '../services/runninghub';
-import { expandPrompt, expandVideoFromImage, randomPrompt } from '../services/promptApi';
+import { expandVideoFromImage, streamExpandPrompt, streamRandomPrompt } from '../services/promptApi';
 import { parseStoryboardScript, toVideoScriptPanels, type ParsedScriptPanel } from '../utils/scriptParser';
 import { getYunwuKey } from '../services/storage';
 import { getRecords, deleteRecord, clearAllHistory, type HistoryRecord } from '../services/historyService';
@@ -279,12 +279,42 @@ function AIPromptPanel({ on应用 }: AIPromptPanelProps) {
     if (!输入.trim()) return;
     if (!getYunwuKey()) { alert('请先在设置中配置 OpenLux API Key'); return; }
     set加载中(true);
+    // Seed N empty slots so the UI shows N cards immediately, and each
+    // streams text into its slot. transformToWan22Style is applied per-card
+    // on each `delta` so the visible text already matches Wan2.2 style.
+    const seeded = Array.from({ length: 数量 }).map(() => '');
+    set结果列表(seeded);
+    set选中索引(0);
+    set输出文本('');
     try {
-      const res = await expandPrompt(输入.trim(), 'video', R18模式, 数量);
-      const 提示词列表 = res.results.map((r) => transformToWan22Style(r.prompt, r.r18));
-      set结果列表(提示词列表);
-      set选中索引(0);
-      set输出文本(提示词列表[0] || '');
+      await streamExpandPrompt(
+        输入.trim(), 'video', R18模式, 数量, 0,
+        undefined, false, undefined,
+        {
+          onDelta: ({ index, text }) => {
+            set结果列表((prev) => {
+              const next = [...prev];
+              while (next.length <= index) next.push('');
+              next[index] = transformToWan22Style((next[index] || '') + text, R18模式);
+              return next;
+            });
+          },
+          onEnd: ({ index, prompt }) => {
+            const styled = transformToWan22Style(prompt, R18模式);
+            set结果列表((prev) => {
+              const next = [...prev];
+              while (next.length <= index) next.push('');
+              next[index] = styled;
+              return next;
+            });
+            // Auto-select first finished slot
+            set选中索引((cur) => cur === 0 && index === 0 ? 0 : cur);
+          },
+          onError: ({ index, message }) => {
+            alert(`扩写失败${index !== undefined ? ` (第${index + 1}条)` : ''}: ${message}`);
+          },
+        },
+      );
     } catch (err) {
       alert(err instanceof Error ? err.message : '扩写失败');
     } finally {
@@ -295,19 +325,43 @@ function AIPromptPanel({ on应用 }: AIPromptPanelProps) {
   const 处理随机 = async () => {
     if (!getYunwuKey()) { alert('请先在设置中配置 OpenLux API Key'); return; }
     set加载中(true);
+    const seeded = Array.from({ length: 数量 }).map(() => '');
+    set结果列表(seeded);
+    set选中索引(0);
+    set输出文本('');
     try {
-      const res = await randomPrompt('video', R18模式, 数量, 主题);
-      const 提示词列表 = res.results.map((r) => transformToWan22Style(r.prompt, R18模式));
-      set结果列表(提示词列表);
-      set选中索引(0);
-      set输出文本(提示词列表[0] || '');
+      await streamRandomPrompt(
+        'video', R18模式, 数量, 主题,
+        false, undefined, undefined,
+        {
+          onDelta: ({ index, text }) => {
+            set结果列表((prev) => {
+              const next = [...prev];
+              while (next.length <= index) next.push('');
+              next[index] = transformToWan22Style((next[index] || '') + text, R18模式);
+              return next;
+            });
+          },
+          onEnd: ({ index, prompt }) => {
+            const styled = transformToWan22Style(prompt, R18模式);
+            set结果列表((prev) => {
+              const next = [...prev];
+              while (next.length <= index) next.push('');
+              next[index] = styled;
+              return next;
+            });
+          },
+          onError: ({ index, message }) => {
+            alert(`随机抽卡失败${index !== undefined ? ` (第${index + 1}条)` : ''}: ${message}`);
+          },
+        },
+      );
     } catch (err) {
       alert(err instanceof Error ? err.message : '随机抽卡失败');
     } finally {
       set加载中(false);
     }
   };
-
   const 处理复制 = (idx: number, 文本: string) => {
     navigator.clipboard.writeText(文本).then(() => { set已复制索引(idx); setTimeout(() => set已复制索引(null), 2000); });
   };

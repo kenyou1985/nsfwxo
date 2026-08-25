@@ -870,7 +870,7 @@ export const DEFAULT_TXT2IMG_PARAMS = {
   enableRandomPrompt: true,
   checkpoint: '',
   threeLoraRandomPrompt: false,
-  // 默认运行模式：3LoRA 模型（所有涉及文生图的模块均使用此默认）
+  // workflowId: 此静态值被各模块的 getDefaultWorkflow() 动态覆盖，实际默认值由用户设置决定
   workflowId: WORKFLOW.THREE_LORA,
   bodyType: '-',
   facialExpression: '-',
@@ -885,4 +885,19 @@ export const DEFAULT_TXT2IMG_PARAMS = {
   modelPose: '-',
   props: [],
   cameraAngle: '-',
+};
+
+/** Krea2 文生图专用默认参数 */
+export const KREA2_TXT2IMG_PARAMS = {
+  width: 800,
+  height: 1200,
+  imageCount: 2,
+  lora1Name: 'KNP_000003000.safetensors',
+  lora1Weight: 0.6,
+  lora2Name: 'breast_fake_real_krea2_loraholic.safetensors',
+  lora2Weight: 0.8,
+  lora3Name: 'Natural-Breasts-Krea2_epoch_10.safetensors',
+  lora3Weight: 0.4,
+  /** KREA2 使用 UNet 而非 Checkpoint — krea-2-raw 是 RunningHub 官方推荐的基础底模 */
+  unet: 'krea-2-raw.safetensors',
 };

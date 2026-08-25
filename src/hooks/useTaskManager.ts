@@ -7,6 +7,7 @@ import {
   extractImagesFromZipAsDataUrls,
   WORKFLOW,
 } from '../services/runninghub';
+import { getDefaultWorkflow } from '../services/modelDefaultsService';
 import { cacheImages, getOrFetchTaskImages } from '../services/imageCacheService';
 import type {
   QueuedTask,
@@ -221,13 +222,13 @@ export function useTaskManager({
         if (zipResult?.url) {
           zipUrl = zipResult.url;
         } else {
-          const pngResults = resultsResponse.results.filter((r) =>
-            r.outputType === 'png' || r.outputType === 'webp' ||
-            r.fileType === 'png' || r.fileType === 'webp' ||
-            r.url?.match(/\.(png|webp)(\?|$)/i)
+          const imageResults = resultsResponse.results.filter((r) =>
+            r.outputType === 'png' || r.outputType === 'webp' || r.outputType === 'jpg' || r.outputType === 'jpeg' ||
+            r.fileType === 'png' || r.fileType === 'webp' || r.fileType === 'jpg' || r.fileType === 'jpeg' ||
+            r.url?.match(/\.(png|webp|jpg|jpeg)(\?|$)/i)
           );
-          if (pngResults.length > 0) {
-            directImageUrls = pngResults.map((r) => r.url).filter(Boolean) as string[];
+          if (imageResults.length > 0) {
+            directImageUrls = imageResults.map((r) => r.url).filter(Boolean) as string[];
           }
         }
       }
@@ -337,14 +338,14 @@ export function useTaskManager({
             if (zipResult?.url) {
               zipUrl = zipResult.url;
             } else {
-              const pngResults = resultsResponse.results.filter((r) =>
-                r.outputType === 'png' || r.outputType === 'webp' ||
-                r.fileType === 'png' || r.fileType === 'webp' ||
-                r.url?.match(/\.(png|webp)(\?|$)/i)
-              );
-              if (pngResults.length > 0) {
-                directImageUrls = pngResults.map((r) => r.url).filter(Boolean) as string[];
-              }
+              const imageResults = resultsResponse.results.filter((r) =>
+              r.outputType === 'png' || r.outputType === 'webp' || r.outputType === 'jpg' || r.outputType === 'jpeg' ||
+              r.fileType === 'png' || r.fileType === 'webp' || r.fileType === 'jpg' || r.fileType === 'jpeg' ||
+              r.url?.match(/\.(png|webp|jpg|jpeg)(\?|$)/i)
+            );
+            if (imageResults.length > 0) {
+              directImageUrls = imageResults.map((r) => r.url).filter(Boolean) as string[];
+            }
             }
           }
           if (resultsResponse.usage?.consumeCoins) {
@@ -492,7 +493,7 @@ export function useTaskManager({
       const taskSource = task.source;
 
       const resolvedWorkflowId = workflowIdOverride
-        || (workflowType === 'txt2img' ? WORKFLOW.THREE_LORA
+        || (workflowType === 'txt2img' ? getDefaultWorkflow()
           : workflowType === 'img2img' ? WORKFLOW.IMAGE_TO_IMAGE
           : WORKFLOW.IMAGE_TO_VIDEO);
 
@@ -736,7 +737,7 @@ export function useTaskManager({
       const currentApiKey = apiKeyRef.current;
       if (currentApiKey) {
         const resolvedWorkflowId = task.workflowIdOverride
-          || (task.workflowType === 'txt2img' ? WORKFLOW.THREE_LORA
+          || (task.workflowType === 'txt2img' ? getDefaultWorkflow()
             : task.workflowType === 'img2img' ? WORKFLOW.IMAGE_TO_IMAGE
             : WORKFLOW.IMAGE_TO_VIDEO);
         runTask(currentApiKey, resolvedWorkflowId, task.nodeInfoList)

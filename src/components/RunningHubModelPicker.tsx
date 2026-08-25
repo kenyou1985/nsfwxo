@@ -17,7 +17,7 @@ import {
 import {
   setLoraDefault, setCheckpointDefault,
   isLoraDefault, isCheckpointDefault,
-  subscribeModelDefaults,
+  subscribeModelDefaults, getDefaultWorkflow,
 } from '../services/modelDefaultsService';
 import { WORKFLOW } from '../services/runninghub';
 
@@ -105,7 +105,7 @@ export function RunningHubModelPicker({
         setLoraDefault(loraSlot, { name: value, label: labelText, weight: w });
       }
     } else if (kind === 'checkpoint') {
-      const wf = workflowId || WORKFLOW.THREE_LORA;
+      const wf = workflowId || getDefaultWorkflow();
       if (isCheckpointDefault(wf, value)) {
         setCheckpointDefault(wf, null);
       } else {

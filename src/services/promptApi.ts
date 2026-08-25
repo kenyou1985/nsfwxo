@@ -5,6 +5,7 @@ import {
   getBackendUrl,
   setBackendUrl as saveBackendUrl,
 } from './storage';
+import { openNdjsonStream, type StreamEvent, type StreamHandle } from './streaming';
 
 export interface ExpandRequest {
   user_input: string;
@@ -518,6 +519,12 @@ export interface PromptTaskStatus {
   created_at: number;
   started_at: number | null;
   completed_at: number | null;
+  // Human-readable progress string written by the backend background
+  // runner. We surface it in the UI ("正在调用 LLM...", "正在校验第
+  // 3/5 个分镜...") so the user has real-time feedback instead of a
+  // frozen spinner. Optional because older backend builds (< progress
+  // field) don't send it.
+  progress?: string | null;
   result: {
     theme_id?: number;
     themes?: Array<{ id: number; title: string; description: string; tags: string[]; r18_level: string; category: string; scenario_count: number; costume_count: number }>;
@@ -540,33 +547,63 @@ export async function pollPromptTask(
   signal?: AbortSignal,
 ): Promise<PromptTaskStatus> {
   const base = getBackendUrl();
-  console.log('[pollPromptTask] polling task:', taskId, 'at:', `${base}/api/prompt/task/${taskId}`);
+  const t0 = Date.now();
+  console.log('[pollPromptTask] start', { taskId, url: `${base}/api/prompt/task/${taskId}`, startedAt: new Date().toISOString() });
 
   for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt++) {
     if (signal?.aborted) throw new Error('Task polling cancelled');
 
-    const response = await fetch(`${base}/api/prompt/task/${taskId}`, { signal });
+    const tPoll = Date.now();
+    let response: Response;
+    try {
+      response = await fetch(`${base}/api/prompt/task/${taskId}`, { signal });
+    } catch (err) {
+      console.warn('[pollPromptTask] fetch failed', { taskId, attempt, elapsedMs: Date.now() - tPoll, err });
+      throw err;
+    }
     if (response.status === 404 || response.status === 410) {
-      // Task no longer exists on the backend (e.g. server restart, cache
-      // eviction). Signal this with a typed error so the caller can drop
-      // the taskId from the pending queue rather than polling forever.
       const err = new Error(`Prompt task ${taskId} not found on backend`);
       (err as Error & { notFound?: boolean }).notFound = true;
+      console.warn('[pollPromptTask] task not found on backend', { taskId });
       throw err;
     }
     if (!response.ok) {
+      console.warn('[pollPromptTask] non-OK response', { taskId, attempt, status: response.status });
       throw new Error(`Task polling failed: ${response.status}`);
     }
 
     const status: PromptTaskStatus = await response.json();
+    const elapsedSinceStart = ((Date.now() - t0) / 1000).toFixed(1);
+    // Log every poll with taskId + status + progress + elapsed so the
+    // user can see in DevTools exactly what the backend is doing. The
+    // feedback we got: "5 分钟了还没数据返回", "后台上一直在扣费的"
+    // — those two phrases imply the user wanted to know whether the
+    // backend was actually doing work. This log answers that question.
+    console.log('[pollPromptTask]', {
+      taskId,
+      taskType: status.task_type,
+      status: status.status,
+      progress: status.progress ?? null,
+      elapsedSec: elapsedSinceStart,
+      attempt,
+      pollTookMs: Date.now() - tPoll,
+    });
+
     onStatus?.(status);
 
-    if (status.status === 'DONE') return status;
-    if (status.status === 'FAILED') throw new Error(status.error ?? 'Task failed');
+    if (status.status === 'DONE') {
+      console.log('[pollPromptTask] DONE', { taskId, totalSec: elapsedSinceStart });
+      return status;
+    }
+    if (status.status === 'FAILED') {
+      console.warn('[pollPromptTask] FAILED', { taskId, error: status.error, totalSec: elapsedSinceStart });
+      throw new Error(status.error ?? 'Task failed');
+    }
 
     await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
   }
 
+  console.error('[pollPromptTask] timed out', { taskId, totalSec: ((Date.now() - t0) / 1000).toFixed(1) });
   throw new Error('Task polling timed out after 5 minutes');
 }
 
@@ -581,4 +618,257 @@ export async function getPromptTaskStatus(taskId: string): Promise<PromptTaskSta
   }
   if (!response.ok) throw new Error(`Task status fetch failed: ${response.status}`);
   return response.json() as Promise<PromptTaskStatus>;
+}
+
+
+// ─── Streaming (NDJSON) variants ───────────────────────────────────────────────────
+//
+// These wrap the `/api/prompt/*/stream` endpoints. The caller passes
+// per-slot callbacks so the UI can update as soon as the first chunk
+// arrives (no more "stuck at 抽卡中" while waiting for the slowest result).
+//
+// All callbacks are optional except the `onEvent` factory params. The caller
+// is responsible for translating events into UI state (e.g. appending the
+// delta text into the right card slot). The functions return a StreamHandle
+// whose `.abort()` cancels the underlying fetch — wire this to React
+// `useEffect` cleanups / new-request handling.
+
+export interface StreamRandomCallbacks {
+  /** Called once per index slot with metadata (theme, tags). */
+  onStart?: (info: { index: number; theme: string; tags_used: Record<string, string[]>; img2img?: boolean }) => void;
+  /** Called on every text chunk for the given index. Concatenate to build the prompt. */
+  onDelta?: (info: { index: number; text: string }) => void;
+  /** Called when a slot is fully generated. `prompt` is the final assembled text. */
+  onEnd?: (info: { index: number; theme_label?: string; prompt: string }) => void;
+  /** Called on a per-slot or global fatal error. */
+  onError?: (err: { index?: number; message: string }) => void;
+  /** Called when the whole stream has finished (always last). */
+  onDone?: (summary: { total: number; successful: number }) => void;
+}
+
+export async function streamRandomPrompt(
+  type: 'image' | 'video',
+  r18: boolean,
+  count: number,
+  theme: string,
+  img2img: boolean,
+  referenceImageUrl: string | undefined,
+  characterPrompt: string | undefined,
+  callbacks: StreamRandomCallbacks,
+): Promise<StreamHandle> {
+  return openNdjsonStream(
+    '/api/prompt/random/stream',
+    {
+      type,
+      r18,
+      count,
+      theme,
+      img2img,
+      reference_image_url: referenceImageUrl || undefined,
+      character_prompt: characterPrompt || undefined,
+    },
+    (evt: StreamEvent) => {
+      switch (evt.event) {
+        case 'start':
+          callbacks.onStart?.({
+            index: (evt.index as number) ?? 0,
+            theme: (evt.theme as string) ?? '',
+            tags_used: (evt.tags_used as Record<string, string[]>) ?? {},
+            img2img: evt.img2img as boolean | undefined,
+          });
+          break;
+        case 'delta':
+          callbacks.onDelta?.({
+            index: (evt.index as number) ?? 0,
+            text: (evt.text as string) ?? '',
+          });
+          break;
+        case 'end':
+          callbacks.onEnd?.({
+            index: (evt.index as number) ?? 0,
+            theme_label: evt.theme_label as string | undefined,
+            prompt: (evt.prompt as string) ?? '',
+          });
+          break;
+        case 'error':
+          callbacks.onError?.({
+            index: evt.index as number | undefined,
+            message: (evt.message as string) ?? '未知错误',
+          });
+          break;
+        case 'done':
+          callbacks.onDone?.({
+            total: (evt.total as number) ?? 0,
+            successful: (evt.successful as number) ?? 0,
+          });
+          break;
+      }
+    },
+  );
+}
+
+
+export interface StreamExpandCallbacks {
+  onStart?: (info: { index: number; type: string; r18: boolean; original: string }) => void;
+  onDelta?: (info: { index: number; text: string }) => void;
+  onEnd?: (info: { index: number; prompt: string }) => void;
+  onError?: (err: { index?: number; message: string }) => void;
+  onDone?: (summary: { total: number; successful: number }) => void;
+}
+
+export async function streamExpandPrompt(
+  userInput: string,
+  type: 'image' | 'video',
+  r18: boolean,
+  count: number,
+  variantIndex: number,
+  referenceImageUrl: string | undefined,
+  img2imgMode: boolean,
+  characterPrompt: string | undefined,
+  callbacks: StreamExpandCallbacks,
+): Promise<StreamHandle> {
+  return openNdjsonStream(
+    '/api/prompt/expand/stream',
+    {
+      user_input: userInput,
+      type,
+      r18,
+      count,
+      variant_index: variantIndex,
+      reference_image_url: referenceImageUrl || undefined,
+      img2img_mode: img2imgMode || undefined,
+      character_prompt: characterPrompt || undefined,
+    },
+    (evt: StreamEvent) => {
+      switch (evt.event) {
+        case 'start':
+          callbacks.onStart?.({
+            index: (evt.index as number) ?? 0,
+            type: (evt.type as string) ?? type,
+            r18: (evt.r18 as boolean) ?? r18,
+            original: (evt.original as string) ?? userInput,
+          });
+          break;
+        case 'delta':
+          callbacks.onDelta?.({ index: (evt.index as number) ?? 0, text: (evt.text as string) ?? '' });
+          break;
+        case 'end':
+          callbacks.onEnd?.({ index: (evt.index as number) ?? 0, prompt: (evt.prompt as string) ?? '' });
+          break;
+        case 'error':
+          callbacks.onError?.({ index: evt.index as number | undefined, message: (evt.message as string) ?? '未知错误' });
+          break;
+        case 'done':
+          callbacks.onDone?.({ total: (evt.total as number) ?? 0, successful: (evt.successful as number) ?? 0 });
+          break;
+      }
+    },
+  );
+}
+
+
+export interface StreamStoryboardCallbacks {
+  onStart?: (info: { kind: string; panel_count?: number; use_anchor?: boolean }) => void;
+  /** Raw text chunks from the LLM — useful for a typing-style preview. */
+  onDelta?: (info: { text: string }) => void;
+  /** A fully-validated panel just became available. */
+  onPanel?: (info: { index: number; panel: { panel_number: number; scene_description: string; image_prompt: string } }) => void;
+  onPanelSkipped?: (info: { index?: number; reason: string }) => void;
+  onError?: (err: { message: string }) => void;
+  onDone?: (summary: { count: number }) => void;
+}
+
+export async function streamStoryboard(
+  plot: string,
+  panelCount: number,
+  r18: boolean,
+  callbacks: StreamStoryboardCallbacks,
+): Promise<StreamHandle> {
+  return openNdjsonStream(
+    '/api/prompt/storyboard/stream',
+    { plot, panel_count: panelCount, r18 },
+    (evt: StreamEvent) => {
+      switch (evt.event) {
+        case 'start':
+          callbacks.onStart?.({
+            kind: (evt.kind as string) ?? 'storyboard',
+            panel_count: evt.panel_count as number | undefined,
+            use_anchor: evt.use_anchor as boolean | undefined,
+          });
+          break;
+        case 'delta':
+          callbacks.onDelta?.({ text: (evt.text as string) ?? '' });
+          break;
+        case 'panel':
+          callbacks.onPanel?.({
+            index: (evt.index as number) ?? 0,
+            panel: evt.panel as { panel_number: number; scene_description: string; image_prompt: string },
+          });
+          break;
+        case 'panel_skipped':
+          callbacks.onPanelSkipped?.({
+            index: evt.index as number | undefined,
+            reason: (evt.reason as string) ?? '',
+          });
+          break;
+        case 'error':
+          callbacks.onError?.({ message: (evt.message as string) ?? '未知错误' });
+          break;
+        case 'done':
+          callbacks.onDone?.({ count: (evt.count as number) ?? 0 });
+          break;
+      }
+    },
+  );
+}
+
+
+export async function streamGridStoryboard(
+  plot: string,
+  r18: boolean,
+  referenceImageUrl: string | undefined,
+  characterPrompt: string | undefined,
+  callbacks: StreamStoryboardCallbacks,
+): Promise<StreamHandle> {
+  return openNdjsonStream(
+    '/api/prompt/storyboard/grid/stream',
+    {
+      plot,
+      r18,
+      ...(referenceImageUrl ? { reference_image_url: referenceImageUrl } : {}),
+      ...(characterPrompt ? { character_prompt: characterPrompt } : {}),
+    },
+    (evt: StreamEvent) => {
+      switch (evt.event) {
+        case 'start':
+          callbacks.onStart?.({
+            kind: (evt.kind as string) ?? 'grid',
+            panel_count: evt.panel_count as number | undefined,
+            use_anchor: evt.use_anchor as boolean | undefined,
+          });
+          break;
+        case 'delta':
+          callbacks.onDelta?.({ text: (evt.text as string) ?? '' });
+          break;
+        case 'panel':
+          callbacks.onPanel?.({
+            index: (evt.index as number) ?? 0,
+            panel: evt.panel as { panel_number: number; scene_description: string; image_prompt: string },
+          });
+          break;
+        case 'panel_skipped':
+          callbacks.onPanelSkipped?.({
+            index: evt.index as number | undefined,
+            reason: (evt.reason as string) ?? '',
+          });
+          break;
+        case 'error':
+          callbacks.onError?.({ message: (evt.message as string) ?? '未知错误' });
+          break;
+        case 'done':
+          callbacks.onDone?.({ count: (evt.count as number) ?? 0 });
+          break;
+      }
+    },
+  );
 }

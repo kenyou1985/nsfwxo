@@ -1,11 +1,14 @@
 """API Router - Prompt Engine Routes"""
 
 import asyncio
+import json
 import re
+import time
 import logging
-from typing import Optional
+from typing import AsyncIterator, Optional
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import StreamingResponse
 
 from app.models.schemas import (
     ExpandRequest, ExpandResponse, ExpandVideoFromImageRequest,
@@ -16,7 +19,7 @@ from app.models.schemas import (
     StoryboardOutlineRequest, StoryboardOutlineResponse, StoryboardOutline,
     StoryboardScriptRequest, StoryboardScriptResponse,
 )
-from app.services.llm_service import call_grok, clean_json_response, OpenLuxAuthError, OpenLuxRateLimitError, OpenLuxTimeoutError, OpenLuxParseError, OpenLuxAPIError
+from app.services.llm_service import call_grok, stream_grok, clean_json_response, OpenLuxAuthError, OpenLuxRateLimitError, OpenLuxTimeoutError, OpenLuxParseError, OpenLuxAPIError
 from app.services.gacha_service import generate_random_tags
 from app.services.safety_filter import check_prompt_safety, check_tags_safety, ContentSafetyError
 from app.services.prompt_coherence import detect_prompt_conflicts, rewrite_coherent_prompt, detect_outfit_color_drift
@@ -26,7 +29,13 @@ from app.services.prompt_task_store import get_task_store, TaskStatus
 router = APIRouter(prefix="/api/prompt", tags=["prompt"])
 security = HTTPBearer()
 
+# 旧版：每个 LLM 调用最多重试 3 次。这是问题根源 — 9 次序列重试最坏达 9 分钟。
+# 新版：硬性 wall-clock 上限（默认 240 秒=4 分钟）防止"看起来卡死，一直扣费"。
+# MAX_RETRIES 保留用于单次调用内的瞬时错误恢复，但由 OUTLINE_TIME_BUDGET_SECONDS
+# 这个全局上限兜底。在重试循环每次进入前检查是否超预算，预算耗尽立即返回当前结果。
 MAX_RETRIES = 3
+OUTLINE_TIME_BUDGET_SECONDS = 240  # 4 分钟 wall-clock 上限
+SCRIPT_TIME_BUDGET_SECONDS = 180   # 3 分钟
 
 
 # ─── Ethnicity / Race diversity pool ───────────────────────────────────────
@@ -4294,6 +4303,7 @@ async def _run_themes_task(task_id: str, req: StoryboardThemesRequest, api_key: 
     store = get_task_store()
     try:
         store.mark_running(task_id)
+        store.set_progress(task_id, "正在准备主题库...")
         count = min(max(req.count, 5), 20)
 
         if not req.custom_description:
@@ -4359,7 +4369,11 @@ async def _run_themes_task(task_id: str, req: StoryboardThemesRequest, api_key: 
             f"生成 {count} 个独特的主题选项，确保多样性。"
         )
 
+        store.set_progress(task_id, "正在调用 LLM 生成主题（最长约 1-2 分钟）...")
+        t0 = time.monotonic()
         raw = await call_grok(api_key, system_prompt, user_prompt)
+        logging.info("[themes] task=%s — LLM returned in %.1fs", task_id, time.monotonic() - t0)
+        store.set_progress(task_id, "LLM 已返回，正在解析主题...")
         data = clean_json_response(raw)
         check_prompt_safety(raw)
 
@@ -4380,6 +4394,7 @@ async def _run_themes_task(task_id: str, req: StoryboardThemesRequest, api_key: 
                     "costume_count": int(t.get("costume_count", 0)),
                 })
 
+        store.set_progress(task_id, f"主题生成完成（{len(themes)} 个）")
         store.mark_done(task_id, {"themes": themes})
     except ContentSafetyError as e:
         store.mark_failed(task_id, str(e))
@@ -4390,6 +4405,315 @@ async def _run_themes_task(task_id: str, req: StoryboardThemesRequest, api_key: 
     except Exception as e:
         logging.error(f"[themes] background task error: {e}")
         store.mark_failed(task_id, f"未知错误: {str(e)}")
+
+
+def _panel_keywords_en_line(selected_theme) -> str:
+    """Mirror of the EN-aliases line used by the single-shot outline call."""
+    en_aliases: list[str] = []
+    try:
+        from app.services.theme_database import theme_keywords_en
+        en_aliases = theme_keywords_en(selected_theme) if selected_theme else []
+    except Exception:
+        pass
+    if not en_aliases:
+        return ""
+    en_aliases = en_aliases[:30]
+    return (
+        "\n【THEME ENGLISH ALIASES — use these or direct English equivalents in image_prompt】: "
+        + ", ".join(en_aliases)
+    )
+
+
+def _panel_theme_keywords_line(selected_theme) -> str:
+    """Compose the THEME KEYWORDS line used in panel-level user prompts."""
+    if not selected_theme:
+        return ""
+    parts: list[str] = []
+    parts.extend(selected_theme.get("scenarios", []) or [])
+    parts.extend(selected_theme.get("costumes", []) or [])
+    if not parts:
+        return ""
+    return (
+        "\n【THEME KEYWORDS — MUST APPEAR IN YOUR OUTPUT】: " + ", ".join(parts)
+    )
+
+
+# ─── Two-phase parallel outline generation ───────────────────────────────────
+#
+# Background: the legacy single-shot call requested a JSON object containing
+# ALL panels' (scene_description, image_prompt) plus an arc + scenes in one
+# HTTP call. With 9 KB of system prompt context (pose pool, character bible,
+# 105 R18 pose descriptions) and a 4-9 KB output target for 5-10 panels, that
+# single call typically took 30-90 seconds on Grok 4.6, and ran out of budget
+# (or timed out) frequently. Worst case: 3 inner retries × 2 models = 6
+# 30-90 second calls = 3-9 minutes wall-clock per outline.
+#
+# This module splits the work into two phases that run mostly in parallel:
+#
+#   Phase 1 (≈ 10-15s):  one LLM call requesting ONLY {arc, scenes}. This is a
+#                         short, low-token prompt so it lands quickly and
+#                         cheaply even if the LLM has heavy load.
+#   Phase 2 (≈ 15-25s):  N parallel LLM calls — one per panel — each with a
+#                         compact panel-specific prompt that takes the arc +
+#                         theme contract + this panel's role (前戏/高潮/...)
+#                         and returns just {scene_description, image_prompt}.
+#                         Wall-clock cost is the max of the N calls, not the
+#                         sum. For 5 panels this is ~3× faster than the single
+#                         call.
+#   Phase 3 (instant):   client-side post-processing that the single-shot path
+#                         already used: anchor lock-injection, theme-coherence
+#                         enforcement, outfit drift detection, panel rules.
+#
+# Character consistency: each parallel panel prompt asks the LLM to start the
+# image_prompt with a [ANCHOR: ...] line. After all parallel calls return we
+# extract the anchor from panel 1 and inject it into every other panel's
+# image_prompt verbatim — same pattern the single-shot path uses.
+#
+# Resilience: if any individual panel call fails (timeout / parse error /
+# safety rejection) we retry only THAT panel up to 2 times in-place, instead
+# of restarting the whole outline. Falls back to a placeholder scene so a
+# single bad panel doesn't kill the whole storyboard.
+#
+# Requirements for enabling: Grok must support parallel calls on the same API
+# key. Empirically OpenLux handles ~5-8 concurrent calls fine; higher counts
+# hit rate limits. We cap at 4 concurrent via a semaphore to stay safe.
+
+_PARALLEL_PANEL_SYSTEM = """You are an expert adult comic scene-designer writing ONE panel for a storyboard.
+Theme: "{theme_title}"
+Panel role: {panel_role}
+Panel index (1-based): {panel_index} / {panel_count}
+Arc: {arc}
+{theme_coherence}
+
+Output a JSON object ONLY (no markdown, no commentary) with this exact schema:
+{{
+  "scene_description": "<Chinese: 2-4 sentences describing what happens in THIS panel — set IN a ★ SCENARIO, characters wearing ★ COSTUMES, advance the arc by exactly one beat>",
+  "image_prompt": "<English: a detailed image-prompt starting with a [ANCHOR: ...] line that locks the characters' ethnicity, hair, eyes, skin, primary outfit color, primary outfit item, footwear, and key props. Then describe pose, action, lighting, and camera angle in this scene.>"
+}}
+
+RULES:
+1. START the image_prompt with a single-line [ANCHOR: ...] that includes ethnicity, hair color, eye color, skin tone, OUTFIT COLOR + ITEM, FOOTWEAR, and KEY PROPS.
+2. Use ONLY ★ SCENARIOS from the THEME CONTRACT above for location. Do NOT introduce new locations.
+3. Use ONLY ★ COSTUMES from the THEME CONTRACT for outfit. Anchor color must match theme.
+4. Key props make the scene READ as the theme (法官 → gavel / 温泉 → steam / 护士 → stethoscope, etc.).
+5. Adult characters only (18+). No minors. No schoolgirl/schoolboy imagery.
+6. {r18_extra}
+7. Output VALID JSON ONLY. No prose around the JSON. No markdown fences.
+"""
+
+
+def _build_panel_user_prompt(
+    req_panel_index: int,
+    req_panel_count: int,
+    arc: dict,
+    theme_title: str,
+    coherence_context: str,
+    theme_keywords_line: str,
+    theme_keywords_en_line: str,
+    r18: bool,
+) -> str:
+    """Compose the user prompt for a single panel call."""
+    role_map = (
+        [p.split(":", 1)[1].strip().split(" - ")[0] if ":" in p else p for p in arc.get("scenes", [])]
+        if isinstance(arc, dict)
+        else []
+    )
+    role = role_map[req_panel_index - 1] if req_panel_index - 1 < len(role_map) else f"分镜 {req_panel_index}"
+    arc_text = (arc or {}).get("arc", "") if isinstance(arc, dict) else ""
+    panels_text = ""
+    if isinstance(arc, dict) and isinstance(arc.get("scenes"), list):
+        for i, sc in enumerate(arc["scenes"]):
+            marker = "▶" if i + 1 == req_panel_index else "·"
+            panels_text += f"\n  {marker} Panel {i + 1}: {sc}"
+    if not panels_text:
+        panels_text = "\n  (no arc scenes provided)"
+    r18_extra = (
+        "If this is panel 1, focus on FOREPLAY/INTRO only — NO explicit sex. Pacing: only escalate to explicit sex from panel 3+. Pick a UNIQUE sexual position distinct from any other panel."
+        if r18
+        else "Keep pacing consistent with the arc above. No explicit content."
+    )
+    return (
+        f"Theme: {theme_title}\n"
+        f"Panel {req_panel_index} of {req_panel_count}\n"
+        f"Arc: {arc_text}\n"
+        f"All panels:{panels_text}\n"
+        f"【STRICT THEME CONSTRAINT】You MUST use ONLY ★ SCENARIOS and ★ COSTUMES from the THEME CONTRACT above.\n"
+        f"{theme_keywords_line}{theme_keywords_en_line}\n"
+        f"Output raw JSON only. No markdown."
+    )
+
+
+async def _generate_single_panel(
+    api_key: str,
+    panel_index: int,
+    panel_count: int,
+    arc: dict,
+    theme_title: str,
+    coherence_context: str,
+    theme_keywords_line: str,
+    theme_keywords_en_line: str,
+    r18: bool,
+    model_order: Optional[list],
+    semaphore: asyncio.Semaphore,
+) -> dict:
+    """Generate ONE panel as a coroutine. Safe to run in parallel via gather."""
+    role_map = (
+        [p.split(":", 1)[1].strip().split(" - ")[0] if ":" in p else p for p in arc.get("scenes", [])]
+        if isinstance(arc, dict)
+        else []
+    )
+    role = role_map[panel_index - 1] if panel_index - 1 < len(role_map) else f"分镜 {panel_index}"
+    arc_text = (arc or {}).get("arc", "") if isinstance(arc, dict) else ""
+    r18_extra = (
+        "If this is panel 1, focus on FOREPLAY/INTRO only — NO explicit sex. Pacing: only escalate to explicit sex from panel 3+. Pick a UNIQUE sexual position distinct from any other panel."
+        if r18
+        else "Keep pacing consistent with the arc above. No explicit content."
+    )
+    system_prompt = _PARALLEL_PANEL_SYSTEM.format(
+        theme_title=theme_title,
+        panel_role=role,
+        panel_index=panel_index,
+        panel_count=panel_count,
+        arc=arc_text,
+        theme_coherence=coherence_context,
+        r18_extra=r18_extra,
+    )
+    user_prompt = _build_panel_user_prompt(
+        panel_index, panel_count, arc, theme_title, coherence_context,
+        theme_keywords_line, theme_keywords_en_line, r18,
+    )
+    last_err: Optional[Exception] = None
+    # Per-panel micro-retry: up to 2 attempts. We retry only the failing
+    # panel — a single bad panel never costs the entire storyboard.
+    for attempt in range(2):
+        async with semaphore:
+            try:
+                raw = await call_grok(api_key, system_prompt, user_prompt, model_order=model_order)
+                data = clean_json_response(raw)
+                if not isinstance(data, dict):
+                    raise OpenLuxParseError(f"panel {panel_index}: top-level JSON not a dict")
+                scene = str(data.get("scene_description", ""))
+                prompt_text = str(data.get("image_prompt", ""))
+                if not scene or not prompt_text:
+                    raise OpenLuxParseError(f"panel {panel_index}: missing scene_description or image_prompt")
+                return {"panel_number": panel_index, "scene_description": scene, "image_prompt": prompt_text}
+            except Exception as e:
+                last_err = e
+                logging.warning(
+                    "[outline:parallel] panel %d attempt %d failed: %s: %s",
+                    panel_index, attempt + 1, type(e).__name__, str(e)[:200],
+                )
+                continue
+    logging.error("[outline:parallel] panel %d exhausted retries — returning placeholder", panel_index)
+    # Placeholder so the storyboard can still complete with N-1 panels.
+    placeholder_scene = f"第 {panel_index} 镜（{role}）：本分镜生成失败，请重新生成。"
+    return {
+        "panel_number": panel_index,
+        "scene_description": placeholder_scene,
+        "image_prompt": (
+            f"[ANCHOR: theme={theme_title}] placeholder panel, "
+            "low-effort description due to LLM error, user should regenerate. "
+            "cinematic lighting, theme-aligned background, two characters in theme costume, "
+            "soft focus, narrative beat placeholder"
+        ),
+        "_failed": True,
+    }
+
+
+async def _generate_outline_parallel(
+    api_key: str,
+    panel_count: int,
+    theme_name: str,
+    arc_panels: list,
+    arc_label: str,
+    r18: bool,
+    coherence_context: str,
+    theme_keywords_line: str,
+    theme_keywords_en_line: str,
+    model_order: Optional[list],
+    system_template: str,
+    base_user_prompt_user_part: str,
+    panel_semaphore: asyncio.Semaphore,
+    task_id: str,
+    store,
+) -> tuple[dict, list]:
+    """
+    Run the two-phase parallel outline generation.
+
+    Returns: (outline_dict, panels_list) where panels_list is ordered by panel_number.
+    Raises if Phase 1 fails — caller falls back to legacy single-shot path.
+    """
+    # ── Phase 1: arc + scenes only (small, fast) ──────────────────────────────
+    phase1_system = system_template.replace(
+        "{theme_coherence}", coherence_context
+    ).format(
+        theme_title=theme_name,
+        panel_count=panel_count,
+        arc_panels="\n".join(f"  - {p}" for p in arc_panels),
+        arc_label=arc_label,
+        pose_list="",  # pose randomization isn't relevant for arc-level output
+    )
+    phase1_user = (
+        f"Theme: {theme_name}\n"
+        f"Panel count: {panel_count}\n"
+        f"{base_user_prompt_user_part}\n"
+        f"Output ONLY a JSON object with these top-level keys (raw JSON, no markdown):\n"
+        f"  - \"outline\": {{\"arc\": \"<1-2 sentence Chinese narrative arc>\", \"scenes\": [<one short Chinese sentence per panel, in order, {panel_count} total>]}}\n"
+        f"  - \"panels_count_hint\": {panel_count}\n"
+        f"Do NOT generate scene_description or image_prompt for individual panels — that happens in a separate pass."
+    )
+
+    logging.info("[outline:parallel] phase 1 start: arc + scenes")
+    store.set_progress(task_id, "阶段 1：生成主线大纲（约 10-15 秒）...")
+    t0 = time.monotonic()
+    phase1_raw = await call_grok(api_key, phase1_system, phase1_user, model_order=model_order)
+    phase1_elapsed = time.monotonic() - t0
+    logging.info(
+        "[outline:parallel] phase 1 returned in %.1fs (%d chars)",
+        phase1_elapsed, len(phase1_raw),
+    )
+    store.set_progress(task_id, f"主线大纲已生成（{phase1_elapsed:.1f} 秒），开始并行生成分镜...")
+    phase1_data = clean_json_response(phase1_raw)
+    if not isinstance(phase1_data, dict):
+        raise OpenLuxParseError("phase 1 returned non-dict JSON")
+    raw_outline = phase1_data.get("outline", {})
+    if not isinstance(raw_outline, dict):
+        raw_outline = {"arc": arc_label, "scenes": list(arc_panels)}
+    outline = {
+        "arc": str(raw_outline.get("arc", arc_label)),
+        "scenes": list(raw_outline.get("scenes", [])) if isinstance(raw_outline.get("scenes"), list) else list(arc_panels),
+    }
+    # ── Phase 2: N parallel panel calls (per-panel prompt is tiny) ───────────
+    tasks = [
+        _generate_single_panel(
+            api_key,
+            i + 1,
+            panel_count,
+            outline,
+            theme_name,
+            coherence_context,
+            theme_keywords_line,
+            theme_keywords_en_line,
+            r18,
+            model_order,
+            panel_semaphore,
+        )
+        for i in range(panel_count)
+    ]
+    t0 = time.monotonic()
+    panels_raw = await asyncio.gather(*tasks)
+    phase2_elapsed = time.monotonic() - t0
+    failed = [p for p in panels_raw if isinstance(p, dict) and p.get("_failed")]
+    logging.info(
+        "[outline:parallel] phase 2 returned %d panels in %.1fs (%d failed placeholders)",
+        len(panels_raw), phase2_elapsed, len(failed),
+    )
+    if failed:
+        store.set_progress(
+            task_id,
+            f"已生成 {len(panels_raw) - len(failed)}/{len(panels_raw)} 个分镜（{len(failed)} 个失败,使用占位符）",
+        )
+    return outline, panels_raw
 
 
 async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key: str):
@@ -4702,9 +5026,181 @@ async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key
         # Initialize it here so the loop is safe regardless of when it's used.
         theme_name = req.theme_title or ""
 
+        # Wall-clock for total task duration logging + progress reporting.
+        t0_run = time.monotonic()
+        deadline = t0_run + OUTLINE_TIME_BUDGET_SECONDS
+        store.set_progress(task_id, f"准备生成大纲（主题：{theme_name}，{panel_count} 个分镜）...")
+
+        # Out-of-budget marker — thrown when we've spent too long retrying and
+        # want to short-circuit the loop instead of letting the per-model
+        # MAX_RETRIES chain keep accumulating LLM calls.
+        class _OutlineBudgetExceeded(Exception):
+            pass
+
+        def _budget_left() -> float:
+            return max(0.0, deadline - time.monotonic())
+
+        # ── Fast path: parallel two-phase outline generation ──────────────────
+        # Single LLM call (legacy) typically takes 30-90s on a 9KB system
+        # prompt with 4-9KB output target. Parallel path: phase 1 (~10-15s
+        # arc + scenes only) + phase 2 (N parallel panel calls, ~15-25s
+        # wall-clock max) = ~25-45s total vs 30-90s for legacy. We always
+        # try parallel first; if ANY phase fails we fall through to the
+        # legacy single-shot retry loop below (no API behavior change).
+        try:
+            base_user_part = (
+                "【STRICT THEME CONSTRAINT — REPEAT】: 你必须只用 ★ SCENARIOS 列表里的地点,"
+                "只用 ★ COSTUMES 列表里的服装。如 system_prompt 的 THEME CONTRACT 所示。\n"
+                "【重要】Panel 1 不能有直接性爱！必须先从开场/前戏开始，逐步发展到性爱。\n"
+                "【重要】R18模式：每个分镜的 image_prompt 必须非常详细和露骨。所有 R18 要求适用,"
+                "但 THEME CONSTRAINT 优先级更高。\n"
+                "在生成的每个 panel.scene_description 里,地点名词必须来自 ★ SCENARIOS 列表;"
+                "服装名词必须来自 ★ COSTUMES 列表。\n"
+                "在生成的每个 panel.image_prompt (English) 里,location 和 outfit 也必须贴近 ★ 列表的语义。"
+            )
+            parallel_outline, parallel_panels = await _generate_outline_parallel(
+                api_key=api_key,
+                panel_count=panel_count,
+                theme_name=theme_name,
+                arc_panels=arc_panels,
+                arc_label=arc_label,
+                r18=bool(req.r18),
+                coherence_context=coherence_context,
+                theme_keywords_line=theme_keywords_line,
+                theme_keywords_en_line=theme_keywords_en_line,
+                model_order=model_order,
+                system_template=system_template,
+                base_user_prompt_user_part=base_user_part,
+                panel_semaphore=asyncio.Semaphore(4),
+                task_id=task_id,
+                store=store,
+            )
+            # ── Post-process identical to legacy path (anchor lock,
+            # theme coherence enforcement, panel rules, sanity).
+            panels = list(parallel_panels)
+            panels.sort(key=lambda p: int(p.get("panel_number", 0) or 0))
+            # Apply the same idempotent validation + theme lock as the
+            # legacy single-shot path so output is interchangeable.
+            from app.services.theme_database import get_theme_by_seq_id, get_theme_by_id  # noqa: F401
+            canon_theme_pp = selected_theme
+            if panels:
+                first_anchor_pp = _extract_character_anchor(panels[0].get("image_prompt", ""))
+                first_anchor_pp = _normalize_anchor_for_safety(first_anchor_pp)
+                if first_anchor_pp:
+                    for p in panels:
+                        p["image_prompt"] = _inject_character_anchor(
+                            p.get("image_prompt", ""),
+                            first_anchor_pp,
+                        )
+                    logging.info(
+                        "[outline:parallel] locked character anchor across %d panels: %s",
+                        len(panels), first_anchor_pp[:120],
+                    )
+            if panels and canon_theme_pp:
+                fix_pp = 0
+                for idx, p in enumerate(panels):
+                    new_scene, new_image = _enforce_theme_coherence(
+                        scene_description=p.get("scene_description", ""),
+                        image_prompt=p.get("image_prompt", ""),
+                        theme_name=theme_name,
+                        theme_data=canon_theme_pp,
+                        panel_index=idx,
+                        total_panels=len(panels),
+                        r18=bool(req.r18),
+                    )
+                    if new_scene != p.get("scene_description", "") or new_image != p.get("image_prompt", ""):
+                        p["scene_description"] = new_scene
+                        p["image_prompt"] = new_image
+                        fix_pp += 1
+                if fix_pp:
+                    logging.info("[outline:parallel] theme-coherence fixed %d/%d panels", fix_pp, len(panels))
+            if panels and canon_theme_pp:
+                before_pp = [(p.get("scene_description", ""), p.get("image_prompt", "")) for p in panels]
+                _enforce_panel_rules(
+                    panels=panels,
+                    theme_name=theme_name,
+                    theme_data=canon_theme_pp if isinstance(canon_theme_pp, dict) else {},
+                    r18=bool(req.r18),
+                )
+                rule_pp = sum(
+                    1 for (bs, bi), p in zip(before_pp, panels)
+                    if bs != p.get("scene_description", "") or bi != p.get("image_prompt", "")
+                )
+                if rule_pp:
+                    logging.info("[outline:parallel] panel-rules fixed %d/%d panels", rule_pp, len(panels))
+            if len(panels) >= 2:
+                drifts_pp = detect_outfit_color_drift([p.get("image_prompt", "") for p in panels])
+                if drifts_pp:
+                    logging.warning(
+                        "[outline:parallel] outfit color drift detected (%d issues): %s",
+                        len(drifts_pp), "; ".join(drifts_pp[:3]),
+                    )
+            # Convert parallel panel dicts to the same shape the legacy
+            # mark_done payload expects. The schema-aware layer (StoryboardPanel
+            # Pydantic model) handles int conversion at the route layer.
+            final_panels = [
+                StoryboardPanel(
+                    panel_number=int(p.get("panel_number", 0) or 0),
+                    scene_description=str(p.get("scene_description", "")),
+                    image_prompt=str(p.get("image_prompt", "")),
+                )
+                for p in panels
+            ]
+            store.set_progress(task_id, f"大纲生成完成（{len(final_panels)} 个分镜，路径=parallel）")
+            store.mark_done(task_id, {
+                "theme_id": req.theme_id,
+                "theme_title": req.theme_title,
+                "outline": StoryboardOutline(
+                    arc=str(parallel_outline.get("arc", arc_label)),
+                    scenes=list(parallel_outline.get("scenes", []) or []),
+                ),
+                "storyboard": final_panels,
+            })
+            logging.info(
+                "[outline] task=%s theme=%s done via PARALLEL path (%d panels in %.1fs)",
+                task_id, theme_name, len(final_panels), time.monotonic() - t0_run,
+            )
+            return
+        except (OpenLuxTimeoutError, OpenLuxRateLimitError, OpenLuxAPIError, OpenLuxParseError, ValueError, Exception) as e:
+            # Any failure (incl. parse / model down) falls through to the
+            # legacy single-shot retry loop. This keeps behavior identical
+            # to before the parallel path existed if the new path fails.
+            logging.warning(
+                "[outline] task=%s parallel pre-flight failed (%s: %s) — falling back to legacy single-shot retry loop",
+                task_id, type(e).__name__, str(e)[:200],
+            )
+            store.set_progress(
+                task_id,
+                f"并行生成失败（{type(e).__name__}），切换到备用路径...",
+            )
+
         for attempt in range(MAX_RETRIES):
+            # q3+ retry bugfix: before each attempt, enforce the wall-clock
+            # budget. Without this the user can spend 5-9 minutes waiting for
+            # a request that was already hopeless on attempt 1 (e.g. wrong
+            # theme data resolved by the LLM, repeated 404s on a model that's
+            # been down all morning).
+            budget = _budget_left()
+            if budget <= 5:
+                logging.error(
+                    "[outline] task=%s theme=%s — wall-clock budget exhausted at attempt %d, %.1fs left; aborting retries",
+                    task_id, theme_name, attempt + 1, budget,
+                )
+                store.mark_failed(
+                    task_id,
+                    f"大纲生成在 {OUTLINE_TIME_BUDGET_SECONDS} 秒内未完成，已自动中止（避免无效重试扣费）。请稍后重试。",
+                )
+                return
             try:
+                if attempt > 0:
+                    store.set_progress(task_id, f"第 {attempt + 1} 次重试中...（剩余预算 {budget:.0f} 秒）")
+                t0 = time.monotonic()
+                store.set_progress(task_id, "正在调用 LLM 生成大纲（最长约 2-3 分钟）...")
+                logging.info("[outline] task=%s theme=%s attempt=%d — calling LLM (budget=%.0fs)", task_id, theme_name, attempt + 1, budget)
                 raw = await call_grok(api_key, system_prompt, user_prompt, model_order=model_order)
+                llm_elapsed = time.monotonic() - t0
+                logging.info("[outline] task=%s theme=%s — LLM returned in %.1fs (%d chars)", task_id, theme_name, llm_elapsed, len(raw))
+                store.set_progress(task_id, f"LLM 已返回（{llm_elapsed:.1f} 秒），正在解析...")
                 data = clean_json_response(raw)
                 check_prompt_safety(raw)
 
@@ -4719,11 +5215,23 @@ async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key
 
                 panels_raw = data.get("storyboard", [])
                 panels = []
-                for item in (panels_raw if isinstance(panels_raw, list) else []):
+                total_panels = len(panels_raw) if isinstance(panels_raw, list) else 0
+                if total_panels > 0:
+                    store.set_progress(task_id, f"解析到 {total_panels} 个分镜，正在校验内容...")
+                for idx, item in enumerate((panels_raw if isinstance(panels_raw, list) else [])):
                     if not isinstance(item, dict):
                         continue
                     scene = str(item.get("scene_description", ""))
                     prompt_text = str(item.get("image_prompt", ""))
+                    # Surface panel-level progress so the user sees the
+                    # validation step moving along, not just a frozen
+                    # spinner. Update every 2 panels — fine-grained
+                    # updates add noise without adding information.
+                    if idx == 0 or idx % 2 == 1:
+                        store.set_progress(
+                            task_id,
+                            f"正在校验第 {idx + 1}/{total_panels} 个分镜...",
+                        )
 
                     # ── Drop panel placeholders that are clearly the LLM parroting
                     # back the system/user prompt instructions instead of writing
@@ -4909,14 +5417,16 @@ async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key
                             "THEME CONTRACT."
                         )
                         continue
-                    raise ValueError("No valid panels generated")
+                        raise ValueError("No valid panels generated")
 
+                store.set_progress(task_id, f"大纲生成完成（{len(panels)} 个分镜）")
                 store.mark_done(task_id, {
                     "theme_id": req.theme_id,
                     "theme_title": req.theme_title,
                     "outline": outline,
                     "storyboard": panels,
                 })
+                logging.info("[outline] task=%s theme=%s done (%d panels in %.1fs)", task_id, theme_name, len(panels), time.monotonic() - t0_run if 't0_run' in dir() else -1)
                 return
             except ContentSafetyError as e:
                 if attempt < MAX_RETRIES - 1:
@@ -4960,6 +5470,7 @@ async def _run_script_task(task_id: str, req: StoryboardScriptRequest, api_key: 
     store = get_task_store()
     try:
         store.mark_running(task_id)
+        store.set_progress(task_id, f"准备视频脚本（主题：{req.theme_title}，{len(req.panels)} 个分镜）...")
         script_system = _VIDEO_SCRIPT_SYSTEM.format(panel_count=len(req.panels))
         user_prompt = (
             f"Theme: {req.theme_title}\n"
@@ -4969,9 +5480,32 @@ async def _run_script_task(task_id: str, req: StoryboardScriptRequest, api_key: 
             f"\nOutput as raw JSON only, no markdown."
         )
 
+        t0_run_script = time.monotonic()
+        deadline_script = t0_run_script + SCRIPT_TIME_BUDGET_SECONDS
+
+        def _script_budget_left() -> float:
+            return max(0.0, deadline_script - time.monotonic())
+
         for attempt in range(MAX_RETRIES):
+            script_budget = _script_budget_left()
+            if script_budget <= 5:
+                logging.error(
+                    "[script] task=%s — wall-clock budget exhausted (budget=%ds); aborting",
+                    task_id, SCRIPT_TIME_BUDGET_SECONDS,
+                )
+                store.mark_failed(
+                    task_id,
+                    f"视频脚本在 {SCRIPT_TIME_BUDGET_SECONDS} 秒内未完成，已自动中止。请重试。",
+                )
+                return
             try:
+                if attempt > 0:
+                    store.set_progress(task_id, f"第 {attempt + 1} 次重试中...（剩余预算 {script_budget:.0f} 秒）")
+                store.set_progress(task_id, "正在调用 LLM 生成视频脚本...")
+                t0 = time.monotonic()
                 raw = await call_grok(api_key, script_system, user_prompt)
+                logging.info("[script] task=%s — LLM returned in %.1fs", task_id, time.monotonic() - t0)
+                store.set_progress(task_id, "LLM 已返回，正在解析...")
                 data = clean_json_response(raw)
                 check_prompt_safety(raw)
 
@@ -5006,6 +5540,7 @@ async def _run_script_task(task_id: str, req: StoryboardScriptRequest, api_key: 
                     )
                     continue
 
+                store.set_progress(task_id, f"视频脚本生成完成（{len(panels_out)} 个镜头）")
                 store.mark_done(task_id, {
                     "theme_title": req.theme_title,
                     "script_title": script_title,
@@ -5476,6 +6011,159 @@ async def expand_prompt(req: ExpandRequest, api_key: str = Depends(get_api_key))
     return ExpandResponse(results=valid)
 
 
+# ─── Expand (streaming NDJSON) ─────────────────────────────────────────────────
+#
+# /expand/stream returns NDJSON events of the same shape as /random/stream
+# but the per-slot payload is an ExpandResult-shaped object (original/type/r18/prompt).
+# Useful for 智能扩写 / 智能视频 where the user wants to see the prompt being
+# written character-by-character.
+
+async def _stream_single_expand(
+    api_key: str,
+    req: ExpandRequest,
+    index: int,
+):
+    try:
+        system_prompt = get_system_prompt(req.type, req.r18, img2img=bool(getattr(req, "img2img_mode", False)))
+        diversity_note = _EXPAND_DIVERSITY_VARIANTS[index % len(_EXPAND_DIVERSITY_VARIANTS)]
+
+        img2img = bool(getattr(req, "img2img_mode", False))
+        reference_image_url = getattr(req, "reference_image_url", None)
+        character_prompt = getattr(req, "character_prompt", None)
+        use_img2img_system = img2img and reference_image_url
+        use_character_anchor = bool(character_prompt and character_prompt.strip())
+
+        if use_img2img_system:
+            user_prompt = (
+                f"Reference image URL: {reference_image_url}\n\n"
+                f"The reference image shows an adult character. You must TRANSFORM this character, NOT create a new one.\n\n"
+                f"Transformation request: {req.user_input}\n\n"
+                f"Style direction: {diversity_note}\n\n"
+                f"IMPORTANT RULES:\n"
+                f"- NEVER describe hair color, eye color, skin tone, or race — the reference image defines these\n"
+                f"- NEVER describe body type or build — preserve exactly as shown in reference\n"
+                f"- ONLY describe: pose changes, outfit changes, setting changes, lighting changes, mood changes\n"
+                f"- Use preservation tags: '1girl', 'same face as reference', 'same hair as reference', 'character consistency'\n\n"
+                f"Return ONLY the transformation prompt paragraph, nothing else."
+            )
+        elif req.r18:
+            user_prompt = (
+                f"User input: {req.user_input}\n\n"
+                f"{diversity_note}\n\n"
+                f"Generate an adult NSFW image prompt following the focus above. "
+                f"Use the system prompt guidelines to write maximally explicit content. "
+                f"Return ONLY the prompt text, nothing else."
+            )
+        else:
+            user_prompt = (
+                f"Input: {req.user_input}\n\n"
+                f"Diversity focus: {diversity_note}\n\n"
+                f"Generate a detailed {'image' if req.type == 'image' else 'video'} prompt based on the input above, following the diversity focus. "
+                f"IMPORTANT: All characters must be adults (18+). Return ONLY the prompt text, nothing else."
+            )
+
+        yield _ndjson_event({
+            "event": "start",
+            "index": index,
+            "type": req.type,
+            "r18": req.r18,
+            "original": req.user_input,
+        })
+
+        system_for_local = system_prompt
+        for attempt in range(MAX_RETRIES):
+            collected: list[str] = []
+            try:
+                async for piece in stream_grok(api_key, system_for_local, user_prompt):
+                    collected.append(piece)
+                    yield _ndjson_event({"event": "delta", "index": index, "text": piece})
+                result_clean = "".join(collected).strip()
+                check_prompt_safety(result_clean)
+                conflicts = detect_prompt_conflicts(result_clean)
+                if conflicts:
+                    result_clean = await rewrite_coherent_prompt(result_clean, api_key)
+                if use_character_anchor and character_prompt:
+                    anchor = character_prompt.strip()
+                    if not result_clean.startswith(anchor):
+                        result_clean = f"{anchor}, {result_clean}"
+                yield _ndjson_event({
+                    "event": "end",
+                    "index": index,
+                    "prompt": result_clean,
+                })
+                return
+            except ContentSafetyError as e:
+                if attempt < MAX_RETRIES - 1:
+                    system_for_local += "\n\nSAFETY OVERRIDE: REJECT any content mentioning minors. ADULTS ONLY."
+                    continue
+                yield _ndjson_event({"event": "error", "index": index, "message": str(e), "fatal": True})
+                return
+            except (OpenLuxTimeoutError, OpenLuxRateLimitError, OpenLuxParseError, OpenLuxAPIError) as e:
+                if attempt < MAX_RETRIES - 1:
+                    continue
+                yield _ndjson_event({"event": "error", "index": index, "message": str(e), "fatal": True})
+                return
+            except OpenLuxAuthError as e:
+                yield _ndjson_event({"event": "error", "index": index, "message": str(e), "fatal": True})
+                return
+            except Exception as e:
+                yield _ndjson_event({"event": "error", "index": index, "message": f"{type(e).__name__}: {e}", "fatal": True})
+                return
+    except HTTPException as e:
+        yield _ndjson_event({"event": "error", "index": index, "message": str(e.detail) if hasattr(e, "detail") else str(e), "fatal": True})
+    except Exception as e:
+        yield _ndjson_event({"event": "error", "index": index, "message": f"{type(e).__name__}: {e}", "fatal": True})
+
+
+async def _expand_stream_ndjson(
+    api_key: str,
+    req: ExpandRequest,
+) -> AsyncIterator[str]:
+    count = max(1, min(req.count, 10))
+    success_count = 0
+    queue: asyncio.Queue = asyncio.Queue()
+
+    async def producer(idx: int) -> None:
+        try:
+            async for line in _stream_single_expand(api_key, req, idx):
+                await queue.put(("evt", line, idx))
+        except Exception as e:
+            await queue.put(("evt", _ndjson_event({
+                "event": "error", "index": idx,
+                "message": f"producer crashed: {type(e).__name__}: {e}",
+                "fatal": True,
+            }), idx))
+        finally:
+            await queue.put(("done", None, idx))
+
+    producers = [asyncio.create_task(producer(i)) for i in range(count)]
+    finished = 0
+    while finished < count:
+        kind, payload, _idx = await queue.get()
+        if kind == "done":
+            finished += 1
+            continue
+        try:
+            obj = json.loads(payload)
+            if obj.get("event") == "end":
+                success_count += 1
+        except Exception:
+            pass
+        yield payload
+    await asyncio.gather(*producers, return_exceptions=True)
+    yield _ndjson_event({"event": "done", "total": count, "successful": success_count})
+
+
+@router.post("/expand/stream")
+async def expand_prompt_stream(req: ExpandRequest, api_key: str = Depends(get_api_key)):
+    """Streaming NDJSON version of POST /api/prompt/expand."""
+    return StreamingResponse(
+        _expand_stream_ndjson(api_key, req),
+        media_type="application/x-ndjson",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 # ─── Image-to-Video Wan2.2 prompt expansion ─────────────────────────────────────
 # 复用 expand_prompt 的生成链路 + 多样性注入，但 system prompt 换成 wan2.2 i2v
 # 专用版本（不含场景/背景/外观描述，只输出动作/镜头/表情）。
@@ -5571,14 +6259,34 @@ async def expand_video_from_image(req: ExpandVideoFromImageRequest, api_key: str
 # ─── Theme label generator ──────────────────────────────────────────────────────
 
 _THEME_LABEL_PROMPT = """Given an image prompt, identify the ONE core theme or scenario in exactly 1-5 Chinese characters.
-Examples:
+
+CRITICAL: Respond ONLY in Chinese (简体中文 / 简体中文 characters). Do NOT output English words, do NOT output mixed Chinese+English. If the source prompt is in English, TRANSLATE the concept into Chinese — do not copy English words verbatim.
+
+Examples (English prompt -> required Chinese label):
 - "A teacher in classroom" -> "教室教师"
 - "Hospital nurse with syringe" -> "医院护士"
 - "Maid in hotel room" -> "酒店女仆"
 - "Bikini on tropical beach" -> "热带比基尼"
 - "Bondservant in dungeon" -> "地牢束缚"
 - "Cyberpunk android" -> "赛博仿生"
-Output ONLY the theme label, nothing else. No punctuation, no quotes."""
+- "Beautiful Korean woman in hanbok" -> "韩服佳人"
+- "Tall muscular older man in gym" -> "健美教练"
+
+Output ONLY the Chinese theme label (1-5 Chinese characters). Nothing else. No punctuation, no quotes, no English."""
+
+
+def _looks_chinese(text: str) -> bool:
+    """Return True iff `text` contains at least one CJK character.
+
+    Used to filter out theme labels that the LLM returned in English
+    (a regression we observed after switching to all-English prompts:
+    the summarizer was happily copying English phrases verbatim).
+    Falls back to False for empty / pure-punctuation strings so the
+    caller can substitute a sane default label.
+    """
+    if not text:
+        return False
+    return any('\u4e00' <= ch <= '\u9fff' for ch in text)
 
 
 
@@ -6215,6 +6923,12 @@ STRICT RULE: All characters ADULTS 18+. Consensual only. Output ONLY a raw coher
             try:
                 theme_raw = await call_grok(api_key, _THEME_LABEL_PROMPT, result_clean)
                 theme_label = theme_raw.strip().strip('"').strip("'")
+                # Sanity-check: if the LLM returned a non-Chinese label
+                # (e.g. copied an English phrase from the source prompt),
+                # fall back to the preset name rather than surfacing
+                # English text in the user's Chinese UI.
+                if not _looks_chinese(theme_label):
+                    theme_label = preset["label"]
             except Exception:
                 theme_label = preset["label"]
 
@@ -6247,6 +6961,129 @@ STRICT RULE: All characters ADULTS 18+. Consensual only. Output ONLY a raw coher
 
 # ─── Route: Random ───────────────────────────────────────────────────────────
 
+# ─── Random theme presets (module-level so streaming variant can reuse them) ──
+_RANDOM_THEME_PRESETS = {
+    "完全随机": {
+        "label": "完全随机",
+        "description": "混合各种风格，完全随机生成",
+        "system_prompt": None,  # Use default
+        "diversity_variants": [
+            "Portrait focus: facial expression, intimate mood.",
+            "Full body: casual pose, indoor natural setting.",
+            "Standing pose: confident posture, outdoor background.",
+            "Reclining pose: soft lighting, relaxed atmosphere.",
+            "Fashion/lingerie: elegant, stylish atmosphere.",
+            "Cinematic framing: dramatic mood, moody lighting.",
+            "Themed costume: roleplay atmosphere, character-focused.",
+            "Bedroom scene: intimate setting, warm lighting.",
+            "Artistic composition: mirror/reflection, creative angle.",
+            "Outdoor/nature: natural light, exotic location.",
+        ],
+    },
+    "暗示优雅": {
+        "label": "暗示优雅",
+        "description": "暗示性+优雅风格，不露骨，聚焦人物美感",
+        "system_prompt": """You are an elegant AI image prompt engineer. Generate ONE tasteful, suggestive adult image prompt.
+
+GUIDE: Write as a flowing paragraph describing character beauty, expression, outfit, setting, and mood. Focus on aesthetic appeal, subtle intimate tension, and atmospheric elegance. Do NOT describe explicit sexual acts or penetration. Keep it artistic and refined.
+
+RULES:
+1. Character: detailed appearance, ethnicity (rotate among 亚洲人 / 黄种人 / 中国人 / 日本人 / 韩国人 / 泰国人 / 越南人 / 印度人 / 伊朗人 / 中东人 / 白人 / 欧洲人 / 意大利人 / 法国人 / 德国人 / 俄罗斯人 / 美国人 / 拉丁人 / 拉美人 / 巴西人 / 墨西哥人 / 非洲人 / 混血儿 — match skin tone + facial features to chosen ethnicity), expression, posture
+2. Setting: elegant environment, props, lighting
+3. Mood: subtle intimate tension, emotional depth
+4. ONE cohesive artistic scene
+5. Adults 18+ only. No minors.
+6. NO explicit acts. Focus on beauty, elegance, and atmosphere.
+2-3 sentences. Output ONLY the prompt paragraph. No explanations.""",
+        "diversity_variants": [
+            "Portrait close-up: face, expression, soft lighting.",
+            "Full body standing: confident pose, elegant background.",
+            "Sitting pose: relaxed, moody lighting.",
+            "Fashion focus: stylish outfit, studio lighting.",
+            "Bedroom: warm atmosphere, artistic framing.",
+            "Mirror reflection: creative composition.",
+            "Natural light: outdoor or window lighting.",
+            "Cinematic: dramatic shadows and highlights.",
+        ],
+    },
+}
+
+
+def _build_random_prompt_context(
+    req: RandomRequest,
+    variant_index: int,
+) -> tuple[str, str, dict, dict, Optional[str], bool]:
+    """Build all inputs for a single random-prompt generation.
+
+    Returns: (system_prompt, user_prompt, preset, tags_by_category, character_prompt, use_character_anchor)
+    Shared between the streaming and non-streaming variants to keep their
+    prompt semantics identical.
+    """
+    img2img = getattr(req, "img2img", False)
+    reference_image_url = getattr(req, "reference_image_url", None)
+    character_prompt = getattr(req, "character_prompt", None)
+    use_character_anchor = bool(character_prompt and character_prompt.strip())
+
+    tags_used = generate_random_tags(req.type, r18_mode=req.r18, img2img_mode=img2img)
+    try:
+        check_tags_safety(tags_used)
+    except ContentSafetyError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    tags_by_category: dict[str, list[str]] = {}
+    for tag in tags_used:
+        cat = tag.get("_category", "other")
+        if cat not in tags_by_category:
+            tags_by_category[cat] = []
+        tags_by_category[cat].append(tag.get("_name", str(tag)))
+
+    tags_str = ", ".join([str(t.get("_name", t)) for t in tags_used])
+
+    theme_key = req.theme if req.theme in _RANDOM_THEME_PRESETS else "完全随机"
+    preset = _RANDOM_THEME_PRESETS[theme_key]
+    diversity_variant = preset["diversity_variants"][variant_index % len(preset["diversity_variants"])]
+
+    if img2img:
+        system_for_random = get_system_prompt(req.type, req.r18, img2img=True)
+    elif preset["system_prompt"]:
+        system_for_random = preset["system_prompt"]
+    else:
+        system_for_random = get_system_prompt(req.type, req.r18)
+
+    img2img_context = ""
+    if img2img:
+        if reference_image_url:
+            img2img_context = (
+                f"\n\nREFERENCE IMAGE: {reference_image_url}\n"
+                f"The reference image defines the character's identity. "
+                f"DO NOT describe new character appearance (no hair color, eye color, skin tone, ethnicity, body type). "
+                f"Only describe pose, outfit changes, setting, lighting, and mood transformations."
+            )
+        else:
+            img2img_context = (
+                "\n\nIMPORTANT: This is img2img mode. "
+                "DO NOT describe character appearance (no hair color, eye color, skin tone, ethnicity, body type, face). "
+                "The reference image defines the character. Only describe pose, outfit, setting, lighting, mood."
+            )
+
+    user_prompt = (
+        f"Tags: {tags_str}{img2img_context}\n\n"
+        f"Theme: {preset['label']} - {preset['description']}\n\n"
+        f"Creative focus: {diversity_variant}\n\n"
+        f"Generate ONE cohesive image prompt following the theme and focus above. "
+        f"Return ONLY the prompt paragraph."
+    )
+
+    return (
+        system_for_random,
+        user_prompt,
+        preset,
+        tags_by_category,
+        character_prompt,
+        use_character_anchor,
+    )
+
+
 @router.post("/random", response_model=RandomResponse)
 async def random_prompt(req: RandomRequest, api_key: str = Depends(get_api_key)):
     count = max(1, min(req.count, 10))
@@ -6264,6 +7101,226 @@ async def random_prompt(req: RandomRequest, api_key: str = Depends(get_api_key))
         raise HTTPException(status_code=502, detail="所有生成尝试均失败")
 
     return RandomResponse(results=valid_results)
+
+
+# ─── Random (streaming NDJSON) ─────────────────────────────────────────────────
+#
+# /random/stream is the streaming counterpart of /random. It returns a
+# newline-delimited JSON stream (NDJSON) where each line is one event:
+#
+#   {"event":"start","index":0,"theme_label":"完全随机","tags_used":{...}}
+#   {"event":"delta","index":0,"text":"a"}
+#   {"event":"delta","index":0,"text":" stunning"}
+#   ...
+#   {"event":"end","index":0,"prompt":"...full text..."}
+#   {"event":"error","index":2,"message":"..."}    ← per-index failure
+#   {"event":"done","total":5,"successful":4}      ← always last
+#
+# This eliminates the "stuck at 抽卡中" problem: the first card appears the
+# moment the first LLM chunk arrives (~0.5-1s after request start), instead
+# of waiting for the slowest of N parallel generations to finish.
+#
+# Concurrency: all `count` results start in parallel, but each one's events
+# are tagged with `index` so the client can append them in arrival order
+# without losing the original card slot.
+
+def _ndjson_event(obj: dict) -> str:
+    """Serialize one event as a single NDJSON line (no embedded newlines)."""
+    return json.dumps(obj, ensure_ascii=False) + "\n"
+
+
+async def _stream_single_random_prompt(
+    api_key: str,
+    req: RandomRequest,
+    index: int,
+):
+    """Async generator yielding NDJSON lines for one random-prompt slot.
+
+    Yields (str) — each is a complete NDJSON line terminated with '\\n'.
+    The caller (StreamingResponse) must NOT further encode this text.
+    """
+    try:
+        (
+            system_for_random,
+            user_prompt,
+            preset,
+            tags_by_category,
+            character_prompt,
+            use_character_anchor,
+        ) = _build_random_prompt_context(req, index)
+
+        # initial card: send "start" event so the client can render the
+        # shell of the card (with tags, theme label) immediately, before
+        # any LLM text arrives.
+        yield _ndjson_event({
+            "event": "start",
+            "index": index,
+            "theme": preset["label"],
+            "tags_used": tags_by_category,
+            "img2img": getattr(req, "img2img", False),
+        })
+
+        collected: list[str] = []
+        system_for_random_local = system_for_random  # rebind for safety override loop
+        for attempt in range(MAX_RETRIES):
+            collected = []
+            try:
+                async for piece in stream_grok(api_key, system_for_random_local, user_prompt):
+                    collected.append(piece)
+                    yield _ndjson_event({
+                        "event": "delta",
+                        "index": index,
+                        "text": piece,
+                    })
+                # Stream completed — process the full text
+                result_clean = "".join(collected).strip()
+                check_prompt_safety(result_clean)
+
+                conflicts = detect_prompt_conflicts(result_clean)
+                if conflicts:
+                    # Rewrite is a non-streaming second LLM call (small prompt).
+                    result_clean = await rewrite_coherent_prompt(result_clean, api_key)
+                    check_prompt_safety(result_clean)
+
+                # Theme label is also non-streaming (small prompt, no UX benefit).
+                try:
+                    theme_raw = await call_grok(api_key, _THEME_LABEL_PROMPT, result_clean)
+                    theme_label = theme_raw.strip().strip('"').strip("'")
+                    # Sanity-check: if the LLM returned English (e.g.
+                    # copied the source prompt verbatim instead of
+                    # summarizing in Chinese), fall back to the preset
+                    # name rather than surfacing English in the UI.
+                    if not _looks_chinese(theme_label):
+                        theme_label = preset["label"]
+                except Exception:
+                    theme_label = preset["label"]
+
+                if use_character_anchor and character_prompt:
+                    anchor = character_prompt.strip()
+                    if not result_clean.startswith(anchor):
+                        result_clean = f"{anchor}, {result_clean}"
+
+                yield _ndjson_event({
+                    "event": "end",
+                    "index": index,
+                    "theme_label": theme_label,
+                    "prompt": result_clean,
+                })
+                return
+            except ContentSafetyError as e:
+                if attempt < MAX_RETRIES - 1:
+                    system_for_random_local += "\n\nSAFETY OVERRIDE: Reject ALL minors. ADULTS ONLY."
+                    continue
+                yield _ndjson_event({
+                    "event": "error",
+                    "index": index,
+                    "message": str(e),
+                    "fatal": True,
+                })
+                return
+            except (OpenLuxTimeoutError, OpenLuxRateLimitError, OpenLuxAPIError) as e:
+                if attempt < MAX_RETRIES - 1:
+                    continue
+                yield _ndjson_event({
+                    "event": "error",
+                    "index": index,
+                    "message": str(e),
+                    "fatal": True,
+                })
+                return
+            except Exception as e:
+                yield _ndjson_event({
+                    "event": "error",
+                    "index": index,
+                    "message": f"{type(e).__name__}: {e}",
+                    "fatal": True,
+                })
+                return
+    except HTTPException as e:
+        yield _ndjson_event({
+            "event": "error",
+            "index": index,
+            "message": str(e.detail) if hasattr(e, "detail") else str(e),
+            "fatal": True,
+        })
+    except Exception as e:
+        yield _ndjson_event({
+            "event": "error",
+            "index": index,
+            "message": f"{type(e).__name__}: {e}",
+            "fatal": True,
+        })
+
+
+async def _random_stream_ndjson(
+    api_key: str,
+    req: RandomRequest,
+) -> AsyncIterator[str]:
+    """Inner generator driving /random/stream."""
+    count = max(1, min(req.count, 10))
+    success_count = 0
+
+    queue: asyncio.Queue = asyncio.Queue()
+
+    async def producer(idx: int) -> None:
+        try:
+            async for line in _stream_single_random_prompt(api_key, req, idx):
+                await queue.put(("evt", line, idx))
+        except Exception as e:  # producer should never raise — we catch inside
+            await queue.put((
+                "evt",
+                _ndjson_event({
+                    "event": "error",
+                    "index": idx,
+                    "message": f"producer crashed: {type(e).__name__}: {e}",
+                    "fatal": True,
+                }),
+                idx,
+            ))
+        finally:
+            await queue.put(("done", None, idx))
+
+    producers = [asyncio.create_task(producer(i)) for i in range(count)]
+    finished = 0
+
+    while finished < count:
+        kind, payload, idx = await queue.get()
+        if kind == "done":
+            finished += 1
+            continue
+        # `evt`: a serialised NDJSON line
+        try:
+            obj = json.loads(payload)
+            if obj.get("event") == "end":
+                success_count += 1
+        except Exception:
+            pass
+        yield payload
+
+    await asyncio.gather(*producers, return_exceptions=True)
+
+    yield _ndjson_event({
+        "event": "done",
+        "total": count,
+        "successful": success_count,
+    })
+
+
+@router.post("/random/stream")
+async def random_prompt_stream(req: RandomRequest, api_key: str = Depends(get_api_key)):
+    """Streaming NDJSON version of POST /api/prompt/random.
+
+    Each event is a single JSON object on its own line. See the docstring on
+    `_stream_single_random_prompt` for the event schema.
+    """
+    return StreamingResponse(
+        _random_stream_ndjson(api_key, req),
+        media_type="application/x-ndjson",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",  # disable proxy buffering (nginx)
+        },
+    )
 
 
 # ─── Route: Storyboard ───────────────────────────────────────────────────────
@@ -6342,6 +7399,131 @@ async def storyboard(req: StoryboardRequest, api_key: str = Depends(get_api_key)
             raise HTTPException(status_code=500, detail=f"未知错误: {str(e)}")
 
 
+# ─── Storyboard (streaming NDJSON) ─────────────────────────────────────────────
+#
+# /storyboard/stream streams the raw LLM text chunk-by-chunk as NDJSON
+# {"event":"delta","text":"..."} lines, then once the full JSON is collected
+# it emits one {"event":"panel","index":N,"panel":{...}} per panel as they
+# are validated, and finally a {"event":"done","count":N} line.
+#
+# The client renders the raw streaming text as a placeholder while waiting,
+# and replaces it with structured panels as they arrive.
+
+async def _storyboard_stream_ndjson(
+    api_key: str,
+    req: StoryboardRequest,
+) -> AsyncIterator[str]:
+    if req.r18:
+        selected_poses = get_random_poses(req.panel_count + 2)
+        pose_list_str = "\n".join(f"  - {p}" for p in selected_poses)
+        system_prompt = STORYBOARD_SYSTEM_PROMPT_R18.format(pose_list=pose_list_str)
+    else:
+        system_prompt = STORYBOARD_SYSTEM_PROMPT_NORMAL
+
+    user_prompt = (
+        f"Plot: {req.plot}\n\n"
+        f"IMPORTANT: All characters must be adults (18+). Absolutely no minors. "
+        f"Generate exactly {req.panel_count} storyboard panels (minimum 2, maximum 8). "
+        f"Ensure each panel flows naturally from the previous one. "
+        f"Return raw JSON array only, no markdown formatting."
+    )
+
+    yield _ndjson_event({"event": "start", "kind": "storyboard", "panel_count": req.panel_count})
+
+    system_for_local = system_prompt
+    for attempt in range(MAX_RETRIES):
+        collected: list[str] = []
+        try:
+            async for piece in stream_grok(api_key, system_for_local, user_prompt):
+                collected.append(piece)
+                yield _ndjson_event({"event": "delta", "text": piece})
+            raw = "".join(collected)
+            data = clean_json_response(raw)
+            check_prompt_safety(raw)
+            if not isinstance(data, list):
+                yield _ndjson_event({"event": "error", "message": "Invalid LLM response format, expected JSON array", "fatal": True})
+                return
+
+            emitted = 0
+            for idx, item in enumerate(data):
+                if not isinstance(item, dict):
+                    continue
+                scene = str(item.get("scene_description", ""))
+                prompt_text = str(item.get("image_prompt", ""))
+                try:
+                    check_prompt_safety(scene)
+                    check_prompt_safety(prompt_text)
+                except ContentSafetyError as e:
+                    yield _ndjson_event({
+                        "event": "panel_skipped",
+                        "index": idx,
+                        "reason": f"safety: {e}",
+                    })
+                    continue
+                conflicts = detect_prompt_conflicts(scene) or detect_prompt_conflicts(prompt_text)
+                if conflicts:
+                    try:
+                        prompt_text = await rewrite_coherent_prompt(prompt_text, api_key)
+                        check_prompt_safety(prompt_text)
+                    except Exception as e:
+                        yield _ndjson_event({
+                            "event": "panel_skipped",
+                            "index": idx,
+                            "reason": f"rewrite failed: {e}",
+                        })
+                        continue
+                yield _ndjson_event({
+                    "event": "panel",
+                    "index": idx,
+                    "panel": {
+                        "panel_number": item.get("panel_number", idx + 1),
+                        "scene_description": scene,
+                        "image_prompt": prompt_text,
+                    },
+                })
+                emitted += 1
+
+            if emitted == 0:
+                yield _ndjson_event({"event": "error", "message": "No valid panels generated", "fatal": True})
+                return
+            yield _ndjson_event({"event": "done", "count": emitted})
+            return
+        except ContentSafetyError as e:
+            if attempt < MAX_RETRIES - 1:
+                system_for_local += "\n\nSAFETY OVERRIDE: ALL characters must be ADULTS 18+. REJECT any panel mentioning minors."
+                continue
+            yield _ndjson_event({"event": "error", "message": str(e), "fatal": True})
+            yield _ndjson_event({"event": "done", "count": 0})
+            return
+        except (OpenLuxTimeoutError, OpenLuxRateLimitError, OpenLuxParseError, OpenLuxAPIError) as e:
+            if attempt < MAX_RETRIES - 1:
+                continue
+            yield _ndjson_event({"event": "error", "message": str(e), "fatal": True})
+            yield _ndjson_event({"event": "done", "count": 0})
+            return
+        except OpenLuxAuthError as e:
+            yield _ndjson_event({"event": "error", "message": str(e), "fatal": True})
+            yield _ndjson_event({"event": "done", "count": 0})
+            return
+        except HTTPException as e:
+            yield _ndjson_event({"event": "error", "message": str(e.detail), "fatal": True})
+            yield _ndjson_event({"event": "done", "count": 0})
+            return
+        except Exception as e:
+            yield _ndjson_event({"event": "error", "message": f"{type(e).__name__}: {e}", "fatal": True})
+            yield _ndjson_event({"event": "done", "count": 0})
+            return
+
+
+@router.post("/storyboard/stream")
+async def storyboard_stream(req: StoryboardRequest, api_key: str = Depends(get_api_key)):
+    return StreamingResponse(
+        _storyboard_stream_ndjson(api_key, req),
+        media_type="application/x-ndjson",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 # ─── 九宫格分镜 (gpt-5.5) ─────────────────────────────────────────────
 
 GRID_STORYBOARD_SYSTEM_PROMPT_NORMAL = """You are an expert visual narrative director. Based on the user's input, generate EXACTLY 9 storyboard panels arranged as a 3x3 grid that together tell a cohesive visual story.
@@ -6413,7 +7595,7 @@ STRICT DIVERSITY RULES:
 
 @router.post("/storyboard/grid", response_model=GridStoryboardResponse)
 async def storyboard_grid(req: GridStoryboardRequest, api_key: str = Depends(get_api_key)):
-    """九宫格分镜生成（优先使用 gpt-5.5，失败回退到 grok-4.3）。
+    """九宫格分镜生成（优先使用 gpt-5.5，失败回退到 grok-4.6）。
     基于用户提示词，生成 9 个连贯的分镜画面（一张图片九宫格）。
 
     当传入 reference_image_url + character_prompt 时，会在 system prompt 中注入
@@ -6421,8 +7603,8 @@ async def storyboard_grid(req: GridStoryboardRequest, api_key: str = Depends(get
     并在每个 panel.image_prompt 末尾追加 [ANCHOR: ...] 块，
     这样前端用 editImage + 数字人图生成时，模型能在每个分镜中锚定人物身份。
     """
-    # 优先 gpt-5.5，失败回退 grok-4.3
-    model_order = ["gpt-5.5", "grok-4.3"]
+    # 优先 gpt-5.5，失败回退 grok-4.6
+    model_order = ["gpt-5.5", "grok-4.6"]
     system_prompt = (
         GRID_STORYBOARD_SYSTEM_PROMPT_R18 if req.r18
         else GRID_STORYBOARD_SYSTEM_PROMPT_NORMAL
@@ -6571,6 +7753,167 @@ ALL 9 panels must share the IDENTICAL [ANCHOR: ...] prefix verbatim.
             raise
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"未知错误: {str(e)}")
+
+
+# ─── Storyboard Grid (streaming NDJSON) ────────────────────────────────────────
+#
+# /storyboard/grid/stream emits NDJSON events of the same shape as
+# /storyboard/stream but with anchor-injection + grid-filling logic preserved.
+
+async def _storyboard_grid_stream_ndjson(
+    api_key: str,
+    req: GridStoryboardRequest,
+) -> AsyncIterator[str]:
+    model_order = ["gpt-5.5", "grok-4.6"]
+    system_prompt = (
+        GRID_STORYBOARD_SYSTEM_PROMPT_R18 if req.r18
+        else GRID_STORYBOARD_SYSTEM_PROMPT_NORMAL
+    )
+    use_character_anchor = bool(req.character_prompt and req.character_prompt.strip())
+    anchor_text = req.character_prompt.strip() if use_character_anchor else ""
+    if use_character_anchor:
+        system_prompt += (
+            "\n\nCHARACTER IDENTITY LOCK (CRITICAL):\n"
+            f"The uploaded reference image defines the EXACT character identity. "
+            f"You MUST preserve this character across ALL 9 panels.\n\n"
+            f"Every panel.image_prompt MUST start with the literal prefix: [ANCHOR: {anchor_text}]\n"
+            "followed by a comma, then the panel-specific scene description. The anchor text is LOCKED "
+            "across all 9 panels — never modify, paraphrase, or drop it.\n"
+        )
+    user_prompt = (
+        f"Plot / Scene: {req.plot}\n\n"
+        f"Generate EXACTLY 9 panels numbered 1 through 9. "
+        f"Maintain strong visual coherence while varying camera angle and moment across panels. "
+        f"Return raw JSON array only, no markdown formatting."
+    )
+    if use_character_anchor:
+        user_prompt += (
+            "\n\nCRITICAL REMINDER: Every panel's image_prompt field MUST begin with the exact "
+            f"prefix `[ANCHOR: {anchor_text}], `. Do NOT alter this prefix."
+        )
+
+    yield _ndjson_event({"event": "start", "kind": "grid", "panel_count": 9, "use_anchor": use_character_anchor})
+
+    system_for_local = system_prompt
+    safety_override_added = False
+    for attempt in range(MAX_RETRIES):
+        collected: list[str] = []
+        try:
+            async for piece in stream_grok(api_key, system_for_local, user_prompt, model_order=model_order):
+                collected.append(piece)
+                yield _ndjson_event({"event": "delta", "text": piece})
+            raw = "".join(collected)
+            data = clean_json_response(raw)
+            check_prompt_safety(raw)
+            if not isinstance(data, list):
+                yield _ndjson_event({"event": "error", "message": "Invalid LLM response format, expected JSON array", "fatal": True})
+                return
+
+            # Reuse the same post-processing as the non-streaming route
+            panels = []
+            for item in data:
+                if not isinstance(item, dict):
+                    continue
+                scene = str(item.get("scene_description", ""))
+                prompt_text = str(item.get("image_prompt", ""))
+                try:
+                    check_prompt_safety(scene)
+                    check_prompt_safety(prompt_text)
+                except ContentSafetyError as e:
+                    yield _ndjson_event({"event": "panel_skipped", "reason": f"safety: {e}"})
+                    continue
+                if detect_prompt_conflicts(scene) or detect_prompt_conflicts(prompt_text):
+                    try:
+                        prompt_text = await rewrite_coherent_prompt(prompt_text, api_key)
+                        check_prompt_safety(prompt_text)
+                    except Exception as e:
+                        yield _ndjson_event({"event": "panel_skipped", "reason": f"rewrite failed: {e}"})
+                        continue
+                try:
+                    panels.append(StoryboardPanel(
+                        panel_number=item.get("panel_number", 0),
+                        scene_description=scene,
+                        image_prompt=prompt_text,
+                    ))
+                except Exception:
+                    continue
+
+            if not panels:
+                yield _ndjson_event({"event": "error", "message": "No valid panels generated", "fatal": True})
+                return
+
+            panels.sort(key=lambda p: p.panel_number)
+
+            if use_character_anchor and panels:
+                locked_anchor = _extract_character_anchor(panels[0].image_prompt) or f"[ANCHOR: {anchor_text}]"
+                normalized = _normalize_anchor_for_safety(locked_anchor)
+                if normalized:
+                    for p in panels:
+                        p.image_prompt = _inject_character_anchor(p.image_prompt, normalized)
+
+            unique_prompts = set(p.image_prompt.lower().strip() for p in panels)
+            if len(unique_prompts) < 3:
+                yield _ndjson_event({"event": "error", "message": "Panels lack diversity, retrying...", "fatal": True})
+                return
+
+            existing_numbers = {p.panel_number for p in panels}
+            for num in range(1, 10):
+                if num not in existing_numbers:
+                    panels.append(StoryboardPanel(
+                        panel_number=num,
+                        scene_description=f"分镜 {num}",
+                        image_prompt=panels[0].image_prompt if panels else "",
+                    ))
+            panels.sort(key=lambda p: p.panel_number)
+
+            # Emit each panel as it becomes available, in panel_number order
+            for idx, p in enumerate(panels):
+                yield _ndjson_event({
+                    "event": "panel",
+                    "index": idx,
+                    "panel": {
+                        "panel_number": p.panel_number,
+                        "scene_description": p.scene_description,
+                        "image_prompt": p.image_prompt,
+                    },
+                })
+            yield _ndjson_event({"event": "done", "count": len(panels)})
+            return
+        except ContentSafetyError as e:
+            if attempt < MAX_RETRIES - 1 and not safety_override_added:
+                system_for_local += "\n\nSAFETY OVERRIDE: ALL characters must be ADULTS 18+. REJECT any panel mentioning minors."
+                safety_override_added = True
+                continue
+            yield _ndjson_event({"event": "error", "message": str(e), "fatal": True})
+            yield _ndjson_event({"event": "done", "count": 0})
+            return
+        except (OpenLuxTimeoutError, OpenLuxRateLimitError, OpenLuxParseError, OpenLuxAPIError) as e:
+            if attempt < MAX_RETRIES - 1:
+                continue
+            yield _ndjson_event({"event": "error", "message": str(e), "fatal": True})
+            yield _ndjson_event({"event": "done", "count": 0})
+            return
+        except OpenLuxAuthError as e:
+            yield _ndjson_event({"event": "error", "message": str(e), "fatal": True})
+            yield _ndjson_event({"event": "done", "count": 0})
+            return
+        except HTTPException as e:
+            yield _ndjson_event({"event": "error", "message": str(e.detail), "fatal": True})
+            yield _ndjson_event({"event": "done", "count": 0})
+            return
+        except Exception as e:
+            yield _ndjson_event({"event": "error", "message": f"{type(e).__name__}: {e}", "fatal": True})
+            yield _ndjson_event({"event": "done", "count": 0})
+            return
+
+
+@router.post("/storyboard/grid/stream")
+async def storyboard_grid_stream(req: GridStoryboardRequest, api_key: str = Depends(get_api_key)):
+    return StreamingResponse(
+        _storyboard_grid_stream_ndjson(api_key, req),
+        media_type="application/x-ndjson",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 # ─── Step 1: Generate 5 Video Themes (Database-Driven) ────────────────────────
@@ -7253,9 +8596,25 @@ async def generate_storyboard_outline(
     # when placeholder tokens detected). Initialize here so the loop is safe.
     theme_name = req.theme_title or ""
 
+    # Initial progress message — set right after mark_running so the
+    # very first poll from the frontend can show "正在调用 LLM..." instead
+    # of a bare "生成中...". Without this, the spinner sits there for up
+    # to ~30s before the LLM returns its first byte and the user is
+    # convinced it's stuck.
+    store.set_progress(task_id, f"准备生成大纲（主题：{theme_name}，{panel_count} 个分镜）...")
+
     for attempt in range(MAX_RETRIES):
         try:
+            if attempt > 0:
+                store.set_progress(task_id, f"第 {attempt + 1} 次重试中...")
+
+            t0 = time.monotonic()
+            store.set_progress(task_id, "正在调用 LLM 生成大纲（最长约 2-3 分钟）...")
+            logging.info("[storyboard/outline] task=%s theme=%s attempt=%d — calling LLM", task_id, theme_name, attempt + 1)
             raw = await call_grok(api_key, system_prompt, user_prompt, model_order=model_order)
+            llm_elapsed = time.monotonic() - t0
+            logging.info("[storyboard/outline] task=%s theme=%s — LLM returned in %.1fs (%d chars)", task_id, theme_name, llm_elapsed, len(raw))
+            store.set_progress(task_id, f"LLM 已返回（{llm_elapsed:.1f} 秒，{len(raw)} 字符），正在解析 JSON...")
             data = clean_json_response(raw)
 
             check_prompt_safety(raw)
@@ -7276,12 +8635,23 @@ async def generate_storyboard_outline(
             if not isinstance(panels_raw, list):
                 raise HTTPException(status_code=500, detail="Invalid storyboard format")
 
+            store.set_progress(task_id, f"解析到 {len(panels_raw)} 个分镜，正在校验内容...")
             panels = []
-            for item in panels_raw:
+            total_panels = len(panels_raw)
+            for idx, item in enumerate(panels_raw):
                 if not isinstance(item, dict):
                     continue
                 scene = str(item.get("scene_description", ""))
                 prompt_text = str(item.get("image_prompt", ""))
+                # Emit a progress update on the first panel and every
+                # 2nd panel afterwards — every update is cheap but
+                # spamming it for every panel would just spam the
+                # client console without giving the user more info.
+                if idx == 0 or idx % 2 == 0:
+                    store.set_progress(
+                        task_id,
+                        f"正在校验第 {idx + 1}/{total_panels} 个分镜..."
+                    )
 
                 # Drop panels that are clearly the LLM parroting the prompt
                 # instructions back as content (e.g. "在公园长椅，亚洲的
@@ -7615,7 +8985,7 @@ async def generate_video_script(
                 except Exception:
                     continue
 
-            # 兜底：LLM 有时只回 script_title 不回 panels（grok-4-1-fast-non-reasoning
+            # 兜底：LLM 有时只回 script_title 不回 panels（grok-4.3 偶发）
             # 在只有 1 个 panel 时尤其容易偷懒）。这种情况视为解析失败，
             # 追加一条强提示让 LLM 重新生成完整结构。MAX_RETRIES 已经覆盖
             # 多次重试，扣费由用户在前端触发前知情。

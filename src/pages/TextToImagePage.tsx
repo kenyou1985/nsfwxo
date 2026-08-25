@@ -10,7 +10,7 @@ import { TaskList } from '../components/TaskList';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import type { TextToImageParams, QueuedTask } from '../types';
 import { MAX_TASKS, type TaskManagerReturn } from '../hooks/useTaskManager';
-import { DEFAULT_TXT2IMG_PARAMS, QUALITY_BOOST_PROMPT } from '../constants';
+import { DEFAULT_TXT2IMG_PARAMS, KREA2_TXT2IMG_PARAMS, QUALITY_BOOST_PROMPT } from '../constants';
 import { WORKFLOW } from '../services/runninghub';
 import type { WeightMode } from '../components/PromptEditor';
 import { buildTxt2ImgNodeList } from '../utils/txt2imgNodeBuilder';
@@ -18,7 +18,7 @@ import { expandPrompt } from '../services/promptApi';
 import { PosePresetSelector } from '../components/PosePresetSelector';
 import { addFavorite, removeFavorite, getFavorites } from '../services/storage';
 import { logger } from '../utils/clientLogger';
-import { getLoraDefault, getCheckpointDefault } from '../services/modelDefaultsService';
+import { getLoraDefault, getCheckpointDefault, getDefaultWorkflow, setDefaultWorkflow } from '../services/modelDefaultsService';
 
 interface SelectedTag {
   tag: string;
@@ -48,22 +48,37 @@ export function TextToImagePage({
     const l1 = getLoraDefault('lora1');
     const l2 = getLoraDefault('lora2');
     const l3 = getLoraDefault('lora3');
-    const wf = WORKFLOW.THREE_LORA;
+    const wf = getDefaultWorkflow();
     const ckpt = getCheckpointDefault(wf);
+    const isKREA2 = wf === WORKFLOW.KREA2;
     return {
       ...DEFAULT_TXT2IMG_PARAMS,
       enableRandomPrompt: true,
       threeLoraRandomPrompt: false,
       workflowId: wf,
-      lora1Name: l1?.name ?? DEFAULT_TXT2IMG_PARAMS.lora1Name,
-      lora1Weight: l1?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora1Weight,
-      lora2Name: l2?.name ?? DEFAULT_TXT2IMG_PARAMS.lora2Name,
-      lora2Weight: l2?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora2Weight,
-      lora3Name: l3?.name ?? DEFAULT_TXT2IMG_PARAMS.lora3Name,
-      lora3Weight: l3?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora3Weight,
+      width: isKREA2 ? KREA2_TXT2IMG_PARAMS.width : DEFAULT_TXT2IMG_PARAMS.width,
+      height: isKREA2 ? KREA2_TXT2IMG_PARAMS.height : DEFAULT_TXT2IMG_PARAMS.height,
+      imageCount: isKREA2 ? KREA2_TXT2IMG_PARAMS.imageCount : DEFAULT_TXT2IMG_PARAMS.imageCount,
+      lora1Name: l1?.name ?? (isKREA2 ? KREA2_TXT2IMG_PARAMS.lora1Name : DEFAULT_TXT2IMG_PARAMS.lora1Name),
+      lora1Weight: l1?.weight ?? (isKREA2 ? KREA2_TXT2IMG_PARAMS.lora1Weight : DEFAULT_TXT2IMG_PARAMS.lora1Weight),
+      lora2Name: l2?.name ?? (isKREA2 ? KREA2_TXT2IMG_PARAMS.lora2Name : DEFAULT_TXT2IMG_PARAMS.lora2Name),
+      lora2Weight: l2?.weight ?? (isKREA2 ? KREA2_TXT2IMG_PARAMS.lora2Weight : DEFAULT_TXT2IMG_PARAMS.lora2Weight),
+      lora3Name: l3?.name ?? (isKREA2 ? KREA2_TXT2IMG_PARAMS.lora3Name : DEFAULT_TXT2IMG_PARAMS.lora3Name),
+      lora3Weight: l3?.weight ?? (isKREA2 ? KREA2_TXT2IMG_PARAMS.lora3Weight : DEFAULT_TXT2IMG_PARAMS.lora3Weight),
       checkpoint: ckpt?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
+      unet: isKREA2 ? (KREA2_TXT2IMG_PARAMS.unet ?? '') : '',
     };
   });
+
+  // 当前保存的默认工作流标签
+  const currentDefaultLabel = (() => {
+    const wf = getDefaultWorkflow();
+    if (wf === WORKFLOW.KREA2) return 'Krea2 文生图';
+    if (wf === WORKFLOW.REALISTIC_V3) return '真实 V3 模型';
+    if (wf === WORKFLOW.REALISTIC_BATCH) return '真实系批量文生图';
+    if (wf === WORKFLOW.THREE_LORA) return '3LoRA 模型';
+    return '3LoRA 模型';
+  })();
 
   // Tag management
   const [positiveTags, setPositiveTags] = useState<SelectedTag[]>([]);
@@ -304,7 +319,7 @@ export function TextToImagePage({
       const negPrompt = buildNegativePrompt();
       const prompt = `${textToUse}, ${QUALITY_BOOST_PROMPT}`;
       const nodeList = buildTxt2ImgNodeList({
-        workflowId: params.workflowId || WORKFLOW.THREE_LORA,
+        workflowId: params.workflowId || getDefaultWorkflow(),
         width: params.width,
         height: params.height,
         imageCount: params.imageCount,
@@ -317,6 +332,7 @@ export function TextToImagePage({
         lora3Name: params.lora3Name || undefined,
         lora3Weight: params.lora3Weight,
         checkpoint: params.checkpoint || undefined,
+        unet: params.workflowId === WORKFLOW.KREA2 ? (params.unet || undefined) : undefined,
         threeLoraRandomPrompt: params.threeLoraRandomPrompt,
       });
       await taskManager.addTask('txt2img', nodeList, textToUse, params.workflowId || undefined);
@@ -333,7 +349,7 @@ export function TextToImagePage({
     const negPrompt = buildNegativePrompt();
 
     return buildTxt2ImgNodeList({
-      workflowId: params.workflowId || WORKFLOW.THREE_LORA,
+      workflowId: params.workflowId || getDefaultWorkflow(),
       width: params.width,
       height: params.height,
       imageCount: params.imageCount,
@@ -346,6 +362,7 @@ export function TextToImagePage({
       lora3Name: params.lora3Name || undefined,
       lora3Weight: params.lora3Weight,
       checkpoint: params.checkpoint || undefined,
+      unet: params.workflowId === WORKFLOW.KREA2 ? (params.unet || undefined) : undefined,
       threeLoraRandomPrompt: params.threeLoraRandomPrompt,
     });
   }, [params, buildFinalPrompt, buildNegativePrompt]);
@@ -554,7 +571,7 @@ export function TextToImagePage({
                       kind="checkpoint"
                       value={params.checkpoint || ''}
                       onChange={(name) => updateParam('checkpoint', name)}
-                      placeholder={params.workflowId === WORKFLOW.THREE_LORA ? '默认 Illustrious NSFW v10' : '留空使用默认模型'}
+                      placeholder={params.workflowId === WORKFLOW.THREE_LORA ? '默认 Illustrious NSFW v10' : params.workflowId === WORKFLOW.KREA2 ? '默认 krea-2-raw (官方底模)' : '留空使用默认模型'}
                       disabled={taskManager.isFull}
                     />
                   </div>
@@ -736,28 +753,83 @@ export function TextToImagePage({
                       label="RunningHub 模型"
                       value={params.workflowId || ''}
                       options={[
-                        { value: '', label: '默认（3LoRA 模型）' },
+                        { value: '', label: `默认（${currentDefaultLabel}）` },
                         { value: WORKFLOW.THREE_LORA, label: '3LoRA 模型' },
                         { value: WORKFLOW.REALISTIC_BATCH, label: '真实系批量文生图' },
                         { value: WORKFLOW.REALISTIC_V3, label: '真实 V3 模型' },
+                        { value: WORKFLOW.KREA2, label: 'Krea2 文生图' },
                       ]}
                       onChange={(val) => {
                         updateParam('workflowId', val);
+                        // 切换到 Krea2 时，自动更新宽高和 LoRA 默认值
+                        if (val === WORKFLOW.KREA2) {
+                          updateParam('width', KREA2_TXT2IMG_PARAMS.width);
+                          updateParam('height', KREA2_TXT2IMG_PARAMS.height);
+                          updateParam('imageCount', KREA2_TXT2IMG_PARAMS.imageCount);
+                          updateParam('lora1Name', KREA2_TXT2IMG_PARAMS.lora1Name);
+                          updateParam('lora1Weight', KREA2_TXT2IMG_PARAMS.lora1Weight);
+                          updateParam('lora2Name', KREA2_TXT2IMG_PARAMS.lora2Name);
+                          updateParam('lora2Weight', KREA2_TXT2IMG_PARAMS.lora2Weight);
+                          updateParam('lora3Name', KREA2_TXT2IMG_PARAMS.lora3Name);
+                          updateParam('lora3Weight', KREA2_TXT2IMG_PARAMS.lora3Weight);
+                          updateParam('unet', KREA2_TXT2IMG_PARAMS.unet ?? '');
+                          updateParam('checkpoint', '');
+                        }
                       }}
                       disabled={taskManager.isFull}
                     />
                   </div>
-                  {/* Checkpoint 模型 */}
+                  {/* 默认模型开关 */}
                   <div className="border-t border-border/50 pt-3">
-                    <RunningHubModelPicker
-                      label="Checkpoint 模型"
-                      kind="checkpoint"
-                      workflowId={params.workflowId || WORKFLOW.THREE_LORA}
-                      value={params.checkpoint || ''}
-                      onChange={(name) => updateParam('checkpoint', name)}
-                      placeholder="留空使用工作流默认模型"
-                      disabled={taskManager.isFull}
-                    />
+                    <label className="flex items-center justify-between cursor-pointer">
+                      <span className="text-xs text-text-secondary">设为默认模型</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-text-tertiary">
+                          {params.workflowId === getDefaultWorkflow() ? '当前默认' : '点击启用'}
+                        </span>
+                        <div
+                          onClick={() => {
+                            if (params.workflowId && params.workflowId !== getDefaultWorkflow()) {
+                              setDefaultWorkflow(params.workflowId);
+                            }
+                          }}
+                          className={`
+                            relative w-9 h-5 rounded-full transition-colors cursor-pointer
+                            ${params.workflowId === getDefaultWorkflow() ? 'bg-primary/60' : 'bg-bg-elevated border border-border'}
+                          `}
+                        >
+                          <div
+                            className={`
+                              absolute top-0.5 w-4 h-4 rounded-full transition-all shadow
+                              ${params.workflowId === getDefaultWorkflow() ? 'left-[18px] bg-primary' : 'left-0.5 bg-slate-500'}
+                            `}
+                          />
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                  {/* KREA2 专用：UNet 模型；其他工作流：Checkpoint 模型 */}
+                  <div className="border-t border-border/50 pt-3">
+                    {params.workflowId === WORKFLOW.KREA2 ? (
+                      <RunningHubModelPicker
+                        label="UNet 模型"
+                        kind="unet"
+                        value={params.unet || ''}
+                        onChange={(name) => updateParam('unet', name)}
+                        placeholder="默认 krea-2-raw (官方底模)"
+                        disabled={taskManager.isFull}
+                      />
+                    ) : (
+                      <RunningHubModelPicker
+                        label="Checkpoint 模型"
+                        kind="checkpoint"
+                        workflowId={params.workflowId || getDefaultWorkflow()}
+                        value={params.checkpoint || ''}
+                        onChange={(name) => updateParam('checkpoint', name)}
+                        placeholder="留空使用工作流默认模型"
+                        disabled={taskManager.isFull}
+                      />
+                    )}
                   </div>
                   {/* 3LoRA 专用：随机提示词开关 */}
                   {params.workflowId === WORKFLOW.THREE_LORA && (

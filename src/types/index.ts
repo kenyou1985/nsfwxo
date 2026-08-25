@@ -80,6 +80,8 @@ export interface TextToImageParams {
   lora3Weight: number;
   enableRandomPrompt: boolean;
   checkpoint: string;
+  /** KREA2 工作流专用：UNet 模型 */
+  unet: string;
   /** 3LoRA 模型专用：随机提示词开关（独立于 enableRandomPrompt，UI 显示时可为空） */
   threeLoraRandomPrompt: boolean;
   bodyType: string;
@@ -102,7 +104,10 @@ export interface TextToImageParams {
 export interface ImageToImageParams {
   prompt: string;
   batchSize: number;
+  /** RunningHub fileName path (for workflows that use fileName input) */
   uploadedImagePath: string;
+  /** Full download URL (for workflows that use imageUrls input) */
+  uploadedImageUrl: string;
 }
 
 export interface QueuedTask {

@@ -7,8 +7,10 @@ import { GenerateButton } from '../components/GenerateButton';
 import { TaskList } from '../components/TaskList';
 import { TagPanel } from '../components/TagPanel';
 import { StoryboardSection } from '../components/StoryboardSection';
+import { ImageGrid } from '../components/ImageGrid';
 import { uploadImage, WORKFLOW } from '../services/runninghub';
-import { expandPrompt, randomPrompt } from '../services/promptApi';
+import { expandPrompt, streamRandomPrompt } from '../services/promptApi';
+import { addFavorite, removeFavorite, getFavorites } from '../services/storage';
 import type { ImageToImageParams, QueuedTask } from '../types';
 import { MAX_TASKS, type TaskManagerReturn } from '../hooks/useTaskManager';
 import type { WeightMode } from '../components/PromptEditor';
@@ -60,8 +62,9 @@ export function ImageToImagePage({
 }: ImageToImagePageProps) {
   const [params, setParams] = useState<ImageToImageParams>({
     prompt: '',
-    batchSize: 4,
+    batchSize: 2,
     uploadedImagePath: '',
+    uploadedImageUrl: '',
   });
   const [previewUrl, setPreviewUrl] = useState<string>('');
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -84,6 +87,12 @@ export function ImageToImagePage({
   const [isGachaLoading, setIsGachaLoading] = useState(false);
   const [gachaPrompt, setGachaPrompt] = useState('');
 
+  // Image preview & favorites
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Aspect ratio: 'portrait' (竖屏 9:16) or 'landscape' (横屏 16:9)
+  const [aspectRatio, setAspectRatio] = useState<'portrait' | 'landscape'>('portrait');
+
   // Pre-fill customPrompt when navigating from history regenerate
   useEffect(() => {
     if (initialPrompt && initialPrompt.trim()) {
@@ -105,9 +114,10 @@ export function ImageToImagePage({
         const file = new File([blob], 'history_edit.jpg', { type: blob.type || 'image/jpeg' });
         const objectUrl = URL.createObjectURL(file);
         setPreviewUrl(objectUrl);
-        const { imagePath } = await uploadImage(apiKey, file);
+        const { imagePath, downloadUrl } = await uploadImage(apiKey, file);
         if (cancelled) return;
         updateParam('uploadedImagePath', imagePath);
+        updateParam('uploadedImageUrl', downloadUrl);
         onSuccess?.('参考图已上传，请输入提示词后点击生成');
       } catch (err) {
         if (cancelled) return;
@@ -148,10 +158,11 @@ export function ImageToImagePage({
         const file = new File([blob], `${gf.id}.jpg`, { type: 'image/jpeg' });
         const objectUrl = URL.createObjectURL(file);
         setPreviewUrl(objectUrl);
-        const { imagePath } = await uploadImage(apiKey, file);
+        const { imagePath, downloadUrl } = await uploadImage(apiKey, file);
         if (cancelled) return;
 
         updateParam('uploadedImagePath', imagePath);
+        updateParam('uploadedImageUrl', downloadUrl);
 
         if (cancelled) return;
 
@@ -168,10 +179,16 @@ export function ImageToImagePage({
           onError(`任务队列已满（最多 ${MAX_TASKS} 个任务），请等待当前任务完成`);
           return;
         }
+        // 新图生图工作流使用新的节点配置
+        const widthRatio = aspectRatio === 'portrait' ? '9' : '16';
+        const heightRatio = aspectRatio === 'portrait' ? '16' : '9';
         const nodeList = [
-          { nodeId: '7', fieldName: 'image', fieldValue: imagePath, description: 'image' },
-          { nodeId: '9', fieldName: 'batch_size', fieldValue: String(params.batchSize), description: 'batch_size' },
-          { nodeId: '33', fieldName: 'text', fieldValue: promptText, description: 'text' },
+          { nodeId: '291', fieldName: 'prompt', fieldValue: promptText, description: 'prompt' },
+          { nodeId: '172', fieldName: 'value', fieldValue: widthRatio, description: 'width' },
+          { nodeId: '173', fieldName: 'value', fieldValue: heightRatio, description: 'height' },
+          { nodeId: '269', fieldName: 'value', fieldValue: String(params.batchSize), description: 'count' },
+          { nodeId: '104', fieldName: 'image', fieldValue: downloadUrl, description: 'image' },
+          { nodeId: '273', fieldName: 'value', fieldValue: 'false', description: 'enhance' },
         ];
         await taskManager.addTask('img2img', nodeList, promptText, WORKFLOW.IMAGE_TO_IMAGE);
         onSuccess('任务已提交');
@@ -189,7 +206,7 @@ export function ImageToImagePage({
     doUpload();
 
     return () => { cancelled = true; };
-  }, [regenerateWithGirlfriendId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [regenerateWithGirlfriendId, aspectRatio]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateParam = <K extends keyof ImageToImageParams>(
     key: K,
@@ -223,8 +240,9 @@ export function ImageToImagePage({
           setPreviewUrl(preview);
         }
 
-        const { imagePath } = await uploadImage(apiKey, file);
+        const { imagePath, downloadUrl } = await uploadImage(apiKey, file);
         updateParam('uploadedImagePath', imagePath);
+        updateParam('uploadedImageUrl', downloadUrl);
         onSuccess(`已选择女友「${gf.nameZh || gf.name}」作为参考`);
       } catch (err) {
         const msg = err instanceof Error ? err.message : '未知错误';
@@ -245,8 +263,9 @@ export function ImageToImagePage({
       try {
         const objectUrl = URL.createObjectURL(file);
         setPreviewUrl(objectUrl);
-        const { imagePath } = await uploadImage(apiKey, file);
+        const { imagePath, downloadUrl } = await uploadImage(apiKey, file);
         updateParam('uploadedImagePath', imagePath);
+        updateParam('uploadedImageUrl', downloadUrl);
         onSuccess('图片上传成功');
       } catch (err) {
         setUploadError(err instanceof Error ? err.message : '上传失败');
@@ -289,10 +308,15 @@ export function ImageToImagePage({
         return;
       }
       console.log(`[handleGenerateSingleStoryboardImage] panelIdx=${panelIdx}, prompt length=${prompt.length}, prompt="${prompt.slice(0, 80)}"`);
+      const widthRatio = aspectRatio === 'portrait' ? '9' : '16';
+      const heightRatio = aspectRatio === 'portrait' ? '16' : '9';
       const nodeList = [
-        { nodeId: '7', fieldName: 'image', fieldValue: params.uploadedImagePath, description: 'image' },
-        { nodeId: '9', fieldName: 'batch_size', fieldValue: '1', description: 'batch_size' },
-        { nodeId: '33', fieldName: 'text', fieldValue: prompt, description: 'text' },
+        { nodeId: '291', fieldName: 'prompt', fieldValue: prompt, description: 'prompt' },
+        { nodeId: '172', fieldName: 'value', fieldValue: widthRatio, description: 'width' },
+        { nodeId: '173', fieldName: 'value', fieldValue: heightRatio, description: 'height' },
+        { nodeId: '269', fieldName: 'value', fieldValue: '1', description: 'count' },
+        { nodeId: '104', fieldName: 'image', fieldValue: params.uploadedImageUrl || params.uploadedImagePath, description: 'image' },
+        { nodeId: '273', fieldName: 'value', fieldValue: 'false', description: 'enhance' },
       ];
       console.log(`[handleGenerateSingleStoryboardImage] nodeList=`, JSON.stringify(nodeList));
       try {
@@ -302,13 +326,14 @@ export function ImageToImagePage({
         onError(err instanceof Error ? err.message : '提交失败');
       }
     },
-    [params.uploadedImagePath, taskManager, onError, onSuccess]
+    [params.uploadedImagePath, taskManager, aspectRatio, onError, onSuccess]
   );
 
   const handleGenerateStoryboardPanels = useCallback(
     async (
       panels: StoryboardPanel[],
       sceneName: string,
+      themeTitle: string,
       _isR18: boolean,
       onSuccess: (msg: string) => void,
       onError: (msg: string) => void
@@ -324,14 +349,19 @@ export function ImageToImagePage({
         return;
       }
 
-      const imagePath = params.uploadedImagePath;
-      console.log(`[handleGenerateStoryboardPanels] imagePath=${imagePath}, panels.length=${panels.length}`);
+      const imageUrl = params.uploadedImageUrl || params.uploadedImagePath;
+      console.log(`[handleGenerateStoryboardPanels] imageUrl=${imageUrl}, panels.length=${panels.length}`);
+      const widthRatio = aspectRatio === 'portrait' ? '9' : '16';
+      const heightRatio = aspectRatio === 'portrait' ? '16' : '9';
       for (let i = 0; i < panels.length; i++) {
         const panel = panels[i];
         const nodeList = [
-          { nodeId: '7', fieldName: 'image', fieldValue: imagePath, description: 'image' },
-          { nodeId: '9', fieldName: 'batch_size', fieldValue: '1', description: 'batch_size' },
-          { nodeId: '33', fieldName: 'text', fieldValue: panel.image_prompt, description: 'text' },
+          { nodeId: '291', fieldName: 'prompt', fieldValue: panel.image_prompt, description: 'prompt' },
+          { nodeId: '172', fieldName: 'value', fieldValue: widthRatio, description: 'width' },
+          { nodeId: '173', fieldName: 'value', fieldValue: heightRatio, description: 'height' },
+          { nodeId: '269', fieldName: 'value', fieldValue: '1', description: 'count' },
+          { nodeId: '104', fieldName: 'image', fieldValue: imageUrl, description: 'image' },
+          { nodeId: '273', fieldName: 'value', fieldValue: 'false', description: 'enhance' },
         ];
         console.log(`[handleGenerateStoryboardPanels] panel[${i}] nodeList=`, JSON.stringify(nodeList));
         try {
@@ -341,9 +371,10 @@ export function ImageToImagePage({
           return;
         }
       }
-      onSuccess(`分镜「${sceneName}」共 ${panels.length} 个任务已提交`);
+      const label = themeTitle || sceneName || '分镜';
+      onSuccess(`「${label}」共 ${panels.length} 个任务已提交`);
     },
-    [params.uploadedImagePath, taskManager]
+    [params.uploadedImagePath, taskManager, aspectRatio, onError]
   );
 
   // Build tag-only prompt (for expand API — excludes customPrompt to avoid duplication)
@@ -616,6 +647,16 @@ export function ImageToImagePage({
     return parts.join(' ');
   };
 
+  const handleToggleFavorite = (imageUrl: string) => {
+    const existing = getFavorites().find((f) => f.imageRef === imageUrl);
+    if (existing) {
+      removeFavorite(existing.id);
+    } else {
+      addFavorite({ imageUrl, source: 'history', r18: isR18Enabled });
+    }
+    setRefreshKey((k) => k + 1);
+  };
+
   const handleGacha = useCallback(async () => {
     if (taskManager.isFull) {
       onError(`任务队列已满（最多 ${MAX_TASKS} 个任务），请等待当前任务完成`);
@@ -637,14 +678,27 @@ export function ImageToImagePage({
     }
 
     setIsGachaLoading(true);
+    setGachaPrompt('');
     try {
-      const res = await randomPrompt('image', isR18Enabled, 1, '', true, referenceImageUrl);
-      if (res.results.length > 0) {
-        const prompt = res.results[0].prompt;
-        // Format with Qwen-2511 face-lock if girlfriend selected
-        const formatted = formatQwen2511Prompt(prompt, selectedGirlfriend);
-        setGachaPrompt(formatted);
-      }
+      // Streamed: as soon as the first chunk arrives we update the prompt
+      // text in-place. Final formatting (Qwen-2511 face-lock) is applied on
+      // `end` once the full prompt is known.
+      await streamRandomPrompt(
+        'image', isR18Enabled, 1, '', true, referenceImageUrl,
+        undefined,
+        {
+          onDelta: ({ text }) => {
+            setGachaPrompt((prev) => prev + text);
+          },
+          onEnd: ({ prompt }) => {
+            const formatted = formatQwen2511Prompt(prompt, selectedGirlfriend);
+            setGachaPrompt(formatted);
+          },
+          onError: ({ message }) => {
+            onError(`抽卡失败：${message}`);
+          },
+        },
+      );
     } catch {
       onError('抽卡失败，请重试');
     } finally {
@@ -673,10 +727,15 @@ export function ImageToImagePage({
 
     setIsGeneratingFromPrompt(true);
     try {
+      const widthRatio = aspectRatio === 'portrait' ? '9' : '16';
+      const heightRatio = aspectRatio === 'portrait' ? '16' : '9';
       const nodeList = [
-        { nodeId: '7', fieldName: 'image', fieldValue: params.uploadedImagePath, description: 'image' },
-        { nodeId: '9', fieldName: 'batch_size', fieldValue: String(params.batchSize), description: 'batch_size' },
-        { nodeId: '33', fieldName: 'text', fieldValue: finalText, description: 'text' },
+        { nodeId: '291', fieldName: 'prompt', fieldValue: finalText, description: 'prompt' },
+        { nodeId: '172', fieldName: 'value', fieldValue: widthRatio, description: 'width' },
+        { nodeId: '173', fieldName: 'value', fieldValue: heightRatio, description: 'height' },
+        { nodeId: '269', fieldName: 'value', fieldValue: String(params.batchSize), description: 'count' },
+        { nodeId: '104', fieldName: 'image', fieldValue: params.uploadedImageUrl || params.uploadedImagePath, description: 'image' },
+        { nodeId: '273', fieldName: 'value', fieldValue: 'false', description: 'enhance' },
       ];
       await taskManager.addTask('img2img', nodeList, finalText, WORKFLOW.IMAGE_TO_IMAGE);
       onSuccess('任务已提交');
@@ -685,15 +744,20 @@ export function ImageToImagePage({
     } finally {
       setIsGeneratingFromPrompt(false);
     }
-  }, [expandedPrompt, gachaPrompt, customPrompt, params, selectedGirlfriend, taskManager, onError, onSuccess]);
+  }, [expandedPrompt, gachaPrompt, customPrompt, params, selectedGirlfriend, taskManager, aspectRatio, onError, onSuccess]);
 
   const buildNodeList = () => {
     const finalPrompt = buildFinalPrompt();
+    const widthRatio = aspectRatio === 'portrait' ? '9' : '16';
+    const heightRatio = aspectRatio === 'portrait' ? '16' : '9';
 
     return [
-      { nodeId: '7', fieldName: 'image', fieldValue: params.uploadedImagePath, description: 'image' },
-      { nodeId: '9', fieldName: 'batch_size', fieldValue: String(params.batchSize), description: 'batch_size' },
-      { nodeId: '33', fieldName: 'text', fieldValue: finalPrompt || params.prompt, description: 'text' },
+      { nodeId: '291', fieldName: 'prompt', fieldValue: finalPrompt || params.prompt, description: 'prompt' },
+      { nodeId: '172', fieldName: 'value', fieldValue: widthRatio, description: 'width' },
+      { nodeId: '173', fieldName: 'value', fieldValue: heightRatio, description: 'height' },
+      { nodeId: '269', fieldName: 'value', fieldValue: String(params.batchSize), description: 'count' },
+      { nodeId: '104', fieldName: 'image', fieldValue: params.uploadedImageUrl || params.uploadedImagePath, description: 'image' },
+      { nodeId: '273', fieldName: 'value', fieldValue: 'false', description: 'enhance' },
     ];
   };
 
@@ -722,6 +786,7 @@ export function ImageToImagePage({
   };
 
   const img2imgTasks = taskManager.tasks.filter((t: QueuedTask) => t.workflowType === 'img2img');
+  const allImages = img2imgTasks.flatMap((t: QueuedTask) => t.images);
   const totalSelected = positiveTags.length + negativeTags.length;
 
   return (
@@ -863,6 +928,48 @@ export function ImageToImagePage({
           onChange={(v) => updateParam('batchSize', v)}
         />
       </div>
+
+      {/* Aspect ratio toggle */}
+      <div className="rounded-xl bg-bg-surface border border-border p-4">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium text-text-primary">图片比例</span>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setAspectRatio('portrait')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                aspectRatio === 'portrait'
+                  ? 'bg-primary text-white'
+                  : 'bg-bg-elevated text-text-tertiary hover:bg-bg-hover'
+              }`}
+              disabled={taskManager.isFull}
+            >
+              竖屏 (9:16)
+            </button>
+            <button
+              onClick={() => setAspectRatio('landscape')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                aspectRatio === 'landscape'
+                  ? 'bg-primary text-white'
+                  : 'bg-bg-elevated text-text-tertiary hover:bg-bg-hover'
+              }`}
+              disabled={taskManager.isFull}
+            >
+              横屏 (16:9)
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Generated images gallery */}
+      {allImages.length > 0 && (
+        <div className="rounded-xl bg-bg-surface border border-border p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-text-primary">生成结果</h3>
+            <span className="text-xs text-text-tertiary">{allImages.length} 张图片</span>
+          </div>
+          <ImageGrid key={refreshKey} images={allImages} onToggleFavorite={handleToggleFavorite} />
+        </div>
+      )}
 
       {/* Generate button - desktop */}
       <div className="hidden lg:block pt-2 pb-4">

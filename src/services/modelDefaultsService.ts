@@ -14,6 +14,8 @@ export interface ModelDefaultEntry {
 }
 
 export interface ModelDefaults {
+  /** 默认工作流 ID（用于启动时恢复） */
+  defaultWorkflow?: string;
   /** LoRA 1/2/3 的默认（仅 txt2img 模型用到） */
   lora1?: ModelDefaultEntry;
   lora2?: ModelDefaultEntry;
@@ -31,6 +33,7 @@ function readAll(): ModelDefaults {
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object') return { checkpoints: {} };
     return {
+      defaultWorkflow: typeof parsed.defaultWorkflow === 'string' ? parsed.defaultWorkflow : undefined,
       lora1: sanitizeEntry(parsed.lora1),
       lora2: sanitizeEntry(parsed.lora2),
       lora3: sanitizeEntry(parsed.lora3),
@@ -75,12 +78,23 @@ export function getModelDefaults(): ModelDefaults {
   return readAll();
 }
 
+export function getDefaultWorkflow(): string {
+  return readAll().defaultWorkflow ?? WORKFLOW.THREE_LORA;
+}
+
+export function setDefaultWorkflow(workflowId: string): void {
+  const all = readAll();
+  all.defaultWorkflow = workflowId;
+  writeAll(all);
+  notify();
+}
+
 export function getLoraDefault(slot: 'lora1' | 'lora2' | 'lora3'): ModelDefaultEntry | undefined {
   return readAll()[slot];
 }
 
 export function getCheckpointDefault(workflowId: string | undefined): ModelDefaultEntry | undefined {
-  if (!workflowId) workflowId = WORKFLOW.THREE_LORA;
+  if (!workflowId) workflowId = getDefaultWorkflow();
   return readAll().checkpoints[workflowId];
 }
 
@@ -114,7 +128,7 @@ export function isLoraDefault(slot: 'lora1' | 'lora2' | 'lora3', name: string | 
 
 export function isCheckpointDefault(workflowId: string | undefined, name: string | undefined | null): boolean {
   if (!name) return false;
-  return readAll().checkpoints[workflowId || WORKFLOW.THREE_LORA]?.name === name;
+  return readAll().checkpoints[workflowId || getDefaultWorkflow()]?.name === name;
 }
 
 export function clearAllModelDefaults(): void {

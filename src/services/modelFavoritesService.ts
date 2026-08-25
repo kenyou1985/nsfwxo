@@ -21,9 +21,15 @@ export interface ModelFavorite {
     cover?: string;
     description?: string;
     baseModel?: string;
+    baseModelSubtype?: string;
     triggerWords?: string;
     defaultWeight: number;
     tags?: string[];
+    createTime?: string;
+    updateTime?: string;
+    owner?: string;
+    version?: string;
+    versionName?: string;
   };
 }
 
@@ -86,9 +92,15 @@ export function addModelFavorite(entry: RunningHubModelEntry, kind: ModelKind, c
       cover: entry.cover,
       description: entry.description,
       baseModel: entry.baseModel,
+      baseModelSubtype: entry.baseModelSubtype,
       triggerWords: entry.triggerWords,
       defaultWeight: entry.defaultWeight,
       tags: entry.tags,
+      createTime: entry.createTime,
+      updateTime: entry.updateTime,
+      owner: entry.owner,
+      version: entry.version,
+      versionName: entry.versionName,
     },
   };
   all.unshift(fav);
@@ -169,9 +181,15 @@ export function addModelFavoriteNotify(entry: RunningHubModelEntry, kind: ModelK
       cover: entry.cover,
       description: entry.description,
       baseModel: entry.baseModel,
+      baseModelSubtype: entry.baseModelSubtype,
       triggerWords: entry.triggerWords,
       defaultWeight: entry.defaultWeight,
       tags: entry.tags,
+      createTime: entry.createTime,
+      updateTime: entry.updateTime,
+      owner: entry.owner,
+      version: entry.version,
+      versionName: entry.versionName,
     },
   };
   all.unshift(fav);
