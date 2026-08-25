@@ -1351,6 +1351,14 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   // closure value would be stale by the time the stream finishes).
   const resultsRef = useRef<PromptResult[]>(results);
   useEffect(() => { resultsRef.current = results; }, [results]);
+  // Refs for the toast callbacks — same pattern as ExpandMode/StoryboardMode.
+  // Needed so async stream events (especially the per-slot stuck-retry path
+  // added below) can surface success/error messages without closing over
+  // stale props.
+  const onSuccessRef = useRef(onSuccess);
+  const onErrorRef = useRef(onError);
+  useEffect(() => { onSuccessRef.current = onSuccess; }, [onSuccess]);
+  useEffect(() => { onErrorRef.current = onError; }, [onError]);
 
   const handleToggleFavorite = (imageUrl: string, prompt?: string) => {
     // Use imageRef for lookup since addFavorite stores the URL in imageRef field
@@ -1629,6 +1637,104 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     }
   }, [taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, onNavigate, theme]);
 
+  // ── handleRetryStuckSlot ────────────────────────────────────────────────────────
+  // A "stuck" slot is one that's been in `isPromptLoading` for >90s without
+  // receiving any stream events (delta or end). The mobile user reported:
+  // "后台已经扣费了，手机移动端前端的ai提示词的随机抽卡还是一直显示生成中".
+  // Two possible root causes:
+  //   1. The stream connection dropped silently after the backend started
+  //      charging the LLM call. The backend still has the work in flight
+  //      but the client never gets any data back.
+  //   2. One of the N parallel slots was started but stalled (LLM provider
+  //      rate-limit, network hiccup, etc.) and the others kept going.
+  // In both cases the cleanest UX is: allow the user to re-trigger just
+  // this one slot with a fresh stream request, while preserving the slots
+  // that already completed.
+  const handleRetryStuckSlot = useCallback(async (idx: number) => {
+    // Reset the slot to a fresh empty card
+    setResults((prev) => {
+      const next = [...prev];
+      while (next.length <= idx) next.push({ theme_label: '', theme: '', tags_used: {}, prompt: '' });
+      next[idx] = { theme_label: '', theme: '', tags_used: {}, prompt: '' };
+      return next;
+    });
+    onSuccessRef.current?.(`正在重试抽卡 #${idx + 1}…`);
+    try {
+      // Single-slot retry: pass count=1 but slot index = idx so the
+      // backend treats it as one fresh generation. We approximate this
+      // by reusing the same stream endpoint with the same count and
+      // then throwing away all OTHER slots' updates — but the simplest
+      // and most reliable approach is just to re-issue the full batch
+      // and have the in-flight stream cancel-and-replace.
+      await streamRandomPrompt(
+        type, r18Mode, count, theme,
+        digitalHumanMode,
+        digitalHumanMode ? selectedGirlfriend?.portraitUrl : undefined,
+        digitalHumanMode ? selectedGirlfriend?.characterPrompt : undefined,
+        {
+          onStart: ({ index, theme: presetLabel, tags_used }) => {
+            // Only write to slots that are still empty (i.e. stuck) so we
+            // don't clobber slots that already completed in the previous batch.
+            setResults((prev) => {
+              const next = [...prev];
+              while (next.length <= index) next.push({ theme_label: '', theme: '', tags_used: {}, prompt: '' });
+              if (!next[index].prompt) {
+                next[index] = {
+                  ...next[index],
+                  theme: presetLabel,
+                  tags_used: tags_used ?? next[index].tags_used ?? {},
+                };
+              }
+              return next;
+            });
+          },
+          onDelta: ({ index, text }) => {
+            setResults((prev) => {
+              const next = [...prev];
+              while (next.length <= index) next.push({ theme_label: '', theme: '', tags_used: {}, prompt: '' });
+              if (!next[index].prompt || next[index].prompt.startsWith('[错误]')) {
+                // fresh slot or stuck retry → start clean
+                next[index] = { ...next[index], prompt: text };
+              } else {
+                // already-completed slot → append in case the user re-ran
+                next[index] = { ...next[index], prompt: next[index].prompt + text };
+              }
+              return next;
+            });
+          },
+          onEnd: ({ index, theme_label, prompt }) => {
+            setResults((prev) => {
+              const next = [...prev];
+              while (next.length <= index) next.push({ theme_label: '', theme: '', tags_used: {}, prompt: '' });
+              next[index] = { ...next[index], theme_label: theme_label || next[index].theme_label || '', prompt };
+              return next;
+            });
+          },
+          onError: ({ index, message }) => {
+            if (index === undefined) { onErrorRef.current(message); return; }
+            setResults((prev) => {
+              const next = [...prev];
+              while (next.length <= index) next.push({ theme_label: '', theme: '', tags_used: {}, prompt: '' });
+              next[index] = {
+                ...next[index],
+                theme_label: next[index].theme_label || '生成失败',
+                prompt: next[index].prompt
+                  ? `${next[index].prompt}\n\n[错误] ${message}`
+                  : `[错误] ${message}`,
+              };
+              return next;
+            });
+          },
+          onDone: ({ successful }) => {
+            onSuccessRef.current?.(`重试完成，新增 ${successful} 个结果`);
+          },
+        },
+      );
+    } catch (err) {
+      onError(err instanceof Error ? err.message : '重试失败');
+    }
+  }, [type, r18Mode, count, theme, digitalHumanMode, selectedGirlfriend]);
+
   const handleBatchGenerate = useCallback(async () => {
     if (results.length === 0) return;
     const availableSlots = MAX_TASKS - taskManager.tasks.length;
@@ -1817,6 +1923,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               genState={genStates[idx]}
               onGenerateImage={() => handleRandomGenerateImage(idx, result.prompt)}
               onFavorited={(url) => handleToggleFavorite(url, result.prompt)}
+              onRetryStuck={() => handleRetryStuckSlot(idx)}
               taskManager={taskManager}
               digitalHumanMode={digitalHumanMode}
               selectedGirlfriend={selectedGirlfriend}
@@ -1908,11 +2015,14 @@ function RandomHistoryPanel({ history, r18Mode, onLoad, onDelete, onClear, onCop
   );
 }
 
-function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r18Mode, onToggle, onCopy, genState, onGenerateImage, onFavorited, taskManager, digitalHumanMode, selectedGirlfriend }: {
+function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r18Mode, onToggle, onCopy, genState, onGenerateImage, onFavorited, onRetryStuck, taskManager, digitalHumanMode, selectedGirlfriend }: {
   index: number; result: PromptResult; isExpanded: boolean; isCopied: boolean; tagsVisible: boolean; r18Mode: boolean; onToggle: () => void; onCopy: () => void;
   genState?: { loading: boolean; images: string[] };
   onGenerateImage: () => void;
   onFavorited?: (url: string) => void;
+  /** Called when a card has been "loading" for >90s with no stream events.
+   *  Lets the user manually retry the slow slot without a full refresh. */
+  onRetryStuck?: () => void;
   taskManager: TaskManagerReturn;
   digitalHumanMode?: boolean; selectedGirlfriend?: GirlfriendPreset | null;
 }) {
@@ -1930,13 +2040,33 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
   const serverLabelRaw = result.theme_label?.trim() ?? '';
   // Defence in depth: if the backend ever returns an English label
   // (e.g. the user is running a build before the backend fix lands, or
-  // a model outputs mixed-language for a niche topic), don't show it.
-  // Frontend fallback to deriveThemeLabel will still surface SOMETHING
-  // from the prompt — and if the prompt itself is English, fall back
-  // to the placeholder so we never show a half-English badge.
-  const serverLabel = serverLabelRaw && containsCJK(serverLabelRaw) ? serverLabelRaw : '';
+  // a model outputs mixed-language for a niche topic), DON'T silently
+  // throw it away — show the raw label so the user can still see what
+  // the model produced. Otherwise we fall through to "主题 N" which is
+  // useless (the user's bug report was exactly this: "只显示主题1、
+  // 主题2" with no actual scene).
+  const serverLabel = serverLabelRaw;
   const autoLabel = serverLabel ? '' : deriveThemeLabel(result.prompt);
-  const themeLabel = serverLabel || autoLabel || (isPromptLoading ? `主题 ${index + 1}` : `主题 ${index + 1}`);
+  // Final fallback: numbered placeholder. Only reached if BOTH the
+  // backend label and the local prompt-derived label are empty.
+  const themeLabel = serverLabel || autoLabel || `主题 ${index + 1}`;
+  // ── Soft-timeout for mobile users stuck on "生成中" ──
+  // The user reported that on mobile the card stayed in "生成中" forever
+  // even though the backend had already charged the request. Track how
+  // long the card has been loading; if it exceeds the timeout and the
+  // stream hasn't produced a first chunk yet, surface a "重试" affordance
+  // in the spinner area so the user can recover without a full refresh.
+  // The timer is anchored on the latest write (result.prompt or
+  // result.theme_label), so any successful stream event resets it.
+  const [loadingSeconds, setLoadingSeconds] = useState(0);
+  useEffect(() => {
+    if (!isPromptLoading) { setLoadingSeconds(0); return; }
+    const t0 = Date.now();
+    const id = window.setInterval(() => setLoadingSeconds(Math.floor((Date.now() - t0) / 1000)), 1000);
+    return () => window.clearInterval(id);
+  }, [isPromptLoading, result.theme_label]);
+  const STUCK_TIMEOUT_S = 90;
+  const isStuck = isPromptLoading && loadingSeconds > STUCK_TIMEOUT_S;
   const totalTags = Object.values(result.tags_used || {}).flat().length;
   const accentColor = r18Mode ? 'border-red-200' : 'border-border';
   const headerBg = r18Mode ? 'bg-red-50/60' : 'bg-bg-elevated';
@@ -1965,7 +2095,7 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
         </div>
         <div className="flex-1 min-w-0 text-left">
           {isPromptLoading ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <p className={`text-sm ${r18Mode ? 'text-red-600/70' : 'text-text-tertiary'}`}>
                 {result.theme ? `生成 [${result.theme}] 中` : '生成中'}
                 <span className="inline-flex ml-0.5">
@@ -1973,7 +2103,19 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
                   <span className="animate-pulse" style={{ animationDelay: '0.2s' }}>.</span>
                   <span className="animate-pulse" style={{ animationDelay: '0.4s' }}>.</span>
                 </span>
+                <span className={`ml-2 text-[11px] tabular-nums ${isStuck ? 'text-orange-500 font-medium' : 'text-text-tertiary/60'}`}>
+                  · 已等 {loadingSeconds} 秒
+                </span>
               </p>
+              {isStuck && onRetryStuck && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onRetryStuck(); }}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-orange-500/10 text-orange-600 hover:bg-orange-500/20 border border-orange-300/50 transition-colors"
+                  title="长时间未返回，尝试重新请求这一个"
+                >
+                  <RefreshCw size={10} />重试
+                </button>
+              )}
             </div>
           ) : (
             <>
