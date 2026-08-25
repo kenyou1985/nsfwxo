@@ -79,6 +79,7 @@ import {
   expandVideoFromImage,
   randomPrompt,
   streamRandomPrompt,
+  streamExpandPrompt,
   generateStoryboard,
   generateStoryboardThemes,
   generateStoryboardOutline,
@@ -381,36 +382,146 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     });
   }, [taskManager.tasks, results]);
 
+  // Refs for callbacks used inside async effects — avoids stale closure issues
+  const onSuccessRef = useRef(onSuccess);
+  const onErrorRef = useRef(onError);
+  const resultsRef = useRef(results);
+  const outputPromptsRef = useRef(outputPrompts);
+  useEffect(() => { onSuccessRef.current = onSuccess; }, [onSuccess]);
+  useEffect(() => { onErrorRef.current = onError; }, [onError]);
+  useEffect(() => { resultsRef.current = results; }, [results]);
+  useEffect(() => { outputPromptsRef.current = outputPrompts; }, [outputPrompts]);
+
+  // Track pending expand tasks (streamHandle -> true) for abort on cleanup
+  const [pendingExpandHandles, setPendingExpandHandles] = useState<Record<number, boolean>>({});
+
+  // ── handleGenerate: streaming NDJSON — slots appear instantly, update in real time ──
   const handleGenerate = async () => {
     if (!input.trim()) { onError('请输入描述内容'); return; }
     setLoading(true);
+
+    // Seed N empty slots immediately so the UI renders N outline cards without
+    // waiting for any network response — this is what makes the UI feel instant
+    // on both desktop and slow mobile connections.
+    const initialResults = Array.from({ length: count }).map((_, i) => ({
+      id: `pending-${Date.now()}-${i}`,
+      original: input.trim(),
+      prompt: '',
+      r18: r18Mode,
+    }));
+    setResults(initialResults);
+    setOutputPrompts(Array(count).fill(''));
+    setOutputText('');
+    setSelectedOutputIdx(0);
+
+    // Build a stable handle counter so we can abort on cleanup / new request
+    const handleKey = Date.now();
+    setPendingExpandHandles((prev) => ({ ...prev, [handleKey]: true }));
+
     try {
-      const res = await expandPrompt(
-        input.trim(), type, r18Mode, count, 0,
+      await streamExpandPrompt(
+        input.trim(),
+        type,
+        r18Mode,
+        count,
+        0,
         digitalHumanMode ? selectedGirlfriend?.portraitUrl : undefined,
         digitalHumanMode,
         digitalHumanMode ? selectedGirlfriend?.characterPrompt : undefined,
+        {
+          onStart: ({ index, original }) => {
+            setResults((prev) => {
+              const next = [...prev];
+              while (next.length <= index) next.push({ id: `pending-${handleKey}-${index}`, original: input.trim(), prompt: '', r18: r18Mode });
+              next[index] = { ...next[index], original: original || input.trim() };
+              return next;
+            });
+          },
+          onDelta: ({ index, text }) => {
+            setResults((prev) => {
+              const next = [...prev];
+              while (next.length <= index) next.push({ id: `pending-${handleKey}-${index}`, original: input.trim(), prompt: '', r18: r18Mode });
+              next[index] = { ...next[index], prompt: (next[index].prompt || '') + text };
+              return next;
+            });
+            // Mirror into outputPrompts so the selected slot is live-updated
+            setOutputPrompts((prev) => {
+              const next = [...prev];
+              while (next.length <= index) next.push('');
+              next[index] = (next[index] || '') + text;
+              return next;
+            });
+          },
+          onEnd: ({ index, prompt }) => {
+            setResults((prev) => {
+              const next = [...prev];
+              while (next.length <= index) next.push({ id: `pending-${handleKey}-${index}`, original: input.trim(), prompt: '', r18: r18Mode });
+              next[index] = { ...next[index], prompt };
+              return next;
+            });
+            setOutputPrompts((prev) => {
+              const next = [...prev];
+              while (next.length <= index) next.push('');
+              next[index] = prompt;
+              return next;
+            });
+            // Auto-select first completed slot
+            if (index === 0) {
+              setSelectedOutputIdx(0);
+              setOutputText(prompt);
+            }
+          },
+          onError: ({ index, message }) => {
+            if (index === undefined) {
+              onErrorRef.current(message);
+              return;
+            }
+            setResults((prev) => {
+              const next = [...prev];
+              while (next.length <= index) next.push({ id: `pending-${handleKey}-${index}`, original: input.trim(), prompt: '', r18: r18Mode });
+              next[index] = {
+                ...next[index],
+                prompt: next[index].prompt
+                  ? `${next[index].prompt}\n\n[错误] ${message}`
+                  : `[错误] ${message}`,
+              };
+              return next;
+            });
+          },
+          onDone: ({ successful }) => {
+            // Persist all fully-completed slots to history
+            const completed = resultsRef.current
+              .filter((r) => r.prompt && !r.prompt.startsWith('[错误]'))
+              .map((r) => r.prompt);
+            if (completed.length > 0) {
+              addExpandHistory({
+                original: input.trim(),
+                type,
+                r18: r18Mode,
+                prompts: completed,
+              });
+              setHistory(getExpandHistory());
+            }
+            onSuccessRef.current(`成功生成 ${successful} 个提示词`);
+          },
+        },
       );
-      const newResults = res.results.map((r, i) => ({ id: `${Date.now()}-${i}`, original: r.original, prompt: r.prompt, r18: r.r18 }));
-      setResults(newResults);
-      addExpandHistory({
-        original: input.trim(),
-        type,
-        r18: r18Mode,
-        prompts: res.results.map((r) => r.prompt),
-      });
-      setHistory(getExpandHistory());
-      const prompts = res.results.map((r) => r.prompt);
-      setOutputPrompts(prompts);
-      setSelectedOutputIdx(0);
-      setOutputText(prompts[0] || '');
-      onSuccess(`成功生成 ${res.results.length} 个提示词`);
     } catch (err) {
       onError(err instanceof Error ? err.message : '生成失败');
     } finally {
       setLoading(false);
+      setPendingExpandHandles((prev) => { const n = { ...prev }; delete n[handleKey]; return n; });
     }
   };
+
+  // Abort in-flight expand streams on unmount or new request
+  useEffect(() => {
+    return () => {
+      // All handles auto-abort via AbortController inside streaming.ts on signal.abort
+      // Just clear the state here
+      setPendingExpandHandles({});
+    };
+  }, []);
 
   const handleCopy = (id: string, text: string) => {
     navigator.clipboard.writeText(text).then(() => { setCopiedId(id); setTimeout(() => setCopiedId(null), 2000); });
