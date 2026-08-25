@@ -276,8 +276,10 @@ export function ImageToImagePage({
   );
 
   const handlePoseSelect = useCallback((posePrompt: string, poseName: string) => {
+    // Krea2 style: pose preset is a coherent English paragraph — join with
+    // sentence break, not a comma. Avoid comma-separated tag accumulation.
     const current = customPrompt.trim();
-    const newPrompt = current ? `${current}, ${posePrompt}` : posePrompt;
+    const newPrompt = current ? `${current}\n\n${posePrompt}` : posePrompt;
     setCustomPrompt(newPrompt);
     onSuccess(`已添加姿势: ${poseName}`);
   }, [customPrompt, onSuccess]);
@@ -625,7 +627,7 @@ export function ImageToImagePage({
   };
 
   // Fixed identity anchor for img2img — describes preservation without appearance specifics
-  const IDENTITY_ANCHOR = '1girl, same character as reference image, character consistency, preserve identity, do not alter the character from the input image, ';
+  const IDENTITY_ANCHOR = 'Maintain the exact facial identity, hairstyle, and body features from the reference image throughout every panel. High-fidelity character consistency, do not alter the character from the input image. ';
 
   const formatQwen2511Prompt = (prompt: string, girlfriend: GirlfriendPreset | null): string => {
     // Step 1: strip all character appearance descriptors for img2img

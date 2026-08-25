@@ -17,14 +17,17 @@ interface PosePresetSelectorProps {
 }
 
 function buildIdentityPrefix(gf: GirlfriendPreset | null, maleCharId: MaleCharacterId): string {
-  // Krea2 style: no Danbooru-style tag spam ("Fully naked, completely nude, no clothes").
-  // Use a single coherent sentence instead.
+  // Krea2 style: no Danbooru-style tag spam. The gf.characterPrompt is a
+  // workflow-level anchor (img2img node) and is intentionally kept as tag-style
+  // for Qwen/SDXL compatibility — we must NOT inline it here.
+  // The "Strictly preserve..." sentence below already carries the identity-lock
+  // semantics in Krea2-style English.
   const malePrompt = getMaleCharacterPrompt(maleCharId);
-  const malePrefix = malePrompt
-    ? `Both subjects fully unclothed, intimately intertwined. ${malePrompt}, `
+  const maleSentence = malePrompt
+    ? `Both subjects fully unclothed, intimately intertwined. ${malePrompt} `
     : 'Both subjects fully unclothed, intimately intertwined. ';
-  if (!gf) return malePrefix;
-  return `${malePrefix}${gf.characterPrompt}. Strictly preserve the exact identity, character, and features of ${gf.nameZh} (ID:${gf.id.toUpperCase()}); do not alter the character at all. `;
+  if (!gf) return maleSentence;
+  return `${maleSentence}Strictly preserve the exact identity, character, and features of ${gf.nameZh} (ID:${gf.id.toUpperCase()}); do not alter the character at all. `;
 }
 
 export function PosePresetSelector({ type, onSelect, disabled, selectedGirlfriend = null, forceUnlock = false }: PosePresetSelectorProps) {

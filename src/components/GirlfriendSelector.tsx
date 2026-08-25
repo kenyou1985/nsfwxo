@@ -106,7 +106,7 @@ export function GirlfriendSelector({
       // 和预设数字人行为一致：强调查张图里第一张是人物身份参考。
       const characterPrompt =
         rawCharPrompt ||
-        '1girl, same face as image #1, same hair as image #1, same body as image #1, character consistency, preserve identity from image #1, high quality, detailed, portrait, 9:16 vertical composition';
+        'Maintain the exact facial identity, hairstyle, and body features from the reference image throughout every panel. High-fidelity character consistency, do not alter any defining traits.';
 
       const result = saveCustomGirlfriend({
         name: saveName.trim(),
