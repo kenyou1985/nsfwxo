@@ -394,11 +394,24 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
 
   // Track pending expand tasks (streamHandle -> true) for abort on cleanup
   const [pendingExpandHandles, setPendingExpandHandles] = useState<Record<number, boolean>>({});
+  // Total slots done (success + fatal error) — used so we can flip
+  // loading back to false exactly once, after the LAST slot finishes.
+  // `onDone` from the NDJSON stream is the authoritative completion
+  // signal; `finally` cannot be used because streamExpandPrompt()
+  // resolves immediately (the stream is consumed in a background IIFE)
+  // so `finally` would fire BEFORE any chunks arrive, leaving the user
+  // staring at a static spinner-less UI while the backend is still
+  // working — exactly what the user reported ("点击扩写，没有任何
+  // 生成中的状态显示").
+  const [pendingExpandCount, setPendingExpandCount] = useState(0);
+  const [pendingExpandFailed, setPendingExpandFailed] = useState(0);
 
   // ── handleGenerate: streaming NDJSON — slots appear instantly, update in real time ──
   const handleGenerate = async () => {
     if (!input.trim()) { onError('请输入描述内容'); return; }
     setLoading(true);
+    setPendingExpandCount(count);
+    setPendingExpandFailed(0);
 
     // Seed N empty slots immediately so the UI renders N outline cards without
     // waiting for any network response — this is what makes the UI feel instant
@@ -418,6 +431,9 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     const handleKey = Date.now();
     setPendingExpandHandles((prev) => ({ ...prev, [handleKey]: true }));
 
+    // Suppress the `try/finally` reset — loading state is now driven by
+    // `onDone` (or the global-error catch). The catch below still handles
+    // synchronous fetch failures (network down, auth error, etc.).
     try {
       await streamExpandPrompt(
         input.trim(),
@@ -451,6 +467,13 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               next[index] = (next[index] || '') + text;
               return next;
             });
+            // Mirror into outputText for the currently selected slot
+            setSelectedOutputIdx((curr) => {
+              if (curr === index) {
+                setOutputText((t) => (t || '') + text);
+              }
+              return curr;
+            });
           },
           onEnd: ({ index, prompt }) => {
             setResults((prev) => {
@@ -470,10 +493,38 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               setSelectedOutputIdx(0);
               setOutputText(prompt);
             }
+            // Mark one slot as done.
+            setPendingExpandCount((c) => {
+              const next = c - 1;
+              if (next <= 0) {
+                setLoading(false);
+                setPendingExpandHandles((prev) => { const n = { ...prev }; delete n[handleKey]; return n; });
+                // Persist all fully-completed slots to history
+                const completed = resultsRef.current
+                  .filter((r) => r.prompt && !r.prompt.startsWith('[错误]'))
+                  .map((r) => r.prompt);
+                if (completed.length > 0) {
+                  addExpandHistory({
+                    original: input.trim(),
+                    type,
+                    r18: r18Mode,
+                    prompts: completed,
+                  });
+                  setHistory(getExpandHistory());
+                }
+                onSuccessRef.current(`成功生成 ${pendingExpandFailed > 0 ? `${completed.length} 个（${pendingExpandFailed} 个失败）` : `${completed.length} 个`}提示词`);
+                return 0;
+              }
+              return next;
+            });
           },
           onError: ({ index, message }) => {
             if (index === undefined) {
+              // Global error — abort everything immediately.
               onErrorRef.current(message);
+              setLoading(false);
+              setPendingExpandCount(0);
+              setPendingExpandHandles((prev) => { const n = { ...prev }; delete n[handleKey]; return n; });
               return;
             }
             setResults((prev) => {
@@ -487,30 +538,63 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               };
               return next;
             });
+            setPendingExpandFailed((f) => f + 1);
+            setPendingExpandCount((c) => {
+              const next = c - 1;
+              if (next <= 0) {
+                setLoading(false);
+                setPendingExpandHandles((prev) => { const n = { ...prev }; delete n[handleKey]; return n; });
+                const completed = resultsRef.current
+                  .filter((r) => r.prompt && !r.prompt.startsWith('[错误]'))
+                  .map((r) => r.prompt);
+                if (completed.length > 0) {
+                  addExpandHistory({
+                    original: input.trim(),
+                    type,
+                    r18: r18Mode,
+                    prompts: completed,
+                  });
+                  setHistory(getExpandHistory());
+                }
+                onSuccessRef.current?.(`生成完成，成功 ${completed.length} 个`);
+                return 0;
+              }
+              return next;
+            });
           },
           onDone: ({ successful }) => {
-            // Persist all fully-completed slots to history
-            const completed = resultsRef.current
-              .filter((r) => r.prompt && !r.prompt.startsWith('[错误]'))
-              .map((r) => r.prompt);
-            if (completed.length > 0) {
-              addExpandHistory({
-                original: input.trim(),
-                type,
-                r18: r18Mode,
-                prompts: completed,
-              });
-              setHistory(getExpandHistory());
-            }
-            onSuccessRef.current(`成功生成 ${successful} 个提示词`);
+            // Fallback completion — fires only if some slots didn't fire onEnd.
+            // Real completion path is driven by onEnd/onError counter above.
+            setPendingExpandCount((c) => {
+              if (c > 0) {
+                setLoading(false);
+                setPendingExpandHandles((prev) => { const n = { ...prev }; delete n[handleKey]; return n; });
+                const completed = resultsRef.current
+                  .filter((r) => r.prompt && !r.prompt.startsWith('[错误]'))
+                  .map((r) => r.prompt);
+                if (completed.length > 0) {
+                  addExpandHistory({
+                    original: input.trim(),
+                    type,
+                    r18: r18Mode,
+                    prompts: completed,
+                  });
+                  setHistory(getExpandHistory());
+                }
+                onSuccessRef.current(`生成完成，成功 ${successful} 个`);
+                return 0;
+              }
+              return c;
+            });
           },
         },
       );
     } catch (err) {
+      // Synchronous fetch error (network down, auth, etc.) — reset state.
       onError(err instanceof Error ? err.message : '生成失败');
-    } finally {
       setLoading(false);
       setPendingExpandHandles((prev) => { const n = { ...prev }; delete n[handleKey]; return n; });
+      setPendingExpandCount(0);
     }
   };
 
@@ -1251,6 +1335,19 @@ function ExpandResultCard({ result, r18Mode, isCopied, genState, onCopy, onDelet
   const badge = r18Mode ? 'from-red-500 to-pink-500' : 'from-primary to-indigo-500';
   const isGenLoading = genState?.loading;
   const genImages = genState?.images ?? [];
+  // The card is "generating" while the LLM hasn't produced the final
+  // prompt yet (or while an error message is still being written).
+  // Without this guard, the card body renders empty during the stream
+  // — the user reported "点击扩写，没有任何生成中的状态显示".
+  const isPromptLoading = !result.prompt;
+  // Tick once per second so the "已等待 X 秒" label re-renders.
+  const [loadingSeconds, setLoadingSeconds] = useState(0);
+  useEffect(() => {
+    if (!isPromptLoading) { setLoadingSeconds(0); return; }
+    const t0 = Date.now();
+    const id = window.setInterval(() => setLoadingSeconds(Math.floor((Date.now() - t0) / 1000)), 1000);
+    return () => window.clearInterval(id);
+  }, [isPromptLoading, result.prompt]);
 
   // Find related running tasks
   const relatedTasks = taskManager.tasks.filter(
@@ -1260,12 +1357,20 @@ function ExpandResultCard({ result, r18Mode, isCopied, genState, onCopy, onDelet
   const displayImages = genImages.length > 0 ? genImages : relatedTasks.flatMap((t: QueuedTask) => t.images);
 
   return (
-    <div className={`rounded-2xl bg-white border shadow-card overflow-hidden ${r18Mode ? 'border-red-200' : 'border-border'}`}>
+    <div className={`rounded-2xl bg-white border shadow-card overflow-hidden ${r18Mode ? 'border-red-200' : 'border-border'} ${isPromptLoading ? 'ring-1 ring-primary/20' : ''}`}>
       <div className={`flex items-center gap-2 px-4 py-2.5 border-b ${r18Mode ? 'bg-red-50/60 border-red-100' : 'bg-bg-elevated border-border/50'}`}>
-        <div className={`px-2.5 py-0.5 rounded-full text-white text-[11px] font-bold bg-gradient-to-r ${badge}`}>{r18Mode ? 'R18' : '提示词'}</div>
+        <div className={`px-2.5 py-0.5 rounded-full text-white text-[11px] font-bold bg-gradient-to-r ${badge} flex items-center gap-1`}>
+          {isPromptLoading && <Loader2 size={10} className="animate-spin" />}
+          {r18Mode ? 'R18' : '提示词'}
+        </div>
+        {isPromptLoading && (
+          <span className="text-[11px] tabular-nums text-text-tertiary/70">
+            生成中 · 已等 {loadingSeconds} 秒
+          </span>
+        )}
         <button onClick={onGenerateImage}
           disabled={isGenLoading || (digitalHumanMode && !selectedGirlfriend)}
-          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex-shrink-0 ${
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex-shrink-0 ml-auto ${
             isGenLoading || (digitalHumanMode && !selectedGirlfriend)
               ? 'bg-blue-100 text-blue-400 cursor-not-allowed'
               : 'bg-blue-500 text-white hover:bg-blue-600'
@@ -1275,18 +1380,28 @@ function ExpandResultCard({ result, r18Mode, isCopied, genState, onCopy, onDelet
           {digitalHumanMode && selectedGirlfriend ? '图生图' : '生图'}
         </button>
         <button onClick={onUseAsOutput}
-          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex-shrink-0 ${r18Mode ? 'bg-red-50 text-red-500 hover:bg-red-100 border border-red-200' : 'bg-primary/8 text-primary hover:bg-primary/15 border border-primary/20'}`}
+          disabled={isPromptLoading}
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex-shrink-0 ${isPromptLoading ? 'opacity-40 cursor-not-allowed ' : ''}${r18Mode ? 'bg-red-50 text-red-500 hover:bg-red-100 border border-red-200' : 'bg-primary/8 text-primary hover:bg-primary/15 border border-primary/20'}`}
         >
           <Wand2 size={11} />
           应用
         </button>
-        <button onClick={onDelete} className="p-1 rounded-lg text-text-tertiary hover:text-red-500 hover:bg-red-50 transition-all ml-auto"><Trash2 size={13} /></button>
+        <button onClick={onDelete} className="p-1 rounded-lg text-text-tertiary hover:text-red-500 hover:bg-red-50 transition-all"><Trash2 size={13} /></button>
       </div>
       <div className="px-4 py-3">
         <div className="flex items-start justify-between gap-3 mb-3">
-          <p className={`text-sm leading-relaxed whitespace-pre-wrap flex-1 ${r18Mode ? 'text-red-700' : 'text-text-secondary'}`}>{result.prompt}</p>
+          {isPromptLoading ? (
+            <div className="flex-1 space-y-2">
+              <div className={`h-3 rounded w-[90%] animate-pulse ${r18Mode ? 'bg-red-200/70' : 'bg-text-tertiary/15'}`} />
+              <div className={`h-3 rounded w-[70%] animate-pulse ${r18Mode ? 'bg-red-200/70' : 'bg-text-tertiary/15'}`} />
+              <div className={`h-3 rounded w-[80%] animate-pulse ${r18Mode ? 'bg-red-200/70' : 'bg-text-tertiary/15'}`} />
+            </div>
+          ) : (
+            <p className={`text-sm leading-relaxed whitespace-pre-wrap flex-1 ${r18Mode ? 'text-red-700' : 'text-text-secondary'}`}>{result.prompt}</p>
+          )}
           <button onClick={onCopy}
-            className={`flex-shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${isCopied ? 'bg-green-500/10 text-green-500' : r18Mode ? 'bg-red-50 text-red-500 hover:bg-red-100' : 'bg-bg-elevated text-text-tertiary hover:bg-bg-hover hover:text-text-primary'}`}>
+            disabled={isPromptLoading}
+            className={`flex-shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${isPromptLoading ? 'opacity-40 cursor-not-allowed ' : ''}${isCopied ? 'bg-green-500/10 text-green-500' : r18Mode ? 'bg-red-50 text-red-500 hover:bg-red-100' : 'bg-bg-elevated text-text-tertiary hover:bg-bg-hover hover:text-text-primary'}`}>
             {isCopied ? <><Check size={12} /> 已复制</> : <><Copy size={12} /> 复制</>}
           </button>
         </div>
@@ -1442,6 +1557,31 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     }));
     setResults(initialResults);
 
+    // `streamRandomPrompt` resolves immediately (the stream is consumed
+    // in a background IIFE), so `finally { setLoading(false) }` would
+    // flip the button back to "抽卡" BEFORE any chunks arrived — leaving
+    // the user with no spinner / "生成中" affordance. We must drive
+    // `loading` from `onDone` (or the global-error path) instead.
+    const completeBatch = () => {
+      setLoading(false);
+      addRandomHistory({
+        type,
+        r18: r18Mode,
+        theme,
+        // Snapshot only fully-completed slots (have non-empty prompt).
+        results: resultsRef.current
+          .filter((r) => r.prompt && !r.prompt.startsWith('[错误]'))
+          .map((r) => ({
+            prompt: r.prompt,
+            tags_used: r.tags_used,
+            theme_label: r.theme_label,
+          })),
+      });
+      setHistory(getRandomHistory());
+      const themeName = THEMES.find((t) => t.key === theme)?.label || '完全随机';
+      onSuccessRef.current(`[${themeName}] 抽卡完成`);
+    };
+
     try {
       await streamRandomPrompt(
         type, r18Mode, count, theme,
@@ -1492,10 +1632,11 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           },
           onError: ({ index, message }) => {
             // Per-slot errors don't stop the whole batch — show inline
-            // on the affected card. Global (no index) errors fall through
-            // to the catch.
+            // on the affected card. Global (no index) errors abort
+            // immediately.
             if (index === undefined) {
-              onError(message);
+              onErrorRef.current(message);
+              setLoading(false);
               return;
             }
             setResults((prev) => {
@@ -1514,28 +1655,15 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
             });
           },
           onDone: ({ successful }) => {
-            addRandomHistory({
-              type,
-              r18: r18Mode,
-              theme,
-              // Snapshot only fully-completed slots (have non-empty prompt).
-              results: resultsRef.current
-                .filter((r) => r.prompt && !r.prompt.startsWith('[错误]'))
-                .map((r) => ({
-                  prompt: r.prompt,
-                  tags_used: r.tags_used,
-                  theme_label: r.theme_label,
-                })),
-            });
-            setHistory(getRandomHistory());
-            const themeName = THEMES.find((t) => t.key === theme)?.label || '完全随机';
-            onSuccess(`[${themeName}] 抽卡完成，成功 ${successful}/${count} 个提示词`);
+            completeBatch();
+            // Suppress the unused-var lint warning on `successful` —
+            // it's surfaced via the success toast for caller-context.
+            void successful;
           },
         },
       );
     } catch (err) {
-      onError(err instanceof Error ? err.message : '抽卡失败');
-    } finally {
+      onErrorRef.current(err instanceof Error ? err.message : '抽卡失败');
       setLoading(false);
     }
   };
