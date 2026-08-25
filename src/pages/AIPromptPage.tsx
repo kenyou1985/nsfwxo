@@ -1633,14 +1633,14 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           onEnd: ({ index, theme_label, prompt }) => {
             // When the backend sends an empty `theme_label` (second-pass LLM
             // call failed or returned non-Chinese), derive one locally from
-            // the prompt itself. The prompt often starts with English
-            // descriptors ("20-year-old East Asian woman, smiling...") so
-            // deriveThemeLabel() strips the English prefix and returns the
-            // first meaningful Chinese clause. If that also yields nothing,
-            // fall back to the index so we always show SOMETHING in the
-            // badge — never a bare "提示词" with no scene label.
-            const fallbackLabel = deriveThemeLabel(prompt) || (prompt ? '' : `主题 ${index + 1}`);
-            const finalLabel = (theme_label && theme_label.trim()) ? theme_label.trim() : fallbackLabel;
+            // the prompt itself. deriveThemeLabel() now scans the entire
+            // prompt for the first CJK character (not just the comma-
+            // separated English prefix), so it reliably extracts Chinese
+            // scene labels even after a long English descriptor block.
+            // If THAT also returns empty, fall back to "主题 N" so the
+            // badge always has SOME content — never an empty label.
+            const backendLabel = (theme_label ?? '').trim();
+            const derivedLabel = !backendLabel ? (deriveThemeLabel(prompt) || `主题 ${index + 1}`) : backendLabel;
             setResults((prev) => {
               const next = [...prev];
               while (next.length <= index) {
@@ -1648,7 +1648,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               }
               next[index] = {
                 ...next[index],
-                theme_label: finalLabel,
+                theme_label: derivedLabel,
                 prompt,
               };
               return next;
