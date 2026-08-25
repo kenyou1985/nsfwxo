@@ -305,18 +305,20 @@ export function RunningHubModelPicker({
           )}
         </div>
         <div className="flex items-center gap-1 flex-shrink-0 ml-2">
-          {value && showDefaultButton && (
+          {showDefaultButton && (
             <button
               type="button"
               onClick={handleToggleDefault}
-              disabled={disabled}
+              disabled={disabled || !value}
               className={`w-5 h-5 rounded flex items-center justify-center text-[11px] transition-colors ${
                 isDefault
                   ? 'bg-primary/10 text-primary hover:bg-primary/20'
-                  : 'text-text-tertiary hover:bg-bg-hover hover:text-primary'
+                  : value
+                    ? 'text-text-tertiary hover:bg-bg-hover hover:text-primary'
+                    : 'text-text-tertiary/30 hover:text-text-tertiary/60'
               }`}
-              title={isDefault ? '取消默认' : '设为默认'}
-              aria-label={isDefault ? '取消默认' : '设为默认'}
+              title={isDefault ? '取消默认锚定' : value ? '锚定为默认模型' : '先选择一个模型再锚定'}
+              aria-label={isDefault ? '取消默认锚定' : value ? '锚定为默认模型' : '先选择模型'}
             >
               📌
             </button>

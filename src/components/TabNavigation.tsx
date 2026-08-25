@@ -43,12 +43,12 @@ export function TabNavigation({ activeTab, onTabChange }: TabNavigationProps) {
         })}
       </div>
 
-      {/* Mobile / Tablet: 6 tabs horizontally scrollable */}
+      {/* Mobile / Tablet: hide "模型库" (causes freeze on mobile). */}
       <div
         className="flex lg:hidden items-stretch overflow-x-auto scrollbar-hide"
         style={{ height: '48px' }}
       >
-        {TABS.map((tab) => {
+        {TABS.filter((tab) => tab.id !== 'models').map((tab) => {
           const isActive = activeTab === tab.id;
           return (
             <button
