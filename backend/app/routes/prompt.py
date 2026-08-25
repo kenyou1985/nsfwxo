@@ -2740,6 +2740,35 @@ def _strip_anchor_brackets(anchor: str) -> str:
     return a
 
 
+def _scrub_scene_description_ellipsis(text: str) -> str:
+    """Strip trailing ellipsis artifacts that LLMs sometimes append to a
+    Chinese scene_description when they intend to "abbreviate" the description.
+
+    The system prompt now explicitly forbids trailing '...', but in case an LLM
+    still emits one (or model drift produces '…', 'etc.'), we sanitize here so
+    the UI never shows a half-finished description. Only trailing markers are
+    stripped — leading sentence content is preserved verbatim.
+    """
+    if not text:
+        return text
+    s = text.rstrip()
+    # Repeatedly drop trailing ellipsis-like tokens. We do NOT add new content;
+    # the goal is just to surface whatever the LLM wrote without the '...' / '…'
+    # noise. The Chinese connecting word '等' is left alone — only standalone
+    # ellipsis characters and the English abbreviation 'etc.' are stripped.
+    ellipsis_re = re.compile(
+        r"[\s,;，；、\-]*"
+        r"(?:\.{3}|…|etc\.?|省略[^。]*?省略号)"
+        r"[\s,;，；、]*$"
+    )
+    while True:
+        stripped = ellipsis_re.sub("", s)
+        if stripped == s:
+            break
+        s = stripped.rstrip()
+    return s.rstrip()
+
+
 def _rebuild_panel_from_template(
     scene_text: str,
     image_text: str,
@@ -4544,7 +4573,7 @@ Arc: {arc}
 
 Output a JSON object ONLY (no markdown, no commentary) with this exact schema:
 {{
-  "scene_description": "<Chinese: 2-4 sentences describing what happens in THIS panel — set IN a ★ SCENARIO, characters wearing ★ COSTUMES, advance the arc by exactly one beat>",
+  "scene_description": "<Chinese: 2-4 sentences describing what happens in THIS panel — set IN a ★ SCENARIO, characters wearing ★ COSTUMES, advance the arc by exactly one beat. End with a full stop (。). NEVER end with '...', '…, …省略号' or any ellipsis — write the COMPLETE 2-4 sentences every time.>",
   "image_prompt": "<English: a detailed image-prompt starting with a [ANCHOR: ...] line that locks the characters' ethnicity, hair, eyes, skin, primary outfit color, primary outfit item, footwear, and key props. Then describe pose, action, lighting, and camera angle in this scene.>"
 }}
 
@@ -4554,8 +4583,9 @@ RULES:
 3. Use ONLY ★ COSTUMES from the THEME CONTRACT for outfit. Anchor color must match theme.
 4. Key props make the scene READ as the theme (法官 → gavel / 温泉 → steam / 护士 → stethoscope, etc.).
 5. Adult characters only (18+). No minors. No schoolgirl/schoolboy imagery.
-6. {r18_extra}
-7. Output VALID JSON ONLY. No prose around the JSON. No markdown fences.
+6. scene_description MUST be the FULL 2-4 sentences written out in Chinese — no truncation, no trailing '...', no '等', no 'etc.'. End every description with '。'.
+7. {r18_extra}
+8. Output VALID JSON ONLY. No prose around the JSON. No markdown fences.
 """
 
 
@@ -5155,6 +5185,21 @@ async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key
                         len(panels), first_anchor_pp[:120],
                     )
             if panels and canon_theme_pp:
+                # Scrub trailing ellipsis artifacts from scene_description. LLMs
+                # sometimes append '...' / '等。' / 'etc.' to Chinese scene
+                # descriptions when they intend to abbreviate, which leaves
+                # the UI showing a half-finished sentence ("在海边阳光充足的
+                # 开阔..."). Strip those tails so what the user sees is what
+                # the LLM actually wrote.
+                scrub_pp = 0
+                for p in panels:
+                    cleaned = _scrub_scene_description_ellipsis(p.get("scene_description", ""))
+                    if cleaned != p.get("scene_description", ""):
+                        p["scene_description"] = cleaned
+                        scrub_pp += 1
+                if scrub_pp:
+                    logging.info("[outline:parallel] scrubbed trailing ellipsis on %d/%d panels", scrub_pp, len(panels))
+            if panels and canon_theme_pp:
                 fix_pp = 0
                 for idx, p in enumerate(panels):
                     new_scene, new_image = _enforce_theme_coherence(
@@ -5377,6 +5422,20 @@ async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key
                     # loop (see the marker above). Don't reassign here — just
                     # use it.
                     if isinstance(canon_theme, dict):
+                        # Scrub trailing ellipsis artifacts from scene_description
+                        # BEFORE theme-coherence fixes, so the cleaned tail
+                        # doesn't get rewritten by drift detection.
+                        scrub_count = 0
+                        for p in panels:
+                            cleaned = _scrub_scene_description_ellipsis(p.get("scene_description", ""))
+                            if cleaned != p.get("scene_description", ""):
+                                p["scene_description"] = cleaned
+                                scrub_count += 1
+                        if scrub_count:
+                            logging.info(
+                                "[outline] scrubbed trailing ellipsis on %d/%d panels (theme=%s)",
+                                scrub_count, len(panels), theme_name,
+                            )
                         fix_count = 0
                         for idx, p in enumerate(panels):
                             new_scene, new_image = _enforce_theme_coherence(
@@ -8825,6 +8884,20 @@ async def generate_storyboard_outline(
                 # q3+ bugfix: theme_name is now initialized before the retry
                 # loop (see marker above). Don't reassign here — just use it.
                 if isinstance(canon_theme_sync, dict):
+                    # Scrub trailing ellipsis artifacts before theme-coherence
+                    # rewrites, otherwise the drift fix could push the ellipsis
+                    # back onto the cleaned scene.
+                    scrub_count_sync = 0
+                    for p in panels:
+                        cleaned = _scrub_scene_description_ellipsis(p.scene_description)
+                        if cleaned != p.scene_description:
+                            p.scene_description = cleaned
+                            scrub_count_sync += 1
+                    if scrub_count_sync:
+                        logging.info(
+                            "[storyboard/outline] scrubbed trailing ellipsis on %d/%d panels",
+                            scrub_count_sync, len(panels),
+                        )
                     fix_count_sync = 0
                     fixed_panels_sync = []
                     for idx, p in enumerate(panels):
