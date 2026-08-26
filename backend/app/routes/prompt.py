@@ -4969,8 +4969,8 @@ async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key
             arc_panels = _R18_ARC_PANELS.get(panel_count, _R18_ARC_PANELS[5])
             system_template = _R18_OUTLINE_SYSTEM
             arc_label = "开场遇见 → 升温调情 → 脱衣前戏 → 性爱进行 → 高潮射精"
-            # For R18: use expanded pose pool (15+ poses) from 95-pose library for maximum diversity
-            pool_poses = get_random_poses(max(15, panel_count + 10))
+            # For R18: use a reasonable pose pool (8-12 poses) for diversity without overloading LLM
+            pool_poses = get_random_poses(panel_count + 2)
             pose_list_str = "\n".join(f"  - {p}" for p in pool_poses)
         else:
             arc_panels = _NORMAL_ARC_PANELS.get(panel_count, _NORMAL_ARC_PANELS[4])
@@ -5894,22 +5894,16 @@ STRICT PROHIBITION - ZERO TOLERANCE - NO EXCEPTIONS:
 - ANY panel that involves minors will result in content policy violation and immediate rejection
 
 【POSE DIVERSITY - MANDATORY - CHOOSE FROM 95-POSE LIBRARY】:
-Each panel MUST use a DIFFERENT sexual position. Pick from this EXPANDED pool of 95 poses:
+Each panel MUST use a DIFFERENT sexual position. Pick from this pool of 95 poses:
 {pose_list}
-
-【CLIMAX & INTENSITY REQUIREMENTS】:
-For sex panels (especially climax), you MUST describe with EXTREME intensity:
-- Use close-up shots: "extreme close-up on genitals", "macro shot of penetration", "intimate close-up of facial expression during climax"
-- Use extreme intensity: "brutal", "relentless", "savage", "fierce", "explosive", "mind-blowing", "overwhelming"
-- Describe body reactions: "screaming in ecstasy", "body convulsing", "back arching violently", "eyes rolling back"
-- Use aggressive verbs: "hammering", "destroying", "ravaging", "obliterating", "imprisoning"
 
 CRUCIAL REQUIREMENTS:
 1. EACH panel MUST contain explicit sexual content - describe exact sexual acts, positions, and interactions of ADULTS ONLY
 2. Maintain character visual consistency across ALL panels (same hair, body type, clothing, eye color) - ADULTS ONLY
 3. Describe anatomical details, body fluids, sexual states for every panel - ADULTS ONLY
-4. Include explicit camera angles: EXTREME close-up on genitals, POV destruction shots, spread-eagle shot, cum explosion shot, zoom in on climax
-5. Each panel MUST pick a DISTINCTLY DIFFERENT position from the 95-pose pool above
+4. Include explicit camera angles: close-up on genitals, POV shots, spread shot, cum shot, insertion angle, macro on penetration
+5. For climax panels: include close-up shots of facial expressions and body reactions for extra intensity
+6. Each panel MUST pick a DISTINCTLY DIFFERENT position from the 95-pose pool above
 
 Format STRICTLY as JSON array:
 [{{"panel_number": 1, "scene_description": "adult sexual setup of the scene", "image_prompt": "fully explicit Krea2-style prompt - ADULTS ONLY"}}, ...]
@@ -7452,7 +7446,7 @@ async def random_prompt_stream(req: RandomRequest, api_key: str = Depends(get_ap
 @router.post("/storyboard", response_model=StoryboardResponse)
 async def storyboard(req: StoryboardRequest, api_key: str = Depends(get_api_key)):
     if req.r18:
-        selected_poses = get_random_poses(max(15, req.panel_count + 10))
+        selected_poses = get_random_poses(req.panel_count + 2)
         pose_list_str = "\n".join(f"  - {p}" for p in selected_poses)
         system_prompt = STORYBOARD_SYSTEM_PROMPT_R18.format(pose_list=pose_list_str)
     else:
@@ -7538,7 +7532,7 @@ async def _storyboard_stream_ndjson(
     req: StoryboardRequest,
 ) -> AsyncIterator[str]:
     if req.r18:
-        selected_poses = get_random_poses(max(15, req.panel_count + 10))
+        selected_poses = get_random_poses(req.panel_count + 2)
         pose_list_str = "\n".join(f"  - {p}" for p in selected_poses)
         system_prompt = STORYBOARD_SYSTEM_PROMPT_R18.format(pose_list=pose_list_str)
     else:
@@ -8469,24 +8463,16 @@ CRITICAL PACING RULES:
 - Each panel must ADVANCE the sexual narrative naturally
 - NEVER jump directly to penetration in Panel 1
 
-【CLIMAX PANELS - INTENSITY & CLOSE-UP REQUIREMENTS】:
-For panels 3+ (especially climax panels), you MUST describe with EXTREME intensity:
-- Use close-up shots: "extreme close-up on genitals", "macro shot of penetration", "intimate close-up of facial expression during climax"
-- Use extreme intensity modifiers: "brutal", "relentless", "savage", "fierce", "explosive", "mind-blowing", "overwhelming"
-- Describe body reactions: "screaming in ecstasy", "body convulsing", "back arching violently", "eyes rolling back", "tears of pleasure"
-- Describe physical details: "sweat drenching bodies", "skin glistening", "breasts bouncing violently", "hips slamming together"
-- Use aggressive action verbs: "hammering", "destroying", "ravaging", "obliterating", "imprisoning"
-
-【EXPLICIT CONTENT REQUIREMENTS FOR PANEL 3+ - MANDATORY】:
-- MANDATORY: Pick one DISTINCT position from the {pose_list} pool above for each panel.
-- Use explicit sexual terms: suck, lick, fuck, penetrate, thrust HARD, cum, spray, spread wide, balls deep, face covered, destroy, ravage
-- Describe anatomy in detail: rock-hard penis, throbbing cock, dripping wet pussy, swollen lips, hard nipples, engorged clitoris
-- Describe body fluids: saliva drooling, precum leaking, cum exploding, vaginal secretions soaking
-- Describe camera angles: EXTREME close-up on genitals, POV destruction shot, spread-eagle shot, cum explosion shot, POV insertion angle, zoom in on climax face
-- Be CREATIVE and AGGRESSIVE in how characters express pleasure
-- ALWAYS start image_prompt with explicit ethnicity descriptor
-- image_prompt MUST also include the ★ scenario location and the ★ costume keyword
-- For climax panels: "intimate extreme close-up" and "passionate intense" descriptions are REQUIRED
+EXPLICIT CONTENT requirements for Panel 3+:
+- MANDATORY: Pick one position from the {pose_list} list above for each panel. Each panel MUST use a DISTINCTLY DIFFERENT position from all other panels.
+- Use explicit sexual terms: suck, lick, fuck, penetrate, thrust, cum, ejackulate, spray, spread, thrust in, balls deep, face covered
+- Describe anatomy: penis, vagina, breasts, nipples, asshole, lips, tongue
+- Describe body fluids: saliva, precum, cum, vaginal fluids
+- Describe camera angles: POV, close-up on genitals, spread shot, cum shot, POV insertion, macro on penetration
+- For climax panels: include close-up shots of facial expressions and body reactions for extra intensity
+- Be CREATIVE in how characters express pleasure and interact, WHILE staying in ★ SCENARIOS
+- ALWAYS start image_prompt with explicit ethnicity descriptor (e.g. "a beautiful Thai woman with warm beige skin and silky black hair,", "a handsome Brazilian man with tanned olive skin and dark brown eyes,", "a stunning Iranian woman with fair olive skin and dark almond eyes,", "a chiseled Russian man with pale skin and light blue eyes,"). Skin tone/facial features must MATCH the chosen ethnicity.
+- image_prompt MUST also include the ★ scenario location (in English equivalent) and the ★ costume keyword.
 
 CRITICAL: ALL characters 18+. NO minors. NO non-consent. NO animals.
 
@@ -8678,8 +8664,8 @@ async def generate_storyboard_outline(
         arc_panels = _R18_ARC_PANELS.get(panel_count, _R18_ARC_PANELS[5])
         system_template = _R18_OUTLINE_SYSTEM
         arc_label = "开场遇见 → 升温调情 → 脱衣前戏 → 性爱进行 → 高潮射精"
-        # Inject random poses from expanded 95-pose pool for maximum diversity
-        selected_poses = get_random_poses(max(15, panel_count + 10))
+        # Inject random poses — reasonable pool size for diversity without overloading LLM
+        selected_poses = get_random_poses(panel_count + 2)
         pose_list_str = "\n".join(f"  - {p}" for p in selected_poses)
     else:
         arc_panels = _NORMAL_ARC_PANELS.get(panel_count, _NORMAL_ARC_PANELS[4])
