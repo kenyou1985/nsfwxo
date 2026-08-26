@@ -21,7 +21,7 @@ from app.models.schemas import (
 )
 from app.services.llm_service import call_grok, stream_grok, clean_json_response, OpenLuxAuthError, OpenLuxRateLimitError, OpenLuxTimeoutError, OpenLuxParseError, OpenLuxAPIError
 from app.services.gacha_service import generate_random_tags
-from app.services.safety_filter import check_prompt_safety, check_tags_safety, ContentSafetyError
+from app.services.safety_filter import check_prompt_safety, sanitize_tags, ContentSafetyError
 from app.services.prompt_coherence import detect_prompt_conflicts, rewrite_coherent_prompt, detect_outfit_color_drift
 from app.services.theme_database import get_random_poses
 from app.services.prompt_task_store import get_task_store, TaskStatus
@@ -6629,10 +6629,13 @@ async def _generate_single_prompt(
     use_character_anchor = character_prompt and character_prompt.strip()
     tags_used = generate_random_tags(req.type, r18_mode=req.r18, img2img_mode=img2img)
 
-    try:
-        check_tags_safety(tags_used)
-    except ContentSafetyError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    # Sanitize at the boundary: silently drop any tag that matches an
+    # aesthetic / minor block pattern. We do NOT raise HTTPException here —
+    # if a bad tag slips through (e.g. after a future tag-db update), we
+    # prefer to drop it and continue rather than surface a hard error to
+    # the user. The gacha_service picker is already strict (allowlists +
+    # denylists + universal patterns), so this is a defense-in-depth layer.
+    tags_used = sanitize_tags(tags_used)
 
     tags_by_category: dict[str, list[str]] = {}
     for tag in tags_used:
@@ -7359,10 +7362,10 @@ def _build_random_prompt_context(
     use_character_anchor = bool(character_prompt and character_prompt.strip())
 
     tags_used = generate_random_tags(req.type, r18_mode=req.r18, img2img_mode=img2img)
-    try:
-        check_tags_safety(tags_used)
-    except ContentSafetyError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    # See comment in non-streaming variant: sanitize silently rather than
+    # raising HTTPException so a stray aesthetic violation never surfaces
+    # as a user-visible error.
+    tags_used = sanitize_tags(tags_used)
 
     tags_by_category: dict[str, list[str]] = {}
     for tag in tags_used:

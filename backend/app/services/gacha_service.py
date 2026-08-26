@@ -4,21 +4,125 @@ import json
 import random
 import re
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Set
 
 from app.services.tag_conflict import resolve_conflicts, detect_conflicts
 
 _TAGS_DB: Optional[dict] = None
 
 # ── 绝对禁止的关键词正则 (编译一次) ──
+# Mirror the aesthetic guards from safety_filter.BLOCK_PATTERNS so that bad
+# tags are NEVER even selected into the candidate pool. This is the first
+# line of defense — even if the caller forgets to sanitize the output, the
+# tag list itself is already clean.
 _BLOCK_PATTERNS: List[re.Pattern] = [
+    # 未成年人/儿童 (must never appear)
     re.compile(r'\b(infant|baby|child|children|teenage|teenager)\b', re.I),
     re.compile(r'\b(toddler|preteen|pre-teen|underage|minor)\b', re.I),
     re.compile(r'\b(pubescen|puberty|lolicon|shotacon|loli\b|shota\b|lolita)\b', re.I),
     re.compile(r'\b(young adult|young looking)\b', re.I),
     re.compile(r'\b(little boy|little girl)\b', re.I),
     re.compile(r'\b(small breasts)\b', re.I),
+    # 老年人 / 中年 (用户报告的"老人"违反美感)
+    re.compile(r'\b(elderly|geriatric|withered|aged prematurely|gracefully aged|senior|middle.?aged|mature)\b', re.I),
+    re.compile(r'\b(grandmother|grandfather|granny)\b', re.I),
+    # 衰老皮肤
+    re.compile(r'\b(wrinkled|wrinkly|sagging skin|loose skin|flabby|cellulite|stretch marks|varicose veins|liver spots|age spots|sun spots)\b', re.I),
+    # 伤疤/毁容/血腥
+    re.compile(r'\b(burn scar(s)?|fresh burn(s)?|burn mark(s)?|burn victim(s)?|scarred face|disfigured|keloid(s)?|mangled|knife scar(s)?|razor scar(s)?|cut scar(s)?|bullet wound scar(s)?|surgical scar(s)?|tribal scarification|ritual scarification|scarred body|large scar(s)?|small scar(s)?|scar on [a-z]+|stretch mark(s)?|sun spots?|liver spots?|varicose veins?)\b', re.I),
+    re.compile(r'\b(amputee|prosthetic|cybernetic|mechanical limb|missing limb|wheelchair|crutches)\b', re.I),
+    re.compile(r'\b(blood play|smeared blood|dripping blood|blood-soaked|bloodstained|gory|gore|mangled flesh|exposed bone|rotting)\b', re.I),
+    re.compile(r'\b(hobo|homeless|beggar|ragged clothing|tattered clothing|torn clothing|stained clothing|dirty clothing)\b', re.I),
+    re.compile(r'\b(demon horns|devil horns|tentacle|触手|monster horns|furry|beast transformation)\b', re.I),
+    re.compile(r'tentacles?(?:\b|[^a-z])', re.I),  # catches plural AND compound like tentacle_toy
+    re.compile(r'\b(passed out|unconscious|vomiting|crying uncontrollably|beaten down|broken)\b', re.I),
+    # 病态体型
+    re.compile(r'\b(morbidly obese|anorexic|too skinny|tubby|rotund|chubby|stocky|stout|portly|hefty|beefy|big.boned)\b', re.I),
 ]
+
+
+# ── Category-level allowlists ─────────────────────────────────────────────────────
+# Some tag categories have so many bad entries that a denylist isn't enough
+# (e.g. `age_group` contains 'elderly', 'geriatric', 'wrinkled', 'senior',
+# 'aged prematurely', 'mature', 'middle-aged' alongside the only safe
+# values 'adult' and 'youthful'). For those categories we maintain an
+# explicit ALLOWLIST and reject everything else. This is the most robust
+# defense against a future tag-db update silently re-introducing a banned
+# entry.
+_CATEGORY_ALLOWLISTS: Dict[str, Optional[Set[str]]] = {
+    # age_group: only 'adult' and 'youthful' are aesthetic. Everything else
+    # (elderly/geriatric/wrinkled/senior/middle-aged/mature) is banned.
+    "age_group": {"adult", "youthful"},
+    # body: allow athletic/aesthetic builds; drop obese/anorexic/sickly ones.
+    # We use a denylist approach here since the legitimate list is long.
+    "body": None,
+    # body_markings: drop burn/keloid/knife/razor/surgical scars; keep
+    # birthmarks/freckles/moles/piercings/tattoos (these are aesthetic).
+    "body_markings": None,
+    # tattoos_scars: drop burn/keloid/knife/razor/bullet/surgical scars;
+    # keep tattoo/freckles/mole/birthmark.
+    "tattoos_scars": None,
+    # character: drop religious desecration roles.
+    "character": None,
+}
+
+
+# Category-specific denylists applied AFTER the universal _BLOCK_PATTERNS
+# filter. Any tag in these categories matching one of these regexes is
+# rejected at pick time.
+_CATEGORY_DENY: Dict[str, List[re.Pattern]] = {
+    "body_markings": [
+        re.compile(r'\bburn mark\b', re.I),
+        re.compile(r'\bburn scar\b', re.I),
+        re.compile(r'\bhealed burn\b', re.I),
+        re.compile(r'\bkeloid scar\b', re.I),
+        re.compile(r'\bknife scar\b', re.I),
+        re.compile(r'\brazor scar\b', re.I),
+        re.compile(r'\bbullet wound\b', re.I),
+        re.compile(r'\bsurgical scar\b', re.I),
+        re.compile(r'\bstretch mark\b', re.I),
+        re.compile(r'\bsun spots?\b', re.I),
+        re.compile(r'\bliver spots?\b', re.I),
+        re.compile(r'\bvaricose\b', re.I),
+        # 通用 "scar on" / "large scar" / "small scar" 也是丑陋疤痕
+        re.compile(r'\bscar on\b', re.I),
+        re.compile(r'\blarge scar\b', re.I),
+        re.compile(r'\bsmall scar\b', re.I),
+        # 不符合美感的身体装饰
+        re.compile(r'\bacne scars?\b', re.I),
+    ],
+    "tattoos_scars": [
+        re.compile(r'\bburn scar\b', re.I),
+        re.compile(r'\bkeloid scar\b', re.I),
+        re.compile(r'\bknife scar\b', re.I),
+        re.compile(r'\brazor scar\b', re.I),
+        re.compile(r'\bbullet wound\b', re.I),
+        re.compile(r'\bsurgical scar\b', re.I),
+        re.compile(r'\bc[ut]+ scar\b', re.I),
+        re.compile(r'\blarge scar\b', re.I),
+        re.compile(r'\bscar on\b', re.I),
+        re.compile(r'\bstretch mark\b', re.I),
+        re.compile(r'\bsmall scar\b', re.I),
+        re.compile(r'\bacne scars?\b', re.I),
+        re.compile(r'\btribal tattoo\b', re.I),  # 用户原报告 "bold dragon tattoo"
+    ],
+    "body": [
+        # 病态/不美观的体型
+        re.compile(r'\b(morbidly obese|anorexic|too skinny|tubby|rotund|chubby|stocky|stout|portly|hefty|beefy|big.boned|big-boned)\b', re.I),
+        re.compile(r'\b(flabby|hanging breasts|portly)\b', re.I),
+        re.compile(r'\b(bouncing breasts|breasts apart)\b', re.I),  # 机械感
+        re.compile(r'\b(alternate breast size|not skinny)\b', re.I),  # 描述混乱
+        re.compile(r'\b(flyweight|midweight|well-built)\b', re.I),  # 拳击/健身术语，不符合美感
+        # 男性化/粗野体型（不适合女性角色；muscular/buff保留作为athletic的同义词）
+        re.compile(r'\b(burly|brawny|hulking|rugged|well-built)\b', re.I),
+    ],
+    "character": [
+        # 宗教/神圣角色（亵渎/崇拜禁忌）
+        re.compile(r'\b(jesus|christ|crucifixion|nun|saint|angel of death|god|pope|priestess of lust|deity)\b', re.I),
+        re.compile(r'\(dressed as a (king|jesus|pope)\)', re.I),
+        re.compile(r'\(dressed as jesus\)', re.I),
+    ],
+}
 
 
 # ── Tag Cleaning ─────────────────────────────────────────────────────────────────
@@ -172,11 +276,44 @@ def _load_tags_db() -> Optional[dict]:
     return _TAGS_DB
 
 
-def _is_safe(item: str) -> bool:
-    s = str(item).lower()
+def _is_safe(item: str, category: Optional[str] = None) -> bool:
+    """Three-layer safety filter applied at TAG PICK time.
+
+    Layer 1: universal _BLOCK_PATTERNS (minors / aesthetic / body horror / etc.)
+    Layer 2: category-specific denylist (_CATEGORY_DENY) — more aggressive
+             patterns that only matter for specific categories
+             (e.g. 'stretch marks' banned in body_markings but allowed as a
+             general concept elsewhere).
+    Layer 3: category-specific ALLOWLIST — for categories where the bad
+             entries outnumber the good ones (e.g. age_group: only 'adult'
+             and 'youthful' are aesthetic), explicitly accept only those.
+
+    All checks are case-insensitive. If ANY layer rejects the tag, it's
+    silently dropped from the candidate pool so it can never be selected.
+    """
+    s = str(item).lower().strip()
+    if not s:
+        return False
+
+    # Layer 1: universal patterns
     for pat in _BLOCK_PATTERNS:
         if pat.search(s):
             return False
+
+    # Layer 2: category-specific denylist
+    if category:
+        deny_patterns = _CATEGORY_DENY.get(category, [])
+        for pat in deny_patterns:
+            if pat.search(s):
+                return False
+
+    # Layer 3: category-specific allowlist
+    if category:
+        allow = _CATEGORY_ALLOWLISTS.get(category)
+        if allow is not None:
+            # Allowlist is strict: must be in set (case-insensitive)
+            return s in allow
+
     return True
 
 
@@ -206,11 +343,11 @@ def generate_random_tags(
 
     def add(cat_key: str, count: int):
         items = db.get(cat_key, [])
-        safe_items = [i for i in items if _is_safe(str(i))]
+        safe_items = [i for i in items if _is_safe(str(i), category=cat_key)]
         chosen = _pick(safe_items, count)
         for name in chosen:
             cleaned = _clean_tag(str(name))
-            if cleaned and _is_safe(cleaned):
+            if cleaned and _is_safe(cleaned, category=cat_key):
                 result.append({"_category": cat_key, "_name": cleaned})
 
     # ── 图生图模式：过滤所有外貌/体态/人物特征标签 ──
