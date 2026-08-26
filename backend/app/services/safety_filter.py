@@ -23,6 +23,16 @@ BLOCK_PATTERNS: list[tuple[str, str]] = [
     (r'\b(small breasts|small body|tiny body|petite minors)\b', "未成年人身体特征"),
     (r'\b(flat chest|prepubescent|prepuberty)\b', "未成年人身体特征"),
     (r'\b(animated children|fictional child|illustrated child)\b', "虚构儿童"),
+    # ── 美学护栏（用户报告的丑陋/恶心/老人/不符合美感）──
+    (r'\b(elderly|aged woman|aged man|mature elderly|senile|geriatric|withered)\b', "老年人"),
+    (r'\b(grandmother|grandfather|granny|老太|老妇|老头)\b', "老年亲属"),
+    (r'\b(wrinkled skin|wrinkly|sagging skin|loose skin|flabby|cellulite|stretch marks|varicose veins|liver spots|age spots)\b', "衰老皮肤"),
+    (r'\b(burn scar(s)?|fresh burn(s)?|burn mark(s)?|burn victim(s)?|scarred face|disfigured|keloid(s)?|mangled|tribal scarification|ritual scarification|scarred body)\b', "伤疤/毁容"),
+    (r'\b(amputee|prosthetic|cybernetic arm|cybernetic leg|mechanical limb|missing limb|wheelchair|crutches)\b', "残疾/义肢"),
+    (r'\b(blood play|smeared blood|dripping blood|blood-soaked|bloodstained|gory|gore|mangled flesh|exposed bone|rotting)\b', "血腥/恐怖"),
+    (r'\b(hobo|homeless|beggar|ragged clothing|tattered clothing|torn clothing|stained clothing|dirty clothing)\b', "破衣"),
+    (r'\b(demon horns|devil horns|tentacle|触手|monster horns|furry|beast transformation)\b', "反审美奇幻元素"),
+    (r'\b(passed out|unconscious|vomiting|crying uncontrollably|beaten down|broken)\b', "崩溃状态"),
 ]
 
 

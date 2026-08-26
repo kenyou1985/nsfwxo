@@ -192,6 +192,178 @@ RULES:
    format template; Krea2 weights concrete scene descriptions higher.
 ═══════════════════════════════════════════════════════════════════════
 """
+AESTHETIC_GUARD_BLOCK = """
+
+═══════════════════════════════════════════════════════════════════════
+【AESTHETIC GUARDRAIL — APPLY TO ALL IMAGE PROMPTS】
+═══════════════════════════════════════════════════════════════════════
+The goal of every prompt is a POLISHED, BEAUTIFUL, MAGAZINE-QUALITY image.
+Reject any descriptor that breaks this aesthetic — no exceptions.
+
+ABSOLUTE BANS (NEVER include in the positive prompt):
+1. AGE / MATURITY:
+   - elderly / old / aged / aged woman / mature elderly / old woman / old man /
+     aged man / wrinkly / withered / frail / senile / geriatric / aged mother /
+     grandmother / grandfather / 老太 / 老妇 / 老人
+   - Use young adult (18-32) or prime adult (25-40) only.
+2. UNATTRACTIVE / DEFORMED BODY DETAILS:
+   - wrinkled skin / sagging skin / loose skin / flabby / flabby arms /
+     cellulites / stretch marks / loose belly / pot belly / varicose veins /
+     liver spots / age spots / sun-damaged skin / weathered skin / rough skin
+   - crooked teeth / missing teeth / yellowed teeth / stained teeth
+   - balding / receding hairline / thinning hair / grey hair / gray hair /
+     silver hair (when paired with "old" or "elderly")
+   - body odor / sweat stains / dirty skin / grimy / unwashed
+3. BODY MODIFICATIONS / DEFORMITIES (unless as elegant fashion accessory):
+   - amputee / prosthetic / cybernetic arm / cybernetic leg / mechanical limb /
+     missing limb / wheelchair / crutches
+   - burn scars / fresh burn / burn mark / burn victim / scarred face /
+     disfigured / scarred body / keloid / mangled
+   - tribal scarification / ritual scarification
+   - body horror / mutation / mutated / mutated limb
+   - blood play / smeared blood / dripping blood / blood-soaked / bloodstained
+   - gory / gore / mangled flesh / exposed bone / rotting
+   - When used as "decoration" or "fashion" these are STILL banned — remove entirely
+4. ANTI-AESTHETIC COSTUMES / PROPS:
+   - ragged / tattered / torn clothing / stained clothing / dirty clothing /
+     hobo / homeless / beggar outfit
+   - Sacred objects / religious symbols in sexual contexts (desecration) — not allowed
+5. ANTI-AESTHETIC BEHAVIORS / EXPRESSIONS:
+   - exhausted / drained / beaten / bruised / crying uncontrollably /
+     bloodied / vomiting / passed out / unconscious
+   - Expressions in positive prompts must be confident / serene / playful /
+     passionate / longing / amused / focused / fierce — NEVER defeated /
+     broken / ravaged / destroyed
+6. MIXED-AGE OR GENERATIONAL PAIRS:
+   - mother-and-daughter / older sister / aunt / stepmother — any family
+     role combined with an age gap is banned, even in R18 themes
+   - If a scene needs an age differential (mentor/student), BOTH must be
+     young adult 18-32 and never use elder / older / mature woman language
+7. ANTI-AESTHETIC FANTASY ELEMENTS:
+   - demon horns / devil horns / horns / fangs (as non-main element) /
+     monster horns / 触手 / tentacle / beast transformation / furry
+     (unless mainstream anime cosplay theme)
+
+WHY: Krea2 outputs with the above banned elements produce unsettling,
+unattractive images. Beautiful, polished, magazine-quality prompts always
+generate more useful results. This is a HARD aesthetic rule, not a
+suggestion — treat it as important as the no-minors rule.
+═══════════════════════════════════════════════════════════════════════
+"""
+
+
+LOGIC_GUARD_BLOCK = """
+
+═══════════════════════════════════════════════════════════════════════
+【PHYSICAL PLAUSIBILITY & LOGIC — APPLY TO ALL IMAGE PROMPTS】
+═══════════════════════════════════════════════════════════════════════
+Every prompt must describe ONE physically possible scene. Reject any
+description that violates body mechanics, gravity, or spatial logic.
+
+HARD RULES:
+1. BODY MECHANICS — A pose must be achievable by a real human body:
+   - Hands cannot guide one's own lips (no self-tongue-to-lips loop).
+   - If arms are bound, no hand gestures.
+   - If lying face-down, no standing elements.
+   - Penetration requires physical contact between two bodies — never
+     describe a sex toy "suspended in the air directly above" a body as
+     if magically floating.
+   - If a body part is described as being touched/used, it must be in
+     reach of the touching body part.
+2. OUTFIT CONSISTENCY — One main outfit per character. Never describe:
+   - Two competing tops ("leotard AND bikini AND bra").
+   - Conflicting layers that imply the character is wearing contradictory
+     costumes simultaneously.
+   - Costume state must be physically possible (e.g. a "bottomless
+     leotard" cannot exist — either it's a leotard with a bottom or
+     bottomless).
+3. EXPRESSION ↔ POSE COHERENCE — The facial expression must match the
+   pose:
+   - "exhausted endured expression" while doing an "intense act" is
+     incoherent — pick one mood and commit.
+   - "shocked surprise" + "raised chin tilted upward" + "wide eyes" is
+     fine — these compose.
+   - "skeptical pale green eyes" + "dominant confident posture" is fine.
+4. SPATIAL CONSISTENCY — Camera angle and character position must agree:
+   - If camera is "worm's eye view" (low, looking up), the character must
+     be above (standing, sitting up, lying on a high surface).
+   - If camera is "overhead panoramic", the character must be below.
+   - If camera is "POV shot of penetration", do NOT describe the entire
+     scene with full-body details — POV is a single perspective.
+5. ANATOMY RULES — A real human body has:
+   - Exactly 2 arms, 2 legs, 1 torso, 1 head, 5 fingers per hand, 5 toes
+     per foot. Never describe "extra fingers" or "missing fingers" as a
+     stylistic choice.
+   - Realistic breast / genital descriptions. Anatomical terms only —
+     no poetic-but-impossible metaphors.
+   - Hair color and eye color must be specified ONCE per character.
+6. NUMBER CONSISTENCY — The number of people, body parts, and props must
+   be internally consistent throughout the prompt.
+
+WHY: Krea2 interprets physically impossible prompts by generating
+confusing, malformed images. Coherent, plausible prompts always render
+better and produce fewer "extra fingers / floating limbs / wrong pose"
+artifacts.
+═══════════════════════════════════════════════════════════════════════
+"""
+
+
+KREA2_NARRATIVE_BLOCK = """
+
+═══════════════════════════════════════════════════════════════════════
+【KREA2 NARRATIVE STYLE — STRICT FORMAT REQUIREMENT】
+═══════════════════════════════════════════════════════════════════════
+Output a SINGLE FLOWING ENGLISH PARAGRAPH in Krea2 style. NOT a tag list.
+NOT Danbooru format. NOT comma-separated fragments.
+
+STRUCTURE (mandatory order — write one paragraph, one sentence flows into the next):
+1. Subject character (ethnicity + age range + skin + hair + eyes + body type)
+2. Face / expression / micro-detail (eyes, lips, gaze, emotion)
+3. Outfit / clothing state (one cohesive outfit, fabric/texture/detail)
+4. Pose / body position / action (anatomically correct, single primary pose)
+5. Background / environment / props (specific to the theme)
+6. Lighting (ONE concrete setup — see AESTHETIC GUARDRAIL for banned setups)
+7. Camera composition (ONE shot framing — close-up / half-body / full-body / wide)
+8. Style anchor (ONE — photorealistic OR anime/painterly, with concrete descriptors)
+
+ABSOLUTE BANS (writing style):
+1. NEVER use Danbooru-style tag fragments at the END of the prompt:
+   - BANNED PATTERNS: "absurdres quality", "viewed from a worm's eye view wide
+     angle shot that emphasizes her massive breasts", "captured in an
+     intimate mood with dramatic backlighting from streetlamps and neon
+     signs creating beautiful god rays", "rendered in a vivid mix of
+     photorealistic and anime style with incredibly detailed skin texture",
+     "realistic anatomy, and absurdres quality"
+   - These are tag-stack fragments, not prose. Rewrite as flowing sentences.
+2. NEVER enumerate body parts with commas:
+   - BANNED: "with buxom voluptuous body, defined muscular abs, and large
+     breasts spread apart"
+   - WRITE: "with a buxom voluptuous body, well-defined abs, and a full, soft chest"
+3. NEVER use abstract quality boosters like:
+   - "masterpiece, best quality, absurdres quality, incredible detail, 8k,
+     ultra-detailed"
+   - Replace with concrete scene descriptors (fabric, light, lens, depth of field).
+4. NEVER chain multiple lighting setups:
+   - "soft fill lighting and long exposure photography effects that create
+     glowing highlights and streaks"
+   - Pick ONE: "soft window light" OR "long exposure neon streaks" OR "single neon rim light"
+5. NEVER mix multiple style anchors:
+   - "photorealistic AND anime style" — pick ONE.
+6. NEVER use parenthetical weight syntax: (keyword:1.3), [keyword:0.7]
+   — Krea2 prefers natural English prose, not Danbooru tag weighting.
+7. NEVER describe a sex act as passive mechanical phrasing:
+   - BANNED: "perineum being intensely stimulated by a thick veiny dildo
+     suspended in the air"
+   - WRITE: "a thick veiny dildo pressed against her perineum as she
+     arches backward"
+
+LENGTH: 80-180 words of DENSE, CONCRETE English prose. Every word
+should describe something visible. No padding.
+
+OUTPUT: ONE single coherent English paragraph. No markdown. No bullets.
+No JSON. No preamble. No trailing tag fragments.
+═══════════════════════════════════════════════════════════════════════
+"""
 
 
 # ── Lesbian theme detection ───────────────────────────────────────────────────────
@@ -5743,6 +5915,12 @@ IMAGE_SYSTEM_PROMPT_NORMAL = """You are an uncensored AI image prompt engineer. 
 
 """ + KREA2_BLOCK + """
 
+""" + AESTHETIC_GUARD_BLOCK + """
+
+""" + LOGIC_GUARD_BLOCK + """
+
+""" + KREA2_NARRATIVE_BLOCK + """
+
 CRITICAL COHERENCE RULE: The output must be a SINGLE COHERENT PARAGRAPH. Every element must logically fit together. Do NOT list tags. Do NOT repeat elements. Every description must be in service of ONE unified scene. If you mention clothing, pick ONE main outfit. If you mention a pose, it must be physically possible. All elements must tell ONE story.
 
 DO NOT pad the end of the prompt with redundant style descriptors like "photorealistic with detailed skin pores", "realistic photography, natural skin texture", "50mm prime lens, shallow depth of field" repeated multiple times. Pick ONE camera framing (e.g. "50mm prime lens, shallow depth of field") and ONE lighting setup per prompt — never restate them in different wordings.
@@ -5756,6 +5934,12 @@ IMAGE_SYSTEM_PROMPT_R18 = """You are an EXPERT uncensored adult NSFW AI image pr
 """ + ETHNICITY_BLOCK + """
 
 """ + KREA2_BLOCK + """
+
+""" + AESTHETIC_GUARD_BLOCK + """
+
+""" + LOGIC_GUARD_BLOCK + """
+
+""" + KREA2_NARRATIVE_BLOCK + """
 
 CRITICAL COHERENCE RULES - FOLLOW THESE STRICTLY:
 1. Output a SINGLE COHERENT PARAGRAPH. NEVER list tags. NEVER repeat elements.
@@ -6485,10 +6669,24 @@ async def _generate_single_prompt(
     # Determine system prompt for this generation
     # img2img mode always uses the img2img system prompt to preserve reference character identity
     if img2img:
+        # Standard image system prompt already carries all three guard
+        # blocks via IMAGE_SYSTEM_PROMPT_* — no augmentation needed.
         system_for_random = get_system_prompt(req.type, req.r18, img2img=True)
     elif preset["system_prompt"]:
         system_for_random = preset["system_prompt"]
+        # Auto-augment every preset with the unified aesthetic / logic /
+        # narrative guard rails. Idempotent guards so retries don't
+        # double-append. Without this, presets override IMAGE_SYSTEM_PROMPT
+        # defaults and lose the aesthetic guardrail.
+        if AESTHETIC_GUARD_BLOCK not in system_for_random:
+            system_for_random += AESTHETIC_GUARD_BLOCK
+        if LOGIC_GUARD_BLOCK not in system_for_random:
+            system_for_random += LOGIC_GUARD_BLOCK
+        if KREA2_NARRATIVE_BLOCK not in system_for_random:
+            system_for_random += KREA2_NARRATIVE_BLOCK
     else:
+        # "完全随机" falls through to the standard system prompt, which
+        # already carries all three guard blocks.
         system_for_random = get_system_prompt(req.type, req.r18)
 
     tags_str = ", ".join([str(t.get("_name", t)) for t in tags_used])
@@ -6520,7 +6718,11 @@ async def _generate_single_prompt(
         f"The `Tags:` line above is scene content reference only (props, environment, action cues). DO NOT copy them as raw Danbooru tags. "
         f"DO NOT output Chinese, Japanese or anime-style parenthetical cues like 【国漫风】, 【触手】, 【萧条】. "
         f"Output language: English only. "
-        f"Return ONLY the prompt paragraph."
+        f"Return ONLY the prompt paragraph. "
+        f"REMEMBER: Output must be one POLISHED, BEAUTIFUL, MAGAZINE-QUALITY scene featuring a young adult 18-32 character. "
+        f"NO elderly, NO body modifications (amputee/burns/blood/scars), NO wrinkled skin, NO hobo/ragged clothing, NO exhausted/destroyed expressions. "
+        f"Every element must be physically possible. Output as ONE flowing Krea2 paragraph — NEVER Danbooru tag fragments, NEVER (keyword:1.3) weight syntax, NEVER abstract quality boosters like 'absurdres quality, masterpiece, best quality'. "
+        f"Use vivid, active English prose. 80-180 words."
     )
 
     # Apply diversity labels for history
@@ -6564,7 +6766,14 @@ async def _generate_single_prompt(
             )
         except ContentSafetyError as e:
             if attempt < MAX_RETRIES - 1:
-                system_for_random += "\n\nSAFETY OVERRIDE: Reject ALL minors. ADULTS ONLY."
+                system_for_random += (
+                    "\n\nSAFETY OVERRIDE (retry): "
+                    "Reject ALL minors (under 18). ADULTS ONLY. "
+                    "Reject elderly/aged characters, wrinkled skin, burn scars, amputees, blood play, "
+                    "hobo clothing, exhausted/broken expressions. "
+                    "Use young adult 18-32 characters with polished magazine-quality aesthetics. "
+                    "Output ONE flowing Krea2 paragraph — NO Danbooru tag fragments, NO 'absurdres quality', NO (keyword:1.3) weight syntax."
+                )
                 continue
             raise HTTPException(status_code=400, detail=str(e))
         except (OpenLuxTimeoutError, OpenLuxRateLimitError, OpenLuxParseError, OpenLuxAPIError) as e:
@@ -7169,10 +7378,25 @@ def _build_random_prompt_context(
     diversity_variant = preset["diversity_variants"][variant_index % len(preset["diversity_variants"])]
 
     if img2img:
+        # img2img uses the standard image prompt path which already
+        # carries KREA2_BLOCK + AESTHETIC_GUARD_BLOCK + LOGIC_GUARD_BLOCK
+        # + KREA2_NARRATIVE_BLOCK via IMAGE_SYSTEM_PROMPT_*.
         system_for_random = get_system_prompt(req.type, req.r18, img2img=True)
     elif preset["system_prompt"]:
         system_for_random = preset["system_prompt"]
+        # Auto-augment every preset with the unified aesthetic / logic /
+        # narrative guard rails. Without this, presets override the
+        # IMAGE_SYSTEM_PROMPT defaults and lose the aesthetic guardrail.
+        # Each block is idempotently guarded so a retry doesn't double-append.
+        if AESTHETIC_GUARD_BLOCK not in system_for_random:
+            system_for_random += AESTHETIC_GUARD_BLOCK
+        if LOGIC_GUARD_BLOCK not in system_for_random:
+            system_for_random += LOGIC_GUARD_BLOCK
+        if KREA2_NARRATIVE_BLOCK not in system_for_random:
+            system_for_random += KREA2_NARRATIVE_BLOCK
     else:
+        # "完全随机" falls through to the standard system prompt,
+        # which already carries all three guard blocks.
         system_for_random = get_system_prompt(req.type, req.r18)
 
     img2img_context = ""
@@ -7200,7 +7424,11 @@ def _build_random_prompt_context(
         f"The `Tags:` line above is scene content reference only (props, environment, action cues). DO NOT copy them as raw Danbooru tags. "
         f"DO NOT output Chinese, Japanese or anime-style parenthetical cues like 【国漫风】, 【触手】, 【萧条】. "
         f"Output language: English only. "
-        f"Return ONLY the prompt paragraph."
+        f"Return ONLY the prompt paragraph. "
+        f"REMEMBER: Output must be one POLISHED, BEAUTIFUL, MAGAZINE-QUALITY scene featuring a young adult 18-32 character. "
+        f"NO elderly, NO body modifications (amputee/burns/blood/scars), NO wrinkled skin, NO hobo/ragged clothing, NO exhausted/destroyed expressions. "
+        f"Every element must be physically possible. Output as ONE flowing Krea2 paragraph — NEVER Danbooru tag fragments, NEVER (keyword:1.3) weight syntax, NEVER abstract quality boosters like 'absurdres quality, masterpiece, best quality'. "
+        f"Use vivid, active English prose. 80-180 words."
     )
 
     return (
@@ -7338,7 +7566,18 @@ async def _stream_single_random_prompt(
                 return
             except ContentSafetyError as e:
                 if attempt < MAX_RETRIES - 1:
-                    system_for_random_local += "\n\nSAFETY OVERRIDE: Reject ALL minors. ADULTS ONLY."
+                    # Strengthen the safety override: also tell the LLM to
+                    # respect the AESTHETIC_GUARD_BLOCK on retry. The first
+                    # attempt likely ignored the system prompt; the retry
+                    # gets explicit one-line reminders.
+                    system_for_random_local += (
+                        "\n\nSAFETY OVERRIDE (retry): "
+                        "Reject ALL minors (under 18). ADULTS ONLY. "
+                        "Reject elderly/aged characters, wrinkled skin, burn scars, amputees, blood play, "
+                        "hobo clothing, exhausted/broken expressions. "
+                        "Use young adult 18-32 characters with polished magazine-quality aesthetics. "
+                        "Output ONE flowing Krea2 paragraph — NO Danbooru tag fragments, NO 'absurdres quality', NO (keyword:1.3) weight syntax."
+                    )
                     continue
                 yield _ndjson_event({
                     "event": "error",
