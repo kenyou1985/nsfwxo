@@ -2601,42 +2601,40 @@ _ACTION_PRE_FORPLAY = [
     "the woman unbuckles the man's belt while grinding against him in the {loc}",
 ]
 
-# Sex beats (R18 mode, panels 3-4 / 4-5 etc.) — 24+ variants
+# Sex beats (R18 mode, panels 3-4 / 4-5 etc.) — aggressive variants with extreme intensity
 _ACTION_SEX_LIST = [
-    "the man thrusts deep into the woman from behind in doggy style, both moaning loudly",
-    "the man penetrates the woman missionary with her legs wrapped around his waist, hands gripping the sheets",
-    "the man lifts the woman up against the wall in a standing carry, her legs locked around his hips as he thrusts deeply",
-    "the woman rides the man cowgirl style, bouncing rhythmically while he grips her hips",
-    "the man penetrates the woman in prone bone position, her back arched and face pressed into the surface",
-    "the woman sits on top of the man reverse cowgirl, looking back over her shoulder at him seductively",
-    "the man holds the woman from behind in a standing doggy position, supporting her weight as he thrusts",
-    "the man and woman are in 69 position, simultaneously performing oral on each other",
-    "the man penetrates the woman in spooning position from behind, his arm wrapped around her waist",
-    "the man spreads the woman's legs wide and thrusts into her in a butterfly position on the edge",
-    "the woman grinds on the man in lotus position, intimate eye contact as they make love slowly",
-    "the man holds the woman in a full nelson lift, both standing as he drives deep into her",
-    "the man and woman are entangled in piledriver position, her legs hooked over his shoulders",
-    "the man thrusts into the woman amazon position, her squatting on top in a dominant stance",
-    "the man and woman embrace tightly in pretzel dip position, legs interlocked as they move together",
-    "the man performs oral sex on the woman, her legs draped over his shoulders as he licks deeply",
-    "the man finger-fucks the woman while kissing her inner thighs, building anticipation",
-    "the woman pleasures the man with her mouth in deepthroat, his hands gripping her hair",
-    "the man eats the woman's pussy while she moans, fingers gripping his hair",
-    "the man and woman hold each other in a deep standing embrace, her back against the wall, both nude",
-    "the man penetrates the woman from behind with her bent over a table in the {loc}, deep rapid thrusts",
-    "the woman wraps her legs around the man's waist in the {loc}, his cock buried deep inside her",
-    "the man flips the woman onto her back and thrusts into her, her breasts bouncing with each thrust",
-    "the man and woman grind together in slow sensual motion, her clit rubbing against his pubic bone",
+    "the man hammers deep into the woman from behind in brutal doggy style, her back arched violently as she screams in ecstasy",
+    "the man destroys the woman missionary with her legs pinned over his shoulders, relentless pounding that shakes the bed",
+    "the man lifts and pins the woman against the wall in a standing carry, his rock-hard cock driving into her wet pussy with savage intensity",
+    "the woman bounces frantically on the man's cock in wild cowgirl, her breasts slamming down with each violent impact, screaming his name",
+    "the man pounds the woman in prone bone, her face buried in the pillow as her ass bounces off his hips with each earth-shattering thrust",
+    "the woman grinds reverse cowgirl with fierce intensity, looking back with hungry eyes as his thick cock stretches her completely",
+    "the man grips the woman's hips and drills her from behind in standing doggy, her body rocking forward with each destructive stroke",
+    "the man and woman writhe in intense 69, both desperately devouring each other with primal hunger",
+    "the man pounds the woman spooning from behind, his arm locked around her throat as he drives deep, her eyes rolled back in bliss",
+    "the man spreads the woman's legs wide in butterfly position and destroys her pussy with one brutal thrust after another",
+    "the woman rides the man in lotus, her hips circling as she takes every inch of his throbbing cock, foreheads pressed together in passion",
+    "the man lifts the woman in full nelson and relentlessly drives his massive cock into her, both screaming as he reaches the deepest spot",
+    "the man traps the woman in piledriver, her legs hooked over his shoulders as he slams into her with crushing force",
+    "the man dominates the woman in amazon, her body slamming down onto his cock as she rides him with wild abandon",
+    "the man buries his face between the woman's thighs and devours her dripping pussy like a starving animal, fingers digging into her hips",
+    "the woman deepthroats the man's massive cock until her lips stretch, drool dripping down her chin as he face-fucks her desperately",
+    "the man worships the woman's wet pussy with his tongue, her back arching as she fingers herself and screams in ecstasy",
+    "the man pins the woman against the wall standing, his thick cock ramming into her tight hole as her nails claw down his back",
+    "the man bends the woman over the table and destroys her from behind, the sound of skin slapping skin echoing through the room",
+    "the woman wraps her legs around the man's waist and pulls him deeper, taking his entire length as they explode together",
+    "the man flips the woman onto her back and drills her missionary, her bouncing breasts and screaming face captured in extreme detail",
+    "the man and woman grind in missionary with intense hip action, her wet pussy dripping as his thick cock hits her G-spot repeatedly",
 ]
 _ACTION_SEX_CLIMAX = [
-    "the man thrusts hard one final time, ejaculating on the woman's breasts while she screams in climax",
-    "the man cums deep inside the woman missionary, her body trembling as her orgasm peaks",
-    "the man and woman climax simultaneously in lotus position, foreheads pressed together, breathless",
-    "the man ejaculates on the woman's face from above, his cock pulsing as cum drips down her cheeks",
-    "the man and woman collapse together in exhausted afterglow, his cock still inside her, both panting",
-    "the woman screams in climax as the man continues thrusting, her nails digging into his back, both drenched in sweat",
-    "the man's cock throbs as he shoots his load inside the woman, her pussy milking every drop in her orgasm",
-    "the man and woman reach simultaneous orgasm, bodies convulsing together as cum spills between her thighs",
+    "the man slams into the woman one final time and explodes, thick ropes of cum shooting onto her bouncing breasts as she screams in mind-blowing climax",
+    "the man's cock erupts deep inside the woman's soaking pussy, her body convulsing as wave after wave of hot cum fills her completely",
+    "the man and woman reach explosive simultaneous climax in lotus, their bodies trembling violently as pleasure overwhelms them completely",
+    "the man jerks off and unloads his entire load onto the woman's face, thick white cum splattering across her cheeks, nose, and open mouth",
+    "the woman's eyes roll back as the man's hot cum explodes inside her missionary, her tight pussy milking every spurt as she screams in ecstasy",
+    "the man pounds the woman's soaking wet pussy one last time and cums hard, both bodies shaking as climax rips through them",
+    "the man's massive cock explodes in the woman's mouth, her throat bulging as she chugs load after load of his hot cream, eyes rolled back",
+    "the woman and man collapse in exhausted heap, bodies drenched in sweat and cum, chests heaving as they gasp for air after explosive climax",
 ]
 
 
@@ -4971,8 +4969,8 @@ async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key
             arc_panels = _R18_ARC_PANELS.get(panel_count, _R18_ARC_PANELS[5])
             system_template = _R18_OUTLINE_SYSTEM
             arc_label = "开场遇见 → 升温调情 → 脱衣前戏 → 性爱进行 → 高潮射精"
-            # For R18: mix theme-specific poses + random pool
-            pool_poses = get_random_poses(max(3, panel_count))
+            # For R18: use expanded pose pool (15+ poses) from 95-pose library for maximum diversity
+            pool_poses = get_random_poses(max(15, panel_count + 10))
             pose_list_str = "\n".join(f"  - {p}" for p in pool_poses)
         else:
             arc_panels = _NORMAL_ARC_PANELS.get(panel_count, _NORMAL_ARC_PANELS[4])
@@ -5895,16 +5893,23 @@ STRICT PROHIBITION - ZERO TOLERANCE - NO EXCEPTIONS:
 - Absolutely NO daughter, sister, or family members in sexual contexts
 - ANY panel that involves minors will result in content policy violation and immediate rejection
 
-【POSE DIVERSITY - MANDATORY】:
-Each panel MUST use a DIFFERENT sexual position. Pick from this pool:
+【POSE DIVERSITY - MANDATORY - CHOOSE FROM 95-POSE LIBRARY】:
+Each panel MUST use a DIFFERENT sexual position. Pick from this EXPANDED pool of 95 poses:
 {pose_list}
+
+【CLIMAX & INTENSITY REQUIREMENTS】:
+For sex panels (especially climax), you MUST describe with EXTREME intensity:
+- Use close-up shots: "extreme close-up on genitals", "macro shot of penetration", "intimate close-up of facial expression during climax"
+- Use extreme intensity: "brutal", "relentless", "savage", "fierce", "explosive", "mind-blowing", "overwhelming"
+- Describe body reactions: "screaming in ecstasy", "body convulsing", "back arching violently", "eyes rolling back"
+- Use aggressive verbs: "hammering", "destroying", "ravaging", "obliterating", "imprisoning"
 
 CRUCIAL REQUIREMENTS:
 1. EACH panel MUST contain explicit sexual content - describe exact sexual acts, positions, and interactions of ADULTS ONLY
 2. Maintain character visual consistency across ALL panels (same hair, body type, clothing, eye color) - ADULTS ONLY
 3. Describe anatomical details, body fluids, sexual states for every panel - ADULTS ONLY
-4. Include explicit camera angles: close-up on genitals, POV shots, spread shot, cum shot, insertion angle
-5. Each panel MUST pick a DISTINCTLY DIFFERENT position from the pool above
+4. Include explicit camera angles: EXTREME close-up on genitals, POV destruction shots, spread-eagle shot, cum explosion shot, zoom in on climax
+5. Each panel MUST pick a DISTINCTLY DIFFERENT position from the 95-pose pool above
 
 Format STRICTLY as JSON array:
 [{{"panel_number": 1, "scene_description": "adult sexual setup of the scene", "image_prompt": "fully explicit Krea2-style prompt - ADULTS ONLY"}}, ...]
@@ -7439,7 +7444,7 @@ async def random_prompt_stream(req: RandomRequest, api_key: str = Depends(get_ap
 @router.post("/storyboard", response_model=StoryboardResponse)
 async def storyboard(req: StoryboardRequest, api_key: str = Depends(get_api_key)):
     if req.r18:
-        selected_poses = get_random_poses(req.panel_count + 2)
+        selected_poses = get_random_poses(max(15, req.panel_count + 10))
         pose_list_str = "\n".join(f"  - {p}" for p in selected_poses)
         system_prompt = STORYBOARD_SYSTEM_PROMPT_R18.format(pose_list=pose_list_str)
     else:
@@ -7525,7 +7530,7 @@ async def _storyboard_stream_ndjson(
     req: StoryboardRequest,
 ) -> AsyncIterator[str]:
     if req.r18:
-        selected_poses = get_random_poses(req.panel_count + 2)
+        selected_poses = get_random_poses(max(15, req.panel_count + 10))
         pose_list_str = "\n".join(f"  - {p}" for p in selected_poses)
         system_prompt = STORYBOARD_SYSTEM_PROMPT_R18.format(pose_list=pose_list_str)
     else:
@@ -8428,10 +8433,13 @@ _R18_OUTLINE_SYSTEM = """You are an EXPERT adult comic director specializing in 
 【THEME FIRST】: Theme consistency is a HARD CONSTRAINT — see the THEME CONTRACT block
 above. EXPLICIT pacing/positions below should fit INTO the ★ SCENARIOS and ★ COSTUMES.
 
-【POSE RANDOMIZATION - ABSOLUTELY MANDATORY】:
-You MUST select EXPLICITLY DIFFERENT sexual positions for each panel from the following 105-pose pool. NO TWO panels may share the same position category (e.g. doggy, cowgirl, missionary, 69, etc.). Variety is CRITICAL.
+【POSE RANDOMIZATION - ABSOLUTELY MANDATORY - CHOOSE FROM 95-POSE LIBRARY】:
+You MUST select EXPLICITLY DIFFERENT sexual positions for each panel from the following
+EXPANDED 95-pose pool. NO TWO panels may share the same position category
+(e.g. doggy, cowgirl, missionary, 69, etc.). Variety is CRITICAL for every generation.
+The pool below contains 95 unique poses - pick strategically to maximize diversity.
 
-AVAILABLE POSITIONS (pick different ones per panel):
+AVAILABLE POSITIONS (pick different ones per panel - this is your FULL 95-pose library):
 {pose_list}
 
 【CREATIVITY WITHIN CONSTRAINTS】:
@@ -8453,15 +8461,24 @@ CRITICAL PACING RULES:
 - Each panel must ADVANCE the sexual narrative naturally
 - NEVER jump directly to penetration in Panel 1
 
-EXPLICIT CONTENT requirements for Panel 3+:
-- MANDATORY: Pick one position from the {pose_list} list above for each panel. Each panel MUST use a DISTINCTLY DIFFERENT position from all other panels.
-- Use explicit sexual terms: suck, lick, fuck, penetrate, thrust, cum, ejackulate, spray, spread, thrust in, balls deep, face covered
-- Describe anatomy: penis, vagina, breasts, nipples, asshole, lips, tongue
-- Describe body fluids: saliva, precum, cum, vaginal fluids
-- Describe camera angles: POV, close-up on genitals, spread shot, cum shot, POV insertion
-- Be CREATIVE in how characters express pleasure and interact, WHILE staying in ★ SCENARIOS
-- ALWAYS start image_prompt with explicit ethnicity descriptor (e.g. "a beautiful Thai woman with warm beige skin and silky black hair,", "a handsome Brazilian man with tanned olive skin and dark brown eyes,", "a stunning Iranian woman with fair olive skin and dark almond eyes,", "a chiseled Russian man with pale skin and light blue eyes,"). Skin tone/facial features must MATCH the chosen ethnicity.
-- image_prompt MUST also include the ★ scenario location (in English equivalent) and the ★ costume keyword.
+【CLIMAX PANELS - INTENSITY & CLOSE-UP REQUIREMENTS】:
+For panels 3+ (especially climax panels), you MUST describe with EXTREME intensity:
+- Use close-up shots: "extreme close-up on genitals", "macro shot of penetration", "intimate close-up of facial expression during climax"
+- Use extreme intensity modifiers: "brutal", "relentless", "savage", "fierce", "explosive", "mind-blowing", "overwhelming"
+- Describe body reactions: "screaming in ecstasy", "body convulsing", "back arching violently", "eyes rolling back", "tears of pleasure"
+- Describe physical details: "sweat drenching bodies", "skin glistening", "breasts bouncing violently", "hips slamming together"
+- Use aggressive action verbs: "hammering", "destroying", "ravaging", "obliterating", "imprisoning"
+
+【EXPLICIT CONTENT REQUIREMENTS FOR PANEL 3+ - MANDATORY】:
+- MANDATORY: Pick one DISTINCT position from the {pose_list} pool above for each panel.
+- Use explicit sexual terms: suck, lick, fuck, penetrate, thrust HARD, cum, spray, spread wide, balls deep, face covered, destroy, ravage
+- Describe anatomy in detail: rock-hard penis, throbbing cock, dripping wet pussy, swollen lips, hard nipples, engorged clitoris
+- Describe body fluids: saliva drooling, precum leaking, cum exploding, vaginal secretions soaking
+- Describe camera angles: EXTREME close-up on genitals, POV destruction shot, spread-eagle shot, cum explosion shot, POV insertion angle, zoom in on climax face
+- Be CREATIVE and AGGRESSIVE in how characters express pleasure
+- ALWAYS start image_prompt with explicit ethnicity descriptor
+- image_prompt MUST also include the ★ scenario location and the ★ costume keyword
+- For climax panels: "intimate extreme close-up" and "passionate intense" descriptions are REQUIRED
 
 CRITICAL: ALL characters 18+. NO minors. NO non-consent. NO animals.
 
@@ -8653,8 +8670,8 @@ async def generate_storyboard_outline(
         arc_panels = _R18_ARC_PANELS.get(panel_count, _R18_ARC_PANELS[5])
         system_template = _R18_OUTLINE_SYSTEM
         arc_label = "开场遇见 → 升温调情 → 脱衣前戏 → 性爱进行 → 高潮射精"
-        # Inject random poses so LLM picks diverse positions for each panel
-        selected_poses = get_random_poses(panel_count + 2)
+        # Inject random poses from expanded 95-pose pool for maximum diversity
+        selected_poses = get_random_poses(max(15, panel_count + 10))
         pose_list_str = "\n".join(f"  - {p}" for p in selected_poses)
     else:
         arc_panels = _NORMAL_ARC_PANELS.get(panel_count, _NORMAL_ARC_PANELS[4])
