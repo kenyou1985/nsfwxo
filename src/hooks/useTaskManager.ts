@@ -327,11 +327,20 @@ export function useTaskManager({
       // jpg/png URLs; using `packed:<taskId>` here forced every history
       // load to re-download and re-pack the same blob, which is what made
       // the history page come up empty.
+      //
+      // Multi-image fix: when the workflow returns >1 direct image URLs
+      // (img2img with count>1, batch_size>1, etc.), we MUST pack all
+      // images into a local zip stored in IndexedDB. Using only the first
+      // URL as zipUrl and caching only dataUrls[0] would make history
+      // display a single image even though the workflow generated N.
+      // txt2img has always used the multi-image packed path; img2img must
+      // behave the same way for parity.
       let packedKey = '';
       if (finalImages.length > 0) {
         const firstUrl = directImageUrls[0];
-        if (firstUrl && /\.(png|jpg|jpeg|webp|gif)(\?|$)/i.test(firstUrl)) {
-          // Direct image URL — use it as the history zipUrl.
+        const isMultiImage = finalImages.length > 1;
+        if (!isMultiImage && firstUrl && /\.(png|jpg|jpeg|webp|gif)(\?|$)/i.test(firstUrl)) {
+          // Single-image direct URL — use it as the history zipUrl.
           packedKey = firstUrl;
           if (dataUrls[0]) {
             // Cache the data URL so a page reload after CDN expiry still works.
