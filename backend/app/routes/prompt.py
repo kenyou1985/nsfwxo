@@ -4584,8 +4584,9 @@ RULES:
 6. scene_description MUST be the FULL 2-4 sentences written out in Chinese — no truncation, no trailing '...', no '等', no 'etc.'. End every description with '。'.
 7. {r18_extra}
 8. Output VALID JSON ONLY. No prose around the JSON. No markdown fences.
+9. FIXED LOCATION — ALL panels MUST take place in the EXACT SAME PRIMARY ★ SCENARIO location. Do NOT switch locations between panels (no jumping to rest room / lounge / bar / bathroom). If a new location is needed, RESTRUCTURE the scene to fit the original ★ SCENARIO instead.
+10. CLOSE-UP / MACRO FRAMING for sex panels — For panels showing explicit sexual acts (panel_index >= 3), you MUST use close-up or macro framing. Use "close-up on penetration", "macro shot", "intimate close-up", "tight framing on bodies", "medium close-up from waist up", "POV shot of penetration". Wide / distant / establishing shots are BANNED for sex panels.
 """
-
 
 def _build_panel_user_prompt(
     req_panel_index: int,
@@ -5038,10 +5039,20 @@ async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key
                 "     For multi-person themes (拳击搭档 / 高尔夫球童 / etc.), the SAME two\n"
                 "     characters appear in EVERY panel — never replace them with people from\n"
                 "     different countries.\n"
-                "  8. PRIMARY LOCATION ANCHOR: The FIRST scenario in ★ SCENARIOS is the\n"
-                "     PRIMARY location. At least 60% of panels MUST take place there (or in a\n"
-                "     tightly-connected secondary scenario from the same list). Do NOT split\n"
-                "     the storyboard across unrelated off-theme settings.\n"
+                "  8. PRIMARY LOCATION ANCHOR — HARD RULE: The FIRST scenario in ★ SCENARIOS is\n"
+                "     the PRIMARY location. EVERY panel (100%, NOT just 60%) MUST take place in\n"
+                "     this primary location OR another ★ SCENARIO from the same list. ALL panels\n"
+                "     share the SAME primary scenario — DO NOT jump to other scenarios between\n"
+                "     panels. If ★ list has only ONE scenario, EVERY panel must use that one.\n"
+                "\n"
+                "  9. CAMERA FRAMING — CLOSE-UP / MACRO MANDATORY FOR SEX POSES: For any panel\n"
+                "     showing explicit sexual acts (Panel 3+), you MUST use close-up or macro\n"
+                "     framing, NEVER wide-shot / full-body long-shot. Use phrases like\n"
+                "     \"close-up on penetration\", \"macro on genitals\", \"intimate close-up\",\n"
+                "     \"tight framing on bodies\", \"medium close-up from waist up\", \"POV shot\n"
+                "     of penetration\". Wide shots that show the full scene with distance are\n"
+                "     BANNED for sex panels — only the LEAD-WOMAN intro panel may use a wider\n"
+                "     establishing shot.\n"
                 "\n"
                 "Theme data is a HARD CONSTRAINT, not a creative suggestion."
             )
@@ -8525,6 +8536,26 @@ Each panel's image_prompt MUST describe a DIFFERENT sex position. Pick from the
 (missionary / doggystyle / cowgirl / 69 / etc.). If you reuse the same position
 across two panels, the output is REJECTED.
 
+【FIXED LOCATION — ALL PANELS SAME PLACE — HARD RULE】:
+ALL panels MUST take place in the EXACT SAME PRIMARY ★ SCENARIO location. Do NOT
+switch locations between panels. Panel 4 and Panel 5 MUST be in the SAME place as
+Panel 1-3 — no scene-jumping, no "moving to a rest room / lounge / bar / bathroom"
+between panels. If you feel a new location is needed, RESTRUCTURE the scene to fit
+the original ★ SCENARIO instead of switching to a different location.
+
+【CAMERA FRAMING — CLOSE-UP / MACRO REQUIRED FOR SEX PANELS — HARD RULE】:
+For every panel showing explicit sexual acts (Panel 3+), you MUST use close-up or
+macro framing. NEVER use wide-shot / full-body long-shot / distant framing for sex
+panels. Include in every sex panel's image_prompt one of:
+  - "close-up on penetration"
+  - "macro shot of penetration"
+  - "intimate close-up"
+  - "tight framing on bodies"
+  - "medium close-up from waist up"
+  - "POV shot of penetration"
+Wide / distant / establishing shots are BANNED for sex panels. Only the
+LEAD-WOMAN intro panel (Panel 1) may use a wider establishing shot.
+
 Output as raw JSON:
 {{"outline": {{"arc": "{arc_label}", "scenes": ["Panel 1: 前戏描述", "Panel 2: 升温描述", ...]}}, "storyboard": [{{"panel_number": 1, "scene_description": "中文场景描述", "image_prompt": "explicit SD prompt"}}, ...]}}
 
@@ -8652,10 +8683,20 @@ async def generate_storyboard_outline(
                 "     For multi-person themes (拳击搭档 / 高尔夫球童 / etc.), the SAME two\n"
                 "     characters appear in EVERY panel — never replace them with people from\n"
                 "     different countries.\n"
-                "  8. PRIMARY LOCATION ANCHOR: The FIRST scenario in ★ SCENARIOS is the\n"
-                "     PRIMARY location. At least 60% of panels MUST take place there (or in a\n"
-                "     tightly-connected secondary scenario from the same list). Do NOT split\n"
-                "     the storyboard across unrelated off-theme settings.\n"
+                "  8. PRIMARY LOCATION ANCHOR — HARD RULE: The FIRST scenario in ★ SCENARIOS is\n"
+                "     the PRIMARY location. EVERY panel (100%, NOT just 60%) MUST take place in\n"
+                "     this primary location OR another ★ SCENARIO from the same list. ALL panels\n"
+                "     share the SAME primary scenario — DO NOT jump to other scenarios between\n"
+                "     panels. If ★ list has only ONE scenario, EVERY panel must use that one.\n"
+                "\n"
+                "  9. CAMERA FRAMING — CLOSE-UP / MACRO MANDATORY FOR SEX POSES: For any panel\n"
+                "     showing explicit sexual acts (Panel 3+), you MUST use close-up or macro\n"
+                "     framing, NEVER wide-shot / full-body long-shot. Use phrases like\n"
+                "     \"close-up on penetration\", \"macro on genitals\", \"intimate close-up\",\n"
+                "     \"tight framing on bodies\", \"medium close-up from waist up\", \"POV shot\n"
+                "     of penetration\". Wide shots that show the full scene with distance are\n"
+                "     BANNED for sex panels — only the LEAD-WOMAN intro panel may use a wider\n"
+                "     establishing shot.\n"
                 "\n"
                 "Theme data is a HARD CONSTRAINT, not a creative suggestion."
         )
