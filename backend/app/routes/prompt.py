@@ -6454,554 +6454,8 @@ async def _generate_single_prompt(
 
     tags_str = ", ".join([str(t.get("_name", t)) for t in tags_used])
 
-    # ─── 10 Theme Presets for Random Draw ─────────────────────────────────────────
-    # Each theme has: name (Chinese), description, system prompt style, diversity focus
-
-    _RANDOM_THEME_PRESETS = {
-        "完全随机": {
-            "label": "完全随机",
-            "description": "混合各种风格，完全随机生成",
-            "system_prompt": None,  # Use default
-            "diversity_variants": [
-                "Portrait focus: facial expression, intimate mood.",
-                "Full body: casual pose, indoor natural setting.",
-                "Standing pose: confident posture, outdoor background.",
-                "Reclining pose: soft lighting, relaxed atmosphere.",
-                "Fashion/lingerie: elegant, stylish atmosphere.",
-                "Cinematic framing: dramatic mood, moody lighting.",
-                "Themed costume: roleplay atmosphere, character-focused.",
-                "Bedroom scene: intimate setting, warm lighting.",
-                "Artistic composition: mirror/reflection, creative angle.",
-                "Outdoor/nature: natural light, exotic location.",
-            ],
-        },
-        "暗示优雅": {
-            "label": "暗示优雅",
-            "description": "暗示性+优雅风格，不露骨，聚焦人物美感",
-            "system_prompt": """You are an elegant AI image prompt engineer. Generate ONE tasteful, suggestive adult image prompt.
-
-GUIDE: Write as a flowing paragraph describing character beauty, expression, outfit, setting, and mood. Focus on aesthetic appeal, subtle intimate tension, and atmospheric elegance. Do NOT describe explicit sexual acts or penetration. Keep it artistic and refined.
-
-RULES:
-1. Character: detailed appearance, ethnicity (rotate among 亚洲人 / 黄种人 / 中国人 / 日本人 / 韩国人 / 泰国人 / 越南人 / 印度人 / 伊朗人 / 中东人 / 白人 / 欧洲人 / 意大利人 / 法国人 / 德国人 / 俄罗斯人 / 美国人 / 拉丁人 / 拉美人 / 巴西人 / 墨西哥人 / 非洲人 / 混血儿 — match skin tone + facial features to chosen ethnicity), expression, posture
-2. Setting: elegant environment, props, lighting
-3. Mood: subtle intimate tension, emotional depth
-4. ONE cohesive artistic scene
-5. Adults 18+ only. No minors.
-6. NO explicit acts. Focus on beauty, elegance, and atmosphere.
-2-3 sentences. Output ONLY the prompt paragraph. No explanations.""",
-            "diversity_variants": [
-                "Portrait close-up: face, expression, soft lighting.",
-                "Full body standing: confident pose, elegant background.",
-                "Sitting pose: relaxed, moody lighting.",
-                "Fashion focus: stylish outfit, studio lighting.",
-                "Bedroom: warm atmosphere, artistic framing.",
-                "Mirror reflection: creative composition.",
-                "Natural light: outdoor or window lighting.",
-                "Cinematic: dramatic shadows and highlights.",
-            ],
-        },
-        "亲密温馨": {
-            "label": "亲密温馨",
-            "description": "情侣亲密场景，温馨浪漫，情感表达",
-            "system_prompt": """You are an AI image prompt engineer. Generate ONE romantic, intimate adult image prompt featuring couples/lovers.
-
-GUIDE: Write a flowing paragraph about an intimate moment between lovers. Focus on emotional connection, tender expressions, romantic setting, and warm atmosphere. Describe physical closeness with tasteful elegance. Keep it romantic and heartfelt, not explicit.
-
-RULES:
-1. Character pair: two adults, romantic dynamic, genuine emotion
-2. Setting: romantic environment (bedroom, sunset, candlelight, etc.)
-3. Mood: tenderness, love, warmth, intimacy
-4. ONE cohesive romantic scene
-5. Adults 18+ only. No minors.
-6. Focus on romance and emotional connection, not explicit acts.
-2-3 sentences. Output ONLY the prompt paragraph.""",
-            "diversity_variants": [
-                "Close embrace: face-to-face, tender eye contact.",
-                "Cuddling in bed: warm blankets, morning light.",
-                "Passionate kiss: romantic setting, sunset background.",
-                "Lovers' whisper: intimate moment, soft lighting.",
-                "Couple on couch: relaxed, affectionate pose.",
-                "Morning after: warm bedroom, cozy atmosphere.",
-                "Dancing together: romantic indoor setting.",
-                "Outdoor romance: sunset beach, holding hands.",
-            ],
-        },
-        "幻想Cos": {
-            "label": "幻想Cos",
-            "description": "幻想角色扮演，制服诱惑，COSPLAY风格",
-            "system_prompt": """You are an AI image prompt engineer. Generate ONE fantasy/roleplay themed adult image prompt.
-
-GUIDE: Write a flowing paragraph featuring character in fantasy costume or roleplay outfit (maid, nurse, police, school-adjacent professional, secretary, cat ears, etc.). Focus on the costume details, character confidence, and thematic atmosphere. Combine elegance with the fantasy element.
-
-RULES:
-1. Character: detailed appearance, specific costume/outfit with accessories, ethnicity (rotate among 亚洲人 / 黄种人 / 中国人 / 日本人 / 韩国人 / 泰国人 / 越南人 / 印度人 / 伊朗人 / 中东人 / 白人 / 欧洲人 / 意大利人 / 法国人 / 德国人 / 俄罗斯人 / 美国人 / 拉丁人 / 拉美人 / 巴西人 / 墨西哥人 / 非洲人 / 混血儿 — match skin tone + facial features to chosen ethnicity)
-2. Roleplay theme: clear fantasy context and setting
-3. Expression: confident, playful, or seductive
-4. ONE cohesive themed scene
-5. Adults 18+ only. No minors, no school uniforms.
-6. Costume-focused, tasteful fantasy atmosphere.
-2-3 sentences. Output ONLY the prompt paragraph.""",
-            "diversity_variants": [
-                "Maid costume: elegant, detailed apron and headdress.",
-                "Nurse outfit: white uniform, professional yet alluring.",
-                "Secretary/corporate: pencil skirt, glasses, office setting.",
-                "Cat ears/fantasy: animal ears, tail, playful expression.",
-                "Police/authority: uniform, confident stance.",
-                "Fantasy armor: ornate, detailed medieval costume.",
-                "Kimono/traditional: elegant cultural attire, exotic setting.",
-                "Lingerie set: detailed lace, silk, elegant underwear.",
-            ],
-        },
-        "职场诱惑": {
-            "label": "职场诱惑",
-            "description": "职场场景中的暧昧张力，专业与诱惑的结合",
-            "system_prompt": """You are an AI image prompt engineer. Generate ONE workplace-themed adult image prompt with subtle power dynamics and allure.
-
-GUIDE: Write a flowing paragraph about an attractive professional in a workplace setting. Focus on the tension between professional appearance and intimate atmosphere. Describe the character's best features, stylish work attire, and the charged environment.
-
-RULES:
-1. Character: attractive professional, detailed appearance (with ethnicity — rotate among 亚洲人 / 黄种人 / 中国人 / 日本人 / 韩国人 / 泰国人 / 越南人 / 印度人 / 伊朗人 / 中东人 / 白人 / 欧洲人 / 意大利人 / 法国人 / 德国人 / 俄罗斯人 / 美国人 / 拉丁人 / 拉美人 / 巴西人 / 墨西哥人 / 非洲人 / 混血儿; match skin tone + facial features to chosen ethnicity), confident posture
-2. Setting: office, clinic, studio, or other professional environment
-3. Mood: subtle power tension, professional allure, restrained sensuality
-4. ONE cohesive workplace scene
-5. Adults 18+ only. No minors.
-6. Professional context with suggestive undertones.
-2-3 sentences. Output ONLY the prompt paragraph.""",
-            "diversity_variants": [
-                "Office executive: blazer, pencil skirt, confident pose.",
-                "Studio/model: creative workspace, artistic lighting.",
-                "Clinic/medical: professional attire, clean modern setting.",
-                "Private study: books, warm wood tones, intellectual atmosphere.",
-                "Fashion studio: bright natural light, creative space.",
-                "Luxury hotel lobby: elegant, sophisticated setting.",
-                "Bar/lounge: moody lighting, sophisticated atmosphere.",
-                "Car/garage: modern industrial setting, sleek aesthetic.",
-            ],
-        },
-        "热恋情侣": {
-            "label": "热恋情侣",
-            "description": "热恋期情侣的激情与浪漫，充满活力与欲望",
-            "system_prompt": """You are an AI image prompt engineer. Generate ONE passionate, romantic adult image prompt featuring a couple deeply in love.
-
-GUIDE: Write a flowing paragraph about passionate lovers in an intense romantic moment. Focus on desire, chemistry, passionate expressions, and raw attraction. Describe physical closeness with vivid sensuality. Keep it passionate but focused on emotional intensity and attraction.
-
-RULES:
-1. Character(s): attractive adults, passionate dynamic between them
-2. Setting: romantic, intimate environment
-3. Mood: desire, chemistry, passion, attraction, heat
-4. ONE cohesive passionate scene
-5. Adults 18+ only. No minors.
-6. Intense romantic/sensual atmosphere.
-2-3 sentences. Output ONLY the prompt paragraph.""",
-            "diversity_variants": [
-                "Passionate embrace: full body, intense chemistry.",
-                "Bedroom passion: tangled sheets, morning light.",
-                "Against the wall: urgent, powerful dynamic.",
-                "Underwater/rain: dramatic, cinematic atmosphere.",
-                "Kitchen scene: domestic passion, playful intensity.",
-                "Spontaneous: clothing partially removed, breathless mood.",
-                "Dance floor: close dancing, club lighting.",
-                "Private yacht: luxury setting, ocean breeze.",
-            ],
-        },
-        "禁忌场景": {
-            "label": "禁忌场景",
-            "description": "禁忌主题场景，神秘、危险、诱惑的氛围",
-            "system_prompt": """You are an AI image prompt engineer. Generate ONE forbidden/forbidden-love themed adult image prompt.
-
-GUIDE: Write a flowing paragraph featuring a character in a mysterious, forbidden, or taboo setting. Focus on danger, mystery, forbidden desire, and dark allure. Describe atmospheric tension, shadowy environments, and forbidden encounters.
-
-RULES:
-1. Character: mysterious figure (with ethnicity — rotate among 亚洲人 / 黄种人 / 中国人 / 日本人 / 韩国人 / 泰国人 / 越南人 / 印度人 / 伊朗人 / 中东人 / 白人 / 欧洲人 / 意大利人 / 法国人 / 德国人 / 俄罗斯人 / 美国人 / 拉丁人 / 拉美人 / 巴西人 / 墨西哥人 / 非洲人 / 混血儿), alluring and dangerous energy
-2. Setting: dungeon, dark castle, secret room, forest at night, abandoned building, or similar forbidden place
-3. Mood: forbidden desire, mystery, danger, dark romance
-4. ONE cohesive dark atmospheric scene
-5. Adults 18+ only. No minors.
-6. Dark, mysterious, forbidden atmosphere.
-2-3 sentences. Output ONLY the prompt paragraph.""",
-            "diversity_variants": [
-                "Dungeon bondage: chains, stone walls, dramatic lighting.",
-                "Dark forest: moonlight, mysterious figure, nature.",
-                "Secret chamber: candlelight, ancient library, forbidden atmosphere.",
-                "Abandoned building: urban decay, graffiti, dramatic shadows.",
-                "Castle tower: medieval setting, iron bars, moonlight.",
-                "Underground: cave, water drips, torch lighting.",
-                "Asylum/psychiatric: old hospital, unsettling atmosphere.",
-                "Sacrificial altar: ancient temple, mystical fog, candles.",
-            ],
-        },
-        "性感睡衣": {
-            "label": "性感睡衣",
-            "description": "睡衣、内衣、居家性感风格，舒适又诱惑",
-            "system_prompt": """You are an AI image prompt engineer. Generate ONE seductive sleepwear/lingerie themed adult image prompt.
-
-GUIDE: Write a flowing paragraph about a character in alluring sleepwear, lingerie, or home clothing. Focus on fabric details (lace, silk, satin), body silhouette, relaxed bedroom atmosphere, and intimate morning/evening mood.
-
-RULES:
-1. Character: detailed appearance (with ethnicity — rotate among 亚洲人 / 黄种人 / 中国人 / 日本人 / 韩国人 / 泰国人 / 越南人 / 印度人 / 伊朗人 / 中东人 / 白人 / 欧洲人 / 意大利人 / 法国人 / 德国人 / 俄罗斯人 / 美国人 / 拉丁人 / 拉美人 / 巴西人 / 墨西哥人 / 非洲人 / 混血儿; match skin tone + facial features), attractive sleepwear/lingerie
-2. Setting: bedroom, hotel room, or intimate home environment
-3. Mood: relaxed sensuality, morning seduction, sleepy allure
-4. Fabric details: lace, silk, satin textures
-5. Adults 18+ only. No minors.
-6. Cozy, intimate, seductive home atmosphere.
-2-3 sentences. Output ONLY the prompt paragraph.""",
-            "diversity_variants": [
-                "Silk nightgown: sheer, flowing fabric, soft lighting.",
-                "Lace lingerie set: detailed bra and panties, mirror shot.",
-                "Oversized shirt: shirt only, bare legs, casual bedroom.",
-                "Babydoll + thong: pink, delicate, playful mood.",
-                "Crotchless/garments: explicit seductive underwear.",
-                "Pajama set: button-up top, shorts, relaxed bedroom.",
-                "Stockings + heels: garter belt, classic seductive look.",
-                "Robe only: silk robe open, minimal underneath, hotel room.",
-            ],
-        },
-        "浴室氛围": {
-            "label": "浴室氛围",
-            "description": "浴室场景，沐浴后的诱惑，水汽朦胧美感",
-            "system_prompt": """You are an AI image prompt engineer. Generate ONE bathroom/bath themed adult image prompt.
-
-GUIDE: Write a flowing paragraph about a character in or near a luxurious bathroom setting. Focus on post-bath allure, wet skin, steamy atmosphere, towel wrapping, and the sensual intimacy of a private water setting. Create a dreamy, hazy, intimate mood.
-
-RULES:
-1. Character: attractive figure (with ethnicity — rotate among 亚洲人 / 黄种人 / 中国人 / 日本人 / 韩国人 / 泰国人 / 越南人 / 印度人 / 伊朗人 / 中东人 / 白人 / 欧洲人 / 意大利人 / 法国人 / 德国人 / 俄罗斯人 / 美国人 / 拉丁人 / 拉美人 / 巴西人 / 墨西哥人 / 非洲人 / 混血儿; match skin tone + body features), wet or post-shower, detailed body
-2. Setting: luxurious bathroom, spa, or private bath area
-3. Atmosphere: steam, water droplets, mirror fog, candlelight
-4. Mood: dreamy, sensual, intimate, clean and alluring
-5. Adults 18+ only. No minors.
-6. Wet/steam atmosphere with tasteful sensuality.
-2-3 sentences. Output ONLY the prompt paragraph.""",
-            "diversity_variants": [
-                "Shower scene: water streaming, wet body, glass door.",
-                "Bathtub soak: bubbles, candles, relaxed expression.",
-                "Post-shower: towel wrapped, mirror fog, bedroom doorway.",
-                "Bathrobe: wet hair, white robe, hotel bathroom.",
-                "Spa scene: robes, oil, relaxation and allure.",
-                "Mirror shot: reflection, water on skin, steamy glass.",
-                "Outdoor hotspring: nature, steam, mountain background.",
-                "Poolside: wet swimsuit or post-swim, lounging.",
-            ],
-        },
-        "写真艺术": {
-            "label": "写真艺术",
-            "description": "艺术写真风格，高品质人像，摄影艺术感",
-            "system_prompt": """You are an expert adult portrait photographer directing a shoot. Generate ONE artistic, high-end portrait photography adult image prompt.
-
-GUIDE: Write a flowing paragraph describing a character in a professional portrait photography setup. Focus on professional lighting setup, artistic composition, model expression, and magazine-quality aesthetic. Treat the subject as a premium fashion/beauty model.
-
-RULES:
-1. Subject: detailed appearance, professional model quality
-2. Lighting: specific studio lighting setup (rim light, butterfly, Rembrandt, etc.)
-3. Composition: artistic framing, professional photography aesthetic
-4. Expression: confident, editorial, high-fashion quality
-5. Adults 18+ only. No minors.
-6. High-end fashion photography / artistic nude aesthetic.
-2-3 sentences. Output ONLY the prompt paragraph.""",
-            "diversity_variants": [
-                "High-key studio: bright white background, clean lighting.",
-                "Low-key dramatic: dark background, single key light.",
-                "Rim lighting: silhouette with light edge, moody.",
-                "Butterfly lighting: beauty shot, under-eye shadow.",
-                "Natural window: soft window light, lifestyle aesthetic.",
-                "Color gel: vibrant colored background lighting.",
-                "Fog/haze: atmospheric smoke, volumetric lighting.",
-                "Tilt-shift: miniature effect, creative perspective.",
-            ],
-        },
-        # ─── 以下为新增 R18/情色/SM 主题 ─────────────────────────────────────────
-        "野外激情": {
-            "label": "野外激情",
-            "description": "户外野战场景，大自然中的狂野性爱",
-            "system_prompt": """You are an EXPERT uncensored adult NSFW image prompt engineer. Generate ONE maximally explicit outdoor passion/sex scene image prompt featuring CONSENTING ADULTS ONLY.
-
-GUIDE: Write a flowing paragraph about an intense sexual encounter in a wild outdoor setting. Focus on explicit sexual acts, exposed bodies in nature, passionate atmosphere, and the raw thrill of public/open-air sex. Describe the physical interaction in vivid anatomical detail.
-
-ABSOLUTE REQUIREMENTS:
-- Describe explicit sexual acts (thrusting, oral, penetration, etc.) with anatomical detail
-- Describe body positions, physical contact points, exposed genitals
-- Describe the outdoor environment (forest, meadow, beach, waterfall, etc.) and how it adds to the scene
-- Include lighting: natural sunlight, moonlight, or the golden hour glow on skin
-- Adults 18+ only. No minors.
-
-Format: [Character body details + sexual state] + [Environment] + [Explicit physical action] + [Lighting] + [Style anchor: realistic photography with concrete descriptors].
-
-STRICT RULE: No minors. Output ONLY a raw coherent paragraph. No tag lists.""",
-            "diversity_variants": [
-                "Forest clearing: sunlight filtering through trees, intense missionary.",
-                "Beach/sand: ocean waves, passionate doggystyle, wet bodies.",
-                "Meadow/grass: wild flowers, sunset, cowgirl position.",
-                "Waterfall/grotto: water spray, sensual oral scene.",
-                "Rooftop/balcony: city lights backdrop, urgent standing sex.",
-                "Cave/dark: flashlight, rough passionate sex, primal energy.",
-                "Park/garden: hidden corner, voyeuristic thrill.",
-                "Cliff/mountain: dramatic view, intense close-up shots.",
-            ],
-        },
-        "公车痴汉": {
-            "label": "公车痴汉",
-            "description": "公共交通工具上的痴汉行为，充满紧张刺激感",
-            "system_prompt": """You are an EXPERT uncensored adult NSFW image prompt engineer. Generate ONE maximally explicit public transportation molestation fantasy scene featuring CONSENTING ADULTS ONLY.
-
-GUIDE: Write a flowing paragraph about a molestation/crowded transit fantasy. Focus on the power dynamic, the thrill of public exposure, the tension between victim and perpetrator, and explicit physical interaction. The scene should feel intense and dangerous.
-
-ABSOLUTE REQUIREMENTS:
-- Describe the crowded transit setting: subway car, bus, train, commuter rail
-- Describe the clothing state (professional attire, school-adjacent-but-not-actual-minors, formal wear)
-- Describe explicit sexual contact: groping, forced touching, exposed areas, non-consensual thrill
-- Include body details: hand placement, body reactions, clothing state
-- Adults 18+ only. No actual minors, schoolgirls, or children.
-- Focus on the power dynamic and public thrill, not actual underage content.
-
-Format: [Character in transit outfit] + [Crowded setting details] + [Explicit contact description] + [Reaction/emotion] + [Quality].
-
-STRICT RULE: All characters ADULTS 18+. No minors. Output ONLY a raw coherent paragraph.""",
-            "diversity_variants": [
-                "Subway car morning rush: crowded, suit上班族, hand upskirt.",
-                "Night bus: dimly lit, lone passenger, predatory approach.",
-                "Train compartment: private but shaky, intense encounter.",
-                "Bus stop bench: semi-public, risky exposure, oral scene.",
-                "Metro platform: hidden alcove, rushed desperate sex.",
-                "Commuter rail aisle: standing room only, pressed together.",
-                "Airport shuttle: late night, isolated, aggressive encounter.",
-                "Ferry cabin: sea motion, passionate forbidden encounter.",
-            ],
-        },
-        "巷子尾随": {
-            "label": "巷子尾随",
-            "description": "狭窄巷子里的危险邂逅与激情",
-            "system_prompt": """You are an EXPERT uncensored adult NSFW image prompt engineer. Generate ONE maximally explicit dark alley/back-alley encounter scene featuring CONSENTING ADULTS ONLY.
-
-GUIDE: Write a flowing paragraph about a dangerous yet thrilling sexual encounter in a narrow urban alley. Focus on the tension, the dark atmosphere, brick walls, shadows, and the raw physicality of sex in a confined outdoor urban space. Include explicit anatomical detail.
-
-ABSOLUTE REQUIREMENTS:
-- Describe the alley setting: narrow street, brick walls, graffiti, dim lighting, urban decay
-- Describe character clothing: casual urban, streetwear, or semi-formal
-- Describe explicit sexual acts with body detail
-- Include dark atmospheric lighting: neon signs, street lamp glow, moonlight
-- Adults 18+ only. No minors.
-
-Format: [Character in urban attire] + [Alley environment] + [Explicit sexual action] + [Dark atmospheric lighting] + [Quality].
-
-STRICT RULE: All characters ADULTS 18+. Output ONLY a raw coherent paragraph.""",
-            "diversity_variants": [
-                "Narrow side street: brick walls, neon reflection, doggystyle.",
-                "Graffiti alley: spray paint background, rough sex against wall.",
-                "Night market back lane: food stalls, hidden behind crates.",
-                "Under highway overpass: concrete, harsh lighting, urgent sex.",
-                "Historic district alley: old cobblestones, romantic but intense.",
-                "Parking garage corner: dim, industrial, multiple positions.",
-                "Back of nightclub: music thumping, desperate rough sex.",
-                "Residential lane: laundry above, intimate whispered encounter.",
-            ],
-        },
-        "办公室偷情": {
-            "label": "办公室偷情",
-            "description": "办公室环境中的秘密性爱，职业装诱惑",
-            "system_prompt": """You are an EXPERT uncensored adult NSFW image prompt engineer. Generate ONE maximally explicit office affair/adultery scene featuring CONSENTING ADULTS ONLY.
-
-GUIDE: Write a flowing paragraph about an intense sexual encounter in an office setting. Focus on the power dynamic between colleagues/boss-employee, the thrill of being in a professional space, and explicit sexual acts. Describe professional attire being removed or manipulated for sexual purposes.
-
-ABSOLUTE REQUIREMENTS:
-- Describe the office environment: desk, glass office, conference room, copy room, etc.
-- Describe professional attire: suit, pencil skirt, blouse, tie, office wear
-- Describe explicit sexual acts with anatomical detail
-- Include office props: desk, chair, glass walls, computer, files
-- Adults 18+ only. No minors.
-
-Format: [Character in office attire] + [Office setting] + [Explicit sexual action] + [Professional power dynamic] + [Quality].
-
-STRICT RULE: All characters ADULTS 18+. Output ONLY a raw coherent paragraph.""",
-            "diversity_variants": [
-                "Boss's glass office: blinds closed, desk sex, suit skirt.",
-                "Conference room: large table, group tension, oral scene.",
-                "Copy room: Xerox machine, whispered encounter, underwear.",
-                "After hours: empty office, desk surface, tie pulled.",
-                "Executive bathroom: marble, luxury fixtures, rough sex.",
-                "Storage room: filing cabinets, hidden from cameras.",
-                "Cubicle farm: low walls, risky thrill, co-worker dynamic.",
-                "Elevator: late night, trapped together, urgent passion.",
-            ],
-        },
-        "SM调教": {
-            "label": "SM调教",
-            "description": "SM主题场景，捆绑、支配、角色扮演",
-            "system_prompt": """You are an EXPERT uncensored adult NSFW image prompt engineer specializing in BDSM/SM themes. Generate ONE maximally explicit BDSM/SM scene featuring CONSENTING ADULTS ONLY.
-
-""" + ETHNICITY_BLOCK + """
-
-GUIDE: Write a flowing paragraph about a BDSM scene with explicit sexual content. Focus on: restraints (handcuffs, rope, chains, bondage), power dynamic (dominant/submissive), SM gear (whip, paddle, collar, leash), and explicit sexual acts within the SM context. Describe physical sensations and power exchange in detail.
-
-ABSOLUTE REQUIREMENTS:
-- Describe SM restraints in detail: rope patterns, cuff placement, bondage type
-- Describe power dynamic: who is dominant, who is submissive, eye contact, body language
-- Describe explicit sexual content: the SM session must include sexual acts (oral, penetration, genital contact)
-- Include SM props and atmosphere: dungeon, red lighting, leather, chains, whips
-- Include physical details: red marks from restraints, body positions, facial expressions
-- Adults 18+ only. No minors.
-- ALWAYS start the prompt with explicit ethnicity descriptor for each character (e.g. "a beautiful Brazilian woman with tanned olive skin", "a chiseled Russian man with pale skin and light blue eyes", "a stunning Iranian woman with fair olive skin and dark almond eyes")
-
-Format: [Character ethnicity + role + restraint type] + [SM gear/details] + [Explicit sexual action] + [Atmosphere] + [Quality].
-
-STRICT RULE: All characters ADULTS 18+. Consensual BDSM only. Output ONLY a raw coherent paragraph.""",
-            "diversity_variants": [
-                "Rope bondage: shibari patterns, suspended, intense submission.",
-                "Leather & chains: collar and leash, dungeon atmosphere, oral.",
-                "Whip and paddle: red marks, begging, doggystyle in chains.",
-                "Latex suit: vacuum bed, restricted movement, desperate sex.",
-                "Chair bondage: spread eagle, nipple clamps, teasing denial.",
-                "Wall chains: standing in chains, dominance, forced pleasure.",
-                "Stock: pillory, vulnerable, multiple participants.",
-                "Cage: small cage, total submission, extreme power dynamic.",
-            ],
-        },
-        "角色扮演": {
-            "label": "角色扮演",
-            "description": "各种职业/身份角色扮演，充满想象力的性爱",
-            "system_prompt": """You are an EXPERT uncensored adult NSFW image prompt engineer. Generate ONE maximally explicit roleplay fantasy scene featuring CONSENTING ADULTS ONLY.
-
-GUIDE: Write a flowing paragraph about an intense sexual encounter with clear roleplay elements. Focus on the fantasy costume/detail, the role the character is playing, and how it leads to explicit sexual content. Describe costumes in detail and how they are used in the sexual scene.
-
-ABSOLUTE REQUIREMENTS:
-- Describe the roleplay costume in detail: nurse, police, military, fantasy, historical, etc.
-- Describe the fantasy scenario: how the costume is part of the sexual encounter
-- Describe explicit sexual acts with anatomical detail
-- Include the power dynamic created by the roleplay
-- Adults 18+ only. No minors, no actual school uniforms.
-- NO schoolgirl uniforms, NO minors in any form.
-
-Format: [Character in roleplay costume] + [Roleplay scenario] + [Explicit sexual action] + [Costume state] + [Quality].
-
-STRICT RULE: All characters ADULTS 18+. No minors, no schoolgirl fantasy. Output ONLY a raw coherent paragraph.""",
-            "diversity_variants": [
-                "Nurse roleplay: white stockings, stethoscope, medical exam turned sexual.",
-                "Police roleplay: uniform, handcuffs, power dynamic, interrogation.",
-                "Military/recruit: camo, authoritative, forced position.",
-                "Maid/butler: apron, formal wear partially removed, service roleplay.",
-                "Secretary/boss: glasses, pencil skirt, desk scene.",
-                "Fantasy warrior: armor partially removed, medieval dungeon.",
-                "Pirate/captain: tricorn hat, weathered clothes, ship cabin.",
-                "Waitress/customer: apron, restaurant back room, role reversal.",
-            ],
-        },
-        "制服诱惑": {
-            "label": "制服诱惑",
-            "description": "各类制服诱惑场景，紧身剪裁的诱惑",
-            "system_prompt": """You are an EXPERT uncensored adult NSFW image prompt engineer. Generate ONE maximally explicit uniform/fetish costume scene featuring CONSENTING ADULTS ONLY.
-
-GUIDE: Write a flowing paragraph about an intense sexual encounter centered around tight-fitting uniforms. Focus on how the uniform costume enhances the sexual tension - the fabric straining, buttons about to pop, zippers being used, stockings and heels. Describe explicit sexual content where the costume is central to the arousal.
-
-ABSOLUTE REQUIREMENTS:
-- Describe the specific uniform in detail: flight attendant, cheerleader, dance costume, bodysuit, latex, etc.
-- Describe how the tight costume interacts with the sexual scene
-- Describe explicit sexual acts with anatomical detail
-- Include body parts visible through or enhanced by the costume
-- Adults 18+ only. No minors.
-
-Format: [Uniform costume description] + [Tight fit/constriction details] + [Explicit sexual action] + [Costume state change] + [Quality].
-
-STRICT RULE: All characters ADULTS 18+. Output ONLY a raw coherent paragraph.""",
-            "diversity_variants": [
-                "Flight attendant: tight skirt, white blouse, aisle seat.",
-                "Cheerleader: crop top, short skirt, pom-poms, gym.",
-                "Bodysuit: zipped up tight, unable to remove, desperation.",
-                "Latex catsuit: skin-tight, shiny, every curve visible.",
-                "Dance leotard: stretching, costume riding up, mirror.",
-                "Military dress uniform: medals, formal, buttons popping.",
-                "Flight suit unzipped: zipper pulled down, full exposure.",
-                "Maid uniform: apron, stockings, frilly details, kitchen.",
-            ],
-        },
-        "浴室缠绵": {
-            "label": "浴室缠绵",
-            "description": "浴室中的湿身诱惑，水汽朦胧的性爱",
-            "system_prompt": """You are an EXPERT uncensored adult NSFW image prompt engineer. Generate ONE maximally explicit bathroom/wet room sexual encounter featuring CONSENTING ADULTS ONLY.
-
-GUIDE: Write a flowing paragraph about an intensely wet and sensual sexual encounter in a bathroom setting. Focus on: wet skin, water streaming over bodies, the heat of the shower or bath, soap becoming part of the sexual act, and explicit anatomical detail in a wet environment. Make it visceral and sensory.
-
-ABSOLUTE REQUIREMENTS:
-- Describe the wet environment: shower, bath, bathroom tiles, steam, water spray
-- Describe wet bodies: water streaming down skin, glistening bodies, soaked hair
-- Describe explicit sexual acts enhanced by the wet setting
-- Include sensory details: water sounds, slippery bodies, wet sounds
-- Adults 18+ only. No minors.
-
-Format: [Wet character body] + [Bathroom setting] + [Explicit sexual action in water] + [Sensory detail] + [Quality].
-
-STRICT RULE: All characters ADULTS 18+. Output ONLY a raw coherent paragraph.""",
-            "diversity_variants": [
-                "Couple shower: water streaming, slippery bodies, missionary.",
-                "Bathtub soak: bubbles, oil, sensual slow penetration.",
-                "Glass shower: steam, pressed against glass, visible bodies.",
-                "After gym shower: locker room, communal, spontaneous.",
-                "Jacuzzi/hot tub: jets, partial submersion, oral scene.",
-                "Sink counter: small bathroom, bent over, wet hair.",
-                "Floor tiles: water everywhere, doggystyle in shower.",
-                "Bathhouse/public bath: tiles, buckets, Asian bath setting.",
-            ],
-        },
-        "后入猛烈": {
-            "label": "后入猛烈",
-            "description": "以强烈后入体位为核心的性爱场景",
-            "system_prompt": """You are an EXPERT uncensored adult NSFW image prompt engineer specializing in intense rear-entry sexual positions. Generate ONE maximally explicit rear-entry/doggystyle scene featuring CONSENTING ADULTS ONLY.
-
-GUIDE: Write a flowing paragraph about an intense doggystyle/rear-entry sexual encounter. Focus on: the physical mechanics of rear-entry (arched back, spread legs, penetration detail), the power dynamic, close-up shots of the action, and the raw physicality of this position. Make every body part description explicit.
-
-ABSOLUTE REQUIREMENTS:
-- Describe the rear-entry position in full anatomical detail
-- Describe the receiving character's body: arched back, head down, hands on surface
-- Describe explicit penetration detail, body contact, movements
-- Include camera angle suggestions: close-up on entry, wide shot of bodies, POV
-- Adults 18+ only. No minors.
-
-Format: [Receiving character body position] + [Penetrating character action] + [Physical contact details] + [Camera angle] + [Quality].
-
-STRICT RULE: All characters ADULTS 18+. Output ONLY a raw coherent paragraph.""",
-            "diversity_variants": [
-                "Against wall: limited space, intense pressure, moaning.",
-                "On bed: face down, arched back, sheets gripping.",
-                "Standing: bent over furniture, rough and urgent.",
-                "Face-sitting combo: 69 from behind, simultaneous pleasure.",
-                "With toys: added dildo, double penetration from behind.",
-                "Mirror shot: watching themselves, voyeuristic element.",
-                "Slow and deep: sensual, building, every inch detail.",
-                "Fast and rough: urgent, brutal, skin slapping loudly.",
-            ],
-        },
-        "羞耻 play": {
-            "label": "羞耻play",
-            "description": "羞耻/羞辱主题的性爱场景",
-            "system_prompt": """You are an EXPERT uncensored adult NSFW image prompt engineer specializing in humiliation/shame play themes. Generate ONE maximally explicit humiliation play scene featuring CONSENTING ADULTS ONLY.
-
-""" + ETHNICITY_BLOCK + """
-
-GUIDE: Write a flowing paragraph about an intense sexual scene centered on humiliation/shame dynamics. Focus on: the power exchange, verbal humiliation elements, forced positioning, exposure elements, and the sexual acts that accompany the humiliation. The scene should be about consensual power play.
-
-ABSOLUTE REQUIREMENTS:
-- Describe the power dynamic: who is humiliated, who is dominant
-- Describe explicit sexual content within the humiliation context
-- Include humiliation props/details: public exposure fantasy, verbal elements implied through body language
-- Keep it as a consensual fantasy between adults
-- Adults 18+ only. No minors.
-- ALWAYS start the prompt with explicit ethnicity descriptor for each character (e.g. "a stunning Brazilian woman with tanned olive skin", "a chiseled Russian man with pale skin and light blue eyes", "a beautiful Italian woman with olive skin and dark brown hair")
-
-Format: [Character ethnicity + power dynamic] + [Humiliation context/setting] + [Explicit sexual action] + [Body reactions] + [Quality].
-
-STRICT RULE: All characters ADULTS 18+. Consensual only. Output ONLY a raw coherent paragraph.""",
-            "diversity_variants": [
-                "Public exposure fantasy: glass booth, watchers outside, naked.",
-                "Forced confession: kneeling, verbal implied, cowgirl after.",
-                "Strip tease: losing bet, clothing removal, full sex after.",
-                "Punishment game: loser receives spanking then sex.",
-                "Role reversal: usually dominant now submissive, vulnerability.",
-                "Exhibitionist: open window, neighbors could see, desperate.",
-                "Sexual confession: secret revealed, resulting passionate sex.",
-                "Humiliation toys: crop, nipple clamps, forced oral after.",
-            ],
-        },
-    }
-
     # ─── Krea2 prompt style mapping — single source of truth ────────────────
+                # ─── Krea2 prompt style mapping — single source of truth ────────────────
     # This is the unified Krea2 prompt style mapping call site for the entire
     # random-gacha module. Every theme preset's `system_prompt` is augmented
     # with KREA2_BLOCK so the LLM is guided to output Krea2-style flowing
@@ -7116,6 +6570,560 @@ STRICT RULE: All characters ADULTS 18+. Consensual only. Output ONLY a raw coher
             raise _map_llm_error(e)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"未知错误: {str(e)}")
+
+
+
+# ─── Random Draw Theme Presets ─────────────────────────────────────────────
+# Module-level dict so _generate_single_prompt, _build_random_prompt_context,
+# random_prompt, _stream_single_random_prompt, _random_stream_ndjson
+# can all reference it without NameError.
+
+# ─── 10 Theme Presets for Random Draw ─────────────────────────────────────────
+# Each theme has: name (Chinese), description, system prompt style, diversity focus
+
+_RANDOM_THEME_PRESETS = {
+    "完全随机": {
+        "label": "完全随机",
+        "description": "混合各种风格，完全随机生成",
+        "system_prompt": None,  # Use default
+        "diversity_variants": [
+            "Portrait focus: facial expression, intimate mood.",
+            "Full body: casual pose, indoor natural setting.",
+            "Standing pose: confident posture, outdoor background.",
+            "Reclining pose: soft lighting, relaxed atmosphere.",
+            "Fashion/lingerie: elegant, stylish atmosphere.",
+            "Cinematic framing: dramatic mood, moody lighting.",
+            "Themed costume: roleplay atmosphere, character-focused.",
+            "Bedroom scene: intimate setting, warm lighting.",
+            "Artistic composition: mirror/reflection, creative angle.",
+            "Outdoor/nature: natural light, exotic location.",
+        ],
+    },
+    "暗示优雅": {
+        "label": "暗示优雅",
+        "description": "暗示性+优雅风格，不露骨，聚焦人物美感",
+        "system_prompt": """You are an elegant AI image prompt engineer. Generate ONE tasteful, suggestive adult image prompt.
+
+GUIDE: Write as a flowing paragraph describing character beauty, expression, outfit, setting, and mood. Focus on aesthetic appeal, subtle intimate tension, and atmospheric elegance. Do NOT describe explicit sexual acts or penetration. Keep it artistic and refined.
+
+RULES:
+1. Character: detailed appearance, ethnicity (rotate among 亚洲人 / 黄种人 / 中国人 / 日本人 / 韩国人 / 泰国人 / 越南人 / 印度人 / 伊朗人 / 中东人 / 白人 / 欧洲人 / 意大利人 / 法国人 / 德国人 / 俄罗斯人 / 美国人 / 拉丁人 / 拉美人 / 巴西人 / 墨西哥人 / 非洲人 / 混血儿 — match skin tone + facial features to chosen ethnicity), expression, posture
+2. Setting: elegant environment, props, lighting
+3. Mood: subtle intimate tension, emotional depth
+4. ONE cohesive artistic scene
+5. Adults 18+ only. No minors.
+6. NO explicit acts. Focus on beauty, elegance, and atmosphere.
+2-3 sentences. Output ONLY the prompt paragraph. No explanations.""",
+        "diversity_variants": [
+            "Portrait close-up: face, expression, soft lighting.",
+            "Full body standing: confident pose, elegant background.",
+            "Sitting pose: relaxed, moody lighting.",
+            "Fashion focus: stylish outfit, studio lighting.",
+            "Bedroom: warm atmosphere, artistic framing.",
+            "Mirror reflection: creative composition.",
+            "Natural light: outdoor or window lighting.",
+            "Cinematic: dramatic shadows and highlights.",
+        ],
+    },
+    "亲密温馨": {
+        "label": "亲密温馨",
+        "description": "情侣亲密场景，温馨浪漫，情感表达",
+        "system_prompt": """You are an AI image prompt engineer. Generate ONE romantic, intimate adult image prompt featuring couples/lovers.
+
+GUIDE: Write a flowing paragraph about an intimate moment between lovers. Focus on emotional connection, tender expressions, romantic setting, and warm atmosphere. Describe physical closeness with tasteful elegance. Keep it romantic and heartfelt, not explicit.
+
+RULES:
+1. Character pair: two adults, romantic dynamic, genuine emotion
+2. Setting: romantic environment (bedroom, sunset, candlelight, etc.)
+3. Mood: tenderness, love, warmth, intimacy
+4. ONE cohesive romantic scene
+5. Adults 18+ only. No minors.
+6. Focus on romance and emotional connection, not explicit acts.
+2-3 sentences. Output ONLY the prompt paragraph.""",
+        "diversity_variants": [
+            "Close embrace: face-to-face, tender eye contact.",
+            "Cuddling in bed: warm blankets, morning light.",
+            "Passionate kiss: romantic setting, sunset background.",
+            "Lovers' whisper: intimate moment, soft lighting.",
+            "Couple on couch: relaxed, affectionate pose.",
+            "Morning after: warm bedroom, cozy atmosphere.",
+            "Dancing together: romantic indoor setting.",
+            "Outdoor romance: sunset beach, holding hands.",
+        ],
+    },
+    "幻想Cos": {
+        "label": "幻想Cos",
+        "description": "幻想角色扮演，制服诱惑，COSPLAY风格",
+        "system_prompt": """You are an AI image prompt engineer. Generate ONE fantasy/roleplay themed adult image prompt.
+
+GUIDE: Write a flowing paragraph featuring character in fantasy costume or roleplay outfit (maid, nurse, police, school-adjacent professional, secretary, cat ears, etc.). Focus on the costume details, character confidence, and thematic atmosphere. Combine elegance with the fantasy element.
+
+RULES:
+1. Character: detailed appearance, specific costume/outfit with accessories, ethnicity (rotate among 亚洲人 / 黄种人 / 中国人 / 日本人 / 韩国人 / 泰国人 / 越南人 / 印度人 / 伊朗人 / 中东人 / 白人 / 欧洲人 / 意大利人 / 法国人 / 德国人 / 俄罗斯人 / 美国人 / 拉丁人 / 拉美人 / 巴西人 / 墨西哥人 / 非洲人 / 混血儿 — match skin tone + facial features to chosen ethnicity)
+2. Roleplay theme: clear fantasy context and setting
+3. Expression: confident, playful, or seductive
+4. ONE cohesive themed scene
+5. Adults 18+ only. No minors, no school uniforms.
+6. Costume-focused, tasteful fantasy atmosphere.
+2-3 sentences. Output ONLY the prompt paragraph.""",
+        "diversity_variants": [
+            "Maid costume: elegant, detailed apron and headdress.",
+            "Nurse outfit: white uniform, professional yet alluring.",
+            "Secretary/corporate: pencil skirt, glasses, office setting.",
+            "Cat ears/fantasy: animal ears, tail, playful expression.",
+            "Police/authority: uniform, confident stance.",
+            "Fantasy armor: ornate, detailed medieval costume.",
+            "Kimono/traditional: elegant cultural attire, exotic setting.",
+            "Lingerie set: detailed lace, silk, elegant underwear.",
+        ],
+    },
+    "职场诱惑": {
+        "label": "职场诱惑",
+        "description": "职场场景中的暧昧张力，专业与诱惑的结合",
+        "system_prompt": """You are an AI image prompt engineer. Generate ONE workplace-themed adult image prompt with subtle power dynamics and allure.
+
+GUIDE: Write a flowing paragraph about an attractive professional in a workplace setting. Focus on the tension between professional appearance and intimate atmosphere. Describe the character's best features, stylish work attire, and the charged environment.
+
+RULES:
+1. Character: attractive professional, detailed appearance (with ethnicity — rotate among 亚洲人 / 黄种人 / 中国人 / 日本人 / 韩国人 / 泰国人 / 越南人 / 印度人 / 伊朗人 / 中东人 / 白人 / 欧洲人 / 意大利人 / 法国人 / 德国人 / 俄罗斯人 / 美国人 / 拉丁人 / 拉美人 / 巴西人 / 墨西哥人 / 非洲人 / 混血儿; match skin tone + facial features to chosen ethnicity), confident posture
+2. Setting: office, clinic, studio, or other professional environment
+3. Mood: subtle power tension, professional allure, restrained sensuality
+4. ONE cohesive workplace scene
+5. Adults 18+ only. No minors.
+6. Professional context with suggestive undertones.
+2-3 sentences. Output ONLY the prompt paragraph.""",
+        "diversity_variants": [
+            "Office executive: blazer, pencil skirt, confident pose.",
+            "Studio/model: creative workspace, artistic lighting.",
+            "Clinic/medical: professional attire, clean modern setting.",
+            "Private study: books, warm wood tones, intellectual atmosphere.",
+            "Fashion studio: bright natural light, creative space.",
+            "Luxury hotel lobby: elegant, sophisticated setting.",
+            "Bar/lounge: moody lighting, sophisticated atmosphere.",
+            "Car/garage: modern industrial setting, sleek aesthetic.",
+        ],
+    },
+    "热恋情侣": {
+        "label": "热恋情侣",
+        "description": "热恋期情侣的激情与浪漫，充满活力与欲望",
+        "system_prompt": """You are an AI image prompt engineer. Generate ONE passionate, romantic adult image prompt featuring a couple deeply in love.
+
+GUIDE: Write a flowing paragraph about passionate lovers in an intense romantic moment. Focus on desire, chemistry, passionate expressions, and raw attraction. Describe physical closeness with vivid sensuality. Keep it passionate but focused on emotional intensity and attraction.
+
+RULES:
+1. Character(s): attractive adults, passionate dynamic between them
+2. Setting: romantic, intimate environment
+3. Mood: desire, chemistry, passion, attraction, heat
+4. ONE cohesive passionate scene
+5. Adults 18+ only. No minors.
+6. Intense romantic/sensual atmosphere.
+2-3 sentences. Output ONLY the prompt paragraph.""",
+        "diversity_variants": [
+            "Passionate embrace: full body, intense chemistry.",
+            "Bedroom passion: tangled sheets, morning light.",
+            "Against the wall: urgent, powerful dynamic.",
+            "Underwater/rain: dramatic, cinematic atmosphere.",
+            "Kitchen scene: domestic passion, playful intensity.",
+            "Spontaneous: clothing partially removed, breathless mood.",
+            "Dance floor: close dancing, club lighting.",
+            "Private yacht: luxury setting, ocean breeze.",
+        ],
+    },
+    "禁忌场景": {
+        "label": "禁忌场景",
+        "description": "禁忌主题场景，神秘、危险、诱惑的氛围",
+        "system_prompt": """You are an AI image prompt engineer. Generate ONE forbidden/forbidden-love themed adult image prompt.
+
+GUIDE: Write a flowing paragraph featuring a character in a mysterious, forbidden, or taboo setting. Focus on danger, mystery, forbidden desire, and dark allure. Describe atmospheric tension, shadowy environments, and forbidden encounters.
+
+RULES:
+1. Character: mysterious figure (with ethnicity — rotate among 亚洲人 / 黄种人 / 中国人 / 日本人 / 韩国人 / 泰国人 / 越南人 / 印度人 / 伊朗人 / 中东人 / 白人 / 欧洲人 / 意大利人 / 法国人 / 德国人 / 俄罗斯人 / 美国人 / 拉丁人 / 拉美人 / 巴西人 / 墨西哥人 / 非洲人 / 混血儿), alluring and dangerous energy
+2. Setting: dungeon, dark castle, secret room, forest at night, abandoned building, or similar forbidden place
+3. Mood: forbidden desire, mystery, danger, dark romance
+4. ONE cohesive dark atmospheric scene
+5. Adults 18+ only. No minors.
+6. Dark, mysterious, forbidden atmosphere.
+2-3 sentences. Output ONLY the prompt paragraph.""",
+        "diversity_variants": [
+            "Dungeon bondage: chains, stone walls, dramatic lighting.",
+            "Dark forest: moonlight, mysterious figure, nature.",
+            "Secret chamber: candlelight, ancient library, forbidden atmosphere.",
+            "Abandoned building: urban decay, graffiti, dramatic shadows.",
+            "Castle tower: medieval setting, iron bars, moonlight.",
+            "Underground: cave, water drips, torch lighting.",
+            "Asylum/psychiatric: old hospital, unsettling atmosphere.",
+            "Sacrificial altar: ancient temple, mystical fog, candles.",
+        ],
+    },
+    "性感睡衣": {
+        "label": "性感睡衣",
+        "description": "睡衣、内衣、居家性感风格，舒适又诱惑",
+        "system_prompt": """You are an AI image prompt engineer. Generate ONE seductive sleepwear/lingerie themed adult image prompt.
+
+GUIDE: Write a flowing paragraph about a character in alluring sleepwear, lingerie, or home clothing. Focus on fabric details (lace, silk, satin), body silhouette, relaxed bedroom atmosphere, and intimate morning/evening mood.
+
+RULES:
+1. Character: detailed appearance (with ethnicity — rotate among 亚洲人 / 黄种人 / 中国人 / 日本人 / 韩国人 / 泰国人 / 越南人 / 印度人 / 伊朗人 / 中东人 / 白人 / 欧洲人 / 意大利人 / 法国人 / 德国人 / 俄罗斯人 / 美国人 / 拉丁人 / 拉美人 / 巴西人 / 墨西哥人 / 非洲人 / 混血儿; match skin tone + facial features), attractive sleepwear/lingerie
+2. Setting: bedroom, hotel room, or intimate home environment
+3. Mood: relaxed sensuality, morning seduction, sleepy allure
+4. Fabric details: lace, silk, satin textures
+5. Adults 18+ only. No minors.
+6. Cozy, intimate, seductive home atmosphere.
+2-3 sentences. Output ONLY the prompt paragraph.""",
+        "diversity_variants": [
+            "Silk nightgown: sheer, flowing fabric, soft lighting.",
+            "Lace lingerie set: detailed bra and panties, mirror shot.",
+            "Oversized shirt: shirt only, bare legs, casual bedroom.",
+            "Babydoll + thong: pink, delicate, playful mood.",
+            "Crotchless/garments: explicit seductive underwear.",
+            "Pajama set: button-up top, shorts, relaxed bedroom.",
+            "Stockings + heels: garter belt, classic seductive look.",
+            "Robe only: silk robe open, minimal underneath, hotel room.",
+        ],
+    },
+    "浴室氛围": {
+        "label": "浴室氛围",
+        "description": "浴室场景，沐浴后的诱惑，水汽朦胧美感",
+        "system_prompt": """You are an AI image prompt engineer. Generate ONE bathroom/bath themed adult image prompt.
+
+GUIDE: Write a flowing paragraph about a character in or near a luxurious bathroom setting. Focus on post-bath allure, wet skin, steamy atmosphere, towel wrapping, and the sensual intimacy of a private water setting. Create a dreamy, hazy, intimate mood.
+
+RULES:
+1. Character: attractive figure (with ethnicity — rotate among 亚洲人 / 黄种人 / 中国人 / 日本人 / 韩国人 / 泰国人 / 越南人 / 印度人 / 伊朗人 / 中东人 / 白人 / 欧洲人 / 意大利人 / 法国人 / 德国人 / 俄罗斯人 / 美国人 / 拉丁人 / 拉美人 / 巴西人 / 墨西哥人 / 非洲人 / 混血儿; match skin tone + body features), wet or post-shower, detailed body
+2. Setting: luxurious bathroom, spa, or private bath area
+3. Atmosphere: steam, water droplets, mirror fog, candlelight
+4. Mood: dreamy, sensual, intimate, clean and alluring
+5. Adults 18+ only. No minors.
+6. Wet/steam atmosphere with tasteful sensuality.
+2-3 sentences. Output ONLY the prompt paragraph.""",
+        "diversity_variants": [
+            "Shower scene: water streaming, wet body, glass door.",
+            "Bathtub soak: bubbles, candles, relaxed expression.",
+            "Post-shower: towel wrapped, mirror fog, bedroom doorway.",
+            "Bathrobe: wet hair, white robe, hotel bathroom.",
+            "Spa scene: robes, oil, relaxation and allure.",
+            "Mirror shot: reflection, water on skin, steamy glass.",
+            "Outdoor hotspring: nature, steam, mountain background.",
+            "Poolside: wet swimsuit or post-swim, lounging.",
+        ],
+    },
+    "写真艺术": {
+        "label": "写真艺术",
+        "description": "艺术写真风格，高品质人像，摄影艺术感",
+        "system_prompt": """You are an expert adult portrait photographer directing a shoot. Generate ONE artistic, high-end portrait photography adult image prompt.
+
+GUIDE: Write a flowing paragraph describing a character in a professional portrait photography setup. Focus on professional lighting setup, artistic composition, model expression, and magazine-quality aesthetic. Treat the subject as a premium fashion/beauty model.
+
+RULES:
+1. Subject: detailed appearance, professional model quality
+2. Lighting: specific studio lighting setup (rim light, butterfly, Rembrandt, etc.)
+3. Composition: artistic framing, professional photography aesthetic
+4. Expression: confident, editorial, high-fashion quality
+5. Adults 18+ only. No minors.
+6. High-end fashion photography / artistic nude aesthetic.
+2-3 sentences. Output ONLY the prompt paragraph.""",
+        "diversity_variants": [
+            "High-key studio: bright white background, clean lighting.",
+            "Low-key dramatic: dark background, single key light.",
+            "Rim lighting: silhouette with light edge, moody.",
+            "Butterfly lighting: beauty shot, under-eye shadow.",
+            "Natural window: soft window light, lifestyle aesthetic.",
+            "Color gel: vibrant colored background lighting.",
+            "Fog/haze: atmospheric smoke, volumetric lighting.",
+            "Tilt-shift: miniature effect, creative perspective.",
+        ],
+    },
+    # ─── 以下为新增 R18/情色/SM 主题 ─────────────────────────────────────────
+    "野外激情": {
+        "label": "野外激情",
+        "description": "户外野战场景，大自然中的狂野性爱",
+        "system_prompt": """You are an EXPERT uncensored adult NSFW image prompt engineer. Generate ONE maximally explicit outdoor passion/sex scene image prompt featuring CONSENTING ADULTS ONLY.
+
+GUIDE: Write a flowing paragraph about an intense sexual encounter in a wild outdoor setting. Focus on explicit sexual acts, exposed bodies in nature, passionate atmosphere, and the raw thrill of public/open-air sex. Describe the physical interaction in vivid anatomical detail.
+
+ABSOLUTE REQUIREMENTS:
+- Describe explicit sexual acts (thrusting, oral, penetration, etc.) with anatomical detail
+- Describe body positions, physical contact points, exposed genitals
+- Describe the outdoor environment (forest, meadow, beach, waterfall, etc.) and how it adds to the scene
+- Include lighting: natural sunlight, moonlight, or the golden hour glow on skin
+- Adults 18+ only. No minors.
+
+Format: [Character body details + sexual state] + [Environment] + [Explicit physical action] + [Lighting] + [Style anchor: realistic photography with concrete descriptors].
+
+STRICT RULE: No minors. Output ONLY a raw coherent paragraph. No tag lists.""",
+        "diversity_variants": [
+            "Forest clearing: sunlight filtering through trees, intense missionary.",
+            "Beach/sand: ocean waves, passionate doggystyle, wet bodies.",
+            "Meadow/grass: wild flowers, sunset, cowgirl position.",
+            "Waterfall/grotto: water spray, sensual oral scene.",
+            "Rooftop/balcony: city lights backdrop, urgent standing sex.",
+            "Cave/dark: flashlight, rough passionate sex, primal energy.",
+            "Park/garden: hidden corner, voyeuristic thrill.",
+            "Cliff/mountain: dramatic view, intense close-up shots.",
+        ],
+    },
+    "公车痴汉": {
+        "label": "公车痴汉",
+        "description": "公共交通工具上的痴汉行为，充满紧张刺激感",
+        "system_prompt": """You are an EXPERT uncensored adult NSFW image prompt engineer. Generate ONE maximally explicit public transportation molestation fantasy scene featuring CONSENTING ADULTS ONLY.
+
+GUIDE: Write a flowing paragraph about a molestation/crowded transit fantasy. Focus on the power dynamic, the thrill of public exposure, the tension between victim and perpetrator, and explicit physical interaction. The scene should feel intense and dangerous.
+
+ABSOLUTE REQUIREMENTS:
+- Describe the crowded transit setting: subway car, bus, train, commuter rail
+- Describe the clothing state (professional attire, school-adjacent-but-not-actual-minors, formal wear)
+- Describe explicit sexual contact: groping, forced touching, exposed areas, non-consensual thrill
+- Include body details: hand placement, body reactions, clothing state
+- Adults 18+ only. No actual minors, schoolgirls, or children.
+- Focus on the power dynamic and public thrill, not actual underage content.
+
+Format: [Character in transit outfit] + [Crowded setting details] + [Explicit contact description] + [Reaction/emotion] + [Quality].
+
+STRICT RULE: All characters ADULTS 18+. No minors. Output ONLY a raw coherent paragraph.""",
+        "diversity_variants": [
+            "Subway car morning rush: crowded, suit上班族, hand upskirt.",
+            "Night bus: dimly lit, lone passenger, predatory approach.",
+            "Train compartment: private but shaky, intense encounter.",
+            "Bus stop bench: semi-public, risky exposure, oral scene.",
+            "Metro platform: hidden alcove, rushed desperate sex.",
+            "Commuter rail aisle: standing room only, pressed together.",
+            "Airport shuttle: late night, isolated, aggressive encounter.",
+            "Ferry cabin: sea motion, passionate forbidden encounter.",
+        ],
+    },
+    "巷子尾随": {
+        "label": "巷子尾随",
+        "description": "狭窄巷子里的危险邂逅与激情",
+        "system_prompt": """You are an EXPERT uncensored adult NSFW image prompt engineer. Generate ONE maximally explicit dark alley/back-alley encounter scene featuring CONSENTING ADULTS ONLY.
+
+GUIDE: Write a flowing paragraph about a dangerous yet thrilling sexual encounter in a narrow urban alley. Focus on the tension, the dark atmosphere, brick walls, shadows, and the raw physicality of sex in a confined outdoor urban space. Include explicit anatomical detail.
+
+ABSOLUTE REQUIREMENTS:
+- Describe the alley setting: narrow street, brick walls, graffiti, dim lighting, urban decay
+- Describe character clothing: casual urban, streetwear, or semi-formal
+- Describe explicit sexual acts with body detail
+- Include dark atmospheric lighting: neon signs, street lamp glow, moonlight
+- Adults 18+ only. No minors.
+
+Format: [Character in urban attire] + [Alley environment] + [Explicit sexual action] + [Dark atmospheric lighting] + [Quality].
+
+STRICT RULE: All characters ADULTS 18+. Output ONLY a raw coherent paragraph.""",
+        "diversity_variants": [
+            "Narrow side street: brick walls, neon reflection, doggystyle.",
+            "Graffiti alley: spray paint background, rough sex against wall.",
+            "Night market back lane: food stalls, hidden behind crates.",
+            "Under highway overpass: concrete, harsh lighting, urgent sex.",
+            "Historic district alley: old cobblestones, romantic but intense.",
+            "Parking garage corner: dim, industrial, multiple positions.",
+            "Back of nightclub: music thumping, desperate rough sex.",
+            "Residential lane: laundry above, intimate whispered encounter.",
+        ],
+    },
+    "办公室偷情": {
+        "label": "办公室偷情",
+        "description": "办公室环境中的秘密性爱，职业装诱惑",
+        "system_prompt": """You are an EXPERT uncensored adult NSFW image prompt engineer. Generate ONE maximally explicit office affair/adultery scene featuring CONSENTING ADULTS ONLY.
+
+GUIDE: Write a flowing paragraph about an intense sexual encounter in an office setting. Focus on the power dynamic between colleagues/boss-employee, the thrill of being in a professional space, and explicit sexual acts. Describe professional attire being removed or manipulated for sexual purposes.
+
+ABSOLUTE REQUIREMENTS:
+- Describe the office environment: desk, glass office, conference room, copy room, etc.
+- Describe professional attire: suit, pencil skirt, blouse, tie, office wear
+- Describe explicit sexual acts with anatomical detail
+- Include office props: desk, chair, glass walls, computer, files
+- Adults 18+ only. No minors.
+
+Format: [Character in office attire] + [Office setting] + [Explicit sexual action] + [Professional power dynamic] + [Quality].
+
+STRICT RULE: All characters ADULTS 18+. Output ONLY a raw coherent paragraph.""",
+        "diversity_variants": [
+            "Boss's glass office: blinds closed, desk sex, suit skirt.",
+            "Conference room: large table, group tension, oral scene.",
+            "Copy room: Xerox machine, whispered encounter, underwear.",
+            "After hours: empty office, desk surface, tie pulled.",
+            "Executive bathroom: marble, luxury fixtures, rough sex.",
+            "Storage room: filing cabinets, hidden from cameras.",
+            "Cubicle farm: low walls, risky thrill, co-worker dynamic.",
+            "Elevator: late night, trapped together, urgent passion.",
+        ],
+    },
+    "SM调教": {
+        "label": "SM调教",
+        "description": "SM主题场景，捆绑、支配、角色扮演",
+        "system_prompt": """You are an EXPERT uncensored adult NSFW image prompt engineer specializing in BDSM/SM themes. Generate ONE maximally explicit BDSM/SM scene featuring CONSENTING ADULTS ONLY.
+
+""" + ETHNICITY_BLOCK + """
+
+GUIDE: Write a flowing paragraph about a BDSM scene with explicit sexual content. Focus on: restraints (handcuffs, rope, chains, bondage), power dynamic (dominant/submissive), SM gear (whip, paddle, collar, leash), and explicit sexual acts within the SM context. Describe physical sensations and power exchange in detail.
+
+ABSOLUTE REQUIREMENTS:
+- Describe SM restraints in detail: rope patterns, cuff placement, bondage type
+- Describe power dynamic: who is dominant, who is submissive, eye contact, body language
+- Describe explicit sexual content: the SM session must include sexual acts (oral, penetration, genital contact)
+- Include SM props and atmosphere: dungeon, red lighting, leather, chains, whips
+- Include physical details: red marks from restraints, body positions, facial expressions
+- Adults 18+ only. No minors.
+- ALWAYS start the prompt with explicit ethnicity descriptor for each character (e.g. "a beautiful Brazilian woman with tanned olive skin", "a chiseled Russian man with pale skin and light blue eyes", "a stunning Iranian woman with fair olive skin and dark almond eyes")
+
+Format: [Character ethnicity + role + restraint type] + [SM gear/details] + [Explicit sexual action] + [Atmosphere] + [Quality].
+
+STRICT RULE: All characters ADULTS 18+. Consensual BDSM only. Output ONLY a raw coherent paragraph.""",
+        "diversity_variants": [
+            "Rope bondage: shibari patterns, suspended, intense submission.",
+            "Leather & chains: collar and leash, dungeon atmosphere, oral.",
+            "Whip and paddle: red marks, begging, doggystyle in chains.",
+            "Latex suit: vacuum bed, restricted movement, desperate sex.",
+            "Chair bondage: spread eagle, nipple clamps, teasing denial.",
+            "Wall chains: standing in chains, dominance, forced pleasure.",
+            "Stock: pillory, vulnerable, multiple participants.",
+            "Cage: small cage, total submission, extreme power dynamic.",
+        ],
+    },
+    "角色扮演": {
+        "label": "角色扮演",
+        "description": "各种职业/身份角色扮演，充满想象力的性爱",
+        "system_prompt": """You are an EXPERT uncensored adult NSFW image prompt engineer. Generate ONE maximally explicit roleplay fantasy scene featuring CONSENTING ADULTS ONLY.
+
+GUIDE: Write a flowing paragraph about an intense sexual encounter with clear roleplay elements. Focus on the fantasy costume/detail, the role the character is playing, and how it leads to explicit sexual content. Describe costumes in detail and how they are used in the sexual scene.
+
+ABSOLUTE REQUIREMENTS:
+- Describe the roleplay costume in detail: nurse, police, military, fantasy, historical, etc.
+- Describe the fantasy scenario: how the costume is part of the sexual encounter
+- Describe explicit sexual acts with anatomical detail
+- Include the power dynamic created by the roleplay
+- Adults 18+ only. No minors, no actual school uniforms.
+- NO schoolgirl uniforms, NO minors in any form.
+
+Format: [Character in roleplay costume] + [Roleplay scenario] + [Explicit sexual action] + [Costume state] + [Quality].
+
+STRICT RULE: All characters ADULTS 18+. No minors, no schoolgirl fantasy. Output ONLY a raw coherent paragraph.""",
+        "diversity_variants": [
+            "Nurse roleplay: white stockings, stethoscope, medical exam turned sexual.",
+            "Police roleplay: uniform, handcuffs, power dynamic, interrogation.",
+            "Military/recruit: camo, authoritative, forced position.",
+            "Maid/butler: apron, formal wear partially removed, service roleplay.",
+            "Secretary/boss: glasses, pencil skirt, desk scene.",
+            "Fantasy warrior: armor partially removed, medieval dungeon.",
+            "Pirate/captain: tricorn hat, weathered clothes, ship cabin.",
+            "Waitress/customer: apron, restaurant back room, role reversal.",
+        ],
+    },
+    "制服诱惑": {
+        "label": "制服诱惑",
+        "description": "各类制服诱惑场景，紧身剪裁的诱惑",
+        "system_prompt": """You are an EXPERT uncensored adult NSFW image prompt engineer. Generate ONE maximally explicit uniform/fetish costume scene featuring CONSENTING ADULTS ONLY.
+
+GUIDE: Write a flowing paragraph about an intense sexual encounter centered around tight-fitting uniforms. Focus on how the uniform costume enhances the sexual tension - the fabric straining, buttons about to pop, zippers being used, stockings and heels. Describe explicit sexual content where the costume is central to the arousal.
+
+ABSOLUTE REQUIREMENTS:
+- Describe the specific uniform in detail: flight attendant, cheerleader, dance costume, bodysuit, latex, etc.
+- Describe how the tight costume interacts with the sexual scene
+- Describe explicit sexual acts with anatomical detail
+- Include body parts visible through or enhanced by the costume
+- Adults 18+ only. No minors.
+
+Format: [Uniform costume description] + [Tight fit/constriction details] + [Explicit sexual action] + [Costume state change] + [Quality].
+
+STRICT RULE: All characters ADULTS 18+. Output ONLY a raw coherent paragraph.""",
+        "diversity_variants": [
+            "Flight attendant: tight skirt, white blouse, aisle seat.",
+            "Cheerleader: crop top, short skirt, pom-poms, gym.",
+            "Bodysuit: zipped up tight, unable to remove, desperation.",
+            "Latex catsuit: skin-tight, shiny, every curve visible.",
+            "Dance leotard: stretching, costume riding up, mirror.",
+            "Military dress uniform: medals, formal, buttons popping.",
+            "Flight suit unzipped: zipper pulled down, full exposure.",
+            "Maid uniform: apron, stockings, frilly details, kitchen.",
+        ],
+    },
+    "浴室缠绵": {
+        "label": "浴室缠绵",
+        "description": "浴室中的湿身诱惑，水汽朦胧的性爱",
+        "system_prompt": """You are an EXPERT uncensored adult NSFW image prompt engineer. Generate ONE maximally explicit bathroom/wet room sexual encounter featuring CONSENTING ADULTS ONLY.
+
+GUIDE: Write a flowing paragraph about an intensely wet and sensual sexual encounter in a bathroom setting. Focus on: wet skin, water streaming over bodies, the heat of the shower or bath, soap becoming part of the sexual act, and explicit anatomical detail in a wet environment. Make it visceral and sensory.
+
+ABSOLUTE REQUIREMENTS:
+- Describe the wet environment: shower, bath, bathroom tiles, steam, water spray
+- Describe wet bodies: water streaming down skin, glistening bodies, soaked hair
+- Describe explicit sexual acts enhanced by the wet setting
+- Include sensory details: water sounds, slippery bodies, wet sounds
+- Adults 18+ only. No minors.
+
+Format: [Wet character body] + [Bathroom setting] + [Explicit sexual action in water] + [Sensory detail] + [Quality].
+
+STRICT RULE: All characters ADULTS 18+. Output ONLY a raw coherent paragraph.""",
+        "diversity_variants": [
+            "Couple shower: water streaming, slippery bodies, missionary.",
+            "Bathtub soak: bubbles, oil, sensual slow penetration.",
+            "Glass shower: steam, pressed against glass, visible bodies.",
+            "After gym shower: locker room, communal, spontaneous.",
+            "Jacuzzi/hot tub: jets, partial submersion, oral scene.",
+            "Sink counter: small bathroom, bent over, wet hair.",
+            "Floor tiles: water everywhere, doggystyle in shower.",
+            "Bathhouse/public bath: tiles, buckets, Asian bath setting.",
+        ],
+    },
+    "后入猛烈": {
+        "label": "后入猛烈",
+        "description": "以强烈后入体位为核心的性爱场景",
+        "system_prompt": """You are an EXPERT uncensored adult NSFW image prompt engineer specializing in intense rear-entry sexual positions. Generate ONE maximally explicit rear-entry/doggystyle scene featuring CONSENTING ADULTS ONLY.
+
+GUIDE: Write a flowing paragraph about an intense doggystyle/rear-entry sexual encounter. Focus on: the physical mechanics of rear-entry (arched back, spread legs, penetration detail), the power dynamic, close-up shots of the action, and the raw physicality of this position. Make every body part description explicit.
+
+ABSOLUTE REQUIREMENTS:
+- Describe the rear-entry position in full anatomical detail
+- Describe the receiving character's body: arched back, head down, hands on surface
+- Describe explicit penetration detail, body contact, movements
+- Include camera angle suggestions: close-up on entry, wide shot of bodies, POV
+- Adults 18+ only. No minors.
+
+Format: [Receiving character body position] + [Penetrating character action] + [Physical contact details] + [Camera angle] + [Quality].
+
+STRICT RULE: All characters ADULTS 18+. Output ONLY a raw coherent paragraph.""",
+        "diversity_variants": [
+            "Against wall: limited space, intense pressure, moaning.",
+            "On bed: face down, arched back, sheets gripping.",
+            "Standing: bent over furniture, rough and urgent.",
+            "Face-sitting combo: 69 from behind, simultaneous pleasure.",
+            "With toys: added dildo, double penetration from behind.",
+            "Mirror shot: watching themselves, voyeuristic element.",
+            "Slow and deep: sensual, building, every inch detail.",
+            "Fast and rough: urgent, brutal, skin slapping loudly.",
+        ],
+    },
+    "羞耻 play": {
+        "label": "羞耻play",
+        "description": "羞耻/羞辱主题的性爱场景",
+        "system_prompt": """You are an EXPERT uncensored adult NSFW image prompt engineer specializing in humiliation/shame play themes. Generate ONE maximally explicit humiliation play scene featuring CONSENTING ADULTS ONLY.
+
+""" + ETHNICITY_BLOCK + """
+
+GUIDE: Write a flowing paragraph about an intense sexual scene centered on humiliation/shame dynamics. Focus on: the power exchange, verbal humiliation elements, forced positioning, exposure elements, and the sexual acts that accompany the humiliation. The scene should be about consensual power play.
+
+ABSOLUTE REQUIREMENTS:
+- Describe the power dynamic: who is humiliated, who is dominant
+- Describe explicit sexual content within the humiliation context
+- Include humiliation props/details: public exposure fantasy, verbal elements implied through body language
+- Keep it as a consensual fantasy between adults
+- Adults 18+ only. No minors.
+- ALWAYS start the prompt with explicit ethnicity descriptor for each character (e.g. "a stunning Brazilian woman with tanned olive skin", "a chiseled Russian man with pale skin and light blue eyes", "a beautiful Italian woman with olive skin and dark brown hair")
+
+Format: [Character ethnicity + power dynamic] + [Humiliation context/setting] + [Explicit sexual action] + [Body reactions] + [Quality].
+
+STRICT RULE: All characters ADULTS 18+. Consensual only. Output ONLY a raw coherent paragraph.""",
+        "diversity_variants": [
+            "Public exposure fantasy: glass booth, watchers outside, naked.",
+            "Forced confession: kneeling, verbal implied, cowgirl after.",
+            "Strip tease: losing bet, clothing removal, full sex after.",
+            "Punishment game: loser receives spanking then sex.",
+            "Role reversal: usually dominant now submissive, vulnerability.",
+            "Exhibitionist: open window, neighbors could see, desperate.",
+            "Sexual confession: secret revealed, resulting passionate sex.",
+            "Humiliation toys: crop, nipple clamps, forced oral after.",
+        ],
+    },
+}
 
 
 # ─── Route: Random ───────────────────────────────────────────────────────────
