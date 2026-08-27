@@ -128,9 +128,9 @@ import { GirlfriendSelector } from '../components/GirlfriendSelector';
 import { StoryboardSection } from '../components/StoryboardSection';
 import { buildTxt2ImgNodeList } from '../utils/txt2imgNodeBuilder';
 import type { QueuedTask, TabType, NodeInfo } from '../types';
-import { DEFAULT_TXT2IMG_PARAMS, withQualityBoost } from '../constants';
+import { withQualityBoost } from '../constants';
 import { WORKFLOW, getWorkflowFormat, uploadImage, ensureDataUrl } from '../services/runninghub';
-import { getCheckpointDefault, getLoraDefault, getDefaultWorkflow } from '../services/modelDefaultsService';
+import { buildUnifiedTxt2ImgOptions } from '../utils/txt2imgDefaults';
 
 /**
  * 将 GirlfriendPreset.portraitUrl 转为 File 对象用于上传。
@@ -690,18 +690,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         onSuccess('任务已提交，请到图生图查看生成结果');
         if (onNavigate) onNavigate('img2img');
       } else {
-        const nodes = buildTxt2ImgNodeList({
-          width: DEFAULT_TXT2IMG_PARAMS.width,
-          height: DEFAULT_TXT2IMG_PARAMS.height,
-          imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
-          prompt: outputText,
-          lora1Name: getLoraDefault('lora1')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora1Name,
-          lora1Weight: getLoraDefault('lora1')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora1Weight,
-          lora2Name: getLoraDefault('lora2')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora2Name,
-          lora2Weight: getLoraDefault('lora2')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora2Weight,
-          workflowId: getDefaultWorkflow(),
-          checkpoint: getCheckpointDefault(getDefaultWorkflow())?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
-        });
+        const nodes = buildTxt2ImgNodeList(buildUnifiedTxt2ImgOptions(outputText));
         await taskManager.addTask('txt2img', nodes, outputText, undefined, undefined, undefined, 'expand');
         onSuccess('任务已提交，请到文生图查看生成结果');
         if (onNavigate) onNavigate('txt2img');
@@ -756,18 +745,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         });
       }
     } else {
-      const nodes = buildTxt2ImgNodeList({
-        width: DEFAULT_TXT2IMG_PARAMS.width,
-        height: DEFAULT_TXT2IMG_PARAMS.height,
-        imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
-        prompt: result.prompt,
-        lora1Name: getLoraDefault('lora1')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora1Name,
-        lora1Weight: getLoraDefault('lora1')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora1Weight,
-        lora2Name: getLoraDefault('lora2')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora2Name,
-        lora2Weight: getLoraDefault('lora2')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora2Weight,
-        workflowId: getDefaultWorkflow(),
-        checkpoint: getCheckpointDefault(getDefaultWorkflow())?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
-      });
+      const nodes = buildTxt2ImgNodeList(buildUnifiedTxt2ImgOptions(result.prompt));
       try {
         await taskManager.addTask('txt2img', nodes, result.prompt, undefined, undefined, undefined, 'expand');
         onSuccess('任务已提交，请到文生图查看生成结果');
@@ -816,18 +794,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         });
         await taskManager.addTask('img2img', nodes, result.prompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, undefined, 'expand');
       } else {
-        const nodes = buildTxt2ImgNodeList({
-          width: DEFAULT_TXT2IMG_PARAMS.width,
-          height: DEFAULT_TXT2IMG_PARAMS.height,
-          imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
-          prompt: result.prompt,
-          lora1Name: getLoraDefault('lora1')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora1Name,
-          lora1Weight: getLoraDefault('lora1')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora1Weight,
-          lora2Name: getLoraDefault('lora2')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora2Name,
-          lora2Weight: getLoraDefault('lora2')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora2Weight,
-          workflowId: getDefaultWorkflow(),
-          checkpoint: getCheckpointDefault(getDefaultWorkflow())?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
-        });
+        const nodes = buildTxt2ImgNodeList(buildUnifiedTxt2ImgOptions(result.prompt));
         await taskManager.addTask('txt2img', nodes, result.prompt, undefined, undefined, undefined, 'expand');
       }
     });
@@ -902,18 +869,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       }
     } else {
       const finalPrompt = withQualityBoost(prompt);
-      const nodes = buildTxt2ImgNodeList({
-        width: DEFAULT_TXT2IMG_PARAMS.width,
-        height: DEFAULT_TXT2IMG_PARAMS.height,
-        imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
-        prompt: finalPrompt,
-        lora1Name: getLoraDefault('lora1')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora1Name,
-        lora1Weight: getLoraDefault('lora1')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora1Weight,
-        lora2Name: getLoraDefault('lora2')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora2Name,
-        lora2Weight: getLoraDefault('lora2')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora2Weight,
-        workflowId: getDefaultWorkflow(),
-        checkpoint: getCheckpointDefault(getDefaultWorkflow())?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
-      });
+      const nodes = buildTxt2ImgNodeList(buildUnifiedTxt2ImgOptions(finalPrompt));
       try {
         await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, storyboardInfo, 'smart-storyboard', context?.themeTitle, context?.panelNumber);
         console.log(`[handleExpandModeSinglePanelGenerate] submitted txt2img task, prompt length=${finalPrompt.length}`);
@@ -1046,18 +1002,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, panelStoryboardInfo, 'storyboard', plotLabel, panelNum);
       } else {
         const finalPrompt = withQualityBoost(panel.image_prompt);
-        const nodes = buildTxt2ImgNodeList({
-          width: DEFAULT_TXT2IMG_PARAMS.width,
-          height: DEFAULT_TXT2IMG_PARAMS.height,
-          imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
-          prompt: finalPrompt,
-          lora1Name: getLoraDefault('lora1')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora1Name,
-          lora1Weight: getLoraDefault('lora1')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora1Weight,
-          lora2Name: getLoraDefault('lora2')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora2Name,
-          lora2Weight: getLoraDefault('lora2')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora2Weight,
-          workflowId: getDefaultWorkflow(),
-          checkpoint: getCheckpointDefault(getDefaultWorkflow())?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
-        });
+        const nodes = buildTxt2ImgNodeList(buildUnifiedTxt2ImgOptions(finalPrompt));
         await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, panelStoryboardInfo, 'storyboard', plotLabel, panelNum);
       }
     });
@@ -1763,18 +1708,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         });
       }
     } else {
-      const nodes = buildTxt2ImgNodeList({
-        width: DEFAULT_TXT2IMG_PARAMS.width,
-        height: DEFAULT_TXT2IMG_PARAMS.height,
-        imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
-        prompt: prompt,
-        lora1Name: getLoraDefault('lora1')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora1Name,
-        lora1Weight: getLoraDefault('lora1')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora1Weight,
-        lora2Name: getLoraDefault('lora2')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora2Name,
-        lora2Weight: getLoraDefault('lora2')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora2Weight,
-        workflowId: getDefaultWorkflow(),
-        checkpoint: getCheckpointDefault(getDefaultWorkflow())?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
-      });
+      const nodes = buildTxt2ImgNodeList(buildUnifiedTxt2ImgOptions(prompt));
       try {
         await taskManager.addTask('txt2img', nodes, prompt, undefined, undefined, undefined, 'random', randomTheme || undefined);
         onSuccess('任务已提交，请到文生图查看生成结果');
@@ -1928,18 +1862,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         });
         await taskManager.addTask('img2img', nodes, result.prompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, undefined, 'random', perTaskTheme || undefined);
       } else {
-        const nodes = buildTxt2ImgNodeList({
-          width: DEFAULT_TXT2IMG_PARAMS.width,
-          height: DEFAULT_TXT2IMG_PARAMS.height,
-          imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
-          prompt: result.prompt,
-          lora1Name: getLoraDefault('lora1')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora1Name,
-          lora1Weight: getLoraDefault('lora1')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora1Weight,
-          lora2Name: getLoraDefault('lora2')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora2Name,
-          lora2Weight: getLoraDefault('lora2')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora2Weight,
-          workflowId: getDefaultWorkflow(),
-          checkpoint: getCheckpointDefault(getDefaultWorkflow())?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
-        });
+        const nodes = buildTxt2ImgNodeList(buildUnifiedTxt2ImgOptions(result.prompt));
         await taskManager.addTask('txt2img', nodes, result.prompt, undefined, undefined, undefined, 'random', perTaskTheme || undefined);
       }
     });
@@ -3702,18 +3625,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       }
     } else {
       const finalPrompt = withQualityBoost(prompt);
-      const nodes = buildTxt2ImgNodeList({
-        width: DEFAULT_TXT2IMG_PARAMS.width,
-        height: DEFAULT_TXT2IMG_PARAMS.height,
-        imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
-        prompt: finalPrompt,
-        lora1Name: getLoraDefault('lora1')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora1Name,
-        lora1Weight: getLoraDefault('lora1')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora1Weight,
-        lora2Name: getLoraDefault('lora2')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora2Name,
-        lora2Weight: getLoraDefault('lora2')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora2Weight,
-        workflowId: getDefaultWorkflow(),
-        checkpoint: getCheckpointDefault(getDefaultWorkflow())?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
-      });
+      const nodes = buildTxt2ImgNodeList(buildUnifiedTxt2ImgOptions(finalPrompt));
       try {
         await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, storyboardInfo, 'storyboard', activeThemeInfo?.title || plot || undefined, panelIdx + 1);
         console.log(`[handleStoryboardGenerateImage] submitted txt2img task, prompt length=${finalPrompt.length}, nodes=`, JSON.stringify(nodes));
@@ -4010,18 +3922,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
           await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, panelStoryboardInfo, 'storyboard', themeForTask, panelNum);
         } else {
           const finalPrompt = withQualityBoost(panel.image_prompt);
-          const nodes = buildTxt2ImgNodeList({
-            width: DEFAULT_TXT2IMG_PARAMS.width,
-            height: DEFAULT_TXT2IMG_PARAMS.height,
-            imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
-            prompt: finalPrompt,
-            lora1Name: getLoraDefault('lora1')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora1Name,
-            lora1Weight: getLoraDefault('lora1')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora1Weight,
-            lora2Name: getLoraDefault('lora2')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora2Name,
-            lora2Weight: getLoraDefault('lora2')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora2Weight,
-            workflowId: getDefaultWorkflow(),
-            checkpoint: getCheckpointDefault(getDefaultWorkflow())?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
-          });
+          const nodes = buildTxt2ImgNodeList(buildUnifiedTxt2ImgOptions(finalPrompt));
           await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, panelStoryboardInfo, 'storyboard', themeForTask, panelNum);
         }
       };

@@ -10,7 +10,8 @@ import { AIPromptPage } from './pages/AIPromptPage';
 import { GPTImage2Page } from './pages/GPTImage2Page';
 import { ModelLibraryPage } from './pages/ModelLibraryPage';
 import { useApiKey } from './hooks/useApiKey';
-import { getCheckpointDefault, getLoraDefault, getDefaultWorkflow } from './services/modelDefaultsService';
+import { getDefaultWorkflow } from './services/modelDefaultsService';
+import { buildUnifiedTxt2ImgOptions } from './utils/txt2imgDefaults';
 import { useYunwuKey } from './hooks/useYunwuKey';
 import { useBackendUrl } from './hooks/useBackendUrl';
 import { useToast } from './hooks/useToast';
@@ -20,7 +21,6 @@ import { migrateLegacyStorageData } from './services/storage';
 import { DEFAULT_GIRLFRIEND_PRESETS } from './data/girlfriendPresets';
 import { buildTxt2ImgNodeList } from './utils/txt2imgNodeBuilder';
 import { WORKFLOW } from './services/runninghub';
-import { DEFAULT_TXT2IMG_PARAMS } from './constants';
 import type { TabType, QueuedTask } from './types';
 import { Eye, EyeOff, Check, Trash2, X, Zap, Server, Image } from 'lucide-react';
 import { FinishedTaskImagesContext } from './contexts/FinishedTaskImagesContext';
@@ -140,18 +140,7 @@ function App() {
           toast.error('任务队列已满，请等待');
           return;
         }
-        const nodes = buildTxt2ImgNodeList({
-          width: DEFAULT_TXT2IMG_PARAMS.width,
-          height: DEFAULT_TXT2IMG_PARAMS.height,
-          imageCount: DEFAULT_TXT2IMG_PARAMS.imageCount,
-          prompt,
-          lora1Name: getLoraDefault('lora1')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora1Name,
-          lora1Weight: getLoraDefault('lora1')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora1Weight,
-          lora2Name: getLoraDefault('lora2')?.name ?? DEFAULT_TXT2IMG_PARAMS.lora2Name,
-          lora2Weight: getLoraDefault('lora2')?.weight ?? DEFAULT_TXT2IMG_PARAMS.lora2Weight,
-          workflowId: getDefaultWorkflow(),
-          checkpoint: getCheckpointDefault(getDefaultWorkflow())?.name ?? DEFAULT_TXT2IMG_PARAMS.checkpoint,
-        });
+        const nodes = buildTxt2ImgNodeList(buildUnifiedTxt2ImgOptions(prompt));
         taskManager.addTaskWithNodeList('txt2img', nodes, prompt, getDefaultWorkflow());
         toast.success('任务已提交，请到文生图查看生成结果');
         setActiveTab('txt2img');
