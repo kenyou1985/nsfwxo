@@ -6,6 +6,7 @@ import { extractImagesFromZipAsDataUrls, extractImagesFromLocalZip, deleteLocalZ
 import { getFavorites, addFavorite, removeFavorite, clearFavorites, type FavoriteItem } from '../services/storage';
 import { getStorageStats, getLocalStorageStats, getUnifiedCacheStats } from '../services/storageQuota';
 import { LightboxViewer } from '../components/LightboxViewer';
+import { AspectAwareImage } from '../components/AspectAwareImage';
 import {
   getRecords as getGpt2Records,
   deleteRecord as deleteGpt2Record,
@@ -693,7 +694,7 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
                       return (
                       <div
                         key={imgIndex}
-                        className={`relative flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-bg-elevated cursor-pointer group ${isVidSelected || isEditSelected ? 'ring-2 ring-purple-500' : ''}`}
+                        className={`relative flex-shrink-0 rounded-lg overflow-hidden bg-bg-elevated cursor-pointer group ${isVidSelected || isEditSelected ? 'ring-2 ring-purple-500' : ''}`}
                         onClick={() => {
                           if (images.length > 1) {
                             setSelectedImg2vidIndex(prev => ({ ...prev, [record.id]: imgIndex }));
@@ -703,10 +704,12 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
                         }}
                         title={images.length === 1 ? '点击查看大图' : `已选第 ${imgIndex + 1} 张`}
                       >
-                        <img
+                        <AspectAwareImage
                           src={url}
                           alt={`图片 ${imgIndex + 1}`}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                          maxHeight={64}
+                          objectFit="cover"
+                          className="group-hover:scale-105 transition-transform"
                         />
                         {/* 收藏：右上 */}
                         <button
@@ -828,27 +831,26 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
               {/* Image previews */}
               {record.images && record.images.length > 0 && (
                 <div className="mb-3">
-                  <div className="w-full rounded-lg overflow-hidden bg-bg-elevated">
-                    <img
+                  <div className="flex justify-center">
+                    <AspectAwareImage
                       src={record.images[0]}
                       alt="Generated"
-                      className="w-full object-contain max-h-[240px] mx-auto"
-                      style={{ maxHeight: '240px' }}
+                      maxHeight={240}
+                      objectFit="contain"
+                      className="rounded-lg"
                     />
                   </div>
                   {record.images.length > 1 && (
                     <div className="flex gap-1.5 mt-1.5 overflow-x-auto">
                       {record.images.slice(1, 5).map((url, imgIndex) => (
-                        <div
+                        <AspectAwareImage
                           key={imgIndex}
-                          className="relative flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden bg-bg-elevated"
-                        >
-                          <img
-                            src={url}
-                            alt={`预览 ${imgIndex + 2}`}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
+                          src={url}
+                          alt={`预览 ${imgIndex + 2}`}
+                          maxHeight={56}
+                          objectFit="cover"
+                          className="rounded-lg flex-shrink-0"
+                        />
                       ))}
                     </div>
                   )}
@@ -901,26 +903,27 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
               <p className="text-xs text-text-tertiary mt-1">在图片历史中点击红心按钮添加收藏</p>
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-2">
+            <div className="flex flex-wrap gap-2">
               {favorites.map((item) => (
                 <div
                   key={item.id}
-                  className="relative aspect-square rounded-lg overflow-hidden bg-bg-elevated group cursor-pointer"
+                  className="relative rounded-lg overflow-hidden bg-bg-elevated group cursor-pointer"
                   onClick={() => item.imageUrl && setLightboxFavoriteIndex(item.id === favorites[0]?.id ? 0 : favorites.findIndex((f) => f.id === item.id))}
                 >
                   {item.imageUrl ? (
-                    <img
+                    <AspectAwareImage
                       src={item.imageUrl}
                       alt="收藏"
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                      maxHeight={120}
+                      objectFit="cover"
+                      className="group-hover:scale-105 transition-transform"
                     />
                   ) : (
                     // Orphan ref (legacy data stored before the hash-ref
                     // migration, or a hash the unified cache can't resolve).
                     // Show a placeholder rather than a broken-image icon so
                     // the favorites tab still renders cleanly.
-                    <div className="w-full h-full flex flex-col items-center justify-center text-text-tertiary bg-bg-elevated">
+                    <div className="w-full h-full flex flex-col items-center justify-center text-text-tertiary bg-bg-elevated" style={{ width: 80, height: 120 }}>
                       <ImageIcon size={20} className="opacity-40" />
                       <span className="text-[9px] mt-1 opacity-60">图片已失效</span>
                     </div>
@@ -1184,10 +1187,6 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
                                 ? `hover:ring-2 hover:ring-blue-400 ${isVidSelected || isEditSelected ? 'ring-2 ring-purple-500' : ''}`
                                 : 'hover:ring-2 hover:ring-primary'
                             }`}
-                            style={{
-                              aspectRatio: record.size === 'auto' ? '1' : record.size.replace('x', '/'),
-                              height: 120,
-                            }}
                             onClick={() => {
                               if (images.length > 1) {
                                 setSelectedGpt2Img2vidIdx(prev => ({ ...prev, [record.id]: imgIndex }));
@@ -1197,10 +1196,12 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
                               setGpt2LightboxImgIdx(imgIndex);
                             }}
                           >
-                            <img
+                            <AspectAwareImage
                               src={url}
                               alt={`图片 ${imgIndex + 1}`}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                              maxHeight={120}
+                              objectFit="cover"
+                              className="group-hover:scale-105 transition-transform"
                             />
                             {/* 编辑选中指示器 — 左上角 */}
                             {images.length > 1 && (

@@ -17,15 +17,11 @@ interface PosePresetSelectorProps {
 }
 
 function buildIdentityPrefix(gf: GirlfriendPreset | null, maleCharId: MaleCharacterId): string {
-  // Krea2 style: no Danbooru-style tag spam. The gf.characterPrompt is a
-  // workflow-level anchor (img2img node) and is intentionally kept as tag-style
-  // for Qwen/SDXL compatibility — we must NOT inline it here.
-  // The "Strictly preserve..." sentence below already carries the identity-lock
-  // semantics in Krea2-style English.
+  // Krea2 style: natural language description, no explicit anatomical details in prefix.
+  // The pose presets already contain detailed positioning and clothing state descriptions.
+  // This prefix only provides character identity anchors in a Krea2-friendly way.
   const malePrompt = getMaleCharacterPrompt(maleCharId);
-  const maleSentence = malePrompt
-    ? `Both subjects fully unclothed, intimately intertwined. ${malePrompt} `
-    : 'Both subjects fully unclothed, intimately intertwined. ';
+  const maleSentence = malePrompt ? `${malePrompt} and ` : '';
   if (!gf) return maleSentence;
   return `${maleSentence}Strictly preserve the exact identity, character, and features of ${gf.nameZh} (ID:${gf.id.toUpperCase()}); do not alter the character at all. `;
 }

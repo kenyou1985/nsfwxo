@@ -5142,8 +5142,8 @@ async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key
             arc_panels = _R18_ARC_PANELS.get(panel_count, _R18_ARC_PANELS[5])
             system_template = _R18_OUTLINE_SYSTEM
             arc_label = "开场遇见 → 升温调情 → 脱衣前戏 → 性爱进行 → 高潮射精"
-            # For R18: use a reasonable pose pool (8-12 poses) for diversity without overloading LLM
-            pool_poses = get_random_poses(panel_count + 2)
+            # Use full 95-pose library for maximum diversity
+            pool_poses = get_random_poses(95)
             pose_list_str = "\n".join(f"  - {p}" for p in pool_poses)
         else:
             arc_panels = _NORMAL_ARC_PANELS.get(panel_count, _NORMAL_ARC_PANELS[4])
@@ -7699,7 +7699,7 @@ async def random_prompt_stream(req: RandomRequest, api_key: str = Depends(get_ap
 @router.post("/storyboard", response_model=StoryboardResponse)
 async def storyboard(req: StoryboardRequest, api_key: str = Depends(get_api_key)):
     if req.r18:
-        selected_poses = get_random_poses(req.panel_count + 2)
+        selected_poses = get_random_poses(95)
         pose_list_str = "\n".join(f"  - {p}" for p in selected_poses)
         system_prompt = STORYBOARD_SYSTEM_PROMPT_R18.format(pose_list=pose_list_str)
     else:
@@ -7785,7 +7785,7 @@ async def _storyboard_stream_ndjson(
     req: StoryboardRequest,
 ) -> AsyncIterator[str]:
     if req.r18:
-        selected_poses = get_random_poses(req.panel_count + 2)
+        selected_poses = get_random_poses(95)
         pose_list_str = "\n".join(f"  - {p}" for p in selected_poses)
         system_prompt = STORYBOARD_SYSTEM_PROMPT_R18.format(pose_list=pose_list_str)
     else:
@@ -8567,76 +8567,76 @@ _NORMAL_ARC_PANELS = {
 
 _R18_ARC_PANELS = {
     2: [
-        "Panel 1: 开场前戏 - 【女人单独出场】场景介绍、女人首次亮相、主题服装描述（非全裸）、暗示性表情和肢体语言、暧昧氛围（NO man yet，NO sex yet）",
-        "Panel 2: 性爱高潮 - 男人加入，直接性爱，口交或后入体位，高潮特写、颜射/内射/体外射精【画面必须可见精液】",
+        "Panel 1: 开场前戏 - 【女人单独出场】场景介绍、女人首次亮相、主题服装描述（非全裸）、暗示性表情（NO man yet，NO sex yet）【中景】",
+        "Panel 2: 【分屏画面】性爱高潮 - 男人加入，后入式（doggy style）性爱，俯视角度。分屏格式：左=男方身体和抽插动作 | 右=女方面部表情特写。【画面必须可见精液】",
     ],
     3: [
-        "Panel 1: 开场前戏 - 【女人单独出场】场景介绍、女人首次亮相、主题服装描述、暗示性表情（NO man yet，NO sex yet）",
-        "Panel 2: 升温前戏 - 男人加入，脱衣亲密/亲吻爱抚，口交或手淫前戏（explicit foreplay）",
-        "Panel 3: 性爱高潮 - 直接性爱描写，传教士体位或后入式，体位变化，射前特写或体内射精【画面必须可见精液】",
+        "Panel 1: 开场前戏 - 【女人单独出场】场景介绍、女人首次亮相、主题服装、暗示性表情（NO man yet，NO sex yet）【中景】",
+        "Panel 2: 升温前戏 - 男人加入，口交（blowjob），近景特写女方头部和男方下半身。【侧视角度】",
+        "Panel 3: 【分屏画面】性爱高潮 - 女上位（cowgirl）骑乘性爱。分屏格式：左=女方身体上下起伏中景 | 右=男方面部表情特写。低角度仰视。【画面必须可见精液】",
     ],
     4: [
-        "Panel 1: 开场前戏 - 【女人单独出场】场景介绍、女人主题服装、表情、暗示性眼神交流（NO man yet，NO sex yet）",
-        "Panel 2: 升温调情 - 男人加入，脱衣亲密、亲吻爱抚、口交前戏、挑逗暗示",
-        "Panel 3: 性爱进行 - 直接插入性爱，后入式（doggy style）或女上位（cowgirl），体位特写",
-        "Panel 4: 高潮结尾 - 传教士体位（missionary），高潮特写、颜射/内射/体外射精【画面必须可见精液】",
+        "Panel 1: 开场前戏 - 【女人单独出场】场景介绍、女人主题服装、表情（NO man yet，NO sex yet）【中景】",
+        "Panel 2: 升温调情 - 男人加入，乳交（titjob），近景特写男方表情和女方上半身。【俯视角度】",
+        "Panel 3: 【分屏画面】性爱进行 - 后入式（doggy style）性爱，俯视角度。分屏格式：左=性爱动作腰部以下近景 | 右=女方侧脸表情特写。",
+        "Panel 4: 高潮射精 - 传教士体位（missionary）性爱，平视角度，面对面近景特写显示两人表情。【画面必须可见精液】",
     ],
     5: [
-        "Panel 1: 开场遇见 - 【女人单独出场】场景介绍、女人主题服装、暗示性第一眼、暧昧肢体语言（NO man yet，NO sex yet）",
-        "Panel 2: 升温调情 - 男人加入，身体接触、亲吻、暗示性语言、情感铺垫",
-        "Panel 3: 脱衣前戏 - 衣物脱去、亲吻爱抚、口交（oral cunnilingus）或乳交（titjob）",
-        "Panel 4: 性爱进行 - 后入式（doggy style）插入，体位变化、抽插特写、呻吟描述",
-        "Panel 5: 高潮射精 - 传教士体位（missionary）或女上位（cowgirl），高潮特写、颜射/内射/体外射精【画面必须可见精液】",
+        "Panel 1: 开场遇见 - 【女人单独出场】场景介绍、女人主题服装、暗示性眼神（NO man yet，NO sex yet）【中景】",
+        "Panel 2: 升温调情 - 男人加入，口交（deepthroat），近景特写女方口部和男方腰部。【侧视角度】",
+        "Panel 3: 脱衣前戏 - 站立式前戏（standing foreplay），男方手部爱抚女方身体，中景。【平视角度】",
+        "Panel 4: 【分屏画面】性爱高潮 - 女上位（cowgirl）性爱快速节奏。分屏格式：左=女方身体律动全景 | 右=男方表情和手抓女方腰部特写。低角度仰视。",
+        "Panel 5: 高潮射精 - 传教士体位（missionary），近景显示两人面部和上半身。【画面必须可见精液】",
     ],
     6: [
-        "Panel 1: 开场遇见 - 【女人单独出场】场景介绍、女人主题服装、暗示性第一眼（NO man yet，NO sex yet）",
-        "Panel 2: 升温调情 - 男人加入，暧昧对话、轻微身体接触、衣服开始松开",
-        "Panel 3: 脱衣亲密 - 衣物脱去、亲吻爱抚、口交前戏（oral cunnilingus）",
-        "Panel 4: 性爱进行 - 后入式（doggy style）插入或女上位（cowgirl），体位、抽插",
-        "Panel 5: 高潮逼近 - 传教士体位（missionary），体位深入、双方反应、呻吟",
-        "Panel 6: 高潮射精 - 侧入式（spooning）或坐姿（reverse cowgirl），高潮特写、颜射/内射/体外射精【画面必须可见精液】",
+        "Panel 1: 开场遇见 - 【女人单独出场】场景介绍、女人主题服装（NO man yet，NO sex yet）【中景】",
+        "Panel 2: 升温调情 - 男人加入，乳交（titjob），近景。【俯视角度】",
+        "Panel 3: 脱衣亲密 - 口交（blowjob），近景特写女方和男方下半身。【侧视角度】",
+        "Panel 4: 【分屏画面】性爱进行 - 后入式（doggy style）性爱。分屏格式：左=抽插动作腰臀部特写 | 右=男方面部表情特写。俯视角度。",
+        "Panel 5: 性爱深入 - 女上位（reverse cowgirl）背对骑乘，中景显示女方背部和男方躺姿。【低角度仰视】",
+        "Panel 6: 高潮射精 - 站立式（standing）性爱，侧面近景显示两人全身。【画面必须可见精液】",
     ],
     7: [
-        "Panel 1: 开场遇见 - 【女人单独出场】场景介绍、女人主题服装、暗示性第一眼（NO man yet，NO sex yet）",
-        "Panel 2: 升温调情 - 男人加入，暧昧对话、轻微身体接触",
-        "Panel 3: 脱衣亲密 - 衣物脱去、亲吻爱抚、口交前戏（oral）",
-        "Panel 4: 前戏深入 - 口交（deepthroat oral）、乳房爱抚、情趣挑逗",
-        "Panel 5: 性爱进行 - 后入式（doggy style）插入，体位变化",
-        "Panel 6: 高潮逼近 - 传教士体位（missionary），体位深入、呻吟",
-        "Panel 7: 高潮射精 - 女上位（cowgirl）或侧入式（spooning），高潮特写、颜射/内射【画面必须可见精液】",
+        "Panel 1: 开场遇见 - 【女人单独出场】场景介绍、女人主题服装（NO man yet，NO sex yet）【中景】",
+        "Panel 2: 升温调情 - 男人加入，69姿势（sixty-nine），俯视角度显示两人身体交错。",
+        "Panel 3: 脱衣亲密 - 乳交（titjob），近景特写。【俯视角度】",
+        "Panel 4: 前戏深入 - 口交深喉（deepthroat），近景特写女方和男方腰部。【侧视角度】",
+        "Panel 5: 性爱进行 - 后入式（prone bone）趴式后入，俯视角度中景。",
+        "Panel 6: 【分屏画面】高潮逼近 - 传教士体位（missionary）性爱。分屏格式：左=性爱动作腰部近景 | 右=女方面部表情张嘴特写。平视角度。",
+        "Panel 7: 高潮射精 - 女上位（cowgirl）骑乘，低角度仰视近景。【画面必须可见精液】",
     ],
     8: [
-        "Panel 1: 开场遇见 - 【女人单独出场】场景介绍、女人主题服装、暗示性第一眼（NO man yet，NO sex yet）",
-        "Panel 2: 升温调情 - 男人加入，暧昧对话、轻微身体接触",
-        "Panel 3: 脱衣亲密 - 衣物脱去、亲吻爱抚、口交（cunnilingus oral）",
-        "Panel 4: 前戏深入 - 口交（deepthroat）、乳房爱抚、情趣玩具",
-        "Panel 5: 性爱进行 A - 后入式（doggy style），体位变化",
-        "Panel 6: 性爱进行 B - 女上位（cowgirl reverse），呻吟加剧",
-        "Panel 7: 高潮特写 - 传教士体位（missionary），射前最后阶段",
-        "Panel 8: 高潮射精 - 站立式（standing）或坐姿（cowgirl），高潮特写、颜射/内射【画面必须可见精液】",
+        "Panel 1: 开场遇见 - 【女人单独出场】场景介绍（NO man yet，NO sex yet）【中景】",
+        "Panel 2: 升温调情 - 男人加入，69姿势（sixty-nine），俯视角度。",
+        "Panel 3: 脱衣亲密 - 乳交（titjob），近景。【俯视】",
+        "Panel 4: 前戏深入 - 口交深喉（deepthroat），近景特写。【侧视】",
+        "Panel 5: 性爱进行 A - 后入式（doggy style），俯视角度中景。",
+        "Panel 6: 【分屏画面】性爱进行 B - 女上位（cowgirl）快速骑乘。分屏格式：左=女方身体弹跳中景 | 右=男方表情和手抓腰部特写。低角度仰视。",
+        "Panel 7: 高潮特写 - 传教士体位（missionary），近景特写两人面部。【平视角度】",
+        "Panel 8: 高潮射精 - 侧入式（spooning）侧躺性爱，侧面近景显示两人身体。【画面必须可见精液】",
     ],
     9: [
-        "Panel 1: 开场遇见 - 【女人单独出场】场景介绍、女人主题服装、暗示性第一眼（NO man yet，NO sex yet）",
-        "Panel 2: 升温调情 - 男人加入，暧昧对话、轻微身体接触",
-        "Panel 3: 脱衣亲密 - 衣物脱去、亲吻爱抚、口交（oral cunnilingus）",
-        "Panel 4: 前戏深入 - 口交（deepthroat）、乳房爱抚",
-        "Panel 5: 性爱开始 - 后入式（doggy style）插入，缓慢节奏",
-        "Panel 6: 性爱进行 - 女上位（cowgirl），体位变化、呻吟",
-        "Panel 7: 高潮逼近 - 传教士体位（missionary），呻吟达到顶峰",
-        "Panel 8: 高潮特写 - 侧入式（spooning），射前最后阶段",
-        "Panel 9: 高潮射精 - 坐姿（reverse cowgirl）或立式，颜射/内射【画面必须可见精液】",
+        "Panel 1: 开场遇见 - 【女人单独出场】场景介绍（NO man yet，NO sex yet）【中景】",
+        "Panel 2: 升温调情 - 男人加入，69姿势（sixty-nine），俯视。",
+        "Panel 3: 脱衣亲密 - 乳交（titjob），近景。【俯视】",
+        "Panel 4: 前戏深入 - 口交深喉（deepthroat），近景特写。【侧视】",
+        "Panel 5: 性爱开始 - 后入式（prone bone），俯视中景。",
+        "Panel 6: 【分屏画面】性爱进行 - 女上位（cowgirl）骑乘。分屏格式：左=女方身体律动全景 | 右=性爱部位腰部特写。低角度仰视。",
+        "Panel 7: 高潮逼近 - 传教士体位（missionary），近景特写两人面部和上半身。【平视角度】",
+        "Panel 8: 高潮加速 - 侧入式（spooning），侧面近景。",
+        "Panel 9: 高潮射精 - 站立式（standing），侧面全身近景。【画面必须可见精液】",
     ],
     10: [
-        "Panel 1: 开场遇见 - 【女人单独出场】场景介绍、女人主题服装、暗示性第一眼（NO man yet，NO sex yet）",
-        "Panel 2: 升温调情 - 男人加入，暧昧对话、轻微身体接触",
-        "Panel 3: 脱衣亲密 - 衣物脱去、亲吻爱抚、口交（oral cunnilingus）",
-        "Panel 4: 前戏深入 - 口交（deepthroat）、乳房爱抚、情趣玩具",
-        "Panel 5: 性爱开始 - 后入式（doggy style）插入，缓慢节奏",
-        "Panel 6: 性爱进行 A - 女上位（cowgirl），节奏加快",
-        "Panel 7: 性爱进行 B - 传教士体位（missionary），抽插",
-        "Panel 8: 高潮逼近 - 侧入式（spooning），呻吟达到顶峰、身体颤抖",
-        "Panel 9: 高潮特写 - 手交（handjob）或站立式（standing），射前最后阶段",
-        "Panel 10: 高潮射精 - 坐姿（reverse cowgirl）或颜射（facial），高潮特写【画面必须可见精液】",
+        "Panel 1: 开场遇见 - 【女人单独出场】场景介绍（NO man yet，NO sex yet）【中景】",
+        "Panel 2: 升温调情 - 男人加入，69姿势（sixty-nine），俯视。",
+        "Panel 3: 脱衣亲密 - 乳交（titjob），近景。【俯视】",
+        "Panel 4: 前戏深入 - 口交深喉（deepthroat），近景特写。【侧视】",
+        "Panel 5: 性爱开始 - 后入式（doggy style），俯视中景。",
+        "Panel 6: 【分屏画面】性爱进行 A - 女上位（cowgirl）骑乘。分屏格式：左=女方身体全景 | 右=男方表情特写。低角度仰视。",
+        "Panel 7: 性爱进行 B - 传教士体位（missionary），近景两人面部。【平视角度】",
+        "Panel 8: 高潮逼近 - 侧入式（spooning），侧面近景。",
+        "Panel 9: 高潮特写 - 手交（handjob）射精前奏，近景特写女方手部和男方性器。【侧视角度】",
+        "Panel 10: 【分屏画面】高潮射精 - 颜射（facial）。分屏格式：左=女方面部接受精液特写 | 右=男方性器射精瞬间特写。【画面必须可见精液】",
     ],
 }
 
@@ -8672,11 +8672,22 @@ Panel requirements:
 - Include the character's ethnicity/nationality in BOTH scene_description (Chinese) AND image_prompt (English, with skin tone + facial features specific to that ethnicity)
 
 For EACH panel provide:
-- scene_description: What happens in this panel (emotions, actions, setting) — set IN a ★ SCENARIO location with characters wearing ★ COSTUMES
-- image_prompt: Stable Diffusion / Flux image prompt (detailed, cinematic, UNIQUE). MUST start with explicit ethnicity descriptor (e.g. "a beautiful Iranian woman with fair olive skin and dark almond eyes", "a handsome Italian man with olive skin and dark brown hair", "a Brazilian woman with tanned olive skin and dark curly hair", "a Russian man with pale skin and light blue eyes", "a Chinese woman with warm beige skin and silky black hair"). MUST also include the ★ scenario location (in English equivalent) and the ★ costume keyword (in English equivalent).
+- scene_description: CONCISE Chinese description of what the user SEES. Include:
+  (1) SPECIFIC sexual position name in Chinese (e.g., "后入式性爱", "女上位骑乘", "传教士体位", "69口交")
+  (2) Camera angle/shot type (e.g., "近景特写", "俯视角度", "低角度仰视")
+  (3) Key action/emotion
+  (4) For split-screen panels: add "【分屏画面】" prefix and describe both views
+  DO NOT include LLM instructions or meta-commentary.
+  Examples:
+  - "后入式性爱，近景特写男方抽插动作，俯视角度"
+  - "【分屏画面】左：女方口交特写 | 右：男方表情，近景"
+  - "女上位骑乘，中景，女方上下起伏，仰视男方视角"
+  - "传教士体位，微距特写性器接合，低角度仰视"
+
+- image_prompt: Stable Diffusion / Flux image prompt (detailed, cinematic, UNIQUE). MUST start with explicit ethnicity descriptor (e.g. "a beautiful Iranian woman with fair olive skin and dark almond eyes", "a handsome Italian man with olive skin and dark brown hair", "a Brazilian woman with tanned olive skin and dark curly hair", "a Russian man with pale skin and light blue eyes", "a Chinese woman with warm beige skin and silky black hair"). MUST also include the ★ scenario location (in English equivalent) and the ★ costume keyword (in English equivalent). MUST include diverse camera angles and shot types per the CAMERA FRAMING section above.
 
 Output as raw JSON:
-{{"outline": {{"arc": "{arc_label}", "scenes": ["场景1描述", "场景2描述", ...]}}, "storyboard": [{{"panel_number": 1, "scene_description": "...", "image_prompt": "..."}}, ...]}}
+{{"outline": {{"arc": "开场遇见 → 升温调情 → 脱衣前戏 → 性爱进行 → 高潮射精", "scenes": ["场景1描述", "场景2描述", ...]}}, "storyboard": [{{"panel_number": 1, "scene_description": "...", "image_prompt": "..."}}, ...]}}
 
 Do NOT wrap in markdown. Output raw JSON only."""
 
@@ -8688,11 +8699,79 @@ _R18_OUTLINE_SYSTEM = """You are an EXPERT adult comic director specializing in 
 【THEME FIRST】: Theme consistency is a HARD CONSTRAINT — see the THEME CONTRACT block
 above. EXPLICIT pacing/positions below should fit INTO the ★ SCENARIOS and ★ COSTUMES.
 
-【POSE RANDOMIZATION - ABSOLUTELY MANDATORY - CHOOSE FROM 95-POSE LIBRARY】:
-You MUST select EXPLICITLY DIFFERENT sexual positions for each panel from the following
-EXPANDED 95-pose pool. NO TWO panels may share the same position category
-(e.g. doggy, cowgirl, missionary, 69, etc.). Variety is CRITICAL for every generation.
+【COLOR CONSISTENCY - CRITICAL REQUIREMENT】:
+The character's outfit color MUST remain CONSISTENT across ALL panels. If Panel 1 shows
+a "black dress", ALL subsequent panels must maintain "black dress" (not red, not white).
+- Panel 1: Introduce the outfit with its color (e.g., "red yoga pants", "black lingerie")
+- Panels 2-N: MAINTAIN that exact color throughout the narrative
+- When clothing is removed, describe the SAME color pieces being discarded
+- Example: Panel 1 "red dress" → Panel 2 "removing her red dress" → Panel 3 "red dress on floor"
+- NO color changes between panels unless explicitly part of the theme costume list
+
+【SPLIT-SCREEN CINEMATIC FRAME - MANDATORY - AT LEAST ONE PER STORYBOARD】:
+🔴 CRITICAL HARD REQUIREMENT 🔴
+Every storyboard MUST contain AT LEAST ONE split-screen panel.
+If your output does NOT include split-screen, it will be REJECTED and you must regenerate.
+
+WHEN TO USE SPLIT-SCREEN (CHOOSE AT LEAST ONE):
+✅ Sex panels (Panel 3+): Show action + facial expression simultaneously
+✅ Climax panel: Show penetration + emotional reaction together
+✅ Any panel where you want to show TWO focal points at once
+
+HOW TO FORMAT SPLIT-SCREEN PANELS:
+
+1️⃣ scene_description MUST start with: "【分屏画面】"
+Example: "【分屏画面】后入式性爱。左：男方腰部和抽插动作近景 | 右：女方侧脸表情特写，嘴巴张开"
+
+2️⃣ image_prompt MUST start with: "Split-screen cinematic frame: "
+Then describe LEFT side, then " | ", then describe RIGHT side.
+
+SPLIT-SCREEN FORMAT TEMPLATE:
+```
+scene_description: "【分屏画面】[姿势名称]。左：[左侧描述] | 右：[右侧描述]"
+image_prompt: "Split-screen cinematic frame: [LEFT detailed description including human body parts and context] | [RIGHT detailed description including human body parts and context], [camera angle], [lighting], [setting]"
+```
+
+REAL EXAMPLES YOU MUST FOLLOW:
+
+Example 1 - Doggy Style with Split-Screen:
+scene_description: "【分屏画面】后入式性爱，俯视角度。左：男方腰臀部和抽插动作近景，手抓女方腰部 | 右：女方侧脸表情特写，嘴巴张开眼神迷离"
+image_prompt: "Split-screen cinematic frame: close-up on his hips and torso thrusting from behind in doggy style position, his hands gripping her waist, muscular back visible | close-up on her face from the side, mouth open eyes half-closed in pleasure, hair disheveled, both in dimly lit bedroom with warm lighting"
+
+Example 2 - Cowgirl with Split-Screen:
+scene_description: "【分屏画面】女上位骑乘，低角度仰视。左：女方身体上下律动中景，乳房弹跳 | 右：男方面部表情特写，咬牙承受"
+image_prompt: "Split-screen cinematic frame: medium shot from below of woman riding cowgirl style, her body bouncing up and down, breasts moving, hands on his chest | close-up on man's face looking up, jaw clenched eyes intense showing pleasure, bedroom lighting from bedside lamp"
+
+Example 3 - Missionary Climax with Split-Screen:
+scene_description: "【分屏画面】传教士体位高潮，平视角度。左：性爱部位腰部近景，插入动作和精液流出 | 右：两人面部特写，接吻瞬间"
+image_prompt: "Split-screen cinematic frame: close-up from waist level showing missionary position penetration, his hips pressed against hers, visible cum dripping from her vagina onto sheets | close-up on both their faces kissing passionately during climax, eyes closed, bedroom warm lighting"
+
+🔴 CRITICAL REMINDER 🔴:
+Before submitting your storyboard output, CHECK:
+- Does at least ONE panel have scene_description starting with "【分屏画面】"?
+- Does that panel's image_prompt start with "Split-screen cinematic frame:"?
+- If NO to either → ADD a split-screen panel NOW or output is INVALID
+
+【POSE DIVERSITY - MANDATORY - MINIMUM 2-3 DIFFERENT POSITIONS PER STORYBOARD】:
+CRITICAL REQUIREMENTS FOR POSITION SELECTION:
+1. Each storyboard MUST feature at least 2-3 DISTINCT sexual positions from different categories
+2. For 6+ panels: use minimum 3 DIFFERENT positions across sex panels
+3. For 4-5 panels: use minimum 2 DIFFERENT positions across sex panels
+4. Position categories (MUST be different):
+   - Doggy style / Rear entry
+   - Cowgirl / Ride on top
+   - Missionary / Face to face
+   - Standing / Against wall
+   - Spooning / Side by side
+   - 69 / Mutual oral
+   - Prone bone
+   - Lotus / Seated
+   - Lap dance
+   - Wheelbarrow
+5. Do NOT repeat the same position category in adjacent panels
+
 The pool below contains 95 unique poses - pick strategically to maximize diversity.
+Be creative and explore the full spectrum of the 95-pose library.
 
 AVAILABLE POSITIONS (pick different ones per panel - this is your FULL 95-pose library):
 {pose_list}
@@ -8709,12 +8788,19 @@ AVAILABLE POSITIONS (pick different ones per panel - this is your FULL 95-pose l
 STRICT PACING - Each panel MUST follow this general arc (NO skipping to sex in Panel 1):
 {arc_panels}
 
-CRITICAL PACING RULES:
+🔴 SPLIT-SCREEN REQUIREMENT 🔴: At least ONE of the panels above MUST use split-screen format.
+Recommended split-screen panels:
+- Any sex panel (Panel 3+) showing penetration + facial expression
+- Climax panel showing action + emotion simultaneously
+- Any panel where you want dual focal points
+
+CRITICAL PACING RULES - ONE ACTION PER PANEL:
 - Panel 1: NO explicit sex. Focus on: character intro (with ethnicity), ★ COSTUME intro, ★ SCENARIO setting, building sexual tension, eye contact, atmosphere. TENSION first.
-- Panel 2: Clothes start coming off. Kissing, foreplay begins. Still building.
+- Panel 2: Clothes start coming off. Kissing, foreplay begins. Still building. ONE action only (either kissing OR touching, not both unless split-screen).
 - Panel 3+: ONLY THEN show explicit sexual acts. Use a DIFFERENT position from Panel 1's vibe.
-- Each panel must ADVANCE the sexual narrative naturally
+- Each panel must ADVANCE the sexual narrative naturally with ONE primary action
 - NEVER jump directly to penetration in Panel 1
+- CRITICAL: Each panel should focus on ONE main sexual action. If you want to show TWO distinct actions simultaneously (e.g., "man kisses woman while she performs oral sex"), you MUST use split-screen format. Otherwise, show actions SEQUENTIALLY across different panels
 
 EXPLICIT CONTENT requirements for Panel 3+:
 - MANDATORY: Pick one position from the {pose_list} list above for each panel. Each panel MUST use a DISTINCTLY DIFFERENT position from all other panels.
@@ -8785,21 +8871,83 @@ Panel 1-3 — no scene-jumping, no "moving to a rest room / lounge / bar / bathr
 between panels. If you feel a new location is needed, RESTRUCTURE the scene to fit
 the original ★ SCENARIO instead of switching to a different location.
 
-【CAMERA FRAMING — CLOSE-UP / MACRO REQUIRED FOR SEX PANELS — HARD RULE】:
-For every panel showing explicit sexual acts (Panel 3+), you MUST use close-up or
-macro framing. NEVER use wide-shot / full-body long-shot / distant framing for sex
-panels. Include in every sex panel's image_prompt one of:
-  - "close-up on penetration"
-  - "macro shot of penetration"
-  - "intimate close-up"
-  - "tight framing on bodies"
-  - "medium close-up from waist up"
-  - "POV shot of penetration"
-Wide / distant / establishing shots are BANNED for sex panels. Only the
-LEAD-WOMAN intro panel (Panel 1) may use a wider establishing shot.
+【CINEMATIC CAMERA LANGUAGE - MANDATORY DIVERSITY FOR ALL PANELS】:
+CRITICAL: You MUST use DIVERSE camera shots throughout the storyboard. Do NOT
+overuse any single shot type. Mix these shot types strategically:
+
+SHOT TYPES (MUST DIVERSIFY - USE ALL OF THESE):
+1. INTIMATE CLOSE-UP: Upper body + faces during sex - "close-up shot from waist up showing both faces", "intimate framing of upper bodies intertwined"
+2. GENITAL DETAIL SHOT: ALWAYS include the human context - "close-up on penetration showing her hips and his hands gripping them", "detail shot of his cock entering her pussy while her back arches"
+3. FACIAL EXPRESSION: Emotion + partial body - "close-up on her face with his shoulder visible", "his face in ecstasy while her hand grips his arm"
+4. MEDIUM SHOT (MS): Full body dynamics - "medium shot capturing their intertwined bodies"
+5. WIDE SHOT (WS): Scene establishing (only for Panel 1 intro)
+
+CRITICAL RULE - NO ISOLATED ORGAN SHOTS:
+❌ NEVER write: "extreme close-up on labia", "macro on genitals alone", "close-up on pussy"
+✅ ALWAYS include human context: "close-up on her hips as his cock enters her wet pussy, her hand gripping the sheets", "detail shot showing penetration with her arched back visible in frame"
+
+CAMERA ANGLES (MUST DIVERSIFY):
+- Low angle (仰视): "shot from below looking up at her body on top"
+- High angle (俯视): "overhead shot looking down at their bodies"
+- Eye level (平视): "eye level intimate shot of their faces"
+- POV perspective: "his POV looking down at her body", "her POV looking up at his face"
+
+SEX PANEL REQUIREMENTS (Panel 3+):
+- MUST prioritize shots that show BOTH people in sexual context
+- Include body parts AND human elements together (face, hands, torso, etc.)
+- NEVER isolate genitals without showing attached human body/limbs
+- For EACH sex panel, include 2-3 camera descriptors + human context
+
+SPECIFIC EXAMPLES FOR SEX PANELS:
+✅ "intimate close-up from waist up showing his cock thrusting into her pussy, her face turned to side mouth open, his hand gripping her hip"
+✅ "medium shot from below showing her riding him cowgirl style, her breasts bouncing, head thrown back"
+✅ "close-up on her face eyes rolled back in ecstasy, his shoulder and neck visible as he thrusts from behind"
+✅ "detail shot of doggy style penetration with her arched back and his hands spreading her ass cheeks visible in frame"
 
 Output as raw JSON:
-{{"outline": {{"arc": "{arc_label}", "scenes": ["Panel 1: 前戏描述", "Panel 2: 升温描述", ...]}}, "storyboard": [{{"panel_number": 1, "scene_description": "中文场景描述", "image_prompt": "explicit SD prompt"}}, ...]}}
+{{"outline": {{"arc": "开场 → 发展 → 亲密 → 高潮 → 结尾", "scenes": ["Panel 1: 前戏描述", "Panel 2: 升温描述", ...]}}, "storyboard": [{{"panel_number": 1, "scene_description": "中文场景描述（必须包含具体姿势名+镜头类型+【分屏画面】如适用）", "image_prompt": "explicit SD prompt（必须包含多种镜头角度和特写）"}}, ...]}}
+
+【FINAL VALIDATION CHECKLIST - BEFORE SUBMITTING OUTPUT】:
+Before you submit your JSON output, CHECK ALL OF THESE:
+
+🔴 1. SPLIT-SCREEN MANDATORY (MOST CRITICAL):
+   Q: Does your storyboard contain AT LEAST ONE panel where:
+      - scene_description starts with "【分屏画面】"
+      - image_prompt starts with "Split-screen cinematic frame:"
+      - Contains " | " separator between LEFT and RIGHT descriptions
+   A: If NO → You MUST ADD a split-screen panel NOW or output is REJECTED
+   
+   Example of VALID split-screen panel:
+   {{
+     "panel_number": 4,
+     "scene_description": "【分屏画面】后入式性爱，俯视角度。左：男方腰部抽插动作近景 | 右：女方表情特写",
+     "image_prompt": "Split-screen cinematic frame: close-up on his hips thrusting doggy style, hands gripping her waist | close-up on her face from side mouth open in ecstasy, bedroom lighting"
+   }}
+
+2. ✅ NO ISOLATED ORGANS: Check every image_prompt for phrases like:
+   ❌ "close-up on pussy", "macro on labia", "extreme close-up on genitals alone"
+   - If found → REWRITE to include human context (body, hands, face, limbs)
+   ✅ "close-up on penetration showing her hips and his hands", "her pussy with her thighs and torso visible"
+
+3. ✅ POSITION DIVERSITY: For 6+ panels, do you have 3+ different sex positions?
+   For 4-5 panels, do you have 2+ different positions?
+   - Count: doggy, cowgirl, missionary, standing, spooning, 69, etc.
+   - If NO → REPLACE duplicate positions with different ones from the 95-pose library
+
+4. ✅ CHINESE DESCRIPTIONS: Does each sex panel's scene_description include:
+   - Specific position name (后入式/女上位/传教士体位)?
+   - Camera type (近景/特写/俯视/仰视)?
+   - If NO → ADD these details NOW
+
+5. ✅ CAMERA DIVERSITY: Do your panels mix different shot types?
+   - Wide shot (Panel 1 only) / Medium shot / Close-up / Detail shot
+   - Different angles: 俯视/仰视/平视/POV
+   - If all panels use same framing → DIVERSIFY NOW
+
+🔴 CRITICAL: If check #1 (SPLIT-SCREEN) fails, the entire output is INVALID.
+You MUST include at least one split-screen panel before submitting.
+
+If ANY check fails, FIX the output before submitting. Do NOT submit invalid output.
 
 Do NOT wrap in markdown."""
 
@@ -8947,8 +9095,8 @@ async def generate_storyboard_outline(
         arc_panels = _R18_ARC_PANELS.get(panel_count, _R18_ARC_PANELS[5])
         system_template = _R18_OUTLINE_SYSTEM
         arc_label = "开场遇见 → 升温调情 → 脱衣前戏 → 性爱进行 → 高潮射精"
-        # Inject random poses — reasonable pool size for diversity without overloading LLM
-        selected_poses = get_random_poses(panel_count + 2)
+        # Inject ALL 95 poses to maximize diversity — LLM must pick unique ones per panel
+        selected_poses = get_random_poses(95)
         pose_list_str = "\n".join(f"  - {p}" for p in selected_poses)
     else:
         arc_panels = _NORMAL_ARC_PANELS.get(panel_count, _NORMAL_ARC_PANELS[4])
@@ -8995,6 +9143,12 @@ async def generate_storyboard_outline(
     user_prompt = (
         f"Theme: {req.theme_title}\n"
         f"Panel count: {panel_count}\n"
+        f"🔴 MANDATORY SPLIT-SCREEN REQUIREMENT 🔴:\n"
+        f"Your storyboard MUST include AT LEAST ONE panel with split-screen composition.\n"
+        f"Format: scene_description starts with '【分屏画面】', image_prompt starts with 'Split-screen cinematic frame:'\n"
+        f"Example: scene_description='【分屏画面】后入式性爱。左：男方腰部动作 | 右：女方表情特写'\n"
+        f"Example: image_prompt='Split-screen cinematic frame: close-up on his hips thrusting doggy style | close-up on her face in ecstasy'\n"
+        f"If you do NOT include split-screen, your output will be REJECTED.\n\n"
         f"【STRICT THEME CONSTRAINT — REPEAT】: 你必须只用 ★ SCENARIOS 列表里的地点,"
         f"只用 ★ COSTUMES 列表里的服装。如 system_prompt 的 THEME CONTRACT 所示。\n"
         f"【重要】Panel 1 不能有直接性爱！必须先从开场/前戏开始，逐步发展到性爱。\n"
@@ -9003,7 +9157,11 @@ async def generate_storyboard_outline(
         f"在生成的每个 panel.scene_description 里,地点名词必须来自 ★ SCENARIOS 列表;"
         f"服装名词必须来自 ★ COSTUMES 列表。\n"
         f"在生成的每个 panel.image_prompt (English) 里,location 和 outfit 也必须贴近 ★ 列表的语义。"
-        f"{theme_keywords_line_sync}{theme_keywords_en_line_sync}\n"
+        f"{theme_keywords_line_sync}{theme_keywords_en_line_sync}\n\n"
+        f"🔴 BEFORE YOU OUTPUT 🔴: Check that at least one panel has:\n"
+        f"- scene_description starting with '【分屏画面】'\n"
+        f"- image_prompt starting with 'Split-screen cinematic frame:'\n"
+        f"If missing, ADD IT NOW.\n\n"
         f"Output as raw JSON only, no markdown."
     )
 
@@ -9296,12 +9454,30 @@ async def generate_storyboard_outline(
                 # strengthen the user prompt to reset context
                 override_msg = _SAFETY_OVERRIDES[min(attempt, len(_SAFETY_OVERRIDES) - 1)]
                 system_prompt += f"\n\n{override_msg}"
+                # Keep the same user_prompt structure with split-screen requirement
+                # (same as the original prompt construction above)
                 user_prompt = (
                     f"Theme: {req.theme_title}\n"
                     f"Panel count: {panel_count}\n"
+                    f"🔴 MANDATORY SPLIT-SCREEN REQUIREMENT 🔴:\n"
+                    f"Your storyboard MUST include AT LEAST ONE panel with split-screen composition.\n"
+                    f"Format: scene_description starts with '【分屏画面】', image_prompt starts with 'Split-screen cinematic frame:'\n"
+                    f"Example: scene_description='【分屏画面】后入式性爱。左：男方腰部动作 | 右：女方表情特写'\n"
+                    f"Example: image_prompt='Split-screen cinematic frame: close-up on his hips thrusting doggy style | close-up on her face in ecstasy'\n"
+                    f"If you do NOT include split-screen, your output will be REJECTED.\n\n"
+                    f"【STRICT THEME CONSTRAINT — REPEAT】: 你必须只用 ★ SCENARIOS 列表里的地点,"
+                    f"只用 ★ COSTUMES 列表里的服装。如 system_prompt 的 THEME CONTRACT 所示。\n"
                     f"【重要】Panel 1 不能有直接性爱！必须先从开场/前戏开始，逐步发展到性爱。\n"
-                    f"【重要】R18模式：每个分镜的 image_prompt 必须非常详细和露骨，描述体位、身体部位、体液等。\n"
-                    f"【重要】所有角色必须是18+成年人！严禁出现 teen, teenage, minor, young adult, schoolgirl, schoolboy 等词汇！\n"
+                    f"【重要】R18模式：每个分镜的 image_prompt 必须非常详细和露骨。所有 R18 要求适用,"
+                    f"但 THEME CONSTRAINT 优先级更高。\n"
+                    f"在生成的每个 panel.scene_description 里,地点名词必须来自 ★ SCENARIOS 列表;"
+                    f"服装名词必须来自 ★ COSTUMES 列表。\n"
+                    f"在生成的每个 panel.image_prompt (English) 里,location 和 outfit 也必须贴近 ★ 列表的语义。"
+                    f"{theme_keywords_line_sync}{theme_keywords_en_line_sync}\n\n"
+                    f"🔴 BEFORE YOU OUTPUT 🔴: Check that at least one panel has:\n"
+                    f"- scene_description starting with '【分屏画面】'\n"
+                    f"- image_prompt starting with 'Split-screen cinematic frame:'\n"
+                    f"If missing, ADD IT NOW.\n\n"
                     f"Output as raw JSON only, no markdown."
                 )
                 continue

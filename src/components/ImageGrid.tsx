@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Download, X, ZoomIn, Heart, Check } from 'lucide-react';
 import { downloadImage } from '../services/runninghub';
 import { isFavorited as checkIsFavorited } from '../services/storage';
+import { AspectAwareImage } from './AspectAwareImage';
 
 interface ImageGridProps {
   images: string[];
@@ -61,26 +62,29 @@ export function ImageGrid({ images, isLoading, onToggleFavorite, selectedIndex, 
   return (
     <>
       {isLoading ? (
-        <div className="grid grid-cols-3 gap-2">
+        <div className="flex gap-2 overflow-x-auto pb-1">
           {[1, 2, 3].map((i) => (
             <div
               key={i}
-              className="aspect-video rounded-lg bg-bg-elevated animate-pulse"
+              className="flex-shrink-0 rounded-lg bg-bg-elevated animate-pulse"
+              style={{ width: 80, height: 120 }}
             />
           ))}
         </div>
       ) : images.length > 0 ? (
-        <div className="grid grid-cols-3 gap-2">
+        <div className="flex gap-2 overflow-x-auto pb-1">
           {images.map((url, i) => (
             <div
               key={i}
-              className="group relative rounded-lg overflow-hidden bg-bg-elevated cursor-pointer"
+              className="group relative flex-shrink-0 rounded-lg overflow-hidden bg-bg-elevated cursor-pointer"
               onClick={() => handleImageClick(i)}
             >
-              <img
+              <AspectAwareImage
                 src={url}
                 alt={`Generated ${i + 1}`}
-                className="w-full aspect-video object-cover transition-transform group-hover:scale-105"
+                maxHeight={120}
+                objectFit="cover"
+                className="transition-transform group-hover:scale-105"
               />
               {/* Favorite button — always on top */}
               {onToggleFavorite && (

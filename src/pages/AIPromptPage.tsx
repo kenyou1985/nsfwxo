@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { extractVideoPromptFromImagePrompt } from '../utils/videoPromptExtractor';
 import { makeThumbnailForStorage } from '../utils/imageThumbnail';
+import { AspectAwareImage } from '../components/AspectAwareImage';
 import {
   Wand2, Shuffle, LayoutList, Copy, Check, Loader2,
   ChevronDown, ChevronUp, Sparkles, RotateCcw, Send,
@@ -2385,7 +2386,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
 }) {
   const savedStoryboard = getStoryboardSession();
   const [plot, setPlot] = useState(savedStoryboard?.plot || '');
-  const [panelCount, setPanelCount] = useState(savedStoryboard?.panelCount || 5);
+  const [panelCount, setPanelCount] = useState(savedStoryboard?.panelCount || 6);
   const [panels, setPanels] = useState<{ panel_number: number; scene_description: string; image_prompt: string }[]>(savedStoryboard?.panels || []);
   const [expandedPanel, setExpandedPanel] = useState<number | null>(savedStoryboard?.expandedPanel ?? null);
   const [copiedPanel, setCopiedPanel] = useState<number | null>(null);
@@ -5114,7 +5115,7 @@ function StoryboardHistoryList({ history, onLoad, onDelete }: {
             {previewImages[h.id] && previewImages[h.id].length > 0 ? (
               <div className="flex-shrink-0 flex gap-0.5">
                 {previewImages[h.id].slice(0, 4).map((img, i) => (
-                  <img key={i} src={img} alt="" className="w-9 h-9 rounded object-cover border border-border/50" />
+                  <AspectAwareImage key={i} src={img} alt="" maxHeight={36} objectFit="cover" className="rounded border border-border/50" />
                 ))}
               </div>
             ) : (
@@ -5165,10 +5166,15 @@ function FavoritesList({ favorites, r18Mode, onRemove, onClear }: {
           </button>
         )}
       </div>
-      <div className="grid grid-cols-3 gap-2 p-3">
+      <div className="flex flex-wrap gap-2 p-3">
         {favorites.map((item) => (
-          <div key={item.id} className="relative group aspect-square rounded-lg overflow-hidden bg-bg-elevated">
-            <img src={item.imageUrl ?? ""} alt="" className="w-full h-full object-cover" loading="lazy" />
+          <div key={item.id} className="relative group rounded-lg overflow-hidden bg-bg-elevated">
+            <AspectAwareImage
+              src={item.imageUrl ?? ""}
+              alt=""
+              maxHeight={120}
+              objectFit="cover"
+            />
             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
               <button
                 onClick={(e) => handleDownload(e, item)}
@@ -5338,7 +5344,7 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
                   <span className="text-xs text-text-tertiary font-medium">生成结果（点击选中/预览）</span>
                   <span className="text-[10px] text-text-tertiary">{allDisplayImages.length} 张</span>
                 </div>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="flex flex-wrap gap-2">
                   {allDisplayImages.filter((img) => img && (img.startsWith('data:') || img.startsWith('blob:') || img.startsWith('http'))).slice(0, 6).map((img, i) => (
                     <div
                       key={i}
@@ -5350,17 +5356,11 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
                         onPreviewImage?.(allDisplayImages, i, panel.image_prompt);
                       }}
                     >
-                      <img
+                      <AspectAwareImage
                         src={img}
                         alt=""
-                        className="w-full aspect-square object-cover"
-                        loading="lazy"
-                        onError={(e) => {
-                          // Hide broken images — bare hash refs and dead
-                          // blob URLs would otherwise show as the browser's
-                          // default broken-image icon.
-                          (e.currentTarget as HTMLImageElement).style.display = 'none';
-                        }}
+                        maxHeight={120}
+                        objectFit="cover"
                       />
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors pointer-events-none" />
                       <div className="absolute top-1 right-1 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -5398,7 +5398,7 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
                     </div>
                   ))}
                   {allDisplayImages.length > 6 && (
-                    <div className="aspect-square rounded-lg bg-bg-elevated flex items-center justify-center text-xs text-text-tertiary">
+                    <div className="rounded-lg bg-bg-elevated flex items-center justify-center text-xs text-text-tertiary" style={{ width: 80, height: 120 }}>
                       +{allDisplayImages.length - 6}
                     </div>
                   )}

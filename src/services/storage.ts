@@ -97,10 +97,10 @@ export function maskYunwuKey(key: string): string {
 // ─── Default Male Character Setting ─────────────────────────────────────────────────
 
 export const MALE_CHARACTER_OPTIONS = [
-  { id: 'black', label: '强壮黑人男性', labelEn: 'Strong Black Male', prompt: 'tall muscular black male with dark skin, thick large black penis with prominent veins' },
-  { id: 'white', label: '强壮白人男性', labelEn: 'Strong White Male', prompt: 'tall muscular white male with fair skin, thick large penis with prominent veins' },
-  { id: 'asian', label: '强壮亚洲男性', labelEn: 'Strong Asian Male', prompt: 'tall muscular Asian male with tan skin, thick large penis with prominent veins' },
-  { id: 'latino', label: '强壮拉丁裔男性', labelEn: 'Strong Latino Male', prompt: 'tall muscular Latino male with olive skin, thick large penis with prominent veins' },
+  { id: 'black', label: '强壮黑人男性', labelEn: 'Strong Black Male', prompt: 'An athletic Black man with dark skin' },
+  { id: 'white', label: '强壮白人男性', labelEn: 'Strong White Male', prompt: 'An athletic white man with fair skin' },
+  { id: 'asian', label: '强壮亚洲男性', labelEn: 'Strong Asian Male', prompt: 'An athletic Asian man with tan skin' },
+  { id: 'latino', label: '强壮拉丁裔男性', labelEn: 'Strong Latino Male', prompt: 'An athletic Latino man with olive skin' },
   { id: 'none', label: '不指定男性角色', labelEn: 'No Male Specified', prompt: '' },
 ] as const;
 

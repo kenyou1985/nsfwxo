@@ -726,22 +726,27 @@ export async function fetchImageAsDataUrl(url: string, timeoutMs = 30000): Promi
   // data URL already contains the full content — return as-is
   if (url.startsWith('data:')) return url;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let timer: ReturnType<typeof setTimeout> | null = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(url, { signal: controller.signal });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      if (timer) clearTimeout(timer);
+      return null;
+    }
     const blob = await response.blob();
-    return await new Promise<string>((resolve, reject) => {
+    const dataUrl = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onloadend = () => resolve(reader.result as string);
       reader.onerror = reject;
       reader.readAsDataURL(blob);
     });
+    // Clear timeout AFTER FileReader completes
+    if (timer) clearTimeout(timer);
+    return dataUrl;
   } catch (err) {
+    if (timer) clearTimeout(timer);
     console.warn('[fetchImageAsDataUrl] failed:', url, err instanceof Error ? err.message : err);
     return null;
-  } finally {
-    clearTimeout(timer);
   }
 }
 
@@ -778,11 +783,12 @@ export async function extractImagesFromZipAsDataUrls(zipUrl: string, retries = 2
         await new Promise((r) => setTimeout(r, 3000 * attempt));
       }
 
+      let timeout: ReturnType<typeof setTimeout> | null = null;
       try {
         const controller = new AbortController();
         // Data-URL conversion (FileReader.readAsDataURL on multi-MB blobs) is
         // CPU-bound. 180s gives plenty of headroom for slow machines under load.
-        const timeout = setTimeout(() => controller.abort(), 180000);
+        timeout = setTimeout(() => controller.abort(), 180000);
 
         const response = await fetch(zipUrl, {
           signal: controller.signal,
@@ -792,7 +798,6 @@ export async function extractImagesFromZipAsDataUrls(zipUrl: string, retries = 2
           // @ts-ignore — keepalive is widely supported but not in older lib defs
           keepalive: true,
         });
-        clearTimeout(timeout);
 
         if (!response.ok) {
           throw new Error(`Failed to fetch zip: ${response.status}`);
@@ -821,11 +826,22 @@ export async function extractImagesFromZipAsDataUrls(zipUrl: string, retries = 2
           if (!imageExtensions.some((e) => ext.endsWith(e))) continue;
           try {
             const blob = await file.async('blob');
-            if (blob.size === 0) continue;
+            console.log(`[extractImagesFromZipAsDataUrls] Extracted blob for ${filename}: ${blob.size} bytes, type=${blob.type}`);
+            if (blob.size === 0) {
+              console.warn(`[extractImagesFromZipAsDataUrls] Skipping empty blob: ${filename}`);
+              continue;
+            }
             const dataUrl = await new Promise<string>((resolve, reject) => {
               const reader = new FileReader();
-              reader.onloadend = () => resolve(reader.result as string);
-              reader.onerror = reject;
+              reader.onloadend = () => {
+                const result = reader.result as string;
+                console.log(`[extractImagesFromZipAsDataUrls] Converted ${filename} to data URL: ${result.substring(0, 50)}...`);
+                resolve(result);
+              };
+              reader.onerror = (e) => {
+                console.error(`[extractImagesFromZipAsDataUrls] FileReader error for ${filename}:`, e);
+                reject(new Error(`FileReader failed for ${filename}`));
+              };
               reader.readAsDataURL(blob);
             });
             dataUrls.push(dataUrl);
@@ -834,11 +850,17 @@ export async function extractImagesFromZipAsDataUrls(zipUrl: string, retries = 2
           }
         }
 
+        console.log(`[extractImagesFromZipAsDataUrls] Total images converted: ${dataUrls.length}`);
+
         if (dataUrls.length === 0) {
           throw new Error('ZIP 中未找到图片文件');
         }
+        
+        // Clear timeout AFTER all processing is done
+        if (timeout) clearTimeout(timeout);
         return dataUrls;
       } catch (err) {
+        if (timeout) clearTimeout(timeout);
         lastError = err instanceof Error ? err : new Error(String(err));
         console.warn('[extractImagesFromZipAsDataUrls] Attempt', attempt, 'failed:', lastError.message);
       }
