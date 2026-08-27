@@ -124,9 +124,6 @@ const KREA2_NODES: NodeIds = {
   lora2: '83',
   lora3: '99',
   checkpoint: '55',
-  extra: {
-    negPromptEnable: { nodeId: '118', fieldName: 'value' },
-  },
 };
 
 function getNodeIds(workflowId: string): NodeIds {
@@ -185,11 +182,6 @@ export function buildTxt2ImgNodeList(options: Txt2ImgNodeOptions): NodeInfo[] {
   if (workflowId === WORKFLOW.THREE_LORA) {
     nodes.push({ nodeId: '100', fieldName: 'value', fieldValue: 'false', description: '启用反向提示词' });
     nodes.push({ nodeId: '105', fieldName: 'value', fieldValue: threeLoraRandomPrompt ? 'true' : 'false', description: '添加随机提示词' });
-  }
-
-  // Krea2 — 负面提示词开关（默认关闭）
-  if (workflowId === WORKFLOW.KREA2) {
-    nodes.push({ nodeId: '118', fieldName: 'value', fieldValue: 'false', description: '启用反向提示词' });
   }
 
   // 真实系默认模型有反向提示词节点

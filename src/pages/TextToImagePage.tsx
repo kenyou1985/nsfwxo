@@ -54,7 +54,7 @@ export function TextToImagePage({
     const isKREA2 = wf === WORKFLOW.KREA2;
     return {
       ...DEFAULT_TXT2IMG_PARAMS,
-      enableRandomPrompt: true,
+      enableRandomPrompt: false,
       threeLoraRandomPrompt: false,
       workflowId: wf,
       width: isKREA2 ? KREA2_TXT2IMG_PARAMS.width : DEFAULT_TXT2IMG_PARAMS.width,
@@ -86,7 +86,7 @@ export function TextToImagePage({
   const [negativeTags, setNegativeTags] = useState<SelectedTag[]>([]);
   const [tagCounter, setTagCounter] = useState(0);
   const [customPrompt, setCustomPrompt] = useState('');
-  const [enableRandomPrompt, setEnableRandomPrompt] = useState(true);
+  const [enableRandomPrompt, setEnableRandomPrompt] = useState(false);
   const [isR18Enabled, setIsR18Enabled] = useState(false);
   const [displayLang, setDisplayLang] = useState<'en' | 'zh'>('en');
 
@@ -264,11 +264,11 @@ export function TextToImagePage({
   }, []);
 
   const handlePoseSelect = useCallback((posePrompt: string, poseName: string) => {
-    const current = customPrompt.trim();
-    const newPrompt = current ? `${current}, ${posePrompt}` : posePrompt;
-    setCustomPrompt(newPrompt);
-    onSuccess(`已添加姿势: ${poseName}`);
-  }, [customPrompt, onSuccess]);
+    // Replace entire prompt with the selected pose (don't append)
+    // This prevents duplicate pose descriptions when selecting multiple poses
+    setCustomPrompt(posePrompt);
+    onSuccess(`已切换姿势: ${poseName}`);
+  }, [onSuccess]);
 
   const handleToggleFavorite = (imageUrl: string) => {
     // Use imageRef for lookup since addFavorite stores the URL in imageRef field

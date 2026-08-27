@@ -1,12 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { User, Search, Lock, Settings, X } from 'lucide-react';
+import { User, Search, Lock } from 'lucide-react';
 import { IMAGE_POSE_PRESETS, VIDEO_POSE_PRESETS, type ImagePosePreset, type VideoPosePreset } from '../data/presetPoses';
 import type { GirlfriendPreset } from '../data/girlfriendPresets';
-import {
-  getDefaultMaleCharacter, setDefaultMaleCharacter,
-  getMaleCharacterPrompt, MALE_CHARACTER_OPTIONS,
-  type MaleCharacterId,
-} from '../services/storage';
 
 interface PosePresetSelectorProps {
   type: 'image' | 'video';
@@ -16,21 +11,16 @@ interface PosePresetSelectorProps {
   forceUnlock?: boolean;
 }
 
-function buildIdentityPrefix(gf: GirlfriendPreset | null, maleCharId: MaleCharacterId): string {
-  // Krea2 style: natural language description, no explicit anatomical details in prefix.
-  // The pose presets already contain detailed positioning and clothing state descriptions.
-  // This prefix only provides character identity anchors in a Krea2-friendly way.
-  const malePrompt = getMaleCharacterPrompt(maleCharId);
-  const maleSentence = malePrompt ? `${malePrompt} and ` : '';
-  if (!gf) return maleSentence;
-  return `${maleSentence}Strictly preserve the exact identity, character, and features of ${gf.nameZh} (ID:${gf.id.toUpperCase()}); do not alter the character at all. `;
+function buildIdentityPrefix(gf: GirlfriendPreset | null): string {
+  // No male character prefix - use pose presets as-is
+  // Only add girlfriend identity anchor if one is selected
+  if (!gf) return '';
+  return `Strictly preserve the exact identity, character, and features of ${gf.nameZh} (ID:${gf.id.toUpperCase()}); do not alter the character at all. `;
 }
 
 export function PosePresetSelector({ type, onSelect, disabled, selectedGirlfriend = null, forceUnlock = false }: PosePresetSelectorProps) {
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [maleCharId, setMaleCharId] = useState<MaleCharacterId>(() => getDefaultMaleCharacter());
 
   const presets = type === 'video' ? VIDEO_POSE_PRESETS : IMAGE_POSE_PRESETS;
 
@@ -78,17 +68,10 @@ export function PosePresetSelector({ type, onSelect, disabled, selectedGirlfrien
     }
 
     setSelectedId(preset.id);
-    const identityPrefix = buildIdentityPrefix(selectedGirlfriend, maleCharId);
+    const identityPrefix = buildIdentityPrefix(selectedGirlfriend);
     const fullPrompt = identityPrefix + preset.prompt;
     onSelect(fullPrompt, preset.nameZh);
   };
-
-  const handleMaleCharChange = (id: MaleCharacterId) => {
-    setMaleCharId(id);
-    setDefaultMaleCharacter(id);
-  };
-
-  const selectedMaleOption = MALE_CHARACTER_OPTIONS.find((o) => o.id === maleCharId);
 
   return (
     <div className="border border-border rounded-xl bg-white overflow-hidden">
@@ -111,74 +94,15 @@ export function PosePresetSelector({ type, onSelect, disabled, selectedGirlfrien
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-          <button
-            onClick={(e) => { e.stopPropagation(); setShowSettings(true); }}
-            className="p-1.5 rounded-lg hover:bg-bg-hover transition-colors text-text-tertiary hover:text-text-primary"
-            title="男性角色设置"
-          >
-            <Settings size={14} />
-          </button>
-          <svg
-            className={`w-4 h-4 text-text-tertiary transition-transform ${expanded ? 'rotate-180' : ''}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </div>
+        <svg
+          className={`w-4 h-4 text-text-tertiary transition-transform ${expanded ? 'rotate-180' : ''}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
       </div>
-
-      {/* Male character settings modal */}
-      {showSettings && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowSettings(false)}>
-          <div className="bg-white rounded-2xl shadow-xl w-[360px] max-w-[90vw]" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-              <h3 className="text-sm font-semibold text-text-primary">男性角色设置</h3>
-              <button onClick={() => setShowSettings(false)} className="p-1 rounded-lg hover:bg-bg-hover transition-colors">
-                <X size={16} className="text-text-tertiary" />
-              </button>
-            </div>
-            <div className="p-4 space-y-2">
-              <p className="text-xs text-text-tertiary mb-3">
-                选择剧情分镜中默认的男性角色类型，此设置将影响所有预设姿势中男性角色的描述。
-              </p>
-              {MALE_CHARACTER_OPTIONS.map((opt) => (
-                <button
-                  key={opt.id}
-                  onClick={() => handleMaleCharChange(opt.id)}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all ${
-                    maleCharId === opt.id
-                      ? 'bg-primary/10 border border-primary/30 text-primary'
-                      : 'bg-bg-elevated border border-transparent hover:bg-bg-hover text-text-primary'
-                  }`}
-                >
-                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                    maleCharId === opt.id ? 'border-primary bg-primary' : 'border-border'
-                  }`}>
-                    {maleCharId === opt.id && (
-                      <div className="w-2 h-2 rounded-full bg-white" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium">{opt.label}</div>
-                    <div className="text-[11px] text-text-tertiary">{opt.labelEn}</div>
-                  </div>
-                </button>
-              ))}
-            </div>
-            <div className="px-4 pb-4">
-              <button
-                onClick={() => setShowSettings(false)}
-                className="w-full py-2.5 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors"
-              >
-                确定
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 锁定提示 */}
       {showLockedToast && (
@@ -250,11 +174,6 @@ export function PosePresetSelector({ type, onSelect, disabled, selectedGirlfrien
                 </span>
               )}
             </span>
-            {selectedMaleOption && (
-              <span className="text-[10px] text-text-tertiary truncate max-w-[120px]" title={selectedMaleOption.label}>
-                · {selectedMaleOption.label}
-              </span>
-            )}
           </div>
         </div>
       )}

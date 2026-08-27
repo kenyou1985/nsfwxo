@@ -5142,9 +5142,9 @@ async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key
             arc_panels = _R18_ARC_PANELS.get(panel_count, _R18_ARC_PANELS[5])
             system_template = _R18_OUTLINE_SYSTEM
             arc_label = "开场遇见 → 升温调情 → 脱衣前戏 → 性爱进行 → 高潮射精"
-            # Use full 95-pose library for maximum diversity
-            pool_poses = get_random_poses(95)
-            pose_list_str = "\n".join(f"  - {p}" for p in pool_poses)
+            # Randomly select 2-3 diverse poses with detailed prompts
+            pool_poses = get_random_poses(3)
+            pose_list_str = "\n".join(f"  - {p['name']}: {p['prompt']}" for p in pool_poses)
         else:
             arc_panels = _NORMAL_ARC_PANELS.get(panel_count, _NORMAL_ARC_PANELS[4])
             system_template = _NORMAL_OUTLINE_SYSTEM
@@ -7699,8 +7699,8 @@ async def random_prompt_stream(req: RandomRequest, api_key: str = Depends(get_ap
 @router.post("/storyboard", response_model=StoryboardResponse)
 async def storyboard(req: StoryboardRequest, api_key: str = Depends(get_api_key)):
     if req.r18:
-        selected_poses = get_random_poses(95)
-        pose_list_str = "\n".join(f"  - {p}" for p in selected_poses)
+        selected_poses = get_random_poses(3)
+        pose_list_str = "\n".join(f"  - {p['name']}: {p['prompt']}" for p in selected_poses)
         system_prompt = STORYBOARD_SYSTEM_PROMPT_R18.format(pose_list=pose_list_str)
     else:
         system_prompt = STORYBOARD_SYSTEM_PROMPT_NORMAL
@@ -7785,8 +7785,8 @@ async def _storyboard_stream_ndjson(
     req: StoryboardRequest,
 ) -> AsyncIterator[str]:
     if req.r18:
-        selected_poses = get_random_poses(95)
-        pose_list_str = "\n".join(f"  - {p}" for p in selected_poses)
+        selected_poses = get_random_poses(3)
+        pose_list_str = "\n".join(f"  - {p['name']}: {p['prompt']}" for p in selected_poses)
         system_prompt = STORYBOARD_SYSTEM_PROMPT_R18.format(pose_list=pose_list_str)
     else:
         system_prompt = STORYBOARD_SYSTEM_PROMPT_NORMAL
@@ -9095,9 +9095,9 @@ async def generate_storyboard_outline(
         arc_panels = _R18_ARC_PANELS.get(panel_count, _R18_ARC_PANELS[5])
         system_template = _R18_OUTLINE_SYSTEM
         arc_label = "开场遇见 → 升温调情 → 脱衣前戏 → 性爱进行 → 高潮射精"
-        # Inject ALL 95 poses to maximize diversity — LLM must pick unique ones per panel
-        selected_poses = get_random_poses(95)
-        pose_list_str = "\n".join(f"  - {p}" for p in selected_poses)
+        # Randomly select 2-3 diverse poses with detailed prompts for maximum variety
+        selected_poses = get_random_poses(3)
+        pose_list_str = "\n".join(f"  - {p['name']}: {p['prompt']}" for p in selected_poses)
     else:
         arc_panels = _NORMAL_ARC_PANELS.get(panel_count, _NORMAL_ARC_PANELS[4])
         system_template = _NORMAL_OUTLINE_SYSTEM
