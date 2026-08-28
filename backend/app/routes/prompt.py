@@ -4560,10 +4560,10 @@ async def _run_themes_task(task_id: str, req: StoryboardThemesRequest, api_key: 
     try:
         store.mark_running(task_id)
         store.set_progress(task_id, "正在准备主题库...")
-        count = min(max(req.count, 5), 20)
+        count = min(max(req.count, 1), 20)
+        all_db_themes = get_all_themes()
 
         if not req.custom_description:
-            all_db_themes = get_all_themes()
             rnd.seed()
             rnd.shuffle(all_db_themes)
             picked = all_db_themes[:count]
@@ -4634,7 +4634,15 @@ async def _run_themes_task(task_id: str, req: StoryboardThemesRequest, api_key: 
         check_prompt_safety(raw)
 
         themes = []
-        raw_themes = data.get("themes", [])
+        # The system prompt asks the LLM to output a raw JSON array, but some
+        # models may wrap it as {"themes": [...]} instead. Handle both shapes
+        # so the async path stays consistent with the synchronous path.
+        if isinstance(data, list):
+            raw_themes = data
+        elif isinstance(data, dict):
+            raw_themes = data.get("themes", [])
+        else:
+            raw_themes = []
         if isinstance(raw_themes, list):
             for j, t in enumerate(raw_themes[:count]):
                 if not isinstance(t, dict):
@@ -4650,11 +4658,16 @@ async def _run_themes_task(task_id: str, req: StoryboardThemesRequest, api_key: 
                     "costume_count": int(t.get("costume_count", 0)),
                 })
 
+        if len(themes) == 0:
+            raise OpenLuxParseError("LLM 返回的主题列表为空，请重试")
+
         store.set_progress(task_id, f"主题生成完成（{len(themes)} 个）")
         store.mark_done(task_id, {"themes": themes})
     except ContentSafetyError as e:
         store.mark_failed(task_id, str(e))
     except (OpenLuxTimeoutError, OpenLuxRateLimitError) as e:
+        store.mark_failed(task_id, str(e))
+    except OpenLuxParseError as e:
         store.mark_failed(task_id, str(e))
     except OpenLuxAPIError as e:
         store.mark_failed(task_id, str(e))
@@ -8436,7 +8449,7 @@ async def generate_storyboard_themes(
         asyncio.create_task(_run_themes_task(task.task_id, req, api_key))
         return StoryboardThemesResponse(task_id=task.task_id, themes=[])
 
-    count = min(max(req.count, 5), 20)
+    count = min(max(req.count, 1), 20)
 
     # ── 无自定义描述：直接从数据库随机选取，完全不调用 LLM ──
     if not req.custom_description:
@@ -8514,8 +8527,8 @@ async def generate_storyboard_themes(
                 except Exception:
                     continue
 
-            if len(themes) < 2:
-                raise HTTPException(status_code=500, detail="Not enough themes generated")
+            if len(themes) == 0:
+                raise HTTPException(status_code=500, detail="LLM 没有返回任何主题，请重试")
 
             # Use negative IDs for LLM-generated custom themes (avoids collision
             # with database seq_ids 1-500 used for the standard theme list).

@@ -2309,7 +2309,15 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
 }) {
   const savedStoryboard = getStoryboardSession();
   const [plot, setPlot] = useState(savedStoryboard?.plot || '');
-  const [panelCount, setPanelCount] = useState(savedStoryboard?.panelCount || 6);
+  const [panelCount, setPanelCount] = useState(() => {
+    const saved = getStoryboardSession()?.panelCount;
+    // Clamp to legal UI range [5,10] so a stale localStorage value (e.g. 1)
+    // doesn't leave the selector with no active button. The backend also
+    // clamps to [2,10] when generating, but the UI should always show a
+    // sensible highlight.
+    if (typeof saved === 'number' && saved >= 5 && saved <= 10) return saved;
+    return 6;
+  });
   const [panels, setPanels] = useState<{ panel_number: number; scene_description: string; image_prompt: string }[]>(savedStoryboard?.panels || []);
   const [expandedPanel, setExpandedPanel] = useState<number | null>(savedStoryboard?.expandedPanel ?? null);
   const [copiedPanel, setCopiedPanel] = useState<number | null>(null);
@@ -2340,7 +2348,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   } | null>(null);
   const [customThemeMode, setCustomThemeMode] = useState(false);
   const [customThemeDescription, setCustomThemeDescription] = useState('');
-  const [customThemeCount, setCustomThemeCount] = useState(10);
+  const [customThemeCount, setCustomThemeCount] = useState(3);
   const [themeLibraryOpen, setThemeLibraryOpen] = useState(false);
   const [loadingThemeLibrary, setLoadingThemeLibrary] = useState(false);
   const [themeSearchQuery, setThemeSearchQuery] = useState('');
@@ -2354,6 +2362,12 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   // the spinner so the user can see what the backend is actually
   // doing instead of a frozen "生成中..." with no feedback.
   const [outlineProgress, setOutlineProgress] = useState<string | null>(null);
+  // Live progress string for the async theme generation task. Mirrors
+  // `outlineProgress` for outlines: every poll update from the backend
+  // carries a `progress` string we want to surface in the "主题生成中"
+  // indicator instead of a frozen spinner. Cleared when the task
+  // transitions to DONE / FAILED.
+  const [themeTaskProgress, setThemeTaskProgress] = useState<string | null>(null);
 
   // Refs for callbacks used inside async effects — avoids stale closure issues
   const onSuccessRef = useRef(onSuccess);
@@ -2436,12 +2450,21 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       if (taskType === 'outline' && status.status === 'RUNNING') {
         setOutlineProgress(status.progress);
       }
+      // Theme generation: mirror progress into `themeTaskProgress` so
+      // the dedicated "主题生成中" card surfaces the backend's live
+      // progress string (e.g. "正在调用 LLM 生成主题（最长约 1-2 分钟）...").
+      if (taskType === 'themes' && status.status === 'RUNNING') {
+        setThemeTaskProgress(status.progress);
+      }
     }
     if (status.status === 'DONE') {
       if (taskType === 'themes' && res?.themes) {
         setThemeOptions(res.themes);
         setStoryStep('themes');
         setSelectedThemes([]);
+        // Clear the "主题生成中" indicator as soon as we have a result.
+        setThemeTaskProgress(null);
+        setLoading(false);
         onSuccessRef.current(`主题已生成（${res.themes.length} 个），请选择`);
       } else if (taskType === 'outline' && res?.storyboard) {
         const panels = res.storyboard;
@@ -2549,6 +2572,13 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       setPendingPromptTasks((prev) => { const n = { ...prev }; delete n[taskId]; return n; });
     } else if (status.status === 'FAILED') {
       setOutlineProgress(null);
+      // Clear theme-generation indicator + loading flag if the failed
+      // task was a themes task — otherwise the "主题生成中" card
+      // would stay visible after the backend has marked the task FAILED.
+      if (taskType === 'themes') {
+        setThemeTaskProgress(null);
+        setLoading(false);
+      }
       onErrorRef.current(status.error ?? '任务失败');
       // Clear the per-theme "generating" flag so the UI stops showing
       // "生成中" on a failed outline task. Without this, a theme tab that
@@ -3069,17 +3099,19 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   // Step 1: Generate theme options (supports custom description)
   const handleGenerateThemes = async (customDesc?: string, customCnt?: number) => {
     setLoading(true);
+    setThemeTaskProgress(null);
     try {
       const desc = customDesc !== undefined ? customDesc : customThemeMode ? customThemeDescription : undefined;
       const cnt = customCnt !== undefined ? customCnt : customThemeCount;
       const res = await generateStoryboardThemes(r18Mode, cnt, desc || undefined, true);
 
       // Async mode: if task_id returned, track for polling
+      // Keep loading=true so the "生成中" indicator stays visible in the theme area
       if (res.task_id) {
         setPendingPromptTasks((prev) => ({ ...prev, [res.task_id!]: 'themes' }));
         setStoryStep('themes');
+        // loading stays true until the task completes (handlePromptTaskResult clears it)
         onSuccess(`主题生成任务已提交（可后台运行，屏幕关闭不影响）`);
-        setLoading(false);
         return;
       }
 
@@ -4051,12 +4083,12 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                   rows={2}
                 />
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-text-tertiary">数量:</span>
+                  <span className="text-xs text-text-tertiary">主题数量:</span>
                   <input
                     type="number"
                     value={customThemeCount}
-                    onChange={(e) => setCustomThemeCount(Math.max(5, Math.min(20, parseInt(e.target.value) || 5)))}
-                    min={5}
+                    onChange={(e) => setCustomThemeCount(Math.max(1, Math.min(20, parseInt(e.target.value) || 1)))}
+                    min={1}
                     max={20}
                     className="w-14 px-2 py-1 rounded-lg bg-white border border-border text-xs text-text-primary text-center focus:outline-none focus:ring-2 focus:ring-primary/30"
                   />
@@ -4081,6 +4113,27 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
             )}
           </div>
         </div>
+
+        {/* ── Theme generation in-flight indicator ── */}
+        {/* Shown when a themes task is in `pendingPromptTasks` (i.e. the
+            backend hasn't returned DONE/FAILED yet). Mirrors the same
+            `loading` flag the buttons use, but persists past the initial
+            sync fetch so the user sees progress all the way through to
+            the async DONE poll. The card also surfaces the backend's
+            live progress string ("正在调用 LLM 生成主题..."). */}
+        {Object.values(pendingPromptTasks).includes('themes') && (
+          <div className="mt-3 p-3 rounded-xl border border-primary/30 bg-primary/5 flex items-center gap-3">
+            <Loader2 size={16} className="animate-spin text-primary flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-text-primary">
+                {customThemeMode ? '自定义主题生成中' : '主题生成中'}
+              </p>
+              <p className="text-[11px] text-text-tertiary mt-0.5 truncate">
+                {themeTaskProgress ?? '后台运行中，关闭页面不影响，稍后回到此页查看'}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* ── Theme Library Modal ── */}
         {themeLibraryOpen && (
@@ -4837,6 +4890,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                 onRegenerateVideoPrompt={() => handleRegenerateVideoPrompt(idx)}
                 promptEditLoading={!!promptEditLoading[idx]}
                 onVideoPromptChange={(newPrompt) => setPanelVideoPrompts((prev) => ({ ...prev, [idx]: newPrompt }))}
+                historyId={sbHistoryId || ''}
               />
             );
           })}
@@ -5100,7 +5154,7 @@ function FavoritesList({ favorites, r18Mode, onRemove, onClear }: {
   );
 }
 
-function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onToggle, onCopyPanel, genState, onGenerateImage, onFavorited, onDownload, taskManager, digitalHumanMode, selectedGirlfriend, selectedImageIndex, onSelectImage, onGenerateVideo, videoPrompt, hasGeneratedImages, onPreviewImage, videoGenLoading, onDirectGenerateVideo, themeTitle, onRegenerateVideoPrompt, promptEditLoading, onVideoPromptChange }: {
+function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onToggle, onCopyPanel, genState, onGenerateImage, onFavorited, onDownload, taskManager, digitalHumanMode, selectedGirlfriend, selectedImageIndex, onSelectImage, onGenerateVideo, videoPrompt, hasGeneratedImages, onPreviewImage, videoGenLoading, onDirectGenerateVideo, themeTitle, onRegenerateVideoPrompt, promptEditLoading, onVideoPromptChange, historyId }: {
   panel: { panel_number: number; scene_description: string; image_prompt: string };
   idx: number; isExpanded: boolean; r18Mode: boolean; copiedPanel: number | null;
   onToggle: () => void; onCopyPanel: () => void;
@@ -5128,16 +5182,16 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
 }) {
   const isGenLoading = genState?.loading;
   const displayImages = genState?.images ?? [];
-
   const normalizedPanelPrompt = panel.image_prompt.trim().replace(/\s+/g, ' ');
-  // Match a task to this panel by exact prompt only. The previous substring
-  // matching (includes / startsWith) merged tasks from adjacent panels
-  // because their prompts share a common prefix (e.g. "现代校园场景, 22 岁").
-  // We also keep tasks without images (still QUEUEING/RUNNING) so the
-  // "generating/queued" badge works.
+
+  // Match tasks to this panel by storyboardInfo first (index-based), then fall back
+  // to prompt match. storyboardInfo match is accurate regardless of whether the
+  // prompt was modified (e.g. img2img adds 【严格锁定】 prefix, txt2img adds
+  // quality boost). Without this, mixed batches of txt2img+img2img panels for
+  // different themes would display the wrong images.
   const panelRelatedTasks = taskManager.tasks.filter((t: QueuedTask) => {
     if (t.status !== 'RUNNING' && t.status !== 'QUEUEING' && t.status !== 'FINISHED') return false;
-    if (t.status !== 'RUNNING' && t.status !== 'QUEUEING' && t.images.length === 0) return false;
+    if (t.storyboardInfo && t.storyboardInfo.historyId === historyId && t.storyboardInfo.panelIdx === idx) return true;
     const taskPromptNorm = t.prompt.trim().replace(/\s+/g, ' ');
     return taskPromptNorm === normalizedPanelPrompt;
   });

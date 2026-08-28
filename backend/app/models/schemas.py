@@ -100,7 +100,7 @@ class GridStoryboardResponse(BaseModel):
 class StoryboardThemesRequest(BaseModel):
     """Request to generate video theme options (step 1 of 2-step storyboard)"""
     r18: bool = Field(default=False, description="是否启用 R18 模式")
-    count: int = Field(default=10, ge=5, le=20, description="生成主题数量 5-20，默认 10")
+    count: int = Field(default=3, ge=1, le=20, description="生成主题数量 1-20，默认 3")
     custom_description: Optional[str] = Field(default=None, description="用户自定义描述，根据此描述生成主题，优先于随机生成")
     async_mode: bool = Field(default=False, description="设为 true 时立即返回 task_id，后台异步执行，前端轮询结果")
 
