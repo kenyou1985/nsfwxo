@@ -144,6 +144,11 @@ export function GridStoryboardMode({
   const [gridTasks, setGridTasks] = useState<Array<{ taskId: string; themeTitle: string; status: string; progress?: string; panels?: GridPanel[] }>>([]);
   const gridPollIntervalsRef = useRef<ReturnType<typeof setInterval>[]>([]);
 
+  // Completed themes - user can click to load any of them
+  const [completedThemes, setCompletedThemes] = useState<Array<{ themeTitle: string; panels: GridPanel[]; gridSize: GridSize }>>([]);
+  const [activeThemeIdx, setActiveThemeIdx] = useState<number>(0);
+  const completedThemesRef = useRef<Array<{ themeTitle: string; panels: GridPanel[]; gridSize: GridSize }>>([]);
+
   // Per-panel redraw state
   const [redrawPanelIdx, setRedrawPanelIdx] = useState<number | null>(null);
   const streamPanelsRef = useRef<GridPanel[]>([]);
@@ -387,18 +392,30 @@ export function GridStoryboardMode({
     gridPollIntervalsRef.current.push(pollInterval);
   };
 
-  // Check if all tasks are complete, and if so, load the first successful one
+  // Check if all tasks are complete
   const checkAllTasksComplete = () => {
     setGridTasks((current) => {
       const allDone = current.every((t) => ['DONE', 'FAILED', 'TIMEOUT'].includes(t.status));
       if (allDone) {
-        // Find first successful task with panels
-        const successTask = current.find((t) => t.status === 'DONE' && t.panels?.length);
-        if (successTask?.panels) {
-          setPanels(successTask.panels);
-          setGridSize(successTask.panels.length as GridSize);
-          setStep('edit');
-          onSuccess(`「${successTask.themeTitle}」分镜已生成，共 ${successTask.panels.length} 格`);
+        // Add all successful themes to completedThemes list
+        const successful = current.filter((t) => t.status === 'DONE' && t.panels?.length);
+        if (successful.length > 0) {
+          const newCompleted = successful.map((t) => ({
+            themeTitle: t.themeTitle,
+            panels: t.panels!,
+            gridSize: t.panels!.length as GridSize,
+          }));
+          // Use ref to avoid race condition
+          completedThemesRef.current = newCompleted;
+          setCompletedThemes(newCompleted);
+          // Auto-load first theme only if no theme is currently displayed
+          if (panels.length === 0 || step === 'themes') {
+            setPanels(successful[0].panels!);
+            setGridSize(successful[0].panels!.length as GridSize);
+            setActiveThemeIdx(0);
+            setStep('edit');
+          }
+          onSuccess(`${successful.length} 个主题分镜已生成完成`);
         } else {
           onError('所有主题的分镜生成均失败，请重试');
         }
@@ -408,6 +425,19 @@ export function GridStoryboardMode({
       }
       return current;
     });
+  };
+
+  // Load a completed theme into the editor
+  const handleLoadTheme = (index: number) => {
+    // Use ref for most up-to-date data
+    const theme = completedThemesRef.current[index] || completedThemes[index];
+    if (theme) {
+      setPanels(theme.panels);
+      setGridSize(theme.gridSize);
+      setActiveThemeIdx(index);
+      setStep('edit');
+      onSuccess(`已加载「${theme.themeTitle}」分镜`);
+    }
   };
 
   // ── Random: pick 3 themes from library and add to theme pool ──
@@ -671,15 +701,17 @@ export function GridStoryboardMode({
 
     try {
       // Use the same API as linear storyboard to regenerate this panel
+      // Note: panel_count must be >= 2 (API requirement)
       const res = await generateStoryboardOutline(
         0, // no theme id for redraw
         panel.scene_description || `panel ${panel.panel_number}`,
-        1, // generate just 1 panel
+        2, // panel_count must be >= 2
         r18Mode,
         false,
       );
 
       if (res.storyboard && res.storyboard.length > 0) {
+        // Use first panel as the replacement
         const newPanel = res.storyboard[0];
         handleUpdatePanel(idx, 'image_prompt', newPanel.image_prompt);
         handleUpdatePanel(idx, 'scene_description', newPanel.scene_description);
@@ -1120,17 +1152,39 @@ export function GridStoryboardMode({
       )}
 
       {/* Grid Tasks Progress Overlay */}
-      {loading && gridTasks.length > 0 && (
+      {gridTasks.length > 0 && (
         <div className="rounded-2xl bg-white shadow-card p-4 border border-purple-200">
           <div className="flex items-center gap-2 mb-3">
-            <Loader2 size={16} className="animate-spin text-purple-500" />
+            {loading ? (
+              <Loader2 size={16} className="animate-spin text-purple-500" />
+            ) : (
+              <Check size={16} className="text-green-500" />
+            )}
             <span className="text-sm font-medium text-text-primary">
-              {displayLang === 'zh' ? `正在为 ${gridTasks.length} 个主题生成分镜...` : `Generating for ${gridTasks.length} themes...`}
+              {loading
+                ? (displayLang === 'zh' ? `正在为 ${gridTasks.length} 个主题生成分镜...` : `Generating for ${gridTasks.length} themes...`)
+                : (displayLang === 'zh' ? `${gridTasks.length} 个主题分镜生成完成` : `${gridTasks.length} themes completed`)
+              }
             </span>
           </div>
           <div className="space-y-2">
             {gridTasks.map((task, idx) => (
-              <div key={idx} className="flex items-center gap-2 p-2 rounded-lg bg-bg-elevated">
+              <div
+                key={idx}
+                className={`flex items-center gap-2 p-2 rounded-lg ${
+                  task.status === 'DONE' && task.panels?.length
+                    ? 'bg-green-50 cursor-pointer hover:bg-green-100 transition-colors'
+                    : 'bg-bg-elevated'
+                }`}
+                onClick={() => {
+                  if (task.status === 'DONE' && task.panels?.length) {
+                    setPanels(task.panels);
+                    setGridSize(task.panels.length as GridSize);
+                    setStep('edit');
+                    setActiveThemeIdx(idx);
+                  }
+                }}
+              >
                 <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
                   {task.status === 'DONE' ? (
                     <Check size={14} className="text-green-500" />
@@ -1153,13 +1207,31 @@ export function GridStoryboardMode({
                    task.status === 'TIMEOUT' ? (displayLang === 'zh' ? '超时' : 'Timeout') :
                    task.status}
                 </span>
+                {task.status === 'DONE' && task.panels?.length && (
+                  <button
+                    className="text-[10px] text-purple-600 hover:text-purple-800 font-medium"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPanels(task.panels!);
+                      setGridSize(task.panels!.length as GridSize);
+                      setStep('edit');
+                      setActiveThemeIdx(idx);
+                    }}
+                  >
+                    {displayLang === 'zh' ? '加载' : 'Load'}
+                  </button>
+                )}
               </div>
             ))}
           </div>
           <p className="text-[10px] text-text-tertiary mt-2">
             {displayLang === 'zh'
-              ? '提示：每个主题独立生成，完成后自动加载第一个成功的分镜'
-              : 'Each theme generates independently. First successful result will be loaded.'}
+              ? loading
+                ? '提示：每个主题独立生成，完成后可点击"加载"查看（其他任务继续在后台运行）'
+                : '提示：点击"加载"按钮或主题标签切换查看不同主题的分镜'
+              : loading
+                ? 'Each theme generates independently. Click "Load" when ready (others continue in background)'
+                : 'Click "Load" or theme tabs to switch between completed themes'}
           </p>
         </div>
       )}
@@ -1353,6 +1425,27 @@ export function GridStoryboardMode({
       {/* Step 2: Panel Editor */}
       {step === 'edit' && panels.length > 0 && (
         <div className="rounded-2xl bg-white border border-border shadow-card p-4">
+          {/* Theme tabs - show when multiple themes completed */}
+          {completedThemes.length > 1 && (
+            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border overflow-x-auto">
+              <span className="text-[10px] text-text-tertiary flex-shrink-0">
+                {displayLang === 'zh' ? '主题' : 'Theme'}:
+              </span>
+              {completedThemes.map((theme, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => handleLoadTheme(idx)}
+                  className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                    activeThemeIdx === idx
+                      ? 'bg-purple-500 text-white'
+                      : 'bg-bg-elevated text-text-secondary hover:bg-purple-100 hover:text-purple-700'
+                  }`}
+                >
+                  {theme.themeTitle}
+                </button>
+              ))}
+            </div>
+          )}
           <GridPanelEditor
             panels={panels}
             gridSize={panels.length}
