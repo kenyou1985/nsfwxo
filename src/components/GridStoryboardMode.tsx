@@ -172,7 +172,11 @@ export function GridStoryboardMode({
   const [gridImagesMap, setGridImagesMap] = useState<Record<number, string[]>>({});
   const [gridImages, setGridImages] = useState<string[]>([]);
   const [activeImageIdx, setActiveImageIdx] = useState(0);
+  // Track generating state per-theme
+  const [isGeneratingMap, setIsGeneratingMap] = useState<Record<number, boolean>>({});
   const [isGenerating, setIsGenerating] = useState(false);
+  // Track historyId per-theme
+  const [currentHistoryIdMap, setCurrentHistoryIdMap] = useState<Record<number, string | null>>({});
   const [currentHistoryId, setCurrentHistoryId] = useState<string | null>(null);
 
   // Lightbox state
@@ -222,56 +226,97 @@ export function GridStoryboardMode({
     }
   }, [panels]);
 
-  // Subscribe to finished task images
+  // Watch gridTasks and update loading state when all tasks are done
+  useEffect(() => {
+    if (gridTasks.length === 0) return;
+    const allDone = gridTasks.every((t) => ['DONE', 'FAILED'].includes(t.status));
+    if (allDone) {
+      setLoading(false);
+      isGeneratingRef.current = false;
+      gridPollIntervalsRef.current = [];
+    }
+  }, [gridTasks]);
+
+  // Subscribe to finished task images - handles per-theme image tracking
   const { finishedTasks } = useFinishedTaskImages();
   useEffect(() => {
-    const historyId = currentHistoryId || sessionStorage.getItem('sb_latest_history_id');
-    if (!historyId) return;
+    // Collect all active history IDs from all themes
+    const allHistoryIds = new Set<string>();
+    if (currentHistoryId) allHistoryIds.add(currentHistoryId);
+    Object.values(currentHistoryIdMap).forEach((hid) => { if (hid) allHistoryIds.add(hid); });
+    if (sessionStorage.getItem('sb_latest_history_id')) allHistoryIds.add(sessionStorage.getItem('sb_latest_history_id')!);
 
-    const newImages: string[] = [];
+    if (allHistoryIds.size === 0) return;
+
+    // Process finished tasks for each theme
     for (const [, info] of Object.entries(finishedTasks)) {
       const { images, storyboardInfo } = info;
       if (!images || images.length === 0) continue;
       const hid = storyboardInfo?.historyId;
-      if (hid !== historyId) continue;
+      if (!hid || !allHistoryIds.has(hid)) continue;
       const { panelIdx } = storyboardInfo ?? {};
       if (panelIdx === undefined) continue;
 
-      // Handle multiple images from a single task (imageCount > 1)
-      // When a task generates N images, they all share the same storyboardInfo
-      // We distribute them across panelIdx 0, 1, 2... N-1
-      if (images.length > 1) {
-        for (let i = 0; i < images.length; i++) {
-          if (images[i] && !newImages[i]) {
-            newImages[i] = images[i];
+      // Find which theme this historyId belongs to
+      let themeIdx = -1;
+      if (currentHistoryId === hid) {
+        themeIdx = activeThemeIdx;
+      } else {
+        for (const [idx, historyId] of Object.entries(currentHistoryIdMap)) {
+          if (historyId === hid) {
+            themeIdx = parseInt(idx);
+            break;
           }
         }
-      } else {
-        // Single image - use panelIdx from storyboardInfo
-        if (!newImages[panelIdx]) {
-          newImages[panelIdx] = images[0];
-        }
       }
-    }
+      if (themeIdx < 0) themeIdx = activeThemeIdx;
 
-    if (newImages.length > 0) {
-      setGridImages((prev) => {
-        const merged = [...prev];
+      // Collect images for this task
+      const newImages: string[] = [];
+      if (images.length > 1) {
+        for (let i = 0; i < images.length; i++) {
+          if (images[i] && !newImages[i]) newImages[i] = images[i];
+        }
+      } else {
+        if (!newImages[panelIdx]) newImages[panelIdx] = images[0];
+      }
+
+      if (newImages.length === 0) continue;
+
+      // Update images for this theme
+      setGridImagesMap((prev) => {
+        const existing = prev[themeIdx] || [];
+        const merged = [...existing];
         for (let i = 0; i < newImages.length; i++) {
           if (newImages[i]) merged[i] = newImages[i];
         }
-        return merged;
+        return { ...prev, [themeIdx]: merged };
       });
-      setIsGenerating(false);
-      setStep('view');
+
+      // Update current theme's images if this is the active theme
+      if (themeIdx === activeThemeIdx) {
+        setGridImages((prev) => {
+          const merged = [...prev];
+          for (let i = 0; i < newImages.length; i++) {
+            if (newImages[i]) merged[i] = newImages[i];
+          }
+          return merged;
+        });
+        setStep('view');
+      }
+
+      // Set generating to false for this theme
+      setIsGeneratingMap((prev) => ({ ...prev, [themeIdx]: false }));
+      if (themeIdx === activeThemeIdx) setIsGenerating(false);
+
       // Cache all images
       for (let i = 0; i < newImages.length; i++) {
         if (newImages[i]) {
-          cacheStoryboardPanelImages(historyId, i, [newImages[i]]).catch(() => {});
+          cacheStoryboardPanelImages(hid, i, [newImages[i]]).catch(() => {});
         }
       }
     }
-  }, [finishedTasks, currentHistoryId]);
+  }, [finishedTasks, currentHistoryId, currentHistoryIdMap, activeThemeIdx]);
 
   // ── Theme selection handlers ──
 
@@ -448,12 +493,12 @@ export function GridStoryboardMode({
     onError('已取消生成任务');
   };
 
-  // Check if all tasks are complete
+  // Check if all tasks are complete - just add to completedThemes
+  // The useEffect watching gridTasks handles setting loading=false
   const checkAllTasksComplete = () => {
     setGridTasks((current) => {
       const allDone = current.every((t) => ['DONE', 'FAILED'].includes(t.status));
       if (allDone) {
-        // Add all successful themes to completedThemes list
         const successful = current.filter((t) => t.status === 'DONE' && t.panels?.length);
         if (successful.length > 0) {
           const newCompleted = successful.map((t) => ({
@@ -478,20 +523,15 @@ export function GridStoryboardMode({
             setCurrentHistoryId(historyId);
             sessionStorage.setItem('sb_latest_history_id', historyId);
           }
-          // Use setTimeout to avoid React warning about setState during render
           setTimeout(() => onSuccess(`${successful.length} 个主题分镜已生成完成`), 0);
         } else {
           setTimeout(() => onError('所有主题的分镜生成均失败，请重试'), 0);
         }
-        setLoading(false);
-        isGeneratingRef.current = false;
-        gridPollIntervalsRef.current = [];
       }
       return current;
     });
   };
 
-  // Load a completed theme into the editor
   // Load a theme by its themeTitle (works for both gridTasks and completedThemes)
   const handleLoadTheme = (themeTitle: string) => {
     // Find in completedThemes first
@@ -505,16 +545,25 @@ export function GridStoryboardMode({
       }
     }
     if (theme) {
-      // Save current theme's images before switching
+      // Save current theme's images and generating state before switching
       setGridImagesMap((prev) => ({ ...prev, [activeThemeIdx]: gridImages }));
-      // Restore new theme's images (or empty)
+      setIsGeneratingMap((prev) => ({ ...prev, [activeThemeIdx]: isGenerating }));
+      setCurrentHistoryIdMap((prev) => ({ ...prev, [activeThemeIdx]: currentHistoryId }));
+
+      // Restore new theme's images and state
       const themeIdx = completedThemes.findIndex((t) => t.themeTitle === themeTitle);
-      const newImages = themeIdx >= 0 ? (gridImagesMap[themeIdx] || []) : [];
+      const newThemeIdx = themeIdx >= 0 ? themeIdx : activeThemeIdx;
+      const newImages = gridImagesMap[newThemeIdx] || [];
+      const newIsGenerating = isGeneratingMap[newThemeIdx] || false;
+      const newHistoryId = currentHistoryIdMap[newThemeIdx] || null;
+
       setGridImages(newImages);
       setActiveImageIdx(0);
+      setIsGenerating(newIsGenerating);
+      setCurrentHistoryId(newHistoryId);
       setPanels(theme.panels);
       setGridSize(theme.gridSize);
-      setActiveThemeIdx(themeIdx >= 0 ? themeIdx : activeThemeIdx);
+      setActiveThemeIdx(newThemeIdx);
       setStep('edit');
       // Save to history with theme title
       saveGridHistoryEntry(theme.themeTitle);
@@ -531,8 +580,9 @@ export function GridStoryboardMode({
       panels,
     });
     setCurrentHistoryId(historyId);
+    setCurrentHistoryIdMap((prev) => ({ ...prev, [activeThemeIdx]: historyId }));
     sessionStorage.setItem('sb_latest_history_id', historyId);
-  }, [panels, r18Mode]);
+  }, [panels, r18Mode, activeThemeIdx]);
 
   // ── Random: pick 3 themes from library and add to theme pool ──
 
@@ -694,9 +744,11 @@ export function GridStoryboardMode({
       panels,
     });
     setCurrentHistoryId(historyId);
+    setCurrentHistoryIdMap((prev) => ({ ...prev, [activeThemeIdx]: historyId }));
     sessionStorage.setItem('sb_latest_history_id', historyId);
 
     setIsGenerating(true);
+    setIsGeneratingMap((prev) => ({ ...prev, [activeThemeIdx]: true }));
     setStep('view');
     setGridImages([]);
     setActiveImageIdx(0);
@@ -759,10 +811,10 @@ export function GridStoryboardMode({
   // ── Regenerate handler ──
 
   const handleRegenerate = useCallback(async () => {
-    if (!fullPrompt.trim() || isGenerating) return;
+    if (!fullPrompt.trim() || isGenerating || isGeneratingMap[activeThemeIdx]) return;
     if (taskManager.isFull) { onError('任务队列已满'); return; }
     await handleGenerateImage();
-  }, [fullPrompt, isGenerating, taskManager, onError, handleGenerateImage]);
+  }, [fullPrompt, isGenerating, isGeneratingMap, activeThemeIdx, taskManager, onError, handleGenerateImage]);
 
   // ── Per-panel smart edit: modify prompt to emphasize variety ──
   // (The regenerateGridPanel API is not available, so we use a smart edit approach:
@@ -836,6 +888,7 @@ export function GridStoryboardMode({
     setPanels(item.panels);
     setGridSize(item.grid_size as GridSize);
     setCurrentHistoryId(item.id);
+    setCurrentHistoryIdMap((prev) => ({ ...prev, [activeThemeIdx]: item.id }));
     setShowHistory(false);
     setStep('edit');
 
@@ -848,6 +901,7 @@ export function GridStoryboardMode({
         if (imgs.length > 0) allCached[i] = imgs[0];
       }
       setGridImages(allCached);
+      setGridImagesMap((prev) => ({ ...prev, [activeThemeIdx]: allCached }));
       setStep('view');
     }
     onSuccess(`已加载历史记录：${item.plot}`);
