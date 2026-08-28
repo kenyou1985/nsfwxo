@@ -4,7 +4,7 @@ import {
   RotateCcw, Zap, History, Trash2, AlertCircle, ChevronDown,
   ChevronUp, ChevronLeft, ChevronRight, Grid3X3, LayoutGrid,
   BookTemplate, ArrowLeft, Settings,
-  Download, Heart, Copy, RefreshCw, ZoomIn, Shuffle,
+  Download, Heart, Copy, RefreshCw, ZoomIn, Shuffle, Clock, XCircle,
 } from 'lucide-react';
 import { GridPanelEditor } from './GridPanelEditor';
 import { GRID_TEMPLATES, type GridTemplate } from '../data/gridTemplates';
@@ -328,10 +328,28 @@ export function GridStoryboardMode({
   // ── Generate grid storyboard using the same API as linear storyboard ──
   // Uses async mode (returns task_id) + polling, identical to linear storyboard flow
 
+  // Cancel a specific task by index
+  const handleCancelTask = (taskIndex: number) => {
+    // Find and clear the polling interval for this task
+    const interval = gridPollIntervalsRef.current[taskIndex];
+    if (interval) {
+      clearInterval(interval);
+      gridPollIntervalsRef.current[taskIndex] = undefined as any;
+    }
+    // Mark as failed/cancelled
+    setGridTasks((prev) => {
+      const next = [...prev];
+      if (next[taskIndex] && ['SUBMITTING', 'RUNNING', 'BACKGROUND'].includes(next[taskIndex].status)) {
+        next[taskIndex] = { ...next[taskIndex], status: 'FAILED', progress: '已取消' };
+      }
+      return next;
+    });
+  };
+
   // Poll for grid task result - updates specific task by index
   const startGridTaskPolling = (taskId: string, themeTitle: string, taskIndex: number) => {
     let pollCount = 0;
-    const maxPolls = 120; // 120 polls × 5s = 10 minutes max
+    const maxPolls = 120; // 120 polls × 3s = 6 minutes max
 
     const pollInterval = setInterval(async () => {
       pollCount++;
@@ -424,7 +442,7 @@ export function GridStoryboardMode({
         console.warn(`${GRID_LOG_PREFIX} poll error for ${themeTitle}:`, err);
         // Don't stop polling on network errors
       }
-    }, 5000); // poll every 5 seconds
+    }, 3000); // poll every 3 seconds for faster feedback
 
     gridPollIntervalsRef.current.push(pollInterval);
   };
@@ -513,6 +531,26 @@ export function GridStoryboardMode({
     }
   };
 
+  // Cancel all ongoing tasks
+  const handleCancelAll = () => {
+    // Stop all polling intervals
+    gridPollIntervalsRef.current.forEach((interval) => clearInterval(interval));
+    gridPollIntervalsRef.current = [];
+
+    // Mark running tasks as cancelled
+    setGridTasks((prev) =>
+      prev.map((t) =>
+        ['SUBMITTING', 'RUNNING'].includes(t.status)
+          ? { ...t, status: 'FAILED', progress: '已取消' }
+          : t
+      )
+    );
+
+    setLoading(false);
+    isGeneratingRef.current = false;
+    onError('已取消生成任务');
+  };
+
   // Check if all tasks are complete (including BACKGROUND - they can be refreshed manually)
   const checkAllTasksComplete = () => {
     setGridTasks((current) => {
@@ -557,19 +595,29 @@ export function GridStoryboardMode({
   };
 
   // Load a completed theme into the editor
-  const handleLoadTheme = (index: number) => {
-    // Use ref for most up-to-date data
-    const theme = completedThemesRef.current[index] || completedThemes[index];
+  // Load a theme by its themeTitle (works for both gridTasks and completedThemes)
+  const handleLoadTheme = (themeTitle: string) => {
+    // Find in completedThemes first
+    let theme = completedThemesRef.current.find((t) => t.themeTitle === themeTitle);
+    if (!theme) theme = completedThemes.find((t) => t.themeTitle === themeTitle);
+    // Also check gridTasks for DONE status
+    if (!theme) {
+      const task = gridTasks.find((t) => t.themeTitle === themeTitle && t.status === 'DONE');
+      if (task?.panels) {
+        theme = { themeTitle: task.themeTitle, panels: task.panels, gridSize: task.panels.length as GridSize };
+      }
+    }
     if (theme) {
       // Save current theme's images before switching
       setGridImagesMap((prev) => ({ ...prev, [activeThemeIdx]: gridImages }));
       // Restore new theme's images (or empty)
-      const newImages = gridImagesMap[index] || [];
+      const themeIdx = completedThemes.findIndex((t) => t.themeTitle === themeTitle);
+      const newImages = themeIdx >= 0 ? (gridImagesMap[themeIdx] || []) : [];
       setGridImages(newImages);
       setActiveImageIdx(0);
       setPanels(theme.panels);
       setGridSize(theme.gridSize);
-      setActiveThemeIdx(index);
+      setActiveThemeIdx(themeIdx >= 0 ? themeIdx : activeThemeIdx);
       setStep('edit');
       // Save to history with theme title
       saveGridHistoryEntry(theme.themeTitle);
@@ -1322,6 +1370,15 @@ export function GridStoryboardMode({
                 : (displayLang === 'zh' ? `${gridTasks.length} 个主题分镜生成完成` : `${gridTasks.length} themes completed`)
               }
             </span>
+            {loading && (
+              <button
+                onClick={handleCancelAll}
+                className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium text-red-500 hover:bg-red-50 transition-colors"
+              >
+                <XCircle size={12} />
+                {displayLang === 'zh' ? '取消' : 'Cancel'}
+              </button>
+            )}
           </div>
           <div className="space-y-2">
             {gridTasks.map((task, idx) => (
@@ -1334,7 +1391,7 @@ export function GridStoryboardMode({
                   }`}
                   onClick={() => {
                     if (task.status === 'DONE' && task.panels?.length) {
-                      handleLoadTheme(idx);
+                      handleLoadTheme(task.themeTitle);
                     }
                   }}
                 >
@@ -1368,7 +1425,7 @@ export function GridStoryboardMode({
                       className="text-[10px] text-purple-600 hover:text-purple-800 font-medium"
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleLoadTheme(idx);
+                        handleLoadTheme(task.themeTitle);
                       }}
                     >
                       {displayLang === 'zh' ? '加载' : 'Load'}
@@ -1383,6 +1440,17 @@ export function GridStoryboardMode({
                       }}
                     >
                       {displayLang === 'zh' ? '刷新' : 'Refresh'}
+                    </button>
+                  )}
+                  {(task.status === 'SUBMITTING' || task.status === 'RUNNING') && (
+                    <button
+                      className="text-[10px] text-red-500 hover:text-red-700 font-medium"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCancelTask(idx);
+                      }}
+                    >
+                      {displayLang === 'zh' ? '取消' : 'Cancel'}
                     </button>
                   )}
                 </div>
@@ -1625,7 +1693,7 @@ export function GridStoryboardMode({
               {completedThemes.map((theme, idx) => (
                 <button
                   key={idx}
-                  onClick={() => handleLoadTheme(idx)}
+                  onClick={() => handleLoadTheme(theme.themeTitle)}
                   className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
                     activeThemeIdx === idx
                       ? 'bg-purple-500 text-white'
