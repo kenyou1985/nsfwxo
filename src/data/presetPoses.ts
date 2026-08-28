@@ -23,700 +23,700 @@ export const IMAGE_POSE_PRESETS: ImagePosePreset[] = [
     id: 'pose_1',
     name: '#1 Doggy Classic',
     nameZh: '床上经典Doggy猛烈后入',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, arched back, on all fours on bed, passionate expression with slightly open mouth, athletic young man with muscular arms and defined abs behind her, gripping her hips tightly, thrusting hard and deep from behind, dynamic motion, sweat on skin, full body shot, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, arched back, on all fours on bed, passionate expression with slightly open mouth, athletic young man with muscular arms and defined abs behind her, gripping her hips tightly, thrusting hard and deep from behind, dynamic motion, sweat on skin, full body shot, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_2',
     name: '#2 Standing Doggy Wall',
     nameZh: '站立Doggy扶墙猛插',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, bent forward with both hands pressed firmly against the wall, arched back, looking back with flushed face, athletic young man standing behind her, one hand gripping her waist, the other pulling her hair, thrusting powerfully from behind, standing full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, bent forward with both hands pressed firmly against the wall, arched back, looking back with flushed face, athletic young man standing behind her, one hand gripping her waist, the other pulling her hair, thrusting powerfully from behind, standing full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_3',
     name: '#3 Prone Bone Deep',
     nameZh: '趴式压入深插',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying flat on her stomach, face turned to the side with eyes half-closed in pleasure, athletic young man lying fully on top of her, pressing his entire body weight down, arms wrapped around her, deep slow thrusts from behind, intimate full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying flat on her stomach, face turned to the side with eyes half-closed in pleasure, athletic young man lying fully on top of her, pressing his entire body weight down, arms wrapped around her, deep slow thrusts from behind, intimate full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_4',
     name: '#4 Cowgirl Wild Ride',
     nameZh: '女上位疯狂骑乘',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, straddling the man on top, bouncing vigorously up and down, hands pressing on his chest, head tilted back with open mouth, athletic young man lying on his back, hands gripping her thighs, looking up at her with intense desire, dynamic riding motion, full body shot from side, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, straddling the man on top, bouncing vigorously up and down, hands pressing on his chest, head tilted back with open mouth, athletic young man lying on his back, hands gripping her thighs, looking up at her with intense desire, dynamic riding motion, full body shot from side, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_5',
     name: '#5 Reverse Cowgirl',
     nameZh: '反向女上位',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on top facing away from the man, grinding her hips in circular motion, back arched, looking over her shoulder with seductive expression, athletic young man lying beneath her, hands holding her waist and guiding her movements, full body rear view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on top facing away from the man, grinding her hips in circular motion, back arched, looking over her shoulder with seductive expression, athletic young man lying beneath her, hands holding her waist and guiding her movements, full body rear view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_6',
     name: '#6 Missionary Legs Up',
     nameZh: '传教士深插抬腿',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying on her back, both legs raised high and resting on the man's shoulders, arms wrapped around his neck, face flushed with pleasure, athletic young man on top, thrusting deeply, one hand supporting her leg, intense eye contact, close full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying on her back, both legs raised high and resting on the man's shoulders, arms wrapped around his neck, face flushed with pleasure, athletic young man on top, thrusting deeply, one hand supporting her leg, intense eye contact, close full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_7',
     name: '#7 Spooning Side',
     nameZh: '侧卧后入缠绵',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying on her side, one leg raised and bent, athletic young man behind her in spooning position, one arm wrapped around her waist, the other holding her raised leg, slow deep thrusts from behind, intimate side view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying on her side, one leg raised and bent, athletic young man behind her in spooning position, one arm wrapped around her waist, the other holding her raised leg, slow deep thrusts from behind, intimate side view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_8',
     name: '#8 Wall Stand Carry',
     nameZh: '靠墙抱起站立插入',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, held up against the wall, both legs wrapped tightly around the man's waist, arms around his neck, head tilted back in ecstasy, athletic young man standing, holding her firmly under her thighs, thrusting upward while pressing her against the wall, dynamic standing full body shot, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, held up against the wall, both legs wrapped tightly around the man's waist, arms around his neck, head tilted back in ecstasy, athletic young man standing, holding her firmly under her thighs, thrusting upward while pressing her against the wall, dynamic standing full body shot, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_9',
     name: '#9 Lotus Intimate',
     nameZh: '莲花坐姿亲密研磨',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, sitting on the man's lap face to face, legs wrapped tightly around his waist, arms around his shoulders, foreheads almost touching, slow grinding hip movements, athletic young man sitting upright, hands on her lower back pulling her closer, intimate close full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, sitting on the man's lap face to face, legs wrapped tightly around his waist, arms around his shoulders, foreheads almost touching, slow grinding hip movements, athletic young man sitting upright, hands on her lower back pulling her closer, intimate close full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_10',
     name: '#10 69 Mutual',
     nameZh: '69互舔口交动态',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying on top of the man in 69 position, head between his legs performing oral, athletic young man beneath her, head between her legs returning oral, mutual passionate action, dynamic overhead full body angle, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying on top of the man in 69 position, head between his legs performing oral, athletic young man beneath her, head between her legs returning oral, mutual passionate action, dynamic overhead full body angle, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_11',
     name: '#11 Piledriver Inverted',
     nameZh: '倒立深插',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, inverted with shoulders on the bed and legs raised high, face upside down showing intense pleasure, athletic young man kneeling, holding her legs and thrusting downward deeply, extreme depth position, dramatic full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, inverted with shoulders on the bed and legs raised high, face upside down showing intense pleasure, athletic young man kneeling, holding her legs and thrusting downward deeply, extreme depth position, dramatic full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_12',
     name: '#12 Full Nelson Hold',
     nameZh: '全尼尔森抱起固定猛插',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, held in full nelson, arms locked behind her head, legs spread and lifted, face showing overwhelming pleasure, athletic young man standing behind her, arms locking her in place, powerful upward thrusts, standing full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, held in full nelson, arms locked behind her head, legs spread and lifted, face showing overwhelming pleasure, athletic young man standing behind her, arms locking her in place, powerful upward thrusts, standing full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_13',
     name: '#13 Amazon Squat',
     nameZh: '女蹲上位强势骑乘',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, squatting on top facing the man, hands on his chest for leverage, controlling the rhythm with strong downward movements, dominant expression, athletic young man lying on his back, hands on her hips, looking up at her, powerful riding action, full body front view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, squatting on top facing the man, hands on his chest for leverage, controlling the rhythm with strong downward movements, dominant expression, athletic young man lying on his back, hands on her hips, looking up at her, powerful riding action, full body front view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_14',
     name: '#14 Butterfly Spread',
     nameZh: '蝴蝶式抬腿深插',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, sitting on the edge of the bed, both legs raised high and spread, leaning back on her hands, athletic young man standing between her legs, holding her ankles, thrusting deeply, intense eye contact, full body side-front composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, sitting on the edge of the bed, both legs raised high and spread, leaning back on her hands, athletic young man standing between her legs, holding her ankles, thrusting deeply, intense eye contact, full body side-front composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_15',
     name: '#15 Standing Face to Face',
     nameZh: '站立面对面',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, standing face to face with the man, one leg lifted and wrapped around his waist, arms around his neck, passionate kissing while being penetrated, athletic young man standing, supporting her lifted leg and thrusting upward, intimate standing full body shot, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, standing face to face with the man, one leg lifted and wrapped around his waist, arms around his neck, passionate kissing while being penetrated, athletic young man standing, supporting her lifted leg and thrusting upward, intimate standing full body shot, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_16',
     name: '#16 Wheelbarrow Stand',
     nameZh: '手推车式站立后入',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, body parallel to the floor, supporting herself on her hands, legs held by the man, athletic young man standing behind, gripping her thighs firmly, thrusting from behind while holding her in wheelbarrow position, dynamic full body side view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, body parallel to the floor, supporting herself on her hands, legs held by the man, athletic young man standing behind, gripping her thighs firmly, thrusting from behind while holding her in wheelbarrow position, dynamic full body side view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_17',
     name: '#17 Leapfrog Low',
     nameZh: '蛙跳式低后入',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on hands and knees very low to the ground, back deeply arched, athletic young man kneeling low behind her, hands on her hips, thrusting deeply from a low angle, intimate low-angle full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on hands and knees very low to the ground, back deeply arched, athletic young man kneeling low behind her, hands on her hips, thrusting deeply from a low angle, intimate low-angle full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_18',
     name: '#18 Pretzel Twist',
     nameZh: '扭结侧入式',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, body twisted with legs intertwined with the man's, side entry position, face turned toward him with passionate expression, athletic young man lying beside her, one leg over her body, thrusting from the side, complex entangled full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, body twisted with legs intertwined with the man's, side entry position, face turned toward him with passionate expression, athletic young man lying beside her, one leg over her body, thrusting from the side, complex entangled full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_19',
     name: '#19 Missionary Leg Hold',
     nameZh: '抬腿传教士变体',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying on her back, one leg raised high and held by the man, the other leg bent, athletic young man on top between her legs, holding her raised leg, thrusting at an angled deep position, focused full body shot, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying on her back, one leg raised high and held by the man, the other leg bent, athletic young man on top between her legs, holding her raised leg, thrusting at an angled deep position, focused full body shot, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_20',
     name: '#20 Prone Low Entry',
     nameZh: '平躺低后入',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying completely flat on her stomach, hips slightly raised, face turned to the side with soft moans, athletic young man lying low on top of her, arms braced beside her body, slow deep low-angle thrusts from behind, intimate top-down full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying completely flat on her stomach, hips slightly raised, face turned to the side with soft moans, athletic young man lying low on top of her, arms braced beside her body, slow deep low-angle thrusts from behind, intimate top-down full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_21',
     name: '#21 Magic Mountain Rear',
     nameZh: '魔法山后入',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, in elevated mountain pose with hips high and shoulders low, arched back, athletic young man kneeling behind her, hands on her waist, thrusting upward into the elevated position, powerful rear entry, full body side view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, in elevated mountain pose with hips high and shoulders low, arched back, athletic young man kneeling behind her, hands on her waist, thrusting upward into the elevated position, powerful rear entry, full body side view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_22',
     name: '#22 Scissor Sit',
     nameZh: '坐姿剪刀式',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, sitting facing the man with legs scissored and intertwined, grinding together, arms supporting her upper body, athletic young man sitting opposite, legs also intertwined, hands on her hips guiding the motion, intimate seated full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, sitting facing the man with legs scissored and intertwined, grinding together, arms supporting her upper body, athletic young man sitting opposite, legs also intertwined, hands on her hips guiding the motion, intimate seated full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_23',
     name: '#23 Table Top',
     nameZh: '桌面式',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying on her back on a table, legs spread and slightly raised, athletic young man standing between her legs, holding her thighs, thrusting firmly, table-height full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying on her back on a table, legs spread and slightly raised, athletic young man standing between her legs, holding her thighs, thrusting firmly, table-height full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_24',
     name: '#24 Crab Bounce',
     nameZh: '螃蟹行走式女上',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on top in crab position with hands and feet on the bed, body lifted, bouncing up and down, athletic young man lying beneath her, hands supporting her hips, looking up at her dynamic movements, energetic full body shot, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on top in crab position with hands and feet on the bed, body lifted, bouncing up and down, athletic young man lying beneath her, hands supporting her hips, looking up at her dynamic movements, energetic full body shot, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_25',
     name: '#25 Suspended Superman',
     nameZh: '悬空后入',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, held horizontally in the air by the man, body parallel to the floor, face showing surprise and pleasure, athletic young man standing, arms wrapped around her torso and legs, thrusting while suspending her in Superman position, dramatic floating full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, held horizontally in the air by the man, body parallel to the floor, face showing surprise and pleasure, athletic young man standing, arms wrapped around her torso and legs, thrusting while suspending her in Superman position, dramatic floating full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_26',
     name: '#26 Rapid Shallow',
     nameZh: '弹球式快速浅插',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, standing bent slightly forward, hands on her knees, athletic young man behind her holding her hips, performing rapid shallow thrusts with high frequency, motion energy visible, dynamic standing full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, standing bent slightly forward, hands on her knees, athletic young man behind her holding her hips, performing rapid shallow thrusts with high frequency, motion energy visible, dynamic standing full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_27',
     name: '#27 Corkscrew Side',
     nameZh: '螺旋式侧入',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, body twisted in a spiral, one leg raised high over the man's shoulder, athletic young man beside her, holding her raised leg, thrusting from the side in corkscrew motion, complex twisted full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, body twisted in a spiral, one leg raised high over the man's shoulder, athletic young man beside her, holding her raised leg, thrusting from the side in corkscrew motion, complex twisted full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_28',
     name: '#28 Bridge Arch',
     nameZh: '桥式抬臀',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, in bridge pose with hips pushed high, shoulders and feet on the bed, head tilted back, athletic young man kneeling in front or below, hands on her hips, thrusting upward into the raised position, strong arched full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, in bridge pose with hips pushed high, shoulders and feet on the bed, head tilted back, athletic young man kneeling in front or below, hands on her hips, thrusting upward into the raised position, strong arched full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_29',
     name: '#29 Doggy Leg Lift',
     nameZh: '后入抬腿变体',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on all fours, one leg raised high and held by the man, arched back, athletic young man behind her, one hand gripping the raised leg, the other on her hip, thrusting deeply, dynamic leg-lift full body shot, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on all fours, one leg raised high and held by the man, arched back, athletic young man behind her, one hand gripping the raised leg, the other on her hip, thrusting deeply, dynamic leg-lift full body shot, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_30',
     name: '#30 Oral to Penetration',
     nameZh: '跪姿口交转插入',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, kneeling in front of the man performing oral, then transitioning into being pulled up for penetration, athletic young man standing, one hand in her hair, the other guiding her body into penetration, dynamic transitional action feel, full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, kneeling in front of the man performing oral, then transitioning into being pulled up for penetration, athletic young man standing, one hand in her hair, the other guiding her body into penetration, dynamic transitional action feel, full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_31',
     name: '#31 Hair Pull Stand',
     nameZh: '站立后入拉发',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, standing bent forward, hands on a surface, athletic young man behind her pulling her long curly hair firmly with one hand while thrusting hard from behind, passionate rough energy, standing full body side view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, standing bent forward, hands on a surface, athletic young man behind her pulling her long curly hair firmly with one hand while thrusting hard from behind, passionate rough energy, standing full body side view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_32',
     name: '#32 Reverse Piledriver',
     nameZh: '反向倒立深插',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, inverted facing the opposite direction, shoulders down, legs up, athletic young man kneeling and holding her in reverse piledriver, thrusting downward, extreme inverted full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, inverted facing the opposite direction, shoulders down, legs up, athletic young man kneeling and holding her in reverse piledriver, thrusting downward, extreme inverted full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_33',
     name: '#33 Side Scissor',
     nameZh: '侧卧剪刀式',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying on her side with legs scissored tightly with the man's, grinding, face close to his, athletic young man lying facing her, one leg intertwined, slow intimate side thrusts, close side full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying on her side with legs scissored tightly with the man's, grinding, face close to his, athletic young man lying facing her, one leg intertwined, slow intimate side thrusts, close side full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_34',
     name: '#34 Bed Edge Doggy',
     nameZh: '床沿后入',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on all fours at the very edge of the bed, athletic young man standing on the floor behind her, gripping her hips, thrusting hard from a standing position into the bed-edge doggy, dynamic height difference full body shot, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on all fours at the very edge of the bed, athletic young man standing on the floor behind her, gripping her hips, thrusting hard from a standing position into the bed-edge doggy, dynamic height difference full body shot, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_35',
     name: '#35 Cowgirl Lean Back',
     nameZh: '女上位后仰',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on top straddling the man, leaning far back with hands on his thighs for support, chest pushed forward, head tilted back, athletic young man lying beneath, hands on her waist, deep penetration while she leans, dramatic arched full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on top straddling the man, leaning far back with hands on his thighs for support, chest pushed forward, head tilted back, athletic young man lying beneath, hands on her waist, deep penetration while she leans, dramatic arched full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_36',
     name: '#36 Ankle Hold Missionary',
     nameZh: '脚踝固定传教士',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying on her back, both ankles firmly held by the man, legs spread wide, athletic young man on top, holding her ankles and thrusting deeply, controlling the position, intense full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying on her back, both ankles firmly held by the man, legs spread wide, athletic young man on top, holding her ankles and thrusting deeply, controlling the position, intense full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_37',
     name: '#37 Wall Sit Ride',
     nameZh: '靠墙坐姿女上',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, sitting on the man's lap while he sits against the wall, facing him, bouncing up and down, arms around his neck, athletic young man sitting with back against wall, hands under her thighs supporting her, wall-sit riding full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, sitting on the man's lap while he sits against the wall, facing him, bouncing up and down, arms around his neck, athletic young man sitting with back against wall, hands under her thighs supporting her, wall-sit riding full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_38',
     name: '#38 Chair Bent Over',
     nameZh: '椅子后入',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, bent over a chair, hands gripping the chair back, arched back, athletic young man standing behind her, hands on her hips, thrusting firmly into the bent-over chair position, furniture-assisted full body side view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, bent over a chair, hands gripping the chair back, arched back, athletic young man standing behind her, hands on her hips, thrusting firmly into the bent-over chair position, furniture-assisted full body side view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_39',
     name: '#39 Lotus Grind',
     nameZh: '坐姿莲花研磨',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, sitting on the man's lap in lotus, legs wrapped, slow circular grinding motions, faces close, soft moans, athletic young man sitting cross-legged, hands on her lower back, intimate grinding full body close-up, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, sitting on the man's lap in lotus, legs wrapped, slow circular grinding motions, faces close, soft moans, athletic young man sitting cross-legged, hands on her lower back, intimate grinding full body close-up, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_40',
     name: '#40 Standing 69',
     nameZh: '站立69抱起',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, held upside down by the man in standing 69, performing oral while being held, athletic young man standing strong, arms supporting her body, mutual oral in mid-air, dramatic inverted full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, held upside down by the man in standing 69, performing oral while being held, athletic young man standing strong, arms supporting her body, mutual oral in mid-air, dramatic inverted full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_41',
     name: '#41 Pillow Hips Prone',
     nameZh: '枕头垫臀趴式',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying face down with a pillow elevating her hips high, arched lower back, athletic young man on top, pressing down and thrusting deeply into the elevated hips, enhanced angle full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying face down with a pillow elevating her hips high, arched lower back, athletic young man on top, pressing down and thrusting deeply into the elevated hips, enhanced angle full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_42',
     name: '#42 Bed Full Nelson',
     nameZh: '床上全尼尔森',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on the bed in full nelson, arms locked behind her head by the man, legs spread, athletic young man kneeling behind her on the bed, arms locking her firmly, powerful thrusts, bed full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on the bed in full nelson, arms locked behind her head by the man, legs spread, athletic young man kneeling behind her on the bed, arms locking her firmly, powerful thrusts, bed full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_43',
     name: '#43 Cowgirl Chest Press',
     nameZh: '女上位双手撑胸',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, squatting on top, both hands pressing firmly on the man's chest for leverage, strong downward movements, dominant look, athletic young man lying beneath, hands on her thighs, intense riding action, front full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, squatting on top, both hands pressing firmly on the man's chest for leverage, strong downward movements, dominant look, athletic young man lying beneath, hands on her thighs, intense riding action, front full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_44',
     name: '#44 Butterfly Shoulder',
     nameZh: '脚踝搭肩蝴蝶式',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on the edge of the bed, both ankles resting on the man's shoulders, leaning back, athletic young man standing, holding her legs on his shoulders, deep thrusting, elevated legs full body shot, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on the edge of the bed, both ankles resting on the man's shoulders, leaning back, athletic young man standing, holding her legs on his shoulders, deep thrusting, elevated legs full body shot, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_45',
     name: '#45 Floor Wheelbarrow',
     nameZh: '地面手推车',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, supporting herself on hands on the floor, body parallel, legs held by the man, athletic young man standing behind holding her legs, thrusting while in floor wheelbarrow, low-angle dynamic full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, supporting herself on hands on the floor, body parallel, legs held by the man, athletic young man standing behind holding her legs, thrusting while in floor wheelbarrow, low-angle dynamic full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_46',
     name: '#46 Deep Arch Frog',
     nameZh: '深弓蛙跳式',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on hands and knees with extreme deep arch in her back, hips pushed high, athletic young man low behind her, hands on her lower back, deep low thrusts, exaggerated arch full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on hands and knees with extreme deep arch in her back, hips pushed high, athletic young man low behind her, hands on her lower back, deep low thrusts, exaggerated arch full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_47',
     name: '#47 Pretzel Deep Side',
     nameZh: '扭结侧入深插',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, tightly twisted pretzel position, legs locked with the man's, deep side penetration, face showing intense pleasure, athletic young man entangled with her, thrusting deeply from the side, complex knot full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, tightly twisted pretzel position, legs locked with the man's, deep side penetration, face showing intense pleasure, athletic young man entangled with her, thrusting deeply from the side, complex knot full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_48',
     name: '#48 G-Spot Focus',
     nameZh: 'G点抬腿专注',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying on her back with both legs raised high and held, focused on g-spot angle, athletic young man on top, angling his thrusts precisely, one hand under her hips, intense concentration and pleasure, full body angled shot, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying on her back with both legs raised high and held, focused on g-spot angle, athletic young man on top, angling his thrusts precisely, one hand under her hips, intense concentration and pleasure, full body angled shot, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_49',
     name: '#49 Arch Prone Rear',
     nameZh: '弓背平躺后入',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying face down with strong arched back, hips raised, athletic young man on top, following her arch with deep thrusts, sensual curved full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying face down with strong arched back, hips raised, athletic young man on top, following her arch with deep thrusts, sensual curved full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_50',
     name: '#50 Sofa Magic Mountain',
     nameZh: '沙发魔法山',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, in elevated mountain pose on a sofa, hips high, athletic young man kneeling on the sofa behind her, thrusting upward into the raised position, sofa setting full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, in elevated mountain pose on a sofa, hips high, athletic young man kneeling on the sofa behind her, thrusting upward into the raised position, sofa setting full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_51',
     name: '#51 Face to Face Scissor',
     nameZh: '面对面坐姿剪刀',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, sitting face to face with the man, legs fully scissored and intertwined, grinding closely, eyes locked, athletic young man sitting opposite, hands on her waist, intimate face-to-face scissors full body shot, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, sitting face to face with the man, legs fully scissored and intertwined, grinding closely, eyes locked, athletic young man sitting opposite, hands on her waist, intimate face-to-face scissors full body shot, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_52',
     name: '#52 Table Leg Lock',
     nameZh: '桌面双腿锁定',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying on a table with both legs locked tightly around the man's waist, pulling him in, athletic young man standing at the table edge, hands under her back, deep locked thrusts, table full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying on a table with both legs locked tightly around the man's waist, pulling him in, athletic young man standing at the table edge, hands under her back, deep locked thrusts, table full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_53',
     name: '#53 Reverse Crab',
     nameZh: '反向螃蟹女上',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on top in reverse crab position facing away, hands and feet supporting her body, bouncing, athletic young man lying beneath looking at her back, hands on her hips, reverse energetic riding, rear full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on top in reverse crab position facing away, hands and feet supporting her body, bouncing, athletic young man lying beneath looking at her back, hands on her hips, reverse energetic riding, rear full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_54',
     name: '#54 Floating Superman Spin',
     nameZh: '悬空超人旋转感',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, held horizontally in mid-air with a slight rotational feel, athletic young man standing strong, arms securing her body while thrusting, dynamic floating Superman position with motion energy, dramatic full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, held horizontally in mid-air with a slight rotational feel, athletic young man standing strong, arms securing her body while thrusting, dynamic floating Superman position with motion energy, dramatic full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_55',
     name: '#55 Rapid Doggy Bounce',
     nameZh: '快速后入弹球',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on all fours, athletic young man behind her performing rapid shallow high-frequency thrusts, energetic bouncing motion, dynamic doggy full body side view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on all fours, athletic young man behind her performing rapid shallow high-frequency thrusts, energetic bouncing motion, dynamic doggy full body side view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_56',
     name: '#56 Standing Spiral Side',
     nameZh: '站立螺旋侧入',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, standing with body twisted, one leg raised high, athletic young man beside her holding the raised leg, thrusting in standing corkscrew side entry, twisted standing full body shot, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, standing with body twisted, one leg raised high, athletic young man beside her holding the raised leg, thrusting in standing corkscrew side entry, twisted standing full body shot, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_57',
     name: '#57 Bridge Power Thrust',
     nameZh: '桥式强烈抽插',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, in strong bridge pose with hips pushed extremely high, athletic young man thrusting powerfully upward into the raised hips, intense arched full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, in strong bridge pose with hips pushed extremely high, athletic young man thrusting powerfully upward into the raised hips, intense arched full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_58',
     name: '#58 Mirror Leg Lift Rear',
     nameZh: '镜子抬腿后入',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on all fours with one leg raised high, as if in front of a mirror, athletic young man behind holding the raised leg and thrusting, reflective dynamic full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on all fours with one leg raised high, as if in front of a mirror, athletic young man behind holding the raised leg and thrusting, reflective dynamic full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_59',
     name: '#59 Oral to Doggy Flow',
     nameZh: '口交转后入动态',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, starting on her knees performing oral then being turned and entered from behind in one fluid motion, athletic young man guiding the transition with hands, dynamic action sequence feel, full body transitional composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, starting on her knees performing oral then being turned and entered from behind in one fluid motion, athletic young man guiding the transition with hands, dynamic action sequence feel, full body transitional composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_60',
     name: '#60 Wall Reverse Ride',
     nameZh: '靠墙反向女上',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, standing facing away, back against the man who is against the wall, riding him in reverse, athletic young man leaning against the wall supporting her, standing reverse cowgirl full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, standing facing away, back against the man who is against the wall, riding him in reverse, athletic young man leaning against the wall supporting her, standing reverse cowgirl full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_61',
     name: '#61 Full Body Press Prone',
     nameZh: '全身压入趴式',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying completely flat under the full body weight of the man, face turned sideways with eyes closed in deep pleasure, athletic young man lying fully on top, arms wrapped around her, slow heavy deep thrusts, intimate pressed full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying completely flat under the full body weight of the man, face turned sideways with eyes closed in deep pleasure, athletic young man lying fully on top, arms wrapped around her, slow heavy deep thrusts, intimate pressed full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_62',
     name: '#62 Chest to Chest',
     nameZh: '胸贴胸女上',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on top pressing her chest tightly against the man's chest, faces close, slow intimate grinding, athletic young man lying beneath with arms around her back, chest-to-chest full body close view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on top pressing her chest tightly against the man's chest, faces close, slow intimate grinding, athletic young man lying beneath with arms around her back, chest-to-chest full body close view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_63',
     name: '#63 Reverse Lean Forward',
     nameZh: '反向女上前倾',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on top facing away and leaning far forward, hands on the bed, athletic young man beneath holding her hips, deep reverse riding with forward lean, dynamic arched full body rear view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on top facing away and leaning far forward, hands on the bed, athletic young man beneath holding her hips, deep reverse riding with forward lean, dynamic arched full body rear view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_64',
     name: '#64 V-Leg Missionary',
     nameZh: 'V字腿传教士',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying on her back with legs spread in a wide V shape, athletic young man on top between the V, thrusting deeply, open and vulnerable full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying on her back with legs spread in a wide V shape, athletic young man on top between the V, thrusting deeply, open and vulnerable full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_65',
     name: '#65 Side Leg Raise Spoon',
     nameZh: '侧卧抬腿后入',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying on her side with one leg raised high and held by the man, athletic young man spooning behind her, holding the raised leg and thrusting from behind, elevated leg side full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying on her side with one leg raised high and held by the man, athletic young man spooning behind her, holding the raised leg and thrusting from behind, elevated leg side full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_66',
     name: '#66 Wall Single Leg High',
     nameZh: '靠墙单腿高抬',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, held against the wall with one leg raised extremely high, the other wrapped around the man, athletic young man standing, supporting the high leg and thrusting, dramatic single-leg wall full body shot, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, held against the wall with one leg raised extremely high, the other wrapped around the man, athletic young man standing, supporting the high leg and thrusting, dramatic single-leg wall full body shot, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_67',
     name: '#67 Lotus Circle Grind',
     nameZh: '莲花环绕研磨',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, in lotus position with legs tightly wrapped, performing slow circular grinding motions, faces almost touching, athletic young man holding her lower back, intimate circular motion full body close-up, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, in lotus position with legs tightly wrapped, performing slow circular grinding motions, faces almost touching, athletic young man holding her lower back, intimate circular motion full body close-up, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_68',
     name: '#68 Woman on Top 69',
     nameZh: '女上69',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on top in 69 position, head between the man's legs, athletic young man beneath with his head between her legs, mutual oral action with her on top, overhead full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on top in 69 position, head between the man's legs, athletic young man beneath with his head between her legs, mutual oral action with her on top, overhead full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_69',
     name: '#69 Bed Edge Inverted',
     nameZh: '床沿倒立深插',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, inverted at the edge of the bed, shoulders near the edge, legs up, athletic young man kneeling on the floor or bed edge thrusting downward, extreme edge piledriver full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, inverted at the edge of the bed, shoulders near the edge, legs up, athletic young man kneeling on the floor or bed edge thrusting downward, extreme edge piledriver full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_70',
     name: '#70 Kneeling Full Nelson',
     nameZh: '跪姿全尼尔森',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, held in full nelson while the man is kneeling, arms locked, legs spread, athletic young man kneeling behind, locking her arms and thrusting upward, kneeling full nelson full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, held in full nelson while the man is kneeling, arms locked, legs spread, athletic young man kneeling behind, locking her arms and thrusting upward, kneeling full nelson full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_71',
     name: '#71 Reverse Amazon',
     nameZh: '反向亚马逊',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, squatting on top facing away in amazon position, controlling the depth, athletic young man lying beneath looking at her back, hands on her hips, reverse dominant riding full body rear view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, squatting on top facing away in amazon position, controlling the depth, athletic young man lying beneath looking at her back, hands on her hips, reverse dominant riding full body rear view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_72',
     name: '#72 Wide Open Butterfly',
     nameZh: '双腿大开蝴蝶',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on the edge of a surface with legs spread extremely wide, leaning back, athletic young man standing between the wide legs, holding her thighs, deep wide-leg thrusts, open butterfly full body shot, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on the edge of a surface with legs spread extremely wide, leaning back, athletic young man standing between the wide legs, holding her thighs, deep wide-leg thrusts, open butterfly full body shot, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_73',
     name: '#73 Standing Lift Face to Face',
     nameZh: '站立面对面抱起',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, fully lifted by the man while standing face to face, both legs around his waist, arms around his neck, passionate kissing during penetration, athletic young man standing strong, holding her under the thighs and thrusting, intimate lifted standing full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, fully lifted by the man while standing face to face, both legs around his waist, arms around his neck, passionate kissing during penetration, athletic young man standing strong, holding her under the thighs and thrusting, intimate lifted standing full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_74',
     name: '#74 Walking Wheelbarrow',
     nameZh: '行走式手推车',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, held in wheelbarrow position while the man is walking, body parallel to the floor, athletic young man walking forward while holding her legs and thrusting, motion and walking energy full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, held in wheelbarrow position while the man is walking, body parallel to the floor, athletic young man walking forward while holding her legs and thrusting, motion and walking energy full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_75',
     name: '#75 Slow Low Frog',
     nameZh: '缓慢低位蛙跳',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on hands and knees very low, athletic young man behind her in low position performing slow deep thrusts, sensual low leapfrog full body side view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on hands and knees very low, athletic young man behind her in low position performing slow deep thrusts, sensual low leapfrog full body side view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_76',
     name: '#76 Twisted Deep Side',
     nameZh: '扭结深侧入',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, in tightly twisted pretzel with deep side penetration, legs locked, face showing deep pleasure, athletic young man entangled and thrusting deeply from the side, complex deep knot full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, in tightly twisted pretzel with deep side penetration, legs locked, face showing deep pleasure, athletic young man entangled and thrusting deeply from the side, complex deep knot full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_77',
     name: '#77 G-Spot Side Variant',
     nameZh: 'G点侧位变体',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying on her side with legs positioned for g-spot angle, athletic young man behind or beside her thrusting at the precise g-spot angle, focused side full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying on her side with legs positioned for g-spot angle, athletic young man behind or beside her thrusting at the precise g-spot angle, focused side full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_78',
     name: '#78 Arched Prone Rear',
     nameZh: '弓背平躺后入',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, face down with a strong continuous arch in her back, athletic young man following the curve with deep rear thrusts, sensual arched prone full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, face down with a strong continuous arch in her back, athletic young man following the curve with deep rear thrusts, sensual arched prone full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_79',
     name: '#79 Bent Magic Mountain',
     nameZh: '弯腰魔法山',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, bent over in elevated magic mountain pose, hips high, athletic young man behind thrusting upward into the bent elevated position, strong bend full body side view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, bent over in elevated magic mountain pose, hips high, athletic young man behind thrusting upward into the bent elevated position, strong bend full body side view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_80',
     name: '#80 Scissor Slow Grind',
     nameZh: '坐姿剪刀慢磨',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, sitting in scissors position with the man, performing slow sensual grinding, eyes locked, athletic young man matching her slow rhythm, intimate slow grind full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, sitting in scissors position with the man, performing slow sensual grinding, eyes locked, athletic young man matching her slow rhythm, intimate slow grind full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_81',
     name: '#81 Table Doggy',
     nameZh: '桌面后入',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on all fours on a table, athletic young man standing behind the table thrusting into her, table-height doggy full body side view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on all fours on a table, athletic young man standing behind the table thrusting into her, table-height doggy full body side view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_82',
     name: '#82 Intense Crab Ride',
     nameZh: '激烈螃蟹女上',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, in crab position on top bouncing vigorously and hard, athletic young man beneath absorbing the intense energy, high-energy crab ride full body shot, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, in crab position on top bouncing vigorously and hard, athletic young man beneath absorbing the intense energy, high-energy crab ride full body shot, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_83',
     name: '#83 Horizontal Floating Superman',
     nameZh: '水平悬空超人',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, held completely horizontal in mid-air, body straight, athletic young man standing with strong arms supporting her while thrusting, pure horizontal Superman full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, held completely horizontal in mid-air, body straight, athletic young man standing with strong arms supporting her while thrusting, pure horizontal Superman full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_84',
     name: '#84 Standing Fast Bounce',
     nameZh: '站立弹球快速',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, standing slightly bent, athletic young man behind her performing very fast shallow standing thrusts, high-frequency energy, dynamic standing full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, standing slightly bent, athletic young man behind her performing very fast shallow standing thrusts, high-frequency energy, dynamic standing full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_85',
     name: '#85 Deep Spiral Side',
     nameZh: '螺旋深侧入',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, in deep corkscrew spiral with one leg high, athletic young man thrusting deeply from the twisted side angle, deep spiral full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, in deep corkscrew spiral with one leg high, athletic young man thrusting deeply from the twisted side angle, deep spiral full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_86',
     name: '#86 Extreme Bridge Lift',
     nameZh: '桥式强烈抬臀',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, in intense bridge with hips raised as high as possible, athletic young man thrusting powerfully into the peak of the bridge, extreme arch full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, in intense bridge with hips raised as high as possible, athletic young man thrusting powerfully into the peak of the bridge, extreme arch full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_87',
     name: '#87 Single Leg High Rear',
     nameZh: '单腿高抬后入',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on all fours with one leg raised extremely high and held, athletic young man behind gripping the high leg and thrusting, extreme leg-lift doggy full body shot, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on all fours with one leg raised extremely high and held, athletic young man behind gripping the high leg and thrusting, extreme leg-lift doggy full body shot, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_88',
     name: '#88 Kneeling Oral to Rear',
     nameZh: '跪姿口交后插入',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, kneeling and performing oral then being lifted and penetrated from behind in continuous motion, athletic young man transitioning from receiving oral to rear entry, dynamic oral-to-penetration full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, kneeling and performing oral then being lifted and penetrated from behind in continuous motion, athletic young man transitioning from receiving oral to rear entry, dynamic oral-to-penetration full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_89',
     name: '#89 Standing Deep Doggy',
     nameZh: '站立深后入',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, standing bent forward, athletic young man behind her delivering very deep standing thrusts, hands gripping her hips firmly, deep standing doggy full body side view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, standing bent forward, athletic young man behind her delivering very deep standing thrusts, hands gripping her hips firmly, deep standing doggy full body side view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_90',
     name: '#90 Reverse Piledriver Lock',
     nameZh: '反向倒立固定',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, held firmly in reverse piledriver inverted position, athletic young man locking her in place and thrusting downward, fixed reverse inverted full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, held firmly in reverse piledriver inverted position, athletic young man locking her in place and thrusting downward, fixed reverse inverted full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_91',
     name: '#91 Side Interlock Scissor',
     nameZh: '侧卧交错剪刀',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying on her side with legs fully interlocking and scissored with the man's, grinding deeply, athletic young man matching the interlock, tightly scissored side full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, lying on her side with legs fully interlocking and scissored with the man's, grinding deeply, athletic young man matching the interlock, tightly scissored side full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_92',
     name: '#92 Bed Edge Intense Rear',
     nameZh: '床沿激烈后入',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on all fours at the bed edge receiving hard intense thrusts from the standing man, athletic young man standing and driving hard, energetic edge doggy full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on all fours at the bed edge receiving hard intense thrusts from the standing man, athletic young man standing and driving hard, energetic edge doggy full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_93',
     name: '#93 Cowgirl Deep Lean Back',
     nameZh: '女上后仰深插',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on top leaning far back with deep penetration, hands supporting on his legs, chest open, athletic young man beneath holding her, deep reverse-lean riding full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on top leaning far back with deep penetration, hands supporting on his legs, chest open, athletic young man beneath holding her, deep reverse-lean riding full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_94',
     name: '#94 Ankle Lock Missionary',
     nameZh: '脚踝固定传教士',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on her back with both ankles firmly gripped and held by the man, legs controlled, athletic young man on top using the ankle hold for deep powerful thrusts, controlled ankle-hold full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, on her back with both ankles firmly gripped and held by the man, legs controlled, athletic young man on top using the ankle hold for deep powerful thrusts, controlled ankle-hold full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_95',
     name: '#95 Wall Sit Energetic Bounce',
     nameZh: '靠墙坐姿弹跳',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, sitting on the man's lap against the wall and bouncing energetically, athletic young man seated against the wall supporting her bounce, lively wall-sit riding full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, sitting on the man's lap against the wall and bouncing energetically, athletic young man seated against the wall supporting her bounce, lively wall-sit riding full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_96',
     name: '#96 Chair Bent Over',
     nameZh: '椅子弯腰后入',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, bent deeply over a chair, hands gripping the seat or back, athletic young man behind delivering firm thrusts into the bent chair position, furniture-assisted full body side view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, bent deeply over a chair, hands gripping the seat or back, athletic young man behind delivering firm thrusts into the bent chair position, furniture-assisted full body side view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_97',
     name: '#97 Seated Lotus Deep',
     nameZh: '坐姿莲花深插',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, in seated lotus with deep penetration, legs wrapped tightly, bodies pressed close, athletic young man holding her firmly, deep intimate lotus full body close composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, in seated lotus with deep penetration, legs wrapped tightly, bodies pressed close, athletic young man holding her firmly, deep intimate lotus full body close composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_98',
     name: '#98 Standing 69',
     nameZh: '站立69',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, in full standing 69 position held by the man, mutual oral while suspended, athletic young man standing strong supporting her inverted body, dramatic standing 69 full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, in full standing 69 position held by the man, mutual oral while suspended, athletic young man standing strong supporting her inverted body, dramatic standing 69 full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_99',
     name: '#99 Pillow Hips Prone Entry',
     nameZh: '枕头垫臀趴入',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, face down with pillow elevating her hips high for optimal angle, athletic young man on top thrusting deeply into the elevated position, enhanced prone full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, face down with pillow elevating her hips high for optimal angle, athletic young man on top thrusting deeply into the elevated position, enhanced prone full body view, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
   {
     id: 'pose_100',
     name: '#100 Standing Full Nelson Thrust',
     nameZh: '站立全尼尔森抽插',
-    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, fluffy long curly black hair, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, held in standing full nelson with arms locked behind her head, legs spread, athletic young man standing behind delivering powerful upward thrusts while locking her, intense standing full nelson full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
+    prompt: "young woman, delicate natural facial features, soft face contour, clear eyes, realistic skin texture, subtle skin pores, anatomically correct human body, completely naked, held in standing full nelson with arms locked behind her head, legs spread, athletic young man standing behind delivering powerful upward thrusts while locking her, intense standing full nelson full body composition, soft natural window light, shallow depth of field, cinematic soft glow, gentle shadow, clean and bright color tone, 8K, ultra-detailed, shot on DSLR, 50mm f/1.4 lens, film grain texture, rich fine details, realistic photography, high detail",
   },
 
 ];

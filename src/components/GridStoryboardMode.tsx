@@ -672,7 +672,7 @@ export function GridStoryboardMode({
     setLoading(true);
 
     // Generate for ALL selected themes in parallel
-    const tasks: Array<{ taskId: string; themeTitle: string; status: string; progress?: string; panels?: GridPanel[] }> = [];
+    const tasks: Array<{ taskId: string; themeTitle: string; status: string; progress?: string; panels?: GridPanel[]; startTime?: number }> = [];
 
     for (const theme of selectedThemes) {
       console.log(`${GRID_LOG_PREFIX} submitting task for theme: ${theme.title}`);
