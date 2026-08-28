@@ -36,6 +36,15 @@ const GRID_LOG_PREFIX = '[GridStoryboardMode]';
 type GridStep = 'themes' | 'edit' | 'view';
 type GridSize = 4 | 9 | 12;
 
+function formatElapsedTime(startTime?: number): string {
+  if (!startTime) return '';
+  const elapsed = Math.floor((Date.now() - startTime) / 1000);
+  if (elapsed < 60) return `${elapsed}s`;
+  const mins = Math.floor(elapsed / 60);
+  const secs = elapsed % 60;
+  return `${mins}m${secs}s`;
+}
+
 interface GridStoryboardModeProps {
   r18Mode: boolean;
   taskManager: TaskManagerReturn;
@@ -141,7 +150,7 @@ export function GridStoryboardMode({
   const [showRandomConfirm, setShowRandomConfirm] = useState(false);
 
   // Grid task tracking - one per selected theme
-  const [gridTasks, setGridTasks] = useState<Array<{ taskId: string; themeTitle: string; status: string; progress?: string; panels?: GridPanel[] }>>([]);
+  const [gridTasks, setGridTasks] = useState<Array<{ taskId: string; themeTitle: string; status: string; progress?: string; panels?: GridPanel[]; startTime?: number }>>([]);
   const gridPollIntervalsRef = useRef<ReturnType<typeof setInterval>[]>([]);
 
   // Completed themes - user can click to load any of them
@@ -159,6 +168,8 @@ export function GridStoryboardMode({
   const [loading, setLoading] = useState(false);
 
   // Multiple images state (API may return multiple grid images)
+  // Store images per-theme to support multi-theme switching
+  const [gridImagesMap, setGridImagesMap] = useState<Record<number, string[]>>({});
   const [gridImages, setGridImages] = useState<string[]>([]);
   const [activeImageIdx, setActiveImageIdx] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -180,25 +191,15 @@ export function GridStoryboardMode({
   useEffect(() => { onSuccessRef.current = onSuccess; }, [onSuccess]);
   useEffect(() => { onErrorRef.current = onError; }, [onError]);
 
-  // Restore session on mount
+  // Restore session on mount - default to theme selection page
   useEffect(() => {
     // Reset generation lock on mount (in case page was refreshed during generation)
     isGeneratingRef.current = false;
 
-    const saved = getGridSession();
-    if (saved?.panels?.length) {
-      setPanels(saved.panels);
-      setGridSize(saved.gridSize as GridSize);
-      setStep(saved.panels.length > 0 ? 'edit' : 'themes');
-      if (saved.historyId) {
-        setCurrentHistoryId(saved.historyId);
-        const cached = getCachedStoryboardPanelImages(saved.historyId, 0);
-        if (cached.length > 0) {
-          setGridImages(cached);
-          setStep('view');
-        }
-      }
-    }
+    // Always start at theme selection page (screenshot 3)
+    setStep('themes');
+    setPanels([]);
+    setGridImages([]);
   }, []);
 
   // Persist session
@@ -351,15 +352,18 @@ export function GridStoryboardMode({
         const statusRes = await getPromptTaskStatus(taskId);
         console.log(`${GRID_LOG_PREFIX} poll ${pollCount} for ${themeTitle}: status=${statusRes.status}`);
 
-        if (statusRes.progress) {
-          setGridTasks((prev) => {
-            const next = [...prev];
-            if (next[taskIndex]) {
-              next[taskIndex] = { ...next[taskIndex], status: statusRes.status, progress: statusRes.progress ?? undefined };
-            }
-            return next;
-          });
-        }
+        // Update progress
+        setGridTasks((prev) => {
+          const next = [...prev];
+          if (next[taskIndex]) {
+            next[taskIndex] = {
+              ...next[taskIndex],
+              status: statusRes.status,
+              progress: statusRes.progress ?? next[taskIndex].progress,
+            };
+          }
+          return next;
+        });
 
         if (statusRes.status === 'DONE' && statusRes.result) {
           clearInterval(pollInterval);
@@ -414,6 +418,15 @@ export function GridStoryboardMode({
             setGridSize(successful[0].panels!.length as GridSize);
             setActiveThemeIdx(0);
             setStep('edit');
+            // Save to history with theme title
+            const historyId = addGridHistory({
+              plot: successful[0].themeTitle || '九宫格分镜',
+              grid_size: successful[0].panels!.length,
+              r18: r18Mode,
+              panels: successful[0].panels!,
+            });
+            setCurrentHistoryId(historyId);
+            sessionStorage.setItem('sb_latest_history_id', historyId);
           }
           onSuccess(`${successful.length} 个主题分镜已生成完成`);
         } else {
@@ -432,13 +445,33 @@ export function GridStoryboardMode({
     // Use ref for most up-to-date data
     const theme = completedThemesRef.current[index] || completedThemes[index];
     if (theme) {
+      // Save current theme's images before switching
+      setGridImagesMap((prev) => ({ ...prev, [activeThemeIdx]: gridImages }));
+      // Restore new theme's images (or empty)
+      const newImages = gridImagesMap[index] || [];
+      setGridImages(newImages);
+      setActiveImageIdx(0);
       setPanels(theme.panels);
       setGridSize(theme.gridSize);
       setActiveThemeIdx(index);
       setStep('edit');
+      // Save to history with theme title
+      saveGridHistoryEntry(theme.themeTitle);
       onSuccess(`已加载「${theme.themeTitle}」分镜`);
     }
   };
+
+  // Save current panels to history with theme title
+  const saveGridHistoryEntry = useCallback((themeTitle: string) => {
+    const historyId = addGridHistory({
+      plot: themeTitle || '九宫格分镜',
+      grid_size: panels.length,
+      r18: r18Mode,
+      panels,
+    });
+    setCurrentHistoryId(historyId);
+    sessionStorage.setItem('sb_latest_history_id', historyId);
+  }, [panels, r18Mode]);
 
   // ── Random: pick 3 themes from library and add to theme pool ──
 
@@ -509,7 +542,7 @@ export function GridStoryboardMode({
 
     for (const theme of selectedThemes) {
       console.log(`${GRID_LOG_PREFIX} submitting task for theme: ${theme.title}`);
-      tasks.push({ taskId: '', themeTitle: theme.title, status: 'SUBMITTING' });
+      tasks.push({ taskId: '', themeTitle: theme.title, status: 'SUBMITTING', startTime: Date.now() });
     }
     setGridTasks([...tasks]);
 
@@ -588,8 +621,13 @@ export function GridStoryboardMode({
 
     console.log(`${GRID_LOG_PREFIX} handleGenerateImage called, prompt length=${fullPrompt.length}`);
 
+    // Get theme title from completedThemes or use default
+    const themeTitle = completedThemesRef.current[activeThemeIdx]?.themeTitle
+      || selectedTemplate?.titleZh
+      || '九宫格分镜';
+
     const historyId = addGridHistory({
-      plot: selectedTemplate?.titleZh || '九宫格分镜',
+      plot: themeTitle,
       grid_size: panels.length,
       r18: r18Mode,
       panels,
@@ -601,6 +639,8 @@ export function GridStoryboardMode({
     setStep('view');
     setGridImages([]);
     setActiveImageIdx(0);
+    // Save images for current theme index
+    setGridImagesMap((prev) => ({ ...prev, [activeThemeIdx]: [] }));
 
     let imagePath = selectedGirlfriend?.portraitUrl || '';
     let downloadUrl = '';
@@ -1169,57 +1209,67 @@ export function GridStoryboardMode({
           </div>
           <div className="space-y-2">
             {gridTasks.map((task, idx) => (
-              <div
-                key={idx}
-                className={`flex items-center gap-2 p-2 rounded-lg ${
-                  task.status === 'DONE' && task.panels?.length
-                    ? 'bg-green-50 cursor-pointer hover:bg-green-100 transition-colors'
-                    : 'bg-bg-elevated'
-                }`}
-                onClick={() => {
-                  if (task.status === 'DONE' && task.panels?.length) {
-                    setPanels(task.panels);
-                    setGridSize(task.panels.length as GridSize);
-                    setStep('edit');
-                    setActiveThemeIdx(idx);
-                  }
-                }}
-              >
-                <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
-                  {task.status === 'DONE' ? (
-                    <Check size={14} className="text-green-500" />
-                  ) : task.status === 'FAILED' || task.status === 'TIMEOUT' ? (
-                    <X size={14} className="text-red-500" />
-                  ) : (
-                    <Loader2 size={14} className="animate-spin text-purple-500" />
+              <div key={idx}>
+                <div
+                  className={`flex items-center gap-2 p-2 rounded-lg ${
+                    task.status === 'DONE' && task.panels?.length
+                      ? 'bg-green-50 cursor-pointer hover:bg-green-100 transition-colors'
+                      : 'bg-bg-elevated'
+                  }`}
+                  onClick={() => {
+                    if (task.status === 'DONE' && task.panels?.length) {
+                      handleLoadTheme(idx);
+                    }
+                  }}
+                >
+                  <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
+                    {task.status === 'DONE' ? (
+                      <Check size={14} className="text-green-500" />
+                    ) : task.status === 'FAILED' || task.status === 'TIMEOUT' ? (
+                      <X size={14} className="text-red-500" />
+                    ) : (
+                      <Loader2 size={14} className="animate-spin text-purple-500" />
+                    )}
+                  </div>
+                  <span className="text-xs text-text-primary flex-1 truncate">{task.themeTitle}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                    task.status === 'DONE' ? 'bg-green-100 text-green-700' :
+                    task.status === 'FAILED' || task.status === 'TIMEOUT' ? 'bg-red-100 text-red-700' :
+                    'bg-purple-100 text-purple-700'
+                  }`}>
+                    {task.status === 'SUBMITTING' ? (displayLang === 'zh' ? '提交中' : 'Submitting') :
+                     task.status === 'RUNNING' ? (displayLang === 'zh' ? '生成中' : 'Running') :
+                     task.status === 'DONE' ? (displayLang === 'zh' ? `完成 ${task.panels?.length || 0} 格` : `Done ${task.panels?.length || 0}`) :
+                     task.status === 'FAILED' ? (displayLang === 'zh' ? '失败' : 'Failed') :
+                     task.status === 'TIMEOUT' ? (displayLang === 'zh' ? '超时' : 'Timeout') :
+                     task.status}
+                  </span>
+                  {task.status === 'DONE' && task.panels?.length && (
+                    <button
+                      className="text-[10px] text-purple-600 hover:text-purple-800 font-medium"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleLoadTheme(idx);
+                      }}
+                    >
+                      {displayLang === 'zh' ? '加载' : 'Load'}
+                    </button>
                   )}
                 </div>
-                <span className="text-xs text-text-primary flex-1 truncate">{task.themeTitle}</span>
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-                  task.status === 'DONE' ? 'bg-green-100 text-green-700' :
-                  task.status === 'FAILED' || task.status === 'TIMEOUT' ? 'bg-red-100 text-red-700' :
-                  'bg-purple-100 text-purple-700'
-                }`}>
-                  {task.status === 'SUBMITTING' ? (displayLang === 'zh' ? '提交中' : 'Submitting') :
-                   task.status === 'RUNNING' ? (displayLang === 'zh' ? '生成中' : 'Running') :
-                   task.status === 'DONE' ? (displayLang === 'zh' ? `完成 ${task.panels?.length || 0} 格` : `Done ${task.panels?.length || 0}`) :
-                   task.status === 'FAILED' ? (displayLang === 'zh' ? '失败' : 'Failed') :
-                   task.status === 'TIMEOUT' ? (displayLang === 'zh' ? '超时' : 'Timeout') :
-                   task.status}
-                </span>
-                {task.status === 'DONE' && task.panels?.length && (
-                  <button
-                    className="text-[10px] text-purple-600 hover:text-purple-800 font-medium"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setPanels(task.panels!);
-                      setGridSize(task.panels!.length as GridSize);
-                      setStep('edit');
-                      setActiveThemeIdx(idx);
-                    }}
-                  >
-                    {displayLang === 'zh' ? '加载' : 'Load'}
-                  </button>
+                {task.status === 'RUNNING' && (
+                  <div className="mt-1.5 ml-7">
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-1 rounded-full bg-bg-elevated overflow-hidden">
+                        <div className="h-full rounded-full bg-purple-400 animate-pulse" style={{ width: '60%' }} />
+                      </div>
+                      <span className="text-[9px] text-text-tertiary">
+                        {task.startTime ? formatElapsedTime(task.startTime) : ''}
+                      </span>
+                    </div>
+                    {task.progress && (
+                      <p className="text-[9px] text-text-tertiary mt-0.5 truncate">{task.progress}</p>
+                    )}
+                  </div>
                 )}
               </div>
             ))}
@@ -1401,22 +1451,33 @@ export function GridStoryboardMode({
             </div>
           ) : (
             <div className="max-h-[400px] overflow-y-auto divide-y divide-border/50">
-              {history.map((h) => (
-                <div key={h.id} className="flex items-center gap-2 px-4 py-3 hover:bg-bg-hover/30 transition-colors">
-                  <button onClick={() => handleHistoryLoad(h)} className="flex-1 flex items-start gap-2 w-full min-w-0 text-left group">
-                    <div className="flex-shrink-0 w-9 h-9 rounded bg-bg-elevated flex items-center justify-center border border-border/50">
-                      <Grid3X3 size={14} className="text-text-tertiary/40" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-text-primary font-medium line-clamp-1">{h.plot}</p>
-                      <p className="text-[10px] text-text-tertiary">{h.grid_size} 格 · {new Date(h.timestamp).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
-                    </div>
-                  </button>
-                  <button onClick={() => handleDeleteHistory(h.id)} className="p-1.5 rounded-lg text-text-tertiary hover:text-red-500 hover:bg-red-50 transition-all flex-shrink-0">
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-              ))}
+              {history.map((h) => {
+                // Get first available image for preview
+                const previewImage = h.images?.[0] || h.panelImages?.[0]?.[0] || undefined;
+                return (
+                  <div key={h.id} className="flex items-center gap-2 px-4 py-3 hover:bg-bg-hover/30 transition-colors">
+                    <button onClick={() => handleHistoryLoad(h)} className="flex-1 flex items-start gap-2 w-full min-w-0 text-left group">
+                      {/* Preview image or grid icon */}
+                      {previewImage ? (
+                        <div className="flex-shrink-0 w-10 h-10 rounded-lg overflow-hidden border border-border/50">
+                          <img src={previewImage} alt="" className="w-full h-full object-cover" />
+                        </div>
+                      ) : (
+                        <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-bg-elevated flex items-center justify-center border border-border/50">
+                          <Grid3X3 size={16} className="text-text-tertiary/40" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-text-primary font-medium line-clamp-1">{h.plot}</p>
+                        <p className="text-[10px] text-text-tertiary">{h.grid_size} 格 · {new Date(h.timestamp).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
+                      </div>
+                    </button>
+                    <button onClick={() => handleDeleteHistory(h.id)} className="p-1.5 rounded-lg text-text-tertiary hover:text-red-500 hover:bg-red-50 transition-all flex-shrink-0">
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
