@@ -101,31 +101,35 @@ function buildFullGridPrompt(panels: GridPanel[], gridSize: number): string {
   let basePart = panelMatch ? panelMatch[1].trim() : basePrompt;
   const gridCols = gridSize <= 4 ? '2×2' : gridSize <= 9 ? '3×3' : '3×4';
 
-  // Add sexy clothing to base prompt if not already present
-  const hasClothing = /dress|skirt|lingerie|leather|bodysuit|blouse|top|outfit|corset|satin|lace/i.test(basePart);
-  if (!hasClothing) {
-    const outfit = sexyOutfitPool[Math.floor(Math.random() * sexyOutfitPool.length)];
-    basePart += `, wearing ${outfit}`;
-  }
-
   // Build anchor for character consistency
   const anchorMatch = basePrompt.match(/\[ANCHOR:\s*([^\]]+)\]/i);
   const characterAnchor = anchorMatch ? anchorMatch[1].trim() : '';
   const anchorTag = characterAnchor ? `[ANCHOR: ${characterAnchor}]` : '';
 
+  // Determine clothing stage per panel:
+  // - Panels 1-3: Wearing clothes (foreplay/buildup)
+  // - Panels 4-6: Undressing / semi-nude (transition)
+  // - Panels 7+: Nude / semi-nude (intimate scenes, NO clothing)
+  const totalPanels = panels.length;
+  const nudeStart = Math.floor(totalPanels * 0.6); // ~60% through, switch to nude
+
   let fullPrompt = `cinematic storyboard grid, ${gridSize} panels in ${gridCols} grid, ${basePart}`;
   fullPrompt += `\n\n【CRITICAL CONSISTENCY REQUIREMENTS】`;
-  fullPrompt += `\n- Character appearance MUST remain IDENTICAL across all panels: same face, same body, same hair, same clothing color and style`;
-  fullPrompt += `\n- Do NOT change clothing color, style, or type between panels`;
+  fullPrompt += `\n- Character appearance MUST remain IDENTICAL across all panels: same face, same body, same hair`;
+  fullPrompt += `\n- Clothing progression: early panels show clothed character, later panels show nude/semi-nude`;
+  fullPrompt += `\n- Panels 1-${Math.floor(totalPanels * 0.4)}: Character fully clothed (foreplay, teasing)`;
+  fullPrompt += `\n- Panels ${Math.floor(totalPanels * 0.4) + 1}-${nudeStart}: Character undressing, semi-nude (bras, panties, or partially covered)`;
+  fullPrompt += `\n- Panels ${nudeStart + 1}+: Character FULLY NUDE, no clothing descriptions, intimate/sexual acts`;
   fullPrompt += `\n- Each panel MUST show a DIFFERENT action, pose, and camera angle`;
   fullPrompt += `\n- Maintain scene continuity: same location, same lighting, same time of day`;
+  fullPrompt += `\n- IMPORTANT: Do NOT describe clothing for intimate panels (${nudeStart + 1}+), show bare skin`;
 
-  // Assign consistent outfit and varied camera angles/actions per panel
+  // Assign varied camera angles/actions per panel with clothing progression
   for (let i = 0; i < panels.length; i++) {
     const panel = panels[i];
     const panelPrompt = panel.image_prompt;
     const panelSpecificMatch = panelPrompt.match(/Panel\d+:\s*(.*)/s);
-    const panelSpecific = panelSpecificMatch ? panelSpecificMatch[1].trim() : panelPrompt;
+    let panelSpecific = panelSpecificMatch ? panelSpecificMatch[1].trim() : panelPrompt;
 
     // Pick camera angle and shot type for variety
     const angleIdx = i % cameraAngles.length;
@@ -133,9 +137,89 @@ function buildFullGridPrompt(panels: GridPanel[], gridSize: number): string {
     const cameraAngle = cameraAngles[angleIdx];
     const shotType = shotTypes[shotIdx];
 
-    fullPrompt += `\nPanel${panel.panel_number}: ${cameraAngle}, ${shotType}, ${anchorTag} ${panelSpecific}`;
+    // Determine clothing state for this panel
+    let clothingDesc = '';
+    if (i < totalPanels * 0.4) {
+      // Early: fully clothed
+      const hasClothing = /dress|skirt|lingerie|leather|bodysuit|blouse|top|outfit|corset|satin|lace|wearing/i.test(basePart);
+      if (!hasClothing) {
+        const outfit = sexyOutfitPool[Math.floor(Math.random() * sexyOutfitPool.length)];
+        clothingDesc = `wearing ${outfit}, `;
+      }
+    } else if (i < nudeStart) {
+      // Middle: semi-nude / undressing
+      const semiNudeOptions = [
+        'topless with panties, ',
+        'in bra and panties, ',
+        'partially undressed, ',
+        'shirt pulled up exposing breasts, ',
+        'skirt pulled up, underwear visible, ',
+      ];
+      clothingDesc = semiNudeOptions[i % semiNudeOptions.length];
+    }
+    // Late panels: no clothing desc (fully nude)
+
+    fullPrompt += `\nPanel${panel.panel_number}: ${cameraAngle}, ${shotType}, ${clothingDesc}${anchorTag} ${panelSpecific}`;
   }
   return fullPrompt;
+}
+
+// Apply clothing progression to generated panels
+// Early panels: clothed, Middle: semi-nude, Late: nude (no clothing descriptions)
+function applyClothingProgression(panels: GridPanel[]): GridPanel[] {
+  const totalPanels = panels.length;
+  const nudeStart = Math.floor(totalPanels * 0.6);
+
+  return panels.map((panel, i) => {
+    let { scene_description, image_prompt } = panel;
+
+    // Remove clothing descriptions from scene_description for later panels
+    if (i >= nudeStart) {
+      // Late panels: remove clothing descriptions
+      scene_description = sceneDescriptionRemoveClothing(scene_description);
+      image_prompt = promptRemoveClothing(image_prompt);
+    } else if (i >= totalPanels * 0.4) {
+      // Middle panels: modify to show undressing/semi-nude
+      scene_description = sceneDescriptionSemiNude(scene_description);
+      image_prompt = promptSemiNude(image_prompt);
+    }
+    // Early panels: keep as is (clothed)
+
+    return { ...panel, scene_description, image_prompt };
+  });
+}
+
+// Remove clothing descriptions from text
+function promptRemoveClothing(text: string): string {
+  return text
+    .replace(/wearing[^,]*,?\s*/gi, '')
+    .replace(/穿着[^,，]*,?/g, '')
+    .replace(/dressed in[^,]*,?\s*/gi, '')
+    .replace(/in[^,]*outfit,?\s*/gi, '')
+    .replace(/,?\s*with clothing descriptions removed/gi, '');
+}
+
+function sceneDescriptionRemoveClothing(text: string): string {
+  return text
+    .replace(/穿着[^,，]*,?/g, '')
+    .replace(/穿着[^,，]*/g, '')
+    .replace(/wearing[^,]*,?\s*/gi, '')
+    .replace(/dressed in[^,]*,?\s*/gi, '');
+}
+
+function sceneDescriptionSemiNude(text: string): string {
+  return text
+    .replace(/穿着日常装/g, '半裸着')
+    .replace(/穿着正装/g, '半裸着')
+    .replace(/wearing casual clothes/gi, 'semi-nude')
+    .replace(/wearing formal clothes/gi, 'semi-nude')
+    .replace(/fully clothed/gi, 'partially undressed');
+}
+
+function promptSemiNude(text: string): string {
+  return text
+    .replace(/wearing[^,]*,?\s*/gi, 'partially undressed, ')
+    .replace(/dressed in[^,]*,?\s*/gi, 'semi-nude, ');
 }
 
 export function GridStoryboardMode({
@@ -713,12 +797,14 @@ export function GridStoryboardMode({
             });
             return { taskId: res.task_id, themeTitle: theme.title, index };
           } else if (res.storyboard?.length) {
+            // Post-process panels for clothing progression
+            const processedPanels = applyClothingProgression(res.storyboard);
             setGridTasks((prev) => {
               const next = [...prev];
-              next[index] = { ...next[index], status: 'DONE', panels: res.storyboard };
+              next[index] = { ...next[index], status: 'DONE', panels: processedPanels };
               return next;
             });
-            return { taskId: '', themeTitle: theme.title, index, panels: res.storyboard };
+            return { taskId: '', themeTitle: theme.title, index, panels: processedPanels };
           }
           throw new Error('返回的分镜为空');
         } catch (err) {
