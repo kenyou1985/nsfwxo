@@ -10,7 +10,7 @@ import { GridPanelEditor } from './GridPanelEditor';
 import { GRID_TEMPLATES, type GridTemplate } from '../data/gridTemplates';
 import type { GridPanel, GridHistoryItem } from '../services/storage';
 import {
-  getGridHistory, addGridHistory, removeGridHistory, clearGridHistory,
+  getGridHistory, addGridHistory, removeGridHistory, clearGridHistory, updateGridHistoryImages,
   getGridSession, saveGridSession, clearGridSession,
   cacheStoryboardPanelImages, getCachedStoryboardPanelImages,
   addFavorite, removeFavorite, getFavorites, isFavorited as isFavoritedFn,
@@ -207,7 +207,29 @@ export function GridStoryboardMode({
 
   // History
   const [showHistory, setShowHistory] = useState(false);
-  const [history, setHistory] = useState<GridHistoryItem[]>(() => getGridHistory());
+  const [history, setHistory] = useState<GridHistoryItem[]>(() => {
+    // Clean up duplicate and invalid entries on init
+    const entries = getGridHistory();
+    const seen = new Map<string, GridHistoryItem>();
+    const cleaned: GridHistoryItem[] = [];
+    for (const entry of entries) {
+      // Skip entries with 0 panels
+      if (!entry.grid_size || entry.grid_size === 0) {
+        removeGridHistory(entry.id);
+        continue;
+      }
+      // Deduplicate by title, keep the newest
+      const key = `${entry.plot}_${entry.grid_size}`;
+      if (!seen.has(key)) {
+        seen.set(key, entry);
+        cleaned.push(entry);
+      } else {
+        // Remove older duplicate
+        removeGridHistory(entry.id);
+      }
+    }
+    return cleaned;
+  });
 
   // Favorites
   const [favorites, setFavorites] = useState(() => getFavorites());
@@ -338,6 +360,13 @@ export function GridStoryboardMode({
           cacheStoryboardPanelImages(hid, i, [newImages[i]]).catch(() => {});
         }
       }
+
+      // Save images to history record for thumbnail display
+      const panelImages: Record<number, string[]> = {};
+      for (let i = 0; i < newImages.length; i++) {
+        if (newImages[i]) panelImages[i] = [newImages[i]];
+      }
+      updateGridHistoryImages(hid, panelImages);
     }
   }, [finishedTasks, currentHistoryId, currentHistoryIdMap, activeThemeIdx]);
 
@@ -537,13 +566,18 @@ export function GridStoryboardMode({
             setGridSize(successful[0].panels!.length as GridSize);
             setActiveThemeIdx(0);
             setStep('edit');
-            const historyId = addGridHistory({
-              plot: successful[0].themeTitle || '九宫格分镜',
-              grid_size: successful[0].panels!.length,
-              r18: r18Mode,
-              panels: successful[0].panels!,
-            });
+            // Create history entry for first theme only if none exists
+            let historyId = currentHistoryIdMap[0];
+            if (!historyId) {
+              historyId = addGridHistory({
+                plot: successful[0].themeTitle || '九宫格分镜',
+                grid_size: successful[0].panels!.length,
+                r18: r18Mode,
+                panels: successful[0].panels!,
+              });
+            }
             setCurrentHistoryId(historyId);
+            setCurrentHistoryIdMap((prev) => ({ ...prev, [0]: historyId }));
             sessionStorage.setItem('sb_latest_history_id', historyId);
           }
           setTimeout(() => onSuccess(`${successful.length} 个主题分镜已生成完成`), 0);
@@ -588,24 +622,10 @@ export function GridStoryboardMode({
       setGridSize(theme.gridSize);
       setActiveThemeIdx(newThemeIdx);
       setStep('edit');
-      // Save to history with theme title
-      saveGridHistoryEntry(theme.themeTitle);
+      // Note: Do NOT create new history entry when loading a theme - this causes duplicates
       onSuccess(`已加载「${theme.themeTitle}」分镜`);
     }
   };
-
-  // Save current panels to history with theme title
-  const saveGridHistoryEntry = useCallback((themeTitle: string) => {
-    const historyId = addGridHistory({
-      plot: themeTitle || '九宫格分镜',
-      grid_size: panels.length,
-      r18: r18Mode,
-      panels,
-    });
-    setCurrentHistoryId(historyId);
-    setCurrentHistoryIdMap((prev) => ({ ...prev, [activeThemeIdx]: historyId }));
-    sessionStorage.setItem('sb_latest_history_id', historyId);
-  }, [panels, r18Mode, activeThemeIdx]);
 
   // ── Random: pick 3 themes from library and add to theme pool ──
 
@@ -760,12 +780,16 @@ export function GridStoryboardMode({
       || selectedTemplate?.titleZh
       || '九宫格分镜';
 
-    const historyId = addGridHistory({
-      plot: themeTitle,
-      grid_size: panels.length,
-      r18: r18Mode,
-      panels,
-    });
+    // Reuse existing history ID for this theme if available, otherwise create new
+    let historyId = currentHistoryIdMap[activeThemeIdx];
+    if (!historyId) {
+      historyId = addGridHistory({
+        plot: themeTitle,
+        grid_size: panels.length,
+        r18: r18Mode,
+        panels,
+      });
+    }
     setCurrentHistoryId(historyId);
     setCurrentHistoryIdMap((prev) => ({ ...prev, [activeThemeIdx]: historyId }));
     sessionStorage.setItem('sb_latest_history_id', historyId);
