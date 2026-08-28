@@ -75,15 +75,24 @@ const sexyOutfitPool = [
   'plunging neckline top',
 ];
 
-function getRandomOutfits(count: number): string[] {
-  const shuffled = [...sexyOutfitPool].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, count);
-}
-
 /**
  * Build a single grid storyboard prompt from individual panels.
  * Automatically adds sexy clothing descriptions to the base prompt.
+ * Ensures character consistency and camera angle variety across panels.
  */
+// Camera angles and shot types for variety
+const cameraAngles = [
+  'medium shot', 'close-up shot', 'wide shot', 'low angle shot',
+  'high angle shot', 'over-the-shoulder shot', 'side profile shot',
+  'Dutch angle shot', 'tracking shot', 'POV shot', 'establishing shot',
+  'bird eye view', 'worm eye view', 'three-quarter view',
+];
+
+const shotTypes = [
+  'front view', 'back view', 'side view', 'three-quarter rear view',
+  'profile view', 'dramatic angle', 'dynamic angle', 'intimate framing',
+];
+
 function buildFullGridPrompt(panels: GridPanel[], gridSize: number): string {
   if (panels.length === 0) return '';
   const basePanel = panels[0];
@@ -99,18 +108,32 @@ function buildFullGridPrompt(panels: GridPanel[], gridSize: number): string {
     basePart += `, wearing ${outfit}`;
   }
 
-  let fullPrompt = `cinematic storyboard grid, ${gridSize} panels in ${gridCols} grid, ${basePart}`;
+  // Build anchor for character consistency
+  const anchorMatch = basePrompt.match(/\[ANCHOR:\s*([^\]]+)\]/i);
+  const characterAnchor = anchorMatch ? anchorMatch[1].trim() : '';
+  const anchorTag = characterAnchor ? `[ANCHOR: ${characterAnchor}]` : '';
 
-  // Assign different sexy outfits to each panel for variety
-  const panelOutfits = getRandomOutfits(panels.length);
+  let fullPrompt = `cinematic storyboard grid, ${gridSize} panels in ${gridCols} grid, ${basePart}`;
+  fullPrompt += `\n\n【CRITICAL CONSISTENCY REQUIREMENTS】`;
+  fullPrompt += `\n- Character appearance MUST remain IDENTICAL across all panels: same face, same body, same hair, same clothing color and style`;
+  fullPrompt += `\n- Do NOT change clothing color, style, or type between panels`;
+  fullPrompt += `\n- Each panel MUST show a DIFFERENT action, pose, and camera angle`;
+  fullPrompt += `\n- Maintain scene continuity: same location, same lighting, same time of day`;
+
+  // Assign consistent outfit and varied camera angles/actions per panel
   for (let i = 0; i < panels.length; i++) {
     const panel = panels[i];
     const panelPrompt = panel.image_prompt;
     const panelSpecificMatch = panelPrompt.match(/Panel\d+:\s*(.*)/s);
     const panelSpecific = panelSpecificMatch ? panelSpecificMatch[1].trim() : panelPrompt;
-    // Add outfit variation per panel
-    const outfit = panelOutfits[i % panelOutfits.length];
-    fullPrompt += `\nPanel${panel.panel_number}: wearing ${outfit}, ${panelSpecific}`;
+
+    // Pick camera angle and shot type for variety
+    const angleIdx = i % cameraAngles.length;
+    const shotIdx = i % shotTypes.length;
+    const cameraAngle = cameraAngles[angleIdx];
+    const shotType = shotTypes[shotIdx];
+
+    fullPrompt += `\nPanel${panel.panel_number}: ${cameraAngle}, ${shotType}, ${anchorTag} ${panelSpecific}`;
   }
   return fullPrompt;
 }
