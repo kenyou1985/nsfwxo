@@ -845,3 +845,114 @@ export function clearStoryboardSession(): void {
   clearSession(STORYBOARD_SESSION_KEY);
 }
 
+// ─── Grid (九宫格) Storyboard ─────────────────────────────────────────────────
+
+const GRID_HISTORY_KEY = 'ai_prompt_grid_history';
+const GRID_SESSION_KEY = 'ai_prompt_grid_session';
+
+export interface GridPanel {
+  panel_number: number;
+  scene_description: string;
+  image_prompt: string;
+}
+
+export interface GridHistoryItem {
+  id: string;
+  plot: string;
+  grid_size: number;
+  r18: boolean;
+  panels: GridPanel[];
+  timestamp: number;
+  panelImages?: Record<number, string[]>;
+  images?: string[];
+  zipUrl?: string;
+  panelZipUrls?: Record<number, string>;
+  panelImageCounts?: Record<number, number>;
+}
+
+export interface GridSession {
+  plot: string;
+  gridSize: number;
+  panels: GridPanel[];
+  themeId?: number;
+  themeTitle?: string;
+  historyId?: string;
+}
+
+export function getGridHistory(): GridHistoryItem[] {
+  return loadHistory<GridHistoryItem>(GRID_HISTORY_KEY);
+}
+
+export function addGridHistory(item: Omit<GridHistoryItem, 'id' | 'timestamp'>): string {
+  const history = getGridHistory();
+  const id = genId();
+  history.unshift({ ...item, id, timestamp: Date.now() });
+  saveHistory(GRID_HISTORY_KEY, history);
+  return id;
+}
+
+export function removeGridHistory(id: string): void {
+  const history = getGridHistory().filter((h) => h.id !== id);
+  saveHistory(GRID_HISTORY_KEY, history);
+  deleteCachedStoryboardPanelImages(id);
+}
+
+export function clearGridHistory(): void {
+  try { localStorage.removeItem(GRID_HISTORY_KEY); } catch {}
+}
+
+export function updateGridHistoryImages(
+  id: string,
+  panelImages: Record<number, string[]>,
+  zipUrl?: string,
+  panelImageCounts?: Record<number, number>
+): void {
+  const history = getGridHistory();
+  const index = history.findIndex((h) => h.id === id);
+  if (index !== -1) {
+    const PER_PANEL_CAP = 4;
+    const normalizedPanelImages: Record<number, string[]> = {};
+    const updatedPanelIdxs: number[] = [];
+    for (const [panelIdx, imgs] of Object.entries(panelImages)) {
+      const idx = Number(panelIdx);
+      updatedPanelIdxs.push(idx);
+      const limited = imgs.slice(0, PER_PANEL_CAP);
+      const cleaned = limited.map((img) => {
+        if (!img) return img;
+        if (img.startsWith('data:') || img.startsWith('blob:') || img.startsWith('http')) return img;
+        return '';
+      });
+      normalizedPanelImages[idx] = cleaned;
+    }
+    const existingPanelZipUrls = history[index].panelZipUrls || {};
+    const mergedPanelZipUrls: Record<number, string> = { ...existingPanelZipUrls };
+    if (zipUrl !== undefined) {
+      for (const idx of updatedPanelIdxs) {
+        mergedPanelZipUrls[idx] = zipUrl;
+      }
+    }
+    const legacyZipUrl = zipUrl ?? history[index].zipUrl;
+    history[index] = {
+      ...history[index],
+      panelImages: { ...(history[index].panelImages || {}), ...normalizedPanelImages },
+      images: Object.values({ ...(history[index].panelImages || {}), ...normalizedPanelImages }).flat().slice(0, 12),
+      panelZipUrls: mergedPanelZipUrls,
+      ...(legacyZipUrl !== undefined ? { zipUrl: legacyZipUrl } : {}),
+      ...(panelImageCounts !== undefined ? { panelImageCounts } : {}),
+    };
+    saveHistory(GRID_HISTORY_KEY, history);
+  }
+}
+
+export function getGridSession(): GridSession | null {
+  return loadSession<GridSession>(GRID_SESSION_KEY);
+}
+
+export function saveGridSession(session: GridSession): void {
+  saveSession(GRID_SESSION_KEY, session);
+}
+
+export function clearGridSession(): void {
+  clearSession(GRID_SESSION_KEY);
+}
+

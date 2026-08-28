@@ -8,6 +8,7 @@ import {
   AlertCircle, Settings, Eye, Tag, History, Trash2, Plus, Clock,
   Image, Zap, X, Download, User, Heart, Star, Clapperboard,
   ChevronLeft, ChevronRight, Video, ZoomIn, RefreshCw, Bookmark,
+  Grid3X3,
 } from 'lucide-react';
 
 /**
@@ -126,6 +127,7 @@ import { MAX_TASKS, type TaskManagerReturn } from '../hooks/useTaskManager';
 import type { GirlfriendPreset } from '../data/girlfriendPresets';
 import { GirlfriendSelector } from '../components/GirlfriendSelector';
 import { StoryboardSection } from '../components/StoryboardSection';
+import { GridStoryboardMode } from '../components/GridStoryboardMode';
 import { buildTxt2ImgNodeList } from '../utils/txt2imgNodeBuilder';
 import type { QueuedTask, TabType, NodeInfo } from '../types';
 import { withQualityBoost } from '../constants';
@@ -2369,6 +2371,9 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   // transitions to DONE / FAILED.
   const [themeTaskProgress, setThemeTaskProgress] = useState<string | null>(null);
 
+  // Sub-mode: linear (existing) or grid (九宫格)
+  const [subMode, setSubMode] = useState<'linear' | 'grid'>('linear');
+
   // Refs for callbacks used inside async effects — avoids stale closure issues
   const onSuccessRef = useRef(onSuccess);
   const onErrorRef = useRef(onError);
@@ -3977,6 +3982,52 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
 
   return (
     <div className="space-y-4">
+      {/* Sub-mode toggle */}
+      <div className="rounded-2xl bg-white border border-border shadow-card overflow-hidden">
+        <div className="flex">
+          <button
+            onClick={() => setSubMode('linear')}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-all ${
+              subMode === 'linear'
+                ? 'text-primary bg-primary/5 border-b-2 border-primary'
+                : 'text-text-tertiary hover:text-text-primary hover:bg-bg-hover'
+            }`}
+          >
+            <LayoutList size={13} />
+            <span>线性分镜</span>
+          </button>
+          <button
+            onClick={() => setSubMode('grid')}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-all ${
+              subMode === 'grid'
+                ? 'text-purple-600 bg-purple-50/50 border-b-2 border-purple-500'
+                : 'text-text-tertiary hover:text-text-primary hover:bg-bg-hover'
+            }`}
+          >
+            <Grid3X3 size={13} />
+            <span>九宫格分镜</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Grid Storyboard Mode */}
+      {subMode === 'grid' && (
+        <GridStoryboardMode
+          r18Mode={r18Mode}
+          taskManager={taskManager}
+          apiKey={apiKey}
+          displayLang="zh"
+          digitalHumanMode={digitalHumanMode}
+          selectedGirlfriend={selectedGirlfriend}
+          onError={onError}
+          onSuccess={onSuccess}
+          onNavigate={onNavigate}
+        />
+      )}
+
+      {/* Linear Storyboard Mode (existing) */}
+      {subMode === 'linear' && (
+      <>
       <div className="rounded-2xl bg-white border border-border shadow-card p-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
@@ -4971,6 +5022,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
           )}
         </div>
       )}
+      </>
+      )}
     </div>
   );
 }
@@ -5179,6 +5232,7 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
   promptEditLoading?: boolean;
   /** Edits to the prompt (writes back into parent state so 图生视频 uses the latest text) */
   onVideoPromptChange?: (newPrompt: string) => void;
+  historyId?: string;
 }) {
   const isGenLoading = genState?.loading;
   const displayImages = genState?.images ?? [];
