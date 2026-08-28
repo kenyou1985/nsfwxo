@@ -342,6 +342,7 @@ export async function generateGridStoryboard(
   r18: boolean = false,
   referenceImageUrl?: string,
   characterPrompt?: string,
+  gridSize: number = 9,
 ): Promise<GridStoryboardResponse> {
   const base = getBackendUrl();
   const controller = new AbortController();
@@ -355,6 +356,7 @@ export async function generateGridStoryboard(
         body: JSON.stringify({
           plot,
           r18,
+          grid_size: gridSize,
           ...(referenceImageUrl ? { reference_image_url: referenceImageUrl } : {}),
           ...(characterPrompt ? { character_prompt: characterPrompt } : {}),
         }),
@@ -364,6 +366,62 @@ export async function generateGridStoryboard(
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
       throw new Error('九宫格分镜生成超时（5分钟），请重试');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export interface GridRegenRequest {
+  plot: string;
+  panel_number: number;
+  current_prompt: string;
+  user_edit: string;
+  r18: boolean;
+  reference_image_url?: string;
+  character_prompt?: string;
+}
+
+export interface GridRegenResponse {
+  panel_number: number;
+  scene_description: string;
+  image_prompt: string;
+}
+
+export async function regenerateGridPanel(
+  plot: string,
+  panelNumber: number,
+  currentPrompt: string,
+  userEdit: string,
+  r18: boolean = false,
+  referenceImageUrl?: string,
+  characterPrompt?: string,
+): Promise<GridRegenResponse> {
+  const base = getBackendUrl();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 300000); // 5 min
+  try {
+    const response = await apiRequest<GridRegenResponse>(
+      `${base}/api/prompt/storyboard/grid/regen`,
+      {
+        method: 'POST',
+        signal: controller.signal as RequestInit['signal'],
+        body: JSON.stringify({
+          plot,
+          panel_number: panelNumber,
+          current_prompt: currentPrompt,
+          user_edit: userEdit,
+          r18,
+          ...(referenceImageUrl ? { reference_image_url: referenceImageUrl } : {}),
+          ...(characterPrompt ? { character_prompt: characterPrompt } : {}),
+        } satisfies GridRegenRequest),
+      },
+    );
+    return response;
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error('单格重绘超时（5分钟），请重试');
     }
     throw err;
   } finally {
@@ -829,12 +887,14 @@ export async function streamGridStoryboard(
   referenceImageUrl: string | undefined,
   characterPrompt: string | undefined,
   callbacks: StreamStoryboardCallbacks,
+  gridSize: number = 9,
 ): Promise<StreamHandle> {
   return openNdjsonStream(
     '/api/prompt/storyboard/grid/stream',
     {
       plot,
       r18,
+      grid_size: gridSize,
       ...(referenceImageUrl ? { reference_image_url: referenceImageUrl } : {}),
       ...(characterPrompt ? { character_prompt: characterPrompt } : {}),
     },
