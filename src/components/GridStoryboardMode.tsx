@@ -335,16 +335,22 @@ export function GridStoryboardMode({
 
     const pollInterval = setInterval(async () => {
       pollCount++;
+
+      // Max polls reached - task may still be running on backend
       if (pollCount > maxPolls) {
         clearInterval(pollInterval);
+        // Mark as BACKGROUND instead of TIMEOUT - backend may still be processing
         setGridTasks((prev) => {
           const next = [...prev];
           if (next[taskIndex]) {
-            next[taskIndex] = { ...next[taskIndex], status: 'TIMEOUT', progress: '生成超时' };
+            next[taskIndex] = {
+              ...next[taskIndex],
+              status: 'BACKGROUND',
+              progress: '后台运行中，点击刷新查询',
+            };
           }
           return next;
         });
-        checkAllTasksComplete();
         return;
       }
 
@@ -352,40 +358,67 @@ export function GridStoryboardMode({
         const statusRes = await getPromptTaskStatus(taskId);
         console.log(`${GRID_LOG_PREFIX} poll ${pollCount} for ${themeTitle}: status=${statusRes.status}`);
 
-        // Update progress
-        setGridTasks((prev) => {
-          const next = [...prev];
-          if (next[taskIndex]) {
-            next[taskIndex] = {
-              ...next[taskIndex],
-              status: statusRes.status,
-              progress: statusRes.progress ?? next[taskIndex].progress,
-            };
-          }
-          return next;
-        });
+        // Still running - update progress
+        if (statusRes.status === 'RUNNING' || statusRes.status === 'PENDING') {
+          setGridTasks((prev) => {
+            const next = [...prev];
+            if (next[taskIndex]) {
+              next[taskIndex] = {
+                ...next[taskIndex],
+                status: statusRes.status,
+                progress: statusRes.progress || `生成中 (${pollCount * 5}s)`,
+              };
+            }
+            return next;
+          });
+          return;
+        }
+
+        // Done or failed - stop polling
+        clearInterval(pollInterval);
 
         if (statusRes.status === 'DONE' && statusRes.result) {
-          clearInterval(pollInterval);
-          const panels = statusRes.result.storyboard || [];
+          const resultPanels = statusRes.result.storyboard || [];
           setGridTasks((prev) => {
             const next = [...prev];
             if (next[taskIndex]) {
-              next[taskIndex] = { ...next[taskIndex], status: 'DONE', panels, progress: `完成 ${panels.length} 格` };
+              next[taskIndex] = {
+                ...next[taskIndex],
+                status: 'DONE',
+                panels: resultPanels,
+                progress: `完成 ${resultPanels.length} 格`,
+              };
             }
             return next;
           });
-          checkAllTasksComplete();
+          // Add to completedThemes immediately when done (even if other tasks still running)
+          const completedEntry = {
+            themeTitle,
+            panels: resultPanels,
+            gridSize: resultPanels.length as GridSize,
+          };
+          setCompletedThemes((prev) => {
+            const existing = prev.findIndex((t) => t.themeTitle === themeTitle);
+            if (existing >= 0) {
+              const next = [...prev];
+              next[existing] = completedEntry;
+              return next;
+            }
+            return [...prev, completedEntry];
+          });
+          completedThemesRef.current = completedThemes;
         } else if (statusRes.status === 'FAILED') {
-          clearInterval(pollInterval);
           setGridTasks((prev) => {
             const next = [...prev];
             if (next[taskIndex]) {
-              next[taskIndex] = { ...next[taskIndex], status: 'FAILED', progress: statusRes.error || '生成失败' };
+              next[taskIndex] = {
+                ...next[taskIndex],
+                status: 'FAILED',
+                progress: statusRes.error || '生成失败',
+              };
             }
             return next;
           });
-          checkAllTasksComplete();
         }
       } catch (err) {
         console.warn(`${GRID_LOG_PREFIX} poll error for ${themeTitle}:`, err);
@@ -396,10 +429,94 @@ export function GridStoryboardMode({
     gridPollIntervalsRef.current.push(pollInterval);
   };
 
-  // Check if all tasks are complete
+  // Manually check a BACKGROUND task status
+  const handleRefreshTask = async (taskIndex: number) => {
+    const task = gridTasks[taskIndex];
+    if (!task?.taskId) return;
+
+    setGridTasks((prev) => {
+      const next = [...prev];
+      if (next[taskIndex]) {
+        next[taskIndex] = { ...next[taskIndex], status: 'RUNNING', progress: '查询中...' };
+      }
+      return next;
+    });
+
+    try {
+      const statusRes = await getPromptTaskStatus(task.taskId);
+      if (statusRes.status === 'DONE' && statusRes.result) {
+        const resultPanels = statusRes.result.storyboard || [];
+        setGridTasks((prev) => {
+          const next = [...prev];
+          if (next[taskIndex]) {
+            next[taskIndex] = {
+              ...next[taskIndex],
+              status: 'DONE',
+              panels: resultPanels,
+              progress: `完成 ${resultPanels.length} 格`,
+            };
+          }
+          return next;
+        });
+        // Add to completedThemes
+        const completedEntry = {
+          themeTitle: task.themeTitle,
+          panels: resultPanels,
+          gridSize: resultPanels.length as GridSize,
+        };
+        setCompletedThemes((prev) => {
+          const existing = prev.findIndex((t) => t.themeTitle === task.themeTitle);
+          if (existing >= 0) {
+            const next = [...prev];
+            next[existing] = completedEntry;
+            return next;
+          }
+          return [...prev, completedEntry];
+        });
+        completedThemesRef.current = completedThemes;
+        onSuccess(`「${task.themeTitle}」分镜已生成完成`);
+      } else if (statusRes.status === 'FAILED') {
+        setGridTasks((prev) => {
+          const next = [...prev];
+          if (next[taskIndex]) {
+            next[taskIndex] = {
+              ...next[taskIndex],
+              status: 'FAILED',
+              progress: statusRes.error || '生成失败',
+            };
+          }
+          return next;
+        });
+        onError(`「${task.themeTitle}」分镜生成失败`);
+      } else {
+        // Still running
+        setGridTasks((prev) => {
+          const next = [...prev];
+          if (next[taskIndex]) {
+            next[taskIndex] = {
+              ...next[taskIndex],
+              status: 'BACKGROUND',
+              progress: `后台运行中: ${statusRes.progress || '生成中'}`,
+            };
+          }
+          return next;
+        });
+      }
+    } catch (err) {
+      setGridTasks((prev) => {
+        const next = [...prev];
+        if (next[taskIndex]) {
+          next[taskIndex] = { ...next[taskIndex], status: 'BACKGROUND', progress: '查询失败，请重试' };
+        }
+        return next;
+      });
+    }
+  };
+
+  // Check if all tasks are complete (including BACKGROUND - they can be refreshed manually)
   const checkAllTasksComplete = () => {
     setGridTasks((current) => {
-      const allDone = current.every((t) => ['DONE', 'FAILED', 'TIMEOUT'].includes(t.status));
+      const allDone = current.every((t) => ['DONE', 'FAILED', 'BACKGROUND'].includes(t.status));
       if (allDone) {
         // Add all successful themes to completedThemes list
         const successful = current.filter((t) => t.status === 'DONE' && t.panels?.length);
@@ -409,7 +526,6 @@ export function GridStoryboardMode({
             panels: t.panels!,
             gridSize: t.panels!.length as GridSize,
           }));
-          // Use ref to avoid race condition
           completedThemesRef.current = newCompleted;
           setCompletedThemes(newCompleted);
           // Auto-load first theme only if no theme is currently displayed
@@ -418,7 +534,6 @@ export function GridStoryboardMode({
             setGridSize(successful[0].panels!.length as GridSize);
             setActiveThemeIdx(0);
             setStep('edit');
-            // Save to history with theme title
             const historyId = addGridHistory({
               plot: successful[0].themeTitle || '九宫格分镜',
               grid_size: successful[0].panels!.length,
@@ -428,9 +543,10 @@ export function GridStoryboardMode({
             setCurrentHistoryId(historyId);
             sessionStorage.setItem('sb_latest_history_id', historyId);
           }
-          onSuccess(`${successful.length} 个主题分镜已生成完成`);
+          // Use setTimeout to avoid React warning about setState during render
+          setTimeout(() => onSuccess(`${successful.length} 个主题分镜已生成完成`), 0);
         } else {
-          onError('所有主题的分镜生成均失败，请重试');
+          setTimeout(() => onError('所有主题的分镜生成均失败，请重试'), 0);
         }
         setLoading(false);
         isGeneratingRef.current = false;
@@ -1225,8 +1341,10 @@ export function GridStoryboardMode({
                   <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
                     {task.status === 'DONE' ? (
                       <Check size={14} className="text-green-500" />
-                    ) : task.status === 'FAILED' || task.status === 'TIMEOUT' ? (
+                    ) : task.status === 'FAILED' ? (
                       <X size={14} className="text-red-500" />
+                    ) : task.status === 'BACKGROUND' ? (
+                      <Clock size={14} className="text-orange-500" />
                     ) : (
                       <Loader2 size={14} className="animate-spin text-purple-500" />
                     )}
@@ -1234,14 +1352,15 @@ export function GridStoryboardMode({
                   <span className="text-xs text-text-primary flex-1 truncate">{task.themeTitle}</span>
                   <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
                     task.status === 'DONE' ? 'bg-green-100 text-green-700' :
-                    task.status === 'FAILED' || task.status === 'TIMEOUT' ? 'bg-red-100 text-red-700' :
+                    task.status === 'FAILED' ? 'bg-red-100 text-red-700' :
+                    task.status === 'BACKGROUND' ? 'bg-orange-100 text-orange-700' :
                     'bg-purple-100 text-purple-700'
                   }`}>
                     {task.status === 'SUBMITTING' ? (displayLang === 'zh' ? '提交中' : 'Submitting') :
                      task.status === 'RUNNING' ? (displayLang === 'zh' ? '生成中' : 'Running') :
                      task.status === 'DONE' ? (displayLang === 'zh' ? `完成 ${task.panels?.length || 0} 格` : `Done ${task.panels?.length || 0}`) :
                      task.status === 'FAILED' ? (displayLang === 'zh' ? '失败' : 'Failed') :
-                     task.status === 'TIMEOUT' ? (displayLang === 'zh' ? '超时' : 'Timeout') :
+                     task.status === 'BACKGROUND' ? (displayLang === 'zh' ? '后台运行' : 'Background') :
                      task.status}
                   </span>
                   {task.status === 'DONE' && task.panels?.length && (
@@ -1255,12 +1374,23 @@ export function GridStoryboardMode({
                       {displayLang === 'zh' ? '加载' : 'Load'}
                     </button>
                   )}
+                  {task.status === 'BACKGROUND' && (
+                    <button
+                      className="text-[10px] text-orange-600 hover:text-orange-800 font-medium"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRefreshTask(idx);
+                      }}
+                    >
+                      {displayLang === 'zh' ? '刷新' : 'Refresh'}
+                    </button>
+                  )}
                 </div>
-                {task.status === 'RUNNING' && (
+                {(task.status === 'RUNNING' || task.status === 'BACKGROUND') && (
                   <div className="mt-1.5 ml-7">
                     <div className="flex items-center gap-2">
                       <div className="flex-1 h-1 rounded-full bg-bg-elevated overflow-hidden">
-                        <div className="h-full rounded-full bg-purple-400 animate-pulse" style={{ width: '60%' }} />
+                        <div className={`h-full rounded-full ${task.status === 'BACKGROUND' ? 'bg-orange-400' : 'bg-purple-400 animate-pulse'}`} style={{ width: task.status === 'BACKGROUND' ? '80%' : '60%' }} />
                       </div>
                       <span className="text-[9px] text-text-tertiary">
                         {task.startTime ? formatElapsedTime(task.startTime) : ''}
