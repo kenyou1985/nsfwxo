@@ -168,7 +168,7 @@ export function GridStoryboardMode({
 
   // Theme selection state
   const [themeOptions, setThemeOptions] = useState<StoryboardThemeOption[]>([]);
-  const [selectedTemplate, setSelectedTemplate] = useState<GridTemplate | null>(null);
+  const [selectedTemplates, setSelectedTemplates] = useState<GridTemplate[]>([]);
   const [customThemeMode, setCustomThemeMode] = useState(false);
   const [customThemeDescription, setCustomThemeDescription] = useState('');
   const [customThemeCount, setCustomThemeCount] = useState(3);
@@ -246,14 +246,14 @@ export function GridStoryboardMode({
   useEffect(() => {
     if (panels.length > 0) {
       saveGridSession({
-        plot: selectedTemplate?.titleZh || '',
+        plot: selectedTemplates[0]?.titleZh || '',
         gridSize,
         panels,
-        themeTitle: selectedTemplate?.titleZh,
+        themeTitle: selectedTemplates[0]?.titleZh,
         historyId: currentHistoryId || undefined,
       });
     }
-  }, [panels, gridSize, selectedTemplate, currentHistoryId]);
+  }, [panels, gridSize, selectedTemplates, currentHistoryId]);
 
   // Update fullPrompt whenever panels change
   useEffect(() => {
@@ -401,9 +401,18 @@ export function GridStoryboardMode({
     }
   };
 
-  const handleSelectTemplate = (template: GridTemplate) => {
-    console.log(`${GRID_LOG_PREFIX} handleSelectTemplate:`, template.titleZh);
-    setSelectedTemplate(template);
+  const handleToggleTemplate = (template: GridTemplate) => {
+    console.log(`${GRID_LOG_PREFIX} handleToggleTemplate:`, template.titleZh);
+    setSelectedTemplates((prev) => {
+      const exists = prev.some((t) => t.id === template.id);
+      if (exists) {
+        return prev.filter((t) => t.id !== template.id);
+      }
+      return [...prev, template];
+    });
+  };
+
+  const handleLoadTemplate = (template: GridTemplate) => {
     const templatePanels = template.panels.map((p) => ({
       panel_number: p.panel_number,
       scene_description: p.scene_description,
@@ -413,6 +422,24 @@ export function GridStoryboardMode({
     setGridSize(templatePanels.length as GridSize);
     setStep('edit');
     onSuccess(`已加载模板「${template.titleZh}」，可编辑提示词后生成图片`);
+  };
+
+  const handleGenerateSelectedTemplates = () => {
+    if (selectedTemplates.length === 0) {
+      onError('请至少选择一个模板');
+      return;
+    }
+    // Load first template's panels and move to edit
+    const first = selectedTemplates[0];
+    const templatePanels = first.panels.map((p) => ({
+      panel_number: p.panel_number,
+      scene_description: p.scene_description,
+      image_prompt: `${first.basePrompt}\n${p.image_prompt}`,
+    }));
+    setPanels(templatePanels);
+    setGridSize(templatePanels.length as GridSize);
+    setStep('edit');
+    onSuccess(`已选择 ${selectedTemplates.length} 个模板，点击"生成"按钮开始生成`);
   };
 
   // ── Generate grid storyboard using the same API as linear storyboard ──
@@ -896,7 +923,7 @@ export function GridStoryboardMode({
     // Get theme title from completedThemes or gridTasks for THIS theme index
     const themeTitle = completedThemesRef.current[activeThemeIdx]?.themeTitle
       || gridTasks[activeThemeIdx]?.themeTitle
-      || selectedTemplate?.titleZh
+      || selectedTemplates[0]?.titleZh
       || `九宫格${activeThemeIdx + 1}`;
 
     // Reuse existing history ID for this theme if available, otherwise create new
@@ -972,7 +999,7 @@ export function GridStoryboardMode({
       onError(err instanceof Error ? err.message : '生成失败');
       setIsGenerating(false);
     }
-  }, [fullPrompt, panels, taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, r18Mode, selectedTemplate]);
+  }, [fullPrompt, panels, taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, r18Mode, selectedTemplates]);
 
   // ── Regenerate handler ──
 
@@ -1347,31 +1374,70 @@ export function GridStoryboardMode({
               </div>
             )}
 
-            {/* Built-in templates */}
+            {/* Built-in templates - Multi-select with scroll */}
             <div>
-              <div className="flex items-center gap-2 mb-2">
-                <BookTemplate size={12} className="text-purple-500" />
-                <span className="text-xs font-medium text-text-primary">{displayLang === 'zh' ? '内置模板' : 'Templates'}</span>
-                <span className="text-[10px] text-text-tertiary">{displayLang === 'zh' ? '快速套用' : 'Quick start'}</span>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <BookTemplate size={12} className="text-purple-500" />
+                  <span className="text-xs font-medium text-text-primary">{displayLang === 'zh' ? '内置模板' : 'Templates'}</span>
+                  <span className="text-[10px] text-text-tertiary">{displayLang === 'zh' ? `快速套用 (${GRID_TEMPLATES.length})` : `Quick start (${GRID_TEMPLATES.length})`}</span>
+                </div>
+                {selectedTemplates.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-purple-600 font-medium">{selectedTemplates.length} 已选</span>
+                    <button
+                      onClick={() => setSelectedTemplates([])}
+                      className="px-2 py-1 rounded-lg text-[10px] font-medium bg-bg-elevated text-text-secondary hover:bg-bg-hover transition-colors"
+                    >
+                      {displayLang === 'zh' ? '清空' : 'Clear'}
+                    </button>
+                    <button
+                      onClick={handleGenerateSelectedTemplates}
+                      className="px-2 py-1 rounded-lg text-[10px] font-medium bg-purple-500 text-white hover:bg-purple-600 transition-colors"
+                    >
+                      {displayLang === 'zh' ? '生成选中' : 'Generate'}
+                    </button>
+                  </div>
+                )}
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                {GRID_TEMPLATES.map((template) => (
-                  <button
-                    key={template.id}
-                    onClick={() => handleSelectTemplate(template)}
-                    className={`text-left p-3 rounded-xl border transition-all ${
-                      selectedTemplate?.id === template.id
-                        ? 'border-purple-400 bg-purple-50/50'
-                        : 'border-border bg-bg-elevated hover:bg-bg-hover hover:border-purple-300'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-semibold text-text-primary">{template.titleZh}</span>
-                      <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-600 font-medium">9格</span>
-                    </div>
-                    <p className="text-[10px] text-text-tertiary leading-relaxed line-clamp-2">{template.description}</p>
-                  </button>
-                ))}
+              <div className="max-h-[320px] overflow-y-auto pr-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {GRID_TEMPLATES.map((template) => {
+                    const isSelected = selectedTemplates.some((t) => t.id === template.id);
+                    return (
+                      <div
+                        key={template.id}
+                        className={`relative rounded-xl border transition-all ${
+                          isSelected
+                            ? 'border-purple-400 bg-purple-50/50 ring-2 ring-purple-200'
+                            : 'border-border bg-bg-elevated hover:border-purple-300'
+                        }`}
+                      >
+                        <button
+                          onClick={() => handleLoadTemplate(template)}
+                          className="text-left p-3 w-full"
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-sm font-semibold text-text-primary">{template.titleZh}</span>
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-600 font-medium">9格</span>
+                          </div>
+                          <p className="text-[10px] text-text-tertiary leading-relaxed line-clamp-2">{template.description}</p>
+                        </button>
+                        {/* Checkbox overlay */}
+                        <button
+                          onClick={() => handleToggleTemplate(template)}
+                          className={`absolute top-2 right-2 w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
+                            isSelected
+                              ? 'border-purple-500 bg-purple-500'
+                              : 'border-gray-300 bg-white hover:border-purple-400'
+                          }`}
+                        >
+                          {isSelected && <Check size={12} className="text-white" />}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>
