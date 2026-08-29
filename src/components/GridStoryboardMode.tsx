@@ -88,78 +88,26 @@ const cameraAngles = [
   'bird eye view', 'worm eye view', 'three-quarter view',
 ];
 
-const shotTypes = [
-  'front view', 'back view', 'side view', 'three-quarter rear view',
-  'profile view', 'dramatic angle', 'dynamic angle', 'intimate framing',
-];
-
 function buildFullGridPrompt(panels: GridPanel[], gridSize: number): string {
   if (panels.length === 0) return '';
   const basePanel = panels[0];
   const basePrompt = basePanel.image_prompt;
   const panelMatch = basePrompt.match(/^(.*?)(?:Panel\d+:|$)/s);
-  let basePart = panelMatch ? panelMatch[1].trim() : basePrompt;
-  const gridCols = gridSize <= 4 ? '2×2' : gridSize <= 9 ? '3×3' : '3×4';
+  const basePart = panelMatch ? panelMatch[1].trim() : basePrompt;
 
-  // Build anchor for character consistency
-  const anchorMatch = basePrompt.match(/\[ANCHOR:\s*([^\]]+)\]/i);
-  const characterAnchor = anchorMatch ? anchorMatch[1].trim() : '';
-  const anchorTag = characterAnchor ? `[ANCHOR: ${characterAnchor}]` : '';
+  // Extract character/scene descriptor from base prompt for consistency
+  const consistencyMatch = basePrompt.match(/\[ANCHOR:\s*([^\]]+)\]/i);
+  const consistencyDesc = consistencyMatch ? consistencyMatch[1].trim() : basePart;
 
-  // Determine clothing stage per panel:
-  // - Panels 1-3: Wearing clothes (foreplay/buildup)
-  // - Panels 4-6: Undressing / semi-nude (transition)
-  // - Panels 7+: Nude / semi-nude (intimate scenes, NO clothing)
-  const totalPanels = panels.length;
-  const nudeStart = Math.floor(totalPanels * 0.6); // ~60% through, switch to nude
+  let fullPrompt = `cinematic storyboard grid in strict 9:16 vertical aspect ratio, ${gridSize} panels in 3×3 grid, consistent ${consistencyDesc}, keep character faces and body proportions unchanged throughout all panels`;
 
-  let fullPrompt = `cinematic storyboard grid, ${gridSize} panels in ${gridCols} grid, ${basePart}`;
-  fullPrompt += `\n\n【CRITICAL CONSISTENCY REQUIREMENTS】`;
-  fullPrompt += `\n- Character appearance MUST remain IDENTICAL across all panels: same face, same body, same hair`;
-  fullPrompt += `\n- Clothing progression: early panels show clothed character, later panels show nude/semi-nude`;
-  fullPrompt += `\n- Panels 1-${Math.floor(totalPanels * 0.4)}: Character fully clothed (foreplay, teasing)`;
-  fullPrompt += `\n- Panels ${Math.floor(totalPanels * 0.4) + 1}-${nudeStart}: Character undressing, semi-nude (bras, panties, or partially covered)`;
-  fullPrompt += `\n- Panels ${nudeStart + 1}+: Character FULLY NUDE, no clothing descriptions, intimate/sexual acts`;
-  fullPrompt += `\n- Each panel MUST show a DIFFERENT action, pose, and camera angle`;
-  fullPrompt += `\n- Maintain scene continuity: same location, same lighting, same time of day`;
-  fullPrompt += `\n- IMPORTANT: Do NOT describe clothing for intimate panels (${nudeStart + 1}+), show bare skin`;
-
-  // Assign varied camera angles/actions per panel with clothing progression
+  // Add each panel with simple action description
   for (let i = 0; i < panels.length; i++) {
     const panel = panels[i];
     const panelPrompt = panel.image_prompt;
     const panelSpecificMatch = panelPrompt.match(/Panel\d+:\s*(.*)/s);
-    let panelSpecific = panelSpecificMatch ? panelSpecificMatch[1].trim() : panelPrompt;
-
-    // Pick camera angle and shot type for variety
-    const angleIdx = i % cameraAngles.length;
-    const shotIdx = i % shotTypes.length;
-    const cameraAngle = cameraAngles[angleIdx];
-    const shotType = shotTypes[shotIdx];
-
-    // Determine clothing state for this panel
-    let clothingDesc = '';
-    if (i < totalPanels * 0.4) {
-      // Early: fully clothed
-      const hasClothing = /dress|skirt|lingerie|leather|bodysuit|blouse|top|outfit|corset|satin|lace|wearing/i.test(basePart);
-      if (!hasClothing) {
-        const outfit = sexyOutfitPool[Math.floor(Math.random() * sexyOutfitPool.length)];
-        clothingDesc = `wearing ${outfit}, `;
-      }
-    } else if (i < nudeStart) {
-      // Middle: semi-nude / undressing
-      const semiNudeOptions = [
-        'topless with panties, ',
-        'in bra and panties, ',
-        'partially undressed, ',
-        'shirt pulled up exposing breasts, ',
-        'skirt pulled up, underwear visible, ',
-      ];
-      clothingDesc = semiNudeOptions[i % semiNudeOptions.length];
-    }
-    // Late panels: no clothing desc (fully nude)
-
-    fullPrompt += `\nPanel${panel.panel_number}: ${cameraAngle}, ${shotType}, ${clothingDesc}${anchorTag} ${panelSpecific}`;
+    const panelSpecific = panelSpecificMatch ? panelSpecificMatch[1].trim() : panelPrompt;
+    fullPrompt += `\nPanel${panel.panel_number}: ${panelSpecific}`;
   }
   return fullPrompt;
 }
@@ -171,55 +119,25 @@ function applyClothingProgression(panels: GridPanel[]): GridPanel[] {
   const nudeStart = Math.floor(totalPanels * 0.6);
 
   return panels.map((panel, i) => {
-    let { scene_description, image_prompt } = panel;
+    const { scene_description, image_prompt } = panel;
 
-    // Remove clothing descriptions from scene_description for later panels
+    // For late panels (intimate scenes), remove clothing descriptions
     if (i >= nudeStart) {
-      // Late panels: remove clothing descriptions
-      scene_description = sceneDescriptionRemoveClothing(scene_description);
-      image_prompt = promptRemoveClothing(image_prompt);
-    } else if (i >= totalPanels * 0.4) {
-      // Middle panels: modify to show undressing/semi-nude
-      scene_description = sceneDescriptionSemiNude(scene_description);
-      image_prompt = promptSemiNude(image_prompt);
+      const cleanedPrompt = removeClothingFromPrompt(image_prompt);
+      return { ...panel, image_prompt: cleanedPrompt };
     }
-    // Early panels: keep as is (clothed)
 
-    return { ...panel, scene_description, image_prompt };
+    return panel;
   });
 }
 
-// Remove clothing descriptions from text
-function promptRemoveClothing(text: string): string {
+// Remove clothing descriptions from prompt for intimate scenes
+function removeClothingFromPrompt(text: string): string {
   return text
     .replace(/wearing[^,]*,?\s*/gi, '')
     .replace(/穿着[^,，]*,?/g, '')
     .replace(/dressed in[^,]*,?\s*/gi, '')
-    .replace(/in[^,]*outfit,?\s*/gi, '')
-    .replace(/,?\s*with clothing descriptions removed/gi, '');
-}
-
-function sceneDescriptionRemoveClothing(text: string): string {
-  return text
-    .replace(/穿着[^,，]*,?/g, '')
-    .replace(/穿着[^,，]*/g, '')
-    .replace(/wearing[^,]*,?\s*/gi, '')
-    .replace(/dressed in[^,]*,?\s*/gi, '');
-}
-
-function sceneDescriptionSemiNude(text: string): string {
-  return text
-    .replace(/穿着日常装/g, '半裸着')
-    .replace(/穿着正装/g, '半裸着')
-    .replace(/wearing casual clothes/gi, 'semi-nude')
-    .replace(/wearing formal clothes/gi, 'semi-nude')
-    .replace(/fully clothed/gi, 'partially undressed');
-}
-
-function promptSemiNude(text: string): string {
-  return text
-    .replace(/wearing[^,]*,?\s*/gi, 'partially undressed, ')
-    .replace(/dressed in[^,]*,?\s*/gi, 'semi-nude, ');
+    .replace(/in[^,]*outfit,?\s*/gi, '');
 }
 
 export function GridStoryboardMode({
@@ -291,29 +209,7 @@ export function GridStoryboardMode({
 
   // History
   const [showHistory, setShowHistory] = useState(false);
-  const [history, setHistory] = useState<GridHistoryItem[]>(() => {
-    // Clean up duplicate and invalid entries on init
-    const entries = getGridHistory();
-    const seen = new Map<string, GridHistoryItem>();
-    const cleaned: GridHistoryItem[] = [];
-    for (const entry of entries) {
-      // Skip entries with 0 panels
-      if (!entry.grid_size || entry.grid_size === 0) {
-        removeGridHistory(entry.id);
-        continue;
-      }
-      // Deduplicate by title, keep the newest
-      const key = `${entry.plot}_${entry.grid_size}`;
-      if (!seen.has(key)) {
-        seen.set(key, entry);
-        cleaned.push(entry);
-      } else {
-        // Remove older duplicate
-        removeGridHistory(entry.id);
-      }
-    }
-    return cleaned;
-  });
+  const [history, setHistory] = useState<GridHistoryItem[]>(() => getGridHistory());
 
   // Favorites
   const [favorites, setFavorites] = useState(() => getFavorites());
@@ -451,6 +347,8 @@ export function GridStoryboardMode({
         if (newImages[i]) panelImages[i] = [newImages[i]];
       }
       updateGridHistoryImages(hid, panelImages);
+      // Refresh history list to show thumbnails
+      setHistory(getGridHistory());
     }
   }, [finishedTasks, currentHistoryId, currentHistoryIdMap, activeThemeIdx]);
 
@@ -705,7 +603,14 @@ export function GridStoryboardMode({
       setPanels(theme.panels);
       setGridSize(theme.gridSize);
       setActiveThemeIdx(newThemeIdx);
-      setStep('edit');
+      // Restore step: if generating, show view; if has images, show view; else show edit
+      if (newIsGenerating) {
+        setStep('view');
+      } else if (newImages.length > 0) {
+        setStep('view');
+      } else {
+        setStep('edit');
+      }
       // Note: Do NOT create new history entry when loading a theme - this causes duplicates
       onSuccess(`已加载「${theme.themeTitle}」分镜`);
     }
@@ -1044,6 +949,18 @@ export function GridStoryboardMode({
     removeGridHistory(id);
     setHistory(getGridHistory());
   };
+
+  // Refresh history when panel opens or when images are saved
+  useEffect(() => {
+    if (showHistory) {
+      setHistory(getGridHistory());
+    }
+  }, [showHistory]);
+
+  // Refresh history after images are generated
+  useEffect(() => {
+    setHistory(getGridHistory());
+  }, [currentHistoryIdMap]);
 
   // ── Favorites ──
 
