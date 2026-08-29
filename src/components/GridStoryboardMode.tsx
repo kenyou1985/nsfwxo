@@ -436,6 +436,10 @@ export function GridStoryboardMode({
     });
   };
 
+  // Retry counters for storyboard generation
+  const retryCountRef = useRef<Record<number, number>>({});
+  const maxRetries = 2;
+
   // Poll for grid task result - keeps polling until DONE or FAILED (no max limit)
   const startGridTaskPolling = (taskId: string, themeTitle: string, taskIndex: number) => {
     let pollCount = 0;
@@ -467,15 +471,66 @@ export function GridStoryboardMode({
         clearInterval(pollInterval);
 
         if (statusRes.status === 'DONE' && statusRes.result) {
-          const resultPanels = statusRes.result.storyboard || [];
+          let resultPanels = statusRes.result.storyboard || [];
+
+          // Check if panels have empty content - retry if needed
+          const emptyPanels = resultPanels.filter((p: GridPanel) => !p.scene_description?.trim() || !p.image_prompt?.trim());
+          const retryCount = retryCountRef.current[taskIndex] || 0;
+
+          if (emptyPanels.length > 0 && retryCount < maxRetries) {
+            // Has empty panels - retry
+            retryCountRef.current[taskIndex] = retryCount + 1;
+            console.warn(`${GRID_LOG_PREFIX} ${themeTitle} has ${emptyPanels.length} empty panels, retrying (${retryCount + 1}/${maxRetries})...`);
+
+            setGridTasks((prev) => {
+              const next = [...prev];
+              if (next[taskIndex]) {
+                next[taskIndex] = {
+                  ...next[taskIndex],
+                  status: 'RUNNING',
+                  progress: `重试中 (${retryCount + 1}/${maxRetries}) - ${emptyPanels.length}格为空`,
+                };
+              }
+              return next;
+            });
+
+            // Retry the generation
+            try {
+              const retryRes = await generateStoryboardOutline(
+                selectedThemes[taskIndex]?.id || 0,
+                themeTitle,
+                gridSize,
+                r18Mode,
+                true
+              );
+              if (retryRes.task_id) {
+                // Start new polling for retry
+                startGridTaskPolling(retryRes.task_id, themeTitle, taskIndex);
+                return;
+              } else if (retryRes.storyboard?.length) {
+                // Sync result - use retry result
+                resultPanels = retryRes.storyboard;
+                const stillEmpty = resultPanels.filter((p: GridPanel) => !p.scene_description?.trim() || !p.image_prompt?.trim());
+                if (stillEmpty.length > 0 && retryCount + 1 < maxRetries) {
+                  // Still empty, will retry on next poll check - but since sync, just use what we have
+                }
+              }
+            } catch (retryErr) {
+              console.error(`${GRID_LOG_PREFIX} retry failed for ${themeTitle}:`, retryErr);
+            }
+          }
+
+          // Post-process panels for clothing progression
+          const processedPanels = applyClothingProgression(resultPanels);
+
           setGridTasks((prev) => {
             const next = [...prev];
             if (next[taskIndex]) {
               next[taskIndex] = {
                 ...next[taskIndex],
                 status: 'DONE',
-                panels: resultPanels,
-                progress: `完成 ${resultPanels.length} 格`,
+                panels: processedPanels,
+                progress: `完成 ${processedPanels.length} 格`,
               };
             }
             return next;
@@ -483,20 +538,58 @@ export function GridStoryboardMode({
           // Add to completedThemes immediately when done
           const completedEntry = {
             themeTitle,
-            panels: resultPanels,
-            gridSize: resultPanels.length as GridSize,
+            panels: processedPanels,
+            gridSize: processedPanels.length as GridSize,
           };
           setCompletedThemes((prev) => {
             const existing = prev.findIndex((t) => t.themeTitle === themeTitle);
             if (existing >= 0) {
               const next = [...prev];
               next[existing] = completedEntry;
+              completedThemesRef.current = next;
               return next;
             }
-            return [...prev, completedEntry];
+            const next = [...prev, completedEntry];
+            completedThemesRef.current = next;
+            return next;
           });
-          completedThemesRef.current = completedThemes;
         } else if (statusRes.status === 'FAILED') {
+          // Retry on failure
+          const retryCount = retryCountRef.current[taskIndex] || 0;
+          if (retryCount < maxRetries) {
+            retryCountRef.current[taskIndex] = retryCount + 1;
+            console.warn(`${GRID_LOG_PREFIX} ${themeTitle} failed, retrying (${retryCount + 1}/${maxRetries})...`);
+
+            setGridTasks((prev) => {
+              const next = [...prev];
+              if (next[taskIndex]) {
+                next[taskIndex] = {
+                  ...next[taskIndex],
+                  status: 'RUNNING',
+                  progress: `重试中 (${retryCount + 1}/${maxRetries})`,
+                };
+              }
+              return next;
+            });
+
+            // Retry the generation
+            try {
+              const retryRes = await generateStoryboardOutline(
+                selectedThemes[taskIndex]?.id || 0,
+                themeTitle,
+                gridSize,
+                r18Mode,
+                true
+              );
+              if (retryRes.task_id) {
+                startGridTaskPolling(retryRes.task_id, themeTitle, taskIndex);
+                return;
+              }
+            } catch (retryErr) {
+              console.error(`${GRID_LOG_PREFIX} retry failed for ${themeTitle}:`, retryErr);
+            }
+          }
+
           setGridTasks((prev) => {
             const next = [...prev];
             if (next[taskIndex]) {
@@ -713,6 +806,29 @@ export function GridStoryboardMode({
             });
             return { taskId: res.task_id, themeTitle: theme.title, index };
           } else if (res.storyboard?.length) {
+            // Check for empty panels
+            const emptyPanels = res.storyboard.filter((p: GridPanel) => !p.scene_description?.trim() || !p.image_prompt?.trim());
+            const retryCount = retryCountRef.current[index] || 0;
+
+            if (emptyPanels.length > 0 && retryCount < maxRetries) {
+              // Has empty panels - retry
+              retryCountRef.current[index] = retryCount + 1;
+              console.warn(`${GRID_LOG_PREFIX} ${theme.title} has ${emptyPanels.length} empty panels, retrying (${retryCount + 1}/${maxRetries})...`);
+
+              // Retry the generation (async mode)
+              const retryRes = await generateStoryboardOutline(theme.id, theme.title, gridSize, r18Mode, true);
+              if (retryRes.task_id) {
+                setGridTasks((prev) => {
+                  const next = [...prev];
+                  next[index] = { ...next[index], taskId: retryRes.task_id!, status: 'RUNNING' };
+                  return next;
+                });
+                return { taskId: retryRes.task_id, themeTitle: theme.title, index };
+              } else if (retryRes.storyboard?.length) {
+                res.storyboard = retryRes.storyboard;
+              }
+            }
+
             // Post-process panels for clothing progression
             const processedPanels = applyClothingProgression(res.storyboard);
             setGridTasks((prev) => {
@@ -777,9 +893,9 @@ export function GridStoryboardMode({
 
     console.log(`${GRID_LOG_PREFIX} handleGenerateImage called, prompt length=${fullPrompt.length}`);
 
-    // Get theme title from completedThemes or gridTasks
+    // Get theme title from completedThemes or gridTasks for THIS theme index
     const themeTitle = completedThemesRef.current[activeThemeIdx]?.themeTitle
-      || gridTasks.find((t) => t.themeTitle)?.themeTitle
+      || gridTasks[activeThemeIdx]?.themeTitle
       || selectedTemplate?.titleZh
       || `九宫格${activeThemeIdx + 1}`;
 
