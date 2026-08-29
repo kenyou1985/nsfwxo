@@ -824,8 +824,9 @@ export function GridStoryboardMode({
       }
     }
 
-    // Generate ONE image with 9-panel grid (single storyboard image)
-    const imageCount = 1; // Single grid image with 9 panels
+    // Submit image generation tasks (may produce multiple images)
+    // We submit one task per expected image (usually 1-2)
+    const imageCount = 2; // Request 2 images by default
     const storyboardInfo = { historyId, panelIdx: 0 };
     try {
       if (digitalHumanMode && selectedGirlfriend) {
@@ -849,7 +850,7 @@ export function GridStoryboardMode({
         await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, storyboardInfo, 'storyboard', themeTitle, 1);
       }
       console.log(`${GRID_LOG_PREFIX} task submitted successfully`);
-      onSuccess(`九宫格分镜图片生成任务已提交（生成1张九宫格图片）`);
+      onSuccess(`九宫格分镜图片生成任务已提交（预计生成 ${imageCount} 张）`);
     } catch (err) {
       console.error(`${GRID_LOG_PREFIX} handleGenerateImage error:`, err);
       onError(err instanceof Error ? err.message : '生成失败');
