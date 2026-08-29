@@ -88,6 +88,20 @@ const cameraAngles = [
   'bird eye view', 'worm eye view', 'three-quarter view',
 ];
 
+// Default clothing fallback for early panels lacking clothing descriptions
+const SHE_CLOTHES = [
+  'in a black evening gown','in a white blouse and pencil skirt','in a red cocktail dress',
+  'in a casual t-shirt and jeans','in a light trench coat and skirt','in a floral sundress',
+  'in a silk slip dress','in a denim jacket and shorts','in a cozy knit sweater and leggings',
+  'in a white summer dress','in a black turtleneck and pleated skirt',
+];
+const HE_CLOTHES = [
+  'in a dark shirt and slacks','in a white button-up and dress pants','in a black hoodie and jeans',
+  'in a grey sweater and chinos','in a leather jacket and dark pants','in a light blue shirt and cargo pants',
+  'in a navy blazer and trousers','in a casual polo and dark jeans',
+];
+const CLOTHING_RE = /\b(wearing|in a|in her|in his|in the|dressed in|dressed as|clothed|穿着|blouse|sweater|dress|skirt|shirt|jeans|suit|jacket|coat|lingerie|bikini|underwear|pants|t-shirt|hoodie|gown|apron|uniform|corset|silk|leather)/i;
+
 function buildFullGridPrompt(panels: GridPanel[], gridSize: number): string {
   if (panels.length === 0) return '';
 
@@ -108,12 +122,26 @@ function buildFullGridPrompt(panels: GridPanel[], gridSize: number): string {
     const panelSpecificMatch = panelPrompt.match(/Panel\d+:\s*(.*)/s);
     let panelSpecific = panelSpecificMatch ? panelSpecificMatch[1].trim() : panelPrompt;
 
+    const hasClothing = CLOTHING_RE.test(panelSpecific);
+
+    // Early panels (Panel 1-2): ensure clothing descriptions present
+    if (i <= 1 && !hasClothing) {
+      const she = SHE_CLOTHES[Math.floor(Math.random() * SHE_CLOTHES.length)];
+      const he = HE_CLOTHES[Math.floor(Math.random() * HE_CLOTHES.length)];
+      panelSpecific = `woman ${she}, man ${he}, ${panelSpecific}`;
+    }
+    // Mid panels (Panel 3-4): add undressing progression if still no clothing hint
+    else if (i <= 3 && i < gridSize * 0.6 && !hasClothing) {
+      panelSpecific = `partially undressed, ${panelSpecific}`;
+    }
+
     // For late panels (60%+), remove clothing descriptions (nude/intimate scenes)
     if (i >= gridSize * 0.6) {
       panelSpecific = panelSpecific
-        .replace(/wearing[^,.;]*/gi, '')
-        .replace(/穿着[^,.;。]/g, '')
-        .replace(/dressed in[^,.;]*/gi, '');
+        .replace(/wearing[^,.;]{2,40}/gi, '')
+        .replace(/穿着[^,.;。]{2,20}/g, '')
+        .replace(/dressed in[^,.;]{2,40}/gi, '')
+        .replace(/in a (black|white|red|blue|pink|grey|dark|light|silk|leather|casual|floral|cozy|summer)[^,.;]{2,30}/gi, '');
     }
 
     fullPrompt += `\nPanel${panel.panel_number}: ${panelSpecific}`;
