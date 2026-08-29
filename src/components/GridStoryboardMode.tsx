@@ -36,6 +36,23 @@ const GRID_LOG_PREFIX = '[GridStoryboardMode]';
 type GridStep = 'themes' | 'edit' | 'view';
 type GridSize = 4 | 9 | 12;
 
+// All available categories for built-in templates
+const ALL_CATEGORIES = [
+  '全部',
+  '都市夜景',
+  '自然野外',
+  '猎奇场景',
+  '废弃工业',
+  '运动健身',
+  '猎奇特奇',
+  '凌辱羞耻',
+  '恐怖惊奇',
+  '角色扮演',
+  '著名景点',
+  '中国著名',
+  '裸体运动',
+] as const;
+
 function formatElapsedTime(startTime?: number): string {
   if (!startTime) return '';
   const elapsed = Math.floor((Date.now() - startTime) / 1000);
@@ -195,6 +212,7 @@ export function GridStoryboardMode({
   // Theme selection state
   const [themeOptions, setThemeOptions] = useState<StoryboardThemeOption[]>([]);
   const [selectedTemplates, setSelectedTemplates] = useState<GridTemplate[]>([]);
+  const [templateCategoryFilter, setTemplateCategoryFilter] = useState<string>('全部');
   const [customThemeMode, setCustomThemeMode] = useState(false);
   const [customThemeDescription, setCustomThemeDescription] = useState('');
   const [customThemeCount, setCustomThemeCount] = useState(3);
@@ -1467,7 +1485,12 @@ export function GridStoryboardMode({
                 <div className="flex items-center gap-2">
                   <BookTemplate size={12} className="text-purple-500" />
                   <span className="text-xs font-medium text-text-primary">{displayLang === 'zh' ? '内置模板' : 'Templates'}</span>
-                  <span className="text-[10px] text-text-tertiary">{displayLang === 'zh' ? `快速套用 (${GRID_TEMPLATES.length})` : `Quick start (${GRID_TEMPLATES.length})`}</span>
+                  <span className="text-[10px] text-text-tertiary">
+                    {templateCategoryFilter === '全部'
+                      ? (displayLang === 'zh' ? `快速套用 (${GRID_TEMPLATES.length})` : `Quick start (${GRID_TEMPLATES.length})`)
+                      : (displayLang === 'zh' ? `${templateCategoryFilter} (${GRID_TEMPLATES.filter((t) => t.category === templateCategoryFilter).length})` : `${templateCategoryFilter} (${GRID_TEMPLATES.filter((t) => t.category === templateCategoryFilter).length})`)
+                    }
+                  </span>
                 </div>
                 {selectedTemplates.length > 0 && (
                   <div className="flex items-center gap-2">
@@ -1487,9 +1510,35 @@ export function GridStoryboardMode({
                   </div>
                 )}
               </div>
-              <div className="max-h-[320px] overflow-y-auto pr-1">
+              {/* Category filter bar */}
+              <div className="flex gap-1.5 mb-3 overflow-x-auto pb-1 scrollbar-thin">
+                {ALL_CATEGORIES.map((cat) => {
+                  const catCount = cat === '全部'
+                    ? GRID_TEMPLATES.length
+                    : GRID_TEMPLATES.filter((t) => t.category === cat).length;
+                  if (catCount === 0 && cat !== '全部') return null;
+                  const isActive = templateCategoryFilter === cat;
+                  return (
+                    <button
+                      key={cat}
+                      onClick={() => setTemplateCategoryFilter(cat)}
+                      className={`shrink-0 px-2.5 py-1 rounded-full text-[10px] font-medium transition-all ${
+                        isActive
+                          ? 'bg-purple-500 text-white shadow-sm'
+                          : 'bg-bg-elevated text-text-secondary hover:bg-bg-hover border border-border'
+                      }`}
+                    >
+                      {cat}
+                      <span className={`ml-1 ${isActive ? 'text-purple-200' : 'text-text-tertiary'}`}>{catCount}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="max-h-[280px] overflow-y-auto pr-1">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                  {GRID_TEMPLATES.map((template) => {
+                  {GRID_TEMPLATES.filter((t) =>
+                    templateCategoryFilter === '全部' || t.category === templateCategoryFilter
+                  ).map((template) => {
                     const isSelected = selectedTemplates.some((t) => t.id === template.id);
                     return (
                       <div
@@ -1510,6 +1559,8 @@ export function GridStoryboardMode({
                           </div>
                           <p className="text-[10px] text-text-tertiary leading-relaxed line-clamp-2">{template.description}</p>
                         </button>
+                        {/* Category tag */}
+                        <span className="absolute bottom-2 left-3 text-[9px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 font-medium">{template.category}</span>
                         {/* Checkbox overlay */}
                         <button
                           onClick={() => handleToggleTemplate(template)}
