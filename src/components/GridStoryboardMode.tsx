@@ -90,31 +90,29 @@ const cameraAngles = [
 
 function buildFullGridPrompt(panels: GridPanel[], gridSize: number): string {
   if (panels.length === 0) return '';
-  const basePanel = panels[0];
-  const basePrompt = basePanel.image_prompt;
-  const panelMatch = basePrompt.match(/^(.*?)(?:Panel\d+:|$)/s);
-  const basePart = panelMatch ? panelMatch[1].trim() : basePrompt;
 
-  // Extract character/scene descriptor from base prompt for consistency
-  const consistencyMatch = basePrompt.match(/\[ANCHOR:\s*([^\]]+)\]/i);
-  const consistencyDesc = consistencyMatch ? consistencyMatch[1].trim() : basePart;
+  // Extract base prompt from first panel (everything before "Panel1:")
+  const firstPanelPrompt = panels[0].image_prompt;
+  const baseMatch = firstPanelPrompt.match(/^(.*?)(?=Panel\d+:|$)/s);
+  const basePart = baseMatch ? baseMatch[1].trim() : firstPanelPrompt;
 
-  // Build single-image 9-panel grid prompt
-  // Key: "single image" + "storyboard grid" tells AI to generate ONE image with 9 panels
-  let fullPrompt = `single image, cinematic storyboard grid, ${gridSize} panels arranged in 3×3 grid, 9:16 vertical aspect ratio, consistent ${consistencyDesc}, keep character faces and body proportions unchanged throughout all panels`;
+  // Use base prompt directly (it already contains character + scene + consistency info)
+  let fullPrompt = basePart;
 
   // Add each panel with simple action description
   for (let i = 0; i < panels.length; i++) {
     const panel = panels[i];
     const panelPrompt = panel.image_prompt;
+
+    // Extract panel-specific part (after "PanelX:")
     const panelSpecificMatch = panelPrompt.match(/Panel\d+:\s*(.*)/s);
     let panelSpecific = panelSpecificMatch ? panelSpecificMatch[1].trim() : panelPrompt;
 
-    // For late panels (60%+), ensure no clothing descriptions (nude/intimate scenes)
+    // For late panels (60%+), remove clothing descriptions (nude/intimate scenes)
     if (i >= gridSize * 0.6) {
       panelSpecific = panelSpecific
         .replace(/wearing[^,.;]*/gi, '')
-        .replace(/穿着[^,.;]*/g, '')
+        .replace(/穿着[^,.;。]/g, '')
         .replace(/dressed in[^,.;]*/gi, '');
     }
 
@@ -435,7 +433,8 @@ export function GridStoryboardMode({
       panels: template.panels.map((p) => ({
         panel_number: p.panel_number,
         scene_description: p.scene_description,
-        image_prompt: `${template.basePrompt}\n${p.image_prompt}`,
+        // Format: basePrompt\nPanelX: panel-specific-description (matches API format)
+        image_prompt: `${template.basePrompt}\nPanel${p.panel_number}: ${p.image_prompt}`,
       })),
       gridSize: template.panels.length as GridSize,
     }));
@@ -1945,6 +1944,27 @@ export function GridStoryboardMode({
       {/* Step 3: Image Viewer - Multiple images as tabs */}
       {step === 'view' && (
         <div className="rounded-2xl bg-white border border-border shadow-card p-4">
+          {/* Theme tabs - show when multiple themes completed */}
+          {completedThemes.length > 1 && (
+            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border overflow-x-auto">
+              <span className="text-[10px] text-text-tertiary flex-shrink-0">
+                {displayLang === 'zh' ? '主题' : 'Theme'}:
+              </span>
+              {completedThemes.map((theme, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => handleLoadTheme(theme.themeTitle)}
+                  className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                    activeThemeIdx === idx
+                      ? 'bg-purple-500 text-white'
+                      : 'bg-bg-elevated text-text-secondary hover:bg-purple-100 hover:text-purple-700'
+                  }`}
+                >
+                  {theme.themeTitle}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="space-y-3">
             {/* Image tabs */}
             {gridImages.length > 1 && (
