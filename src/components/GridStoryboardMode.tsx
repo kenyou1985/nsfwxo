@@ -1089,23 +1089,41 @@ export function GridStoryboardMode({
     try {
       // Use the same API as linear storyboard to regenerate this panel
       // Note: panel_count must be >= 2 (API requirement)
-      const res = await generateStoryboardOutline(
-        0, // no theme id for redraw
-        panel.scene_description || `panel ${panel.panel_number}`,
-        2, // panel_count must be >= 2
-        r18Mode,
-        false,
-      );
-
-      if (res.storyboard && res.storyboard.length > 0) {
-        // Use first panel as the replacement
-        const newPanel = res.storyboard[0];
-        handleUpdatePanel(idx, 'image_prompt', newPanel.image_prompt);
-        handleUpdatePanel(idx, 'scene_description', newPanel.scene_description);
-        onSuccess(`第 ${panel.panel_number} 镜已重绘，点击"生成"出图`);
-      } else {
-        onError('重绘返回结果为空，请重试');
+      let newPanel: { scene_description: string; image_prompt: string } | null = null;
+      try {
+        const res = await generateStoryboardOutline(
+          0, // no theme id for redraw
+          panel.scene_description || `panel ${panel.panel_number}`,
+          2, // panel_count must be >= 2
+          r18Mode,
+          false,
+        );
+        if (res.storyboard && res.storyboard.length > 0) {
+          newPanel = res.storyboard[0];
+        }
+      } catch (apiErr) {
+        console.warn(`${GRID_LOG_PREFIX} redraw API failed, using local fallback:`, apiErr);
       }
+
+      // Local fallback: enhance the existing panel prompt with a variation prefix
+      if (!newPanel) {
+        const variations = [
+          'alternate angle, ',
+          'different composition, ',
+          'reimagined shot, ',
+          'new perspective, ',
+          'dynamic restaging, ',
+        ];
+        const prefix = variations[Math.floor(Math.random() * variations.length)];
+        newPanel = {
+          scene_description: panel.scene_description,
+          image_prompt: `${prefix}${panel.image_prompt}`,
+        };
+      }
+
+      handleUpdatePanel(idx, 'image_prompt', newPanel.image_prompt);
+      handleUpdatePanel(idx, 'scene_description', newPanel.scene_description);
+      onSuccess(`第 ${panel.panel_number} 镜已重绘，点击"生成"出图`);
     } catch (err) {
       console.error(`${GRID_LOG_PREFIX} handleRedrawPanel error:`, err);
       onError(err instanceof Error ? err.message : '分镜重绘失败');
@@ -1871,8 +1889,9 @@ export function GridStoryboardMode({
           ) : (
             <div className="max-h-[400px] overflow-y-auto divide-y divide-border/50">
               {history.map((h) => {
-                // Get first available image for preview
-                const previewImage = h.images?.[0] || h.panelImages?.[0]?.[0] || undefined;
+                // Get first available image for preview: from history or cache
+                const cachedPreview = getCachedStoryboardPanelImages(h.id, 0)[0];
+                const previewImage = h.images?.[0] || h.panelImages?.[0]?.[0] || cachedPreview || undefined;
                 return (
                   <div key={h.id} className="flex items-center gap-2 px-4 py-3 hover:bg-bg-hover/30 transition-colors">
                     <button onClick={() => handleHistoryLoad(h)} className="flex-1 flex items-start gap-2 w-full min-w-0 text-left group">

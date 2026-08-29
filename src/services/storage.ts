@@ -917,12 +917,18 @@ export function updateGridHistoryImages(
       const idx = Number(panelIdx);
       updatedPanelIdxs.push(idx);
       const limited = imgs.slice(0, PER_PANEL_CAP);
+      // Only keep image refs (cache keys / small refs), strip full data URLs to avoid quota overflow
       const cleaned = limited.map((img) => {
         if (!img) return img;
-        if (img.startsWith('data:') || img.startsWith('blob:') || img.startsWith('http')) return img;
+        // Full data URLs are too large for localStorage - strip them
+        if (img.startsWith('data:')) return '';
+        if (img.startsWith('blob:') || img.startsWith('http')) return img;
         return '';
       });
-      normalizedPanelImages[idx] = cleaned;
+      // Only include panels with at least one valid ref
+      if (cleaned.some((c) => c)) {
+        normalizedPanelImages[idx] = cleaned;
+      }
     }
     const existingPanelZipUrls = history[index].panelZipUrls || {};
     const mergedPanelZipUrls: Record<number, string> = { ...existingPanelZipUrls };
@@ -940,7 +946,21 @@ export function updateGridHistoryImages(
       ...(legacyZipUrl !== undefined ? { zipUrl: legacyZipUrl } : {}),
       ...(panelImageCounts !== undefined ? { panelImageCounts } : {}),
     };
-    saveHistory(GRID_HISTORY_KEY, history);
+    try {
+      saveHistory(GRID_HISTORY_KEY, history);
+    } catch {
+      // If localStorage write fails, retry without images (keep metadata only)
+      history[index] = {
+        ...history[index],
+        panelImages: undefined,
+        images: undefined,
+      };
+      try {
+        saveHistory(GRID_HISTORY_KEY, history);
+      } catch {
+        // Ignore - cache still holds the images
+      }
+    }
   }
 }
 

@@ -1,5 +1,7 @@
 {
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
-  ]
+  ],
+  "buildCommand": "vite build",
+  "installCommand": "npm install --ignore-scripts=false"
 }
