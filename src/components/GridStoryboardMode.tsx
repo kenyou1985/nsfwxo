@@ -429,17 +429,59 @@ export function GridStoryboardMode({
       onError('请至少选择一个模板');
       return;
     }
-    // Load first template's panels and move to edit
-    const first = selectedTemplates[0];
-    const templatePanels = first.panels.map((p) => ({
-      panel_number: p.panel_number,
-      scene_description: p.scene_description,
-      image_prompt: `${first.basePrompt}\n${p.image_prompt}`,
+    // Add all selected templates to completedThemes (same flow as theme library)
+    const newCompleted = selectedTemplates.map((template) => ({
+      themeTitle: template.titleZh,
+      panels: template.panels.map((p) => ({
+        panel_number: p.panel_number,
+        scene_description: p.scene_description,
+        image_prompt: `${template.basePrompt}\n${p.image_prompt}`,
+      })),
+      gridSize: template.panels.length as GridSize,
     }));
-    setPanels(templatePanels);
-    setGridSize(templatePanels.length as GridSize);
-    setStep('edit');
-    onSuccess(`已选择 ${selectedTemplates.length} 个模板，点击"生成"按钮开始生成`);
+
+    // Merge with existing completedThemes and create history entries
+    setCompletedThemes((prev) => {
+      const merged = [...prev];
+      const newHistoryIdMap: Record<number, string | null> = {};
+
+      for (const entry of newCompleted) {
+        const existing = merged.findIndex((t) => t.themeTitle === entry.themeTitle);
+        if (existing >= 0) {
+          merged[existing] = entry;
+        } else {
+          merged.push(entry);
+        }
+        // Create history entry for this template
+        const idx = merged.findIndex((t) => t.themeTitle === entry.themeTitle);
+        const historyId = addGridHistory({
+          plot: entry.themeTitle,
+          gridSize: entry.gridSize,
+          r18: r18Mode,
+          panels: entry.panels,
+        });
+        newHistoryIdMap[idx] = historyId;
+      }
+
+      completedThemesRef.current = merged;
+
+      // Merge history ID map
+      setCurrentHistoryIdMap((prevMap) => ({ ...prevMap, ...newHistoryIdMap }));
+
+      // Load first template's panels and show editor with theme tabs
+      const first = newCompleted[0];
+      setPanels(first.panels);
+      setGridSize(first.gridSize);
+      setActiveThemeIdx(0);
+      setCurrentHistoryId(newHistoryIdMap[0] || null);
+      sessionStorage.setItem('sb_latest_history_id', newHistoryIdMap[0] || '');
+      setStep('edit');
+      setSelectedTemplates([]);
+
+      return merged;
+    });
+
+    onSuccess(`已选择 ${selectedTemplates.length} 个模板，点击主题标签切换编辑`);
   };
 
   // ── Generate grid storyboard using the same API as linear storyboard ──
