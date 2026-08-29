@@ -99,14 +99,25 @@ function buildFullGridPrompt(panels: GridPanel[], gridSize: number): string {
   const consistencyMatch = basePrompt.match(/\[ANCHOR:\s*([^\]]+)\]/i);
   const consistencyDesc = consistencyMatch ? consistencyMatch[1].trim() : basePart;
 
-  let fullPrompt = `cinematic storyboard grid in strict 9:16 vertical aspect ratio, ${gridSize} panels in 3×3 grid, consistent ${consistencyDesc}, keep character faces and body proportions unchanged throughout all panels`;
+  // Build single-image 9-panel grid prompt
+  // Key: "single image" + "storyboard grid" tells AI to generate ONE image with 9 panels
+  let fullPrompt = `single image, cinematic storyboard grid, ${gridSize} panels arranged in 3×3 grid, 9:16 vertical aspect ratio, consistent ${consistencyDesc}, keep character faces and body proportions unchanged throughout all panels`;
 
   // Add each panel with simple action description
   for (let i = 0; i < panels.length; i++) {
     const panel = panels[i];
     const panelPrompt = panel.image_prompt;
     const panelSpecificMatch = panelPrompt.match(/Panel\d+:\s*(.*)/s);
-    const panelSpecific = panelSpecificMatch ? panelSpecificMatch[1].trim() : panelPrompt;
+    let panelSpecific = panelSpecificMatch ? panelSpecificMatch[1].trim() : panelPrompt;
+
+    // For late panels (60%+), ensure no clothing descriptions (nude/intimate scenes)
+    if (i >= gridSize * 0.6) {
+      panelSpecific = panelSpecific
+        .replace(/wearing[^,.;]*/gi, '')
+        .replace(/穿着[^,.;]*/g, '')
+        .replace(/dressed in[^,.;]*/gi, '');
+    }
+
     fullPrompt += `\nPanel${panel.panel_number}: ${panelSpecific}`;
   }
   return fullPrompt;
@@ -552,7 +563,7 @@ export function GridStoryboardMode({
             let historyId = currentHistoryIdMap[0];
             if (!historyId) {
               historyId = addGridHistory({
-                plot: successful[0].themeTitle || '九宫格分镜',
+                plot: successful[0].themeTitle || `九宫格主题1`,
                 grid_size: successful[0].panels!.length,
                 r18: r18Mode,
                 panels: successful[0].panels!,
@@ -766,10 +777,11 @@ export function GridStoryboardMode({
 
     console.log(`${GRID_LOG_PREFIX} handleGenerateImage called, prompt length=${fullPrompt.length}`);
 
-    // Get theme title from completedThemes or use default
+    // Get theme title from completedThemes or gridTasks
     const themeTitle = completedThemesRef.current[activeThemeIdx]?.themeTitle
+      || gridTasks.find((t) => t.themeTitle)?.themeTitle
       || selectedTemplate?.titleZh
-      || '九宫格分镜';
+      || `九宫格${activeThemeIdx + 1}`;
 
     // Reuse existing history ID for this theme if available, otherwise create new
     let historyId = currentHistoryIdMap[activeThemeIdx];
@@ -812,9 +824,8 @@ export function GridStoryboardMode({
       }
     }
 
-    // Submit image generation tasks (may produce multiple images)
-    // We submit one task per expected image (usually 1-2)
-    const imageCount = 2; // Request 2 images by default
+    // Generate ONE image with 9-panel grid (single storyboard image)
+    const imageCount = 1; // Single grid image with 9 panels
     const storyboardInfo = { historyId, panelIdx: 0 };
     try {
       if (digitalHumanMode && selectedGirlfriend) {
@@ -829,16 +840,16 @@ export function GridStoryboardMode({
           { nodeId: '104', fieldName: 'image', fieldValue: downloadUrl || imagePath, description: 'image' },
           { nodeId: '273', fieldName: 'value', fieldValue: 'false', description: 'enhance' },
         ];
-        await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, storyboardInfo, 'storyboard', selectedTemplate?.titleZh || '九宫格', 1);
+        await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, storyboardInfo, 'storyboard', themeTitle, 1);
       } else {
         const finalPrompt = withQualityBoost(fullPrompt);
         const txt2imgOptions = buildUnifiedTxt2ImgOptions(finalPrompt);
         txt2imgOptions.imageCount = imageCount;
         const nodes = buildTxt2ImgNodeList(txt2imgOptions);
-        await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, storyboardInfo, 'storyboard', selectedTemplate?.titleZh || '九宫格', 1);
+        await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, storyboardInfo, 'storyboard', themeTitle, 1);
       }
       console.log(`${GRID_LOG_PREFIX} task submitted successfully`);
-      onSuccess(`九宫格分镜图片生成任务已提交（预计生成 ${imageCount} 张）`);
+      onSuccess(`九宫格分镜图片生成任务已提交（生成1张九宫格图片）`);
     } catch (err) {
       console.error(`${GRID_LOG_PREFIX} handleGenerateImage error:`, err);
       onError(err instanceof Error ? err.message : '生成失败');
