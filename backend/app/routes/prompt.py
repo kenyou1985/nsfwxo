@@ -8990,6 +8990,16 @@ async def generate_storyboard_outline(
         asyncio.create_task(_run_outline_task(task.task_id, req, api_key))
         return StoryboardOutlineResponse(task_id=task.task_id, theme_id=req.theme_id, theme_title=req.theme_title, outline=StoryboardOutline(arc="", scenes=[]), storyboard=[])
 
+    # ── Sync mode: no task store. Provide a no-op stub so the legacy code path
+    # below (which still calls store.set_progress / store.mark_*) doesn't raise
+    # UnboundLocalError. This was introduced when async_mode was added; the
+    # legacy sync path was never refactored to drop those calls.
+    task_id = ""
+    class _NoopStore:
+        def __getattr__(self, _name):
+            return lambda *a, **kw: None
+    store = _NoopStore()
+
     # ── Look up theme for storyline coherence ────────────────────────────────
     selected_theme = None
     theme_scenarios_str = ""

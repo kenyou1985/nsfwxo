@@ -1,5 +1,5 @@
 import React from 'react';
-import { Film, Copy, Check, Wand2, Loader2, Eye, RefreshCw } from 'lucide-react';
+import { Film, Copy, Check, Wand2, Loader2, Eye, RefreshCw, ZoomIn, Download, Heart, X } from 'lucide-react';
 import type { GridPanel } from '../services/storage';
 
 interface GridPanelEditorProps {
@@ -13,6 +13,16 @@ interface GridPanelEditorProps {
   isGenerating: boolean;
   redrawPanelIdx?: number | null;
   displayLang: 'en' | 'zh';
+  // Per-panel redrawn images keyed by panel index (most-recent-last ordering).
+  redrawnPanelImages?: Record<number, string[]>;
+  // Called when the user clicks a redrawn image — opens the lightbox preview.
+  onImageClick?: (panelIdx: number, imageUrl: string) => void;
+  // Download a single panel image to the user's machine.
+  onDownloadImage?: (panelIdx: number, imageUrl: string) => void;
+  // Toggle favorite state for a panel image.
+  onToggleFavorite?: (panelIdx: number, imageUrl: string) => void;
+  // Check if a given URL is already in favorites.
+  isFavorited?: (url: string) => boolean;
 }
 
 export function GridPanelEditor({
@@ -26,6 +36,11 @@ export function GridPanelEditor({
   isGenerating,
   redrawPanelIdx,
   displayLang,
+  redrawnPanelImages,
+  onImageClick,
+  onDownloadImage,
+  onToggleFavorite,
+  isFavorited,
 }: GridPanelEditorProps) {
   const [copiedIdx, setCopiedIdx] = React.useState<number | null>(null);
   const [showFullPrompt, setShowFullPrompt] = React.useState(true);
@@ -185,8 +200,72 @@ export function GridPanelEditor({
                   rows={3}
                   className="w-full mt-1 px-2 py-1 rounded-md border border-purple-100 bg-white text-[9px] text-text-primary font-mono resize-none focus:outline-none focus:border-purple-300"
                   placeholder={displayLang === 'zh' ? '英文提示词...' : 'English prompt...'}
+                  disabled={redrawPanelIdx === idx}
                 />
               </details>
+
+              {/* ── Redraw progress indicator (per-panel) ── */}
+              {redrawPanelIdx === idx && (
+                <div className="mt-2 rounded-md border border-orange-200 bg-orange-50/70 px-2 py-1.5 flex items-center gap-1.5">
+                  <Loader2 size={11} className="animate-spin text-orange-500 flex-shrink-0" />
+                  <span className="text-[10px] text-orange-600 font-medium">
+                    {displayLang === 'zh' ? '重绘中…' : 'Redrawing…'}
+                  </span>
+                </div>
+              )}
+
+              {/* ── Redrawn images preview ── */}
+              {redrawnPanelImages && redrawnPanelImages[idx] && redrawnPanelImages[idx].length > 0 && (
+                <div className="mt-2 space-y-1">
+                  <div className="text-[9px] text-text-tertiary font-medium flex items-center gap-1">
+                    <span className="w-1 h-1 rounded-full bg-orange-400" />
+                    {displayLang === 'zh' ? `已生成 ${redrawnPanelImages[idx].length} 张` : `${redrawnPanelImages[idx].length} image(s)`}
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    {redrawnPanelImages[idx].map((imgUrl, imgIdx) => (
+                      <div
+                        key={`${idx}-${imgIdx}-${imgUrl.slice(-16)}`}
+                        className="relative group rounded-md overflow-hidden border border-purple-100 bg-bg-elevated"
+                        style={{ aspectRatio: '9 / 16' }}
+                      >
+                        <img
+                          src={imgUrl}
+                          alt={`Panel ${panel.panel_number} redraw ${imgIdx + 1}`}
+                          className="absolute inset-0 w-full h-full object-cover cursor-zoom-in hover:scale-105 transition-transform"
+                          onClick={() => onImageClick?.(idx, imgUrl)}
+                        />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
+                          <button
+                            onClick={() => onImageClick?.(idx, imgUrl)}
+                            className="w-6 h-6 rounded-full bg-white/90 text-gray-800 hover:bg-white flex items-center justify-center"
+                            title={displayLang === 'zh' ? '放大查看' : 'Zoom'}
+                          >
+                            <ZoomIn size={11} />
+                          </button>
+                          <button
+                            onClick={() => onDownloadImage?.(idx, imgUrl)}
+                            className="w-6 h-6 rounded-full bg-white/90 text-gray-800 hover:bg-white flex items-center justify-center"
+                            title={displayLang === 'zh' ? '下载' : 'Download'}
+                          >
+                            <Download size={11} />
+                          </button>
+                          <button
+                            onClick={() => onToggleFavorite?.(idx, imgUrl)}
+                            className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
+                              isFavorited?.(imgUrl)
+                                ? 'bg-red-500 text-white hover:bg-red-600'
+                                : 'bg-white/90 text-gray-800 hover:bg-white'
+                            }`}
+                            title={displayLang === 'zh' ? '收藏' : 'Favorite'}
+                          >
+                            <Heart size={11} fill={isFavorited?.(imgUrl) ? 'currentColor' : 'none'} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>

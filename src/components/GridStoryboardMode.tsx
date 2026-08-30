@@ -127,8 +127,56 @@ function buildFullGridPrompt(panels: GridPanel[], gridSize: number): string {
   const baseMatch = firstPanelPrompt.match(/^(.*?)(?=Panel\d+:|$)/s);
   const basePart = baseMatch ? baseMatch[1].trim() : firstPanelPrompt;
 
-  // Use base prompt directly (it already contains character + scene + consistency info)
-  let fullPrompt = basePart;
+  // The 9-panel GRID HEADER must ALWAYS be present at the start of the
+  // assembled prompt — even when the template's basePrompt already says
+  // "no grid layout / single cinematic vertical frame" (which was added
+  // for the per-panel redraw path). When we re-assemble the full 9-panel
+  // prompt for "Generate Grid Storyboard Image", we DO want a 3×3 grid of
+  // 9 panels in ONE image, so we override the template's "no grid" wording.
+  //
+  // The header explicitly:
+  //   - says "3×3 grid, 9 panels" so Krea2 never renders 6 or 4 panels
+  //   - says "each panel is its own moment, characters may vary per panel"
+  //   - REPEATS character + scene anchors so all 9 panels share them
+  //
+  // We then strip the conflicting "no grid / single shot" lines from the
+  // template basePrompt so they cannot override the 3×3 grid header below.
+  const GRID_HEADER =
+    'cinematic storyboard grid in strict 9:16 vertical aspect ratio, 9 panels arranged in 3×3 grid, ' +
+    'each panel is its own distinct moment, same setting and same subject across all 9 panels, ' +
+    'consistent character across all 9 panels, single coherent narrative, cinematic movie storyboard, ';
+
+  // Remove any "no grid layout / no multiple panels / no storyboard split /
+  // single cinematic vertical frame" lines that the template basePrompt may
+  // contain (these were added to fix per-panel redraw, but they conflict
+  // with the 3×3 grid header we are injecting now).
+  //
+  // NOTE on regex flavor: every starts-with pattern uses \s* to tolerate
+  // leading whitespace left behind by prior [^,]*, strips. Without \s*,
+  // leftover tokens like " no grid layout" can survive and override the
+  // GRID_HEADER below, causing Krea2 to render 6 or 4 panels instead of 9.
+  let cleanedBase = basePart
+    .replace(/^\s*no\s+grid\s+layout,\s*/gi, '')
+    .replace(/,\s*no\s+grid\s+layout,\s*/gi, ',')
+    .replace(/^\s*no\s+multiple\s+panels,\s*/gi, '')
+    .replace(/,\s*no\s+multiple\s+panels,\s*/gi, ',')
+    .replace(/^\s*no\s+storyboard\s+split,\s*/gi, '')
+    .replace(/,\s*no\s+storyboard\s+split,\s*/gi, ',')
+    .replace(/^\s*full\s+frame\s+single\s+subject\s+composition,\s*/gi, '')
+    .replace(/,\s*full\s+frame\s+single\s+subject\s+composition,\s*/gi, ',')
+    .replace(/^\s*single\s+cinematic\s+vertical\s+frame[^,]*,/gi, '')
+    .replace(/,\s*single\s+cinematic\s+vertical\s+frame[^,]*,/gi, ',')
+    .replace(/^\s*single\s+cinematic\s+shot,\s*/gi, '')
+    .replace(/,\s*single\s+cinematic\s+shot,\s*/gi, ',')
+    .replace(/^\s*single\s+subject\s+only,\s*/gi, '')
+    .replace(/,\s*single\s+subject\s+only,\s*/gi, ',')
+    .replace(/^\s*focused\s+on\s+this\s+moment\s+only,\s*/gi, '')
+    .replace(/,\s*focused\s+on\s+this\s+moment\s+only,\s*/gi, ',')
+    .replace(/^[\s,]+/g, '')
+    .trim();
+
+  // Use grid header + cleaned base prompt
+  let fullPrompt = GRID_HEADER + cleanedBase;
 
   // Add each panel with simple action description
   for (let i = 0; i < panels.length; i++) {
@@ -160,6 +208,35 @@ function buildFullGridPrompt(panels: GridPanel[], gridSize: number): string {
         .replace(/dressed in[^,.;]{2,40}/gi, '')
         .replace(/in a (black|white|red|blue|pink|grey|dark|light|silk|leather|casual|floral|cozy|summer)[^,.;]{2,30}/gi, '');
     }
+
+    // Strip any per-panel "single cinematic shot / no grid layout" leftovers
+    // that were added for the per-panel redraw path. When assembling the
+    // FULL 9-panel prompt we want the 3×3 grid header (GRID_HEADER) to win.
+    //
+    // NOTE on regex flavor: each "starts-with" pattern must accept optional
+    // leading whitespace (^\s*) because the prior `[^,]*,` strip can leave
+    // a leading space when the matched fragment ends with a comma. Without
+    // \s* the leading " no grid layout" / " no multiple panels" tokens leak
+    // through and Krea2 lays out a 6-panel or 4-panel grid instead of 9.
+    panelSpecific = panelSpecific
+      .replace(/^\s*single\s+cinematic\s+vertical\s+frame[^,]*,/gi, '')
+      .replace(/,\s*single\s+cinematic\s+vertical\s+frame[^,]*,/gi, ',')
+      .replace(/^\s*single\s+cinematic\s+shot,\s*/gi, '')
+      .replace(/^\s*no\s+grid\s+layout,\s*/gi, '')
+      .replace(/,\s*no\s+grid\s+layout,\s*/gi, ',')
+      .replace(/^\s*no\s+multiple\s+panels,\s*/gi, '')
+      .replace(/,\s*no\s+multiple\s+panels,\s*/gi, ',')
+      .replace(/^\s*full\s+frame\s+single\s+subject,\s*/gi, '')
+      .replace(/,\s*full\s+frame\s+single\s+subject,\s*/gi, ',')
+      .replace(/,\s*full\s+frame\s+single\s+subject\s+composition,\s*/gi, ',')
+      .replace(/^\s*focused\s+on\s+this\s+moment\s+only,\s*/gi, '')
+      .replace(/,\s*focused\s+on\s+this\s+moment\s+only,\s*/gi, ',')
+      .replace(/,\s*no\s+storyboard\s+split,\s*/gi, ',')
+      .replace(/,\s*single\s+subject\s+only,\s*/gi, ',')
+      .replace(/^\s*Partially\s+undressed,\s*/gi, '')
+      .replace(/^\s*partially\s+undressed,\s*/gi, '')
+      .replace(/^[\s,]+/g, '')
+      .trim();
 
     fullPrompt += `\nPanel${panel.panel_number}: ${panelSpecific}`;
   }
@@ -259,6 +336,13 @@ export function GridStoryboardMode({
   const [currentHistoryIdMap, setCurrentHistoryIdMap] = useState<Record<number, string | null>>({});
   const [currentHistoryId, setCurrentHistoryId] = useState<string | null>(null);
 
+  // Track task IDs that belong to per-panel redraws (not the original 9-grid generation).
+  // We need this so the finishedTasks handler can route redraw images to
+  // `redrawnPanelImages[panelIdx]` instead of mixing them with the original grid
+  // images, which is what was filling Panel 1 and Panel 2 with the full-grid
+  // thumbnails even though the user never redrew them.
+  const redrawTaskIdsRef = useRef<Set<string>>(new Set());
+
   // Lightbox state
   const [showLightbox, setShowLightbox] = useState(false);
 
@@ -268,6 +352,15 @@ export function GridStoryboardMode({
 
   // Favorites
   const [favorites, setFavorites] = useState(() => getFavorites());
+
+  // Per-panel redrawn images (cleared when theme changes).
+  const [redrawnPanelImages, setRedrawnPanelImages] = useState<Record<number, string[]>>({});
+
+  // Lightbox state for redrawn images
+  const [showRedrawLightbox, setShowRedrawLightbox] = useState(false);
+  const [lightboxImageList, setLightboxImageList] = useState<string[]>([]);
+  const [lightboxImageIdx, setLightboxImageIdx] = useState(0);
+  const [lightboxPanelIdx, setLightboxPanelIdx] = useState<number | null>(null);
 
   // Refs
   const onSuccessRef = useRef(onSuccess);
@@ -329,13 +422,20 @@ export function GridStoryboardMode({
     if (allHistoryIds.size === 0) return;
 
     // Process finished tasks for each theme
-    for (const [, info] of Object.entries(finishedTasks)) {
+    for (const [taskId, info] of Object.entries(finishedTasks)) {
       const { images, storyboardInfo } = info;
       if (!images || images.length === 0) continue;
       const hid = storyboardInfo?.historyId;
       if (!hid || !allHistoryIds.has(hid)) continue;
       const { panelIdx } = storyboardInfo ?? {};
       if (panelIdx === undefined) continue;
+
+      // ── Distinguish per-panel redraw vs original 9-grid generation.
+      // If we registered this taskId when the user clicked "重绘" we treat it
+      // as a redraw and route the image only to redrawnPanelImages. Otherwise
+      // it is the original storyboard generation and we route to gridImages.
+      const isRedraw = redrawTaskIdsRef.current.has(taskId);
+      if (isRedraw) redrawTaskIdsRef.current.delete(taskId);
 
       // Find which theme this historyId belongs to
       let themeIdx = -1;
@@ -363,6 +463,35 @@ export function GridStoryboardMode({
 
       if (newImages.length === 0) continue;
 
+      if (isRedraw) {
+        // ── Per-panel redraw branch ──
+        // The single redrawn image goes to the corresponding panel slot in the
+        // active theme's redrawnPanelImages. Do NOT touch gridImagesMap.
+        if (themeIdx === activeThemeIdx) {
+          setRedrawnPanelImages((prev) => {
+            const next = { ...prev };
+            for (let i = 0; i < newImages.length; i++) {
+              if (newImages[i]) {
+                next[i] = [...(prev[i] || []), newImages[i]];
+              }
+            }
+            return next;
+          });
+          // Persist to per-panel image cache so it survives page refresh.
+          for (let i = 0; i < newImages.length; i++) {
+            if (newImages[i]) {
+              cacheStoryboardPanelImages(hid, i, [newImages[i]]).catch(() => {});
+            }
+          }
+          onSuccess?.(`第 ${(panelIdx ?? 0) + 1} 镜图片已生成`);
+        }
+        // Clear the per-panel loading indicator now that the image arrived.
+        setRedrawPanelIdx(null);
+        setLoading(false);
+        continue;
+      }
+
+      // ── Original 9-grid generation branch (existing behaviour) ──
       // Update images for this theme
       setGridImagesMap((prev) => {
         const existing = prev[themeIdx] || [];
@@ -1034,6 +1163,8 @@ export function GridStoryboardMode({
     setActiveImageIdx(0);
     // Save images for current theme index
     setGridImagesMap((prev) => ({ ...prev, [activeThemeIdx]: [] }));
+    // Reset per-panel redrawn images since the user is regenerating the whole grid.
+    setRedrawnPanelImages({});
 
     let imagePath = selectedGirlfriend?.portraitUrl || '';
     let downloadUrl = '';
@@ -1127,62 +1258,161 @@ export function GridStoryboardMode({
 
   const handleRedrawPanel = useCallback(async (idx: number) => {
     if (idx < 0 || idx >= panels.length) return;
-    const panel = panels[idx];
-    console.log(`${GRID_LOG_PREFIX} handleRedrawPanel: panel ${panel.panel_number}`);
+    const panelSnapshot = panels[idx];
+    console.log(`[Redraw] === START panel=${panelSnapshot.panel_number} idx=${idx} ===`);
     setRedrawPanelIdx(idx);
     setLoading(true);
 
+    // ── Build the single-panel prompt.
+    // The LLM generates a 9-panel storyboard prompt that contains the shared
+    // "cinematic storyboard grid in strict 9:16 vertical aspect ratio,
+    // 9 panels arranged in 3×3 grid, ..." prefix. For a single-panel redraw
+    // we must:
+    //   1. Strip the "3×3 grid" / "9 panels" prefix.
+    //   2. Strip the leading "Panel N:" / "PanelN:" markers (they are 9-grid
+    //      indices that confuse Krea2 into rendering the full 9-grid).
+    //   3. NEUTRALIZE any plural-character-coherence phrases inherited from
+    //      the template basePrompt, e.g.:
+    //        - "consistent young asian woman throughout all panels"
+    //        - "identical character face and body proportions preserved in every panel"
+    //      These plural phrases still hint "this is one of N panels" and make
+    //      Krea2 lay out a grid even when we add "single cinematic shot".
+    //      Replace them with singular equivalents so the model renders ONE shot.
+    //   4. Prepend a "single cinematic vertical frame" hint so Krea2 always
+    //      treats this as a single full-frame image, not a storyboard split.
+    const rawPrompt = panelSnapshot.image_prompt || panelSnapshot.scene_description || '';
+
+    const SINGLE_PANEL_HINT =
+      'single cinematic vertical frame, full frame single subject, focused on this moment only, no grid layout, no multiple panels, no storyboard split, single subject only, ';
+
+    // Strip the "9 panels arranged in 3×3 grid" prefix anywhere in the prompt.
+    const NINE_GRID_REGEX = /cinematic storyboard grid[^,]*,\s*9 panels arranged in\s*(?:3×3|3x3)\s*grid,?\s*/gi;
+
+    // Neutralize any plural-character-coherence phrases inherited from the
+    // template basePrompt so Krea2 does not interpret the prompt as describing
+    // ONE panel out of MANY (which causes it to lay out a grid anyway).
+    // We replace each plural phrase with a singular equivalent.
+    const PLURAL_NEUTRALIZERS: Array<[RegExp, string]> = [
+      [/consistent\s+(\w[\w\s,-]{0,80}?)\s+throughout\s+all\s+panels/gi,
+        'consistent $1 in this single shot'],
+      [/consistent\s+(\w[\w\s,-]{0,80}?)\s+across\s+all\s+panels/gi,
+        'consistent $1 in this single shot'],
+      [/identical\s+(\w[\w\s,-]{0,80}?)\s+preserved\s+in\s+every\s+panel/gi,
+        'identical $1 in this single shot'],
+      [/preserved\s+in\s+every\s+panel/gi, 'preserved in this single shot'],
+      [/throughout\s+all\s+panels/gi, 'in this single shot'],
+      [/across\s+all\s+panels/gi, 'in this single shot'],
+      [/in\s+every\s+panel/gi, 'in this single shot'],
+      [/in\s+all\s+\d+\s+panels/gi, 'in this single shot'],
+      [/\b9\s+panels\b/gi, 'this single shot'],
+      [/\b9-panel\s+grid\b/gi, 'this single shot'],
+      [/\b3×3\s+grid\b/gi, 'this single shot'],
+      [/\b3x3\s+grid\b/gi, 'this single shot'],
+      [/\bmulti-panel\b/gi, 'single panel'],
+      [/\bmultiple\s+panels\b/gi, 'this single shot'],
+    ];
+
+    let cleanedPrompt = rawPrompt
+      .replace(NINE_GRID_REGEX, '')
+      .replace(/^Panel\d+:\s*/gi, '')
+      .replace(/\nPanel\d+:\s*/gi, '\n')
+      .trim();
+
+    for (const [regex, replacement] of PLURAL_NEUTRALIZERS) {
+      cleanedPrompt = cleanedPrompt.replace(regex, replacement);
+    }
+
+    const finalPrompt = withQualityBoost(SINGLE_PANEL_HINT + cleanedPrompt, { force: true });
+    console.log(`[Redraw] cleaned prompt: ${finalPrompt.slice(0, 200)}`);
+
+    if (taskManager.isFull) {
+      console.warn('[Redraw] taskManager.isFull=true');
+      onError('任务队列已满，无法自动生成图片，请稍后重试');
+      setRedrawPanelIdx(null);
+      setLoading(false);
+      return;
+    }
+
+    const historyId = currentHistoryIdMap[activeThemeIdx];
+    const themeTitle =
+      completedThemesRef.current[activeThemeIdx]?.themeTitle ||
+      gridTasks[activeThemeIdx]?.themeTitle ||
+      selectedTemplates[0]?.titleZh ||
+      `九宫格${activeThemeIdx + 1}`;
+    const storyboardInfo = { historyId: historyId ?? '', panelIdx: idx };
+    console.log(`[Redraw] submitting: panelIdx=${idx} promptLen=${finalPrompt.length}`);
+
     try {
-      // Use the same API as linear storyboard to regenerate this panel
-      // Note: panel_count must be >= 2 (API requirement)
-      let newPanel: { scene_description: string; image_prompt: string } | null = null;
-      try {
-        const res = await generateStoryboardOutline(
-          0, // no theme id for redraw
-          panel.scene_description || `panel ${panel.panel_number}`,
-          2, // panel_count must be >= 2
-          r18Mode,
-          false,
-        );
-        if (res.storyboard && res.storyboard.length > 0) {
-          newPanel = res.storyboard[0];
+      if (digitalHumanMode && selectedGirlfriend) {
+        console.log('[Redraw] img2img path');
+        let downloadUrl = selectedGirlfriend.portraitUrl;
+        let imgPath = selectedGirlfriend.portraitUrl;
+        try {
+          const file = await (async () => {
+            const res = await fetch(selectedGirlfriend.portraitUrl);
+            const blob = await res.blob();
+            return new File([blob], `${selectedGirlfriend.id}.jpg`, { type: blob.type || 'image/jpeg' });
+          })();
+          const result = await uploadImage(apiKey, file);
+          imgPath = result.imagePath;
+          downloadUrl = result.downloadUrl;
+        } catch (e) {
+          console.warn('[Redraw] img2img upload failed:', e);
         }
-      } catch (apiErr) {
-        console.warn(`${GRID_LOG_PREFIX} redraw API failed, using local fallback:`, apiErr);
-      }
-
-      // Local fallback: enhance the existing panel prompt with a variation prefix
-      if (!newPanel) {
-        const variations = [
-          'alternate angle, ',
-          'different composition, ',
-          'reimagined shot, ',
-          'new perspective, ',
-          'dynamic restaging, ',
+        const charId = (selectedGirlfriend.id as string).toUpperCase().slice(0, 4);
+        const anchorPrompt = `【严格锁定】严格锁定图中22岁女性（ID:${charId}），完全保留原有面部特征，五官轮廓、脸型、眼睛、鼻子、嘴唇、发型、肤色、身材比例完全不变，不做任何面部修改，动作流畅不僵硬。超高清8K，写实细节，皮肤质感细腻，无畸变、无模糊、无穿模。`;
+        const imgFinalPrompt = `${anchorPrompt}\n\n${finalPrompt}`;
+        const nodes = [
+          { nodeId: '291', fieldName: 'prompt', fieldValue: imgFinalPrompt, description: 'prompt' },
+          { nodeId: '172', fieldName: 'value', fieldValue: '9', description: 'width' },
+          { nodeId: '173', fieldName: 'value', fieldValue: '16', description: 'height' },
+          { nodeId: '269', fieldName: 'value', fieldValue: '1', description: 'count' },
+          { nodeId: '104', fieldName: 'image', fieldValue: downloadUrl || imgPath, description: 'image' },
+          { nodeId: '273', fieldName: 'value', fieldValue: 'false', description: 'enhance' },
         ];
-        const prefix = variations[Math.floor(Math.random() * variations.length)];
-        newPanel = {
-          scene_description: panel.scene_description,
-          image_prompt: `${prefix}${panel.image_prompt}`,
-        };
+        const taskId = await taskManager.addTask('img2img', nodes, imgFinalPrompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, storyboardInfo, 'storyboard', themeTitle, 1);
+        redrawTaskIdsRef.current.add(taskId);
+        console.log(`[Redraw] ✅ img2img task submitted! taskId=${taskId}`);
+      } else {
+        console.log('[Redraw] txt2img path');
+        const txt2imgOptions = buildUnifiedTxt2ImgOptions(finalPrompt);
+        // Force single image and a strict 9:16 vertical aspect ratio for
+        // per-panel redraws so the model can never render a 3×3 grid again.
+        txt2imgOptions.imageCount = 1;
+        txt2imgOptions.width = 832;
+        txt2imgOptions.height = 1472;
+        const nodes = buildTxt2ImgNodeList(txt2imgOptions);
+        console.log(`[Redraw] nodes count=${nodes.length} (9:16 single)`);
+        const taskId = await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, storyboardInfo, 'storyboard', themeTitle, 1);
+        redrawTaskIdsRef.current.add(taskId);
+        console.log(`[Redraw] ✅ txt2img task submitted! taskId=${taskId}`);
       }
-
-      handleUpdatePanel(idx, 'image_prompt', newPanel.image_prompt);
-      handleUpdatePanel(idx, 'scene_description', newPanel.scene_description);
-      onSuccess(`第 ${panel.panel_number} 镜已重绘，点击"生成"出图`);
-    } catch (err) {
-      console.error(`${GRID_LOG_PREFIX} handleRedrawPanel error:`, err);
-      onError(err instanceof Error ? err.message : '分镜重绘失败');
-    } finally {
+      onSuccess(`第 ${panelSnapshot.panel_number} 镜图片生成中，请等待…`);
+    } catch (genErr) {
+      console.error('[Redraw] task submission failed:', genErr);
+      onError(`第 ${panelSnapshot.panel_number} 镜图片生成失败（${genErr instanceof Error ? genErr.message : String(genErr)}）。请手动点击"生成"出图。`);
+      // Submission failed → clear the per-panel loading state immediately.
       setRedrawPanelIdx(null);
       setLoading(false);
     }
-  }, [panels, r18Mode, onError, onSuccess, handleUpdatePanel]);
+    // Note: we deliberately do NOT clear redrawPanelIdx on success here.
+    // The redraw task runs in the background for 1–2 minutes, and the user
+    // must keep seeing the spinning button + "重绘中…" indicator on the
+    // panel card the whole time. The indicator is cleared by the
+    // finishedTasks handler below when the redraw image is actually received.
+  }, [panels, onError, onSuccess, taskManager, activeThemeIdx, currentHistoryIdMap, completedThemesRef, gridTasks, selectedTemplates, digitalHumanMode, selectedGirlfriend, apiKey]);
 
   // ── History handlers ──
 
   const handleHistoryLoad = async (item: GridHistoryItem) => {
     console.log(`${GRID_LOG_PREFIX} handleHistoryLoad:`, item.plot);
+    // Guard: if a redraw is in progress, don't overwrite the panel state with stale history data.
+    // The redraw API call is still running and will update the panels when it completes.
+    if (redrawPanelIdx !== null) {
+      console.warn(`${GRID_LOG_PREFIX} handleHistoryLoad: blocked because redrawPanelIdx=${redrawPanelIdx} (redraw in progress)`);
+      setShowHistory(false);
+      return;
+    }
     setPanels(item.panels);
     setGridSize(item.grid_size as GridSize);
     setCurrentHistoryId(item.id);
@@ -2035,6 +2265,21 @@ export function GridStoryboardMode({
             isGenerating={isGenerating}
             redrawPanelIdx={redrawPanelIdx}
             displayLang={displayLang}
+            redrawnPanelImages={redrawnPanelImages}
+            onImageClick={(panelIdx, imgUrl) => {
+              const all = redrawnPanelImages[panelIdx] || [];
+              const idx = all.indexOf(imgUrl);
+              setLightboxPanelIdx(panelIdx);
+              setLightboxImageIdx(idx >= 0 ? idx : 0);
+              setLightboxImageList(all);
+              setShowRedrawLightbox(true);
+            }}
+            onDownloadImage={(_panelIdx, imgUrl) => handleDownload(imgUrl)}
+            onToggleFavorite={(_panelIdx, imgUrl) => {
+              handleToggleFavorite(imgUrl, panels[_panelIdx]?.image_prompt);
+              setFavorites(getFavorites());
+            }}
+            isFavorited={(url) => isFavoritedFn(url)}
           />
         </div>
       )}
@@ -2227,6 +2472,84 @@ export function GridStoryboardMode({
                         className="w-full px-2 py-1 rounded-md border border-purple-100 bg-white text-[10px] text-text-primary resize-none focus:outline-none focus:border-purple-300 focus:ring-1 focus:ring-purple-200"
                         placeholder={displayLang === 'zh' ? '描述这个镜头...' : 'Describe this scene...'}
                       />
+                      {/* Redraw progress indicator (view-mode panel) */}
+                      {redrawPanelIdx === idx && (
+                        <div className="mt-2 rounded-md border border-orange-200 bg-orange-50/70 px-2 py-1.5 flex items-center gap-1.5">
+                          <Loader2 size={11} className="animate-spin text-orange-500 flex-shrink-0" />
+                          <span className="text-[10px] text-orange-600 font-medium">
+                            {displayLang === 'zh' ? '重绘中…' : 'Redrawing…'}
+                          </span>
+                        </div>
+                      )}
+                      {/* Redrawn images preview (view-mode panel) */}
+                      {redrawnPanelImages && redrawnPanelImages[idx] && redrawnPanelImages[idx].length > 0 && (
+                        <div className="mt-2 space-y-1">
+                          <div className="text-[9px] text-text-tertiary font-medium flex items-center gap-1">
+                            <span className="w-1 h-1 rounded-full bg-orange-400" />
+                            {displayLang === 'zh' ? `已生成 ${redrawnPanelImages[idx].length} 张` : `${redrawnPanelImages[idx].length} image(s)`}
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            {redrawnPanelImages[idx].map((imgUrl, imgIdx) => (
+                              <div
+                                key={`view-${idx}-${imgIdx}-${imgUrl.slice(-16)}`}
+                                className="relative group rounded-md overflow-hidden border border-purple-100 bg-bg-elevated"
+                                style={{ aspectRatio: '9 / 16' }}
+                              >
+                                <img
+                                  src={imgUrl}
+                                  alt={`Panel ${panel.panel_number} redraw ${imgIdx + 1}`}
+                                  className="absolute inset-0 w-full h-full object-cover cursor-zoom-in hover:scale-105 transition-transform"
+                                  onClick={() => {
+                                    const all = redrawnPanelImages[idx] || [];
+                                    const i = all.indexOf(imgUrl);
+                                    setLightboxPanelIdx(idx);
+                                    setLightboxImageIdx(i >= 0 ? i : 0);
+                                    setLightboxImageList(all);
+                                    setShowRedrawLightbox(true);
+                                  }}
+                                />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
+                                  <button
+                                    onClick={() => {
+                                      const all = redrawnPanelImages[idx] || [];
+                                      const i = all.indexOf(imgUrl);
+                                      setLightboxPanelIdx(idx);
+                                      setLightboxImageIdx(i >= 0 ? i : 0);
+                                      setLightboxImageList(all);
+                                      setShowRedrawLightbox(true);
+                                    }}
+                                    className="w-5 h-5 rounded-full bg-white/90 text-gray-800 hover:bg-white flex items-center justify-center"
+                                    title={displayLang === 'zh' ? '放大' : 'Zoom'}
+                                  >
+                                    <ZoomIn size={9} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDownload(imgUrl)}
+                                    className="w-5 h-5 rounded-full bg-white/90 text-gray-800 hover:bg-white flex items-center justify-center"
+                                    title={displayLang === 'zh' ? '下载' : 'Download'}
+                                  >
+                                    <Download size={9} />
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      handleToggleFavorite(imgUrl, panel.image_prompt);
+                                      setFavorites(getFavorites());
+                                    }}
+                                    className={`w-5 h-5 rounded-full flex items-center justify-center transition-colors ${
+                                      isFavoritedFn(imgUrl)
+                                        ? 'bg-red-500 text-white hover:bg-red-600'
+                                        : 'bg-white/90 text-gray-800 hover:bg-white'
+                                    }`}
+                                    title={displayLang === 'zh' ? '收藏' : 'Favorite'}
+                                  >
+                                    <Heart size={9} fill={isFavoritedFn(imgUrl) ? 'currentColor' : 'none'} />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -2304,6 +2627,91 @@ export function GridStoryboardMode({
               >
                 {isGenerating ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
                 {displayLang === 'zh' ? '重新生成' : 'Regenerate'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Redraw Lightbox */}
+      {showRedrawLightbox && lightboxImageList[lightboxImageIdx] && (
+        <div
+          className="fixed inset-0 z-[9999] bg-black/95 flex items-center justify-center animate-fade-in"
+          onClick={() => setShowRedrawLightbox(false)}
+        >
+          <div className="relative w-full h-full flex items-center justify-center p-4" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setShowRedrawLightbox(false)}
+              className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors z-10"
+            >
+              <X size={20} />
+            </button>
+
+            {lightboxImageList.length > 1 && lightboxImageIdx > 0 && (
+              <button
+                onClick={() => setLightboxImageIdx((i) => Math.max(0, i - 1))}
+                className="absolute left-4 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors z-10"
+              >
+                <ChevronLeft size={24} />
+              </button>
+            )}
+
+            <img
+              src={lightboxImageList[lightboxImageIdx]}
+              alt={`Panel ${(lightboxPanelIdx ?? 0) + 1} redraw`}
+              className="max-w-full max-h-full object-contain rounded-lg"
+            />
+
+            {lightboxImageList.length > 1 && lightboxImageIdx < lightboxImageList.length - 1 && (
+              <button
+                onClick={() => setLightboxImageIdx((i) => Math.min(lightboxImageList.length - 1, i + 1))}
+                className="absolute right-4 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors z-10"
+              >
+                <ChevronRight size={24} />
+              </button>
+            )}
+
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3">
+              <span className="px-3 py-2 rounded-xl bg-black/60 text-white text-sm font-medium">
+                {displayLang === 'zh'
+                  ? `第 ${(lightboxPanelIdx ?? 0) + 1} 镜重绘 ${lightboxImageIdx + 1}/${lightboxImageList.length}`
+                  : `Panel ${(lightboxPanelIdx ?? 0) + 1} redraw ${lightboxImageIdx + 1}/${lightboxImageList.length}`}
+              </span>
+              <button
+                onClick={() => handleDownload(lightboxImageList[lightboxImageIdx])}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/90 text-gray-800 text-sm font-medium hover:bg-white transition-colors"
+              >
+                <Download size={16} /> {displayLang === 'zh' ? '下载' : 'Download'}
+              </button>
+              <button
+                onClick={() => {
+                  const url = lightboxImageList[lightboxImageIdx];
+                  handleToggleFavorite(url, panels[lightboxPanelIdx ?? 0]?.image_prompt);
+                  setFavorites(getFavorites());
+                }}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+                  isFavoritedFn(lightboxImageList[lightboxImageIdx])
+                    ? 'bg-red-500 text-white hover:bg-red-600'
+                    : 'bg-white/90 text-gray-800 hover:bg-white'
+                }`}
+              >
+                <Heart
+                  size={16}
+                  fill={isFavoritedFn(lightboxImageList[lightboxImageIdx]) ? 'currentColor' : 'none'}
+                />
+                {displayLang === 'zh' ? '收藏' : 'Favorite'}
+              </button>
+              <button
+                onClick={() => {
+                  if (lightboxPanelIdx !== null) {
+                    setShowRedrawLightbox(false);
+                    handleRedrawPanel(lightboxPanelIdx);
+                  }
+                }}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-500 text-white text-sm font-medium hover:bg-orange-600 transition-colors"
+              >
+                <RefreshCw size={16} />
+                {displayLang === 'zh' ? '再次重绘' : 'Redraw Again'}
               </button>
             </div>
           </div>
