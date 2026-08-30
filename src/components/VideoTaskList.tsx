@@ -25,7 +25,7 @@ interface VideoTaskListProps {
 }
 
 export interface VideoTaskListHandle {
-  submitTask: (prompt: string, imagePath: string, imagePreview: string, nodeInfoList: NodeInfo[]) => void;
+  submitTask: (prompt: string, imagePath: string, imagePreview: string, nodeInfoList: NodeInfo[], workflowId?: string) => void;
 }
 
 function formatElapsed(seconds: number): string {
@@ -495,7 +495,8 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
     prompt: string,
     imagePath: string,
     imagePreview: string,
-    nodeInfoList: NodeInfo[]
+    nodeInfoList: NodeInfo[],
+    workflowId: string = '2018678819216953345' // Default to Wan 2.2 workflow
   ) => {
     if (tasks.length >= maxTasks) {
       onError('任务队列已满');
@@ -518,11 +519,11 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
     };
 
     setTasks((prev) => [newTask, ...prev].slice(0, maxTasks));
-    console.log(`[VideoTaskList] handleSubmit: task ${id} added, QUEUEING. Calling runTask...`);
+    console.log(`[VideoTaskList] handleSubmit: task ${id} added, QUEUEING. Calling runTask with workflow ${workflowId}...`);
 
     // Run task via VideoTaskList's own API (for normal img2vid page flow)
     try {
-      const result = await runTask(apiKey, '2018678819216953345', nodeInfoList);
+      const result = await runTask(apiKey, workflowId, nodeInfoList);
       console.log(`[VideoTaskList] handleSubmit: task ${id} got taskId=${result.taskId}, status=${result.status}`);
       const taskWithId = { ...newTask, taskId: result.taskId, status: 'RUNNING' as const };
       setTasks((prev) => prev.map((t) => t.id === id ? taskWithId : t));
@@ -547,8 +548,8 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
   }, []);
 
   useImperativeHandle(ref, () => ({
-    submitTask: (prompt: string, imagePath: string, imagePreview: string, nodeInfoList: NodeInfo[]) => {
-      handleSubmit(prompt, imagePath, imagePreview, nodeInfoList);
+    submitTask: (prompt: string, imagePath: string, imagePreview: string, nodeInfoList: NodeInfo[], workflowId?: string) => {
+      handleSubmit(prompt, imagePath, imagePreview, nodeInfoList, workflowId);
     },
   }), [handleSubmit]);
 

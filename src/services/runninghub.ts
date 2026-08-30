@@ -139,6 +139,8 @@ export const WORKFLOW = {
   REALISTIC_V3: '2018672045172723713',
   /** Krea2 文生图模型 */
   KREA2: '2082140662178611201',
+  /** MiniMax H3 图生视频模型 */
+  MINIMAX_H3: '2084661265636839425',
 } as const;
 
 export interface WorkflowNode {

@@ -1,12 +1,12 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Video, Image as ImageIcon, Wand2, Copy, Check, Loader2, X, Clock, History, Sparkles, ChevronRight, ChevronDown, ChevronUp, Trash2, Clapperboard } from 'lucide-react';
+import { Video, Image as ImageIcon, Wand2, Copy, Check, Loader2, X, Clock, History, Sparkles, ChevronRight, ChevronDown, ChevronUp, Trash2, Clapperboard, Layers } from 'lucide-react';
 import { ImageUploader } from '../components/ImageUploader';
 import { GirlfriendSelector } from '../components/GirlfriendSelector';
 import { ParameterSlider } from '../components/ParameterSlider';
 import { ParameterSelect } from '../components/ParameterSelect';
 import { GenerateButton } from '../components/GenerateButton';
 import { VideoTaskList } from '../components/VideoTaskList';
-import { uploadImage } from '../services/runninghub';
+import { uploadImage, WORKFLOW } from '../services/runninghub';
 import { expandVideoFromImage, streamExpandPrompt, streamRandomPrompt } from '../services/promptApi';
 import { parseStoryboardScript, toVideoScriptPanels, type ParsedScriptPanel } from '../utils/scriptParser';
 import { getYunwuKey } from '../services/storage';
@@ -33,6 +33,28 @@ const LORA_HIGH_OPTIONS = [
 
 const LORA_LOW_OPTIONS = [
   { value: 'SmoothMixAnimation_Low.safetensors', label: 'SmoothMixAnimation_Low (默认)' },
+];
+
+// MiniMax H3 constants
+const MINIMAX_VIDEO_MODEL_OPTIONS = [
+  { value: 'DasiwaMinimaxH3_dasiwaREF2VAHybridV1_0.safetensors', label: 'MiniMax H3 (默认)' },
+];
+
+const MINIMAX_LORA_OPTIONS = [
+  { value: 'MysticXXX_MMH3-V1.safetensors', label: 'MysticXXX_MMH3-V1 (默认)' },
+];
+
+const MINIMAX_STYLE_OPTIONS = [
+  { value: '1', label: '风格1' },
+  { value: '2', label: '风格2' },
+  { value: '3', label: '风格3' },
+];
+
+const MINIMAX_DURATION_OPTIONS = [
+  { value: '5', label: '5秒' },
+  { value: '10', label: '10秒' },
+  { value: '15', label: '15秒' },
+  { value: '20', label: '20秒' },
 ];
 
 interface ImageToVideoPageProps {
@@ -841,9 +863,343 @@ function 历史图片选择器({ on选择, 当前图片路径 }: { on选择: (ur
   );
 }
 
+// ─── MiniMax H3 面板 ─────────────────────────────────────────────────────────
+
+interface MiniMaxH3PanelProps {
+  apiKey: string;
+  mmImages: { path: string; preview: string }[];
+  setMmImages: React.Dispatch<React.SetStateAction<{ path: string; preview: string }[]>>;
+  mmPrompt: string;
+  setMmPrompt: (v: string) => void;
+  mmDuration: string;
+  setMmDuration: (v: string) => void;
+  mmStrength: number;
+  setMmStrength: (v: number) => void;
+  mmStyleMode: string;
+  setMmStyleMode: (v: string) => void;
+  mmAutoPrompt: boolean;
+  setMmAutoPrompt: (v: boolean) => void;
+  mmDirectOutput: boolean;
+  setMmDirectOutput: (v: boolean) => void;
+  mmVideoModel: string;
+  setMmVideoModel: (v: string) => void;
+  mmLora: string;
+  setMmLora: (v: string) => void;
+  mmLoraWeight: number;
+  setMmLoraWeight: (v: number) => void;
+  mmUploading: boolean;
+  setMmUploading: (v: boolean) => void;
+  isSubmitting: boolean;
+  setIsSubmitting: (v: boolean) => void;
+  onError: (msg: string) => void;
+  onSuccess: (msg: string) => void;
+  taskListRef: React.RefObject<{ submitTask: (prompt: string, imagePath: string, imagePreview: string, nodeInfoList: NodeInfo[]) => void } | null>;
+}
+
+function MiniMaxH3Panel({
+  apiKey, mmImages, setMmImages, mmPrompt, setMmPrompt,
+  mmDuration, setMmDuration, mmStrength, setMmStrength,
+  mmStyleMode, setMmStyleMode, mmAutoPrompt, setMmAutoPrompt,
+  mmDirectOutput, setMmDirectOutput, mmVideoModel, setMmVideoModel,
+  mmLora, setMmLora, mmLoraWeight, setMmLoraWeight,
+  mmUploading, setMmUploading, isSubmitting, setIsSubmitting,
+  onError, onSuccess, taskListRef
+}: MiniMaxH3PanelProps) {
+
+  const handleImageUpload = async (file: File, index: number) => {
+    setMmUploading(true);
+    try {
+      const objectUrl = URL.createObjectURL(file);
+      const { imagePath } = await uploadImage(apiKey, file);
+      setMmImages(prev => {
+        const updated = [...prev];
+        updated[index] = { path: imagePath, preview: objectUrl };
+        return updated;
+      });
+      onSuccess(`参考图 ${index + 1} 上传成功`);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : '上传失败');
+    } finally {
+      setMmUploading(false);
+    }
+  };
+
+  const handleImageRemove = (index: number) => {
+    setMmImages(prev => {
+      const updated = [...prev];
+      updated[index] = { path: '', preview: '' };
+      return updated;
+    });
+  };
+
+  const buildMiniMaxNodeList = (): NodeInfo[] => {
+    const nodeList: NodeInfo[] = [
+      { nodeId: '238', fieldName: 'value', fieldValue: String(mmStrength), description: '强度' },
+      { nodeId: '185', fieldName: 'value', fieldValue: mmDuration, description: '时长' },
+      { nodeId: '182', fieldName: 'select', fieldValue: mmStyleMode, description: '风格模式' },
+      { nodeId: '127', fieldName: 'value', fieldValue: String(!mmAutoPrompt), description: '自动提示词' },
+      { nodeId: '38', fieldName: 'prompt', fieldValue: mmPrompt, description: '提示词' },
+      { nodeId: '19', fieldName: 'unet_name', fieldValue: mmVideoModel, description: '视频模型' },
+      { nodeId: '111', fieldName: 'lora_name', fieldValue: mmLora, description: 'LoRA模型' },
+      { nodeId: '111', fieldName: 'strength_model', fieldValue: String(mmLoraWeight), description: 'LoRA权重' },
+    ];
+
+    // Add images (up to 3)
+    const imageNodeIds = ['50', '76', '79'];
+    mmImages.forEach((img, idx) => {
+      if (img.path) {
+        nodeList.push({
+          nodeId: imageNodeIds[idx],
+          fieldName: 'image',
+          fieldValue: img.path,
+          description: `参考图${idx + 1}`
+        });
+      }
+    });
+
+    return nodeList;
+  };
+
+  const handleSubmit = () => {
+    if (mmImages.length === 0 || !mmImages[0]?.path) {
+      onError('请至少上传一张参考图');
+      return;
+    }
+    if (mmSubmitting) return;
+    setMmSubmitting(true);
+    setIsSubmitting(true);
+
+    const nodeList = buildMiniMaxNodeList();
+    const preview = mmImages[0]?.preview || '';
+
+    taskListRef.current?.submitTask(mmPrompt, mmImages[0]?.path || '', preview, nodeList, WORKFLOW.MINIMAX_H3);
+    onSuccess('任务已提交');
+    setMmSubmitting(false);
+    setIsSubmitting(false);
+  };
+
+  // We need a local submitting state that syncs with parent
+  const [mmSubmitting, setMmSubmitting] = useState(false);
+
+  return (
+    <div className="space-y-4">
+      {/* 参考图上传 - 支持最多3张 */}
+      <div className="rounded-xl bg-bg-surface border border-border p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-medium text-text-primary flex items-center gap-2">
+            <ImageIcon size={16} className="text-purple-500" />
+            参考图（最多3张）
+          </h3>
+          <span className="text-xs text-text-tertiary">
+            {mmImages.filter(img => img.path).length}/3
+          </span>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          {[0, 1, 2].map(idx => (
+            <div key={idx} className="relative">
+              {mmImages[idx]?.preview ? (
+                <div className="relative aspect-square rounded-xl overflow-hidden border-2 border-purple-200 bg-bg-elevated">
+                  <img
+                    src={mmImages[idx].preview}
+                    alt={`参考图${idx + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                  <button
+                    onClick={() => handleImageRemove(idx)}
+                    className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-colors"
+                    disabled={isSubmitting}
+                  >
+                    <X size={12} />
+                  </button>
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1">
+                    <span className="text-[10px] text-white/90">参考图 {idx + 1}</span>
+                  </div>
+                </div>
+              ) : (
+                <label className="relative flex flex-col items-center justify-center aspect-square rounded-xl border-2 border-dashed border-border hover:border-purple-400 bg-bg-elevated cursor-pointer transition-colors">
+                  {mmUploading ? (
+                    <Loader2 size={20} className="text-purple-400 animate-spin" />
+                  ) : (
+                    <>
+                      <ImageIcon size={20} className="text-text-tertiary" />
+                      <span className="text-[10px] text-text-tertiary mt-1">上传</span>
+                    </>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleImageUpload(file, idx);
+                    }}
+                    disabled={isSubmitting || mmUploading}
+                  />
+                </label>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <p className="text-[11px] text-text-tertiary mt-2">
+          第一张图将作为视频首帧，后续图片作为动作参考
+        </p>
+      </div>
+
+      {/* 提示词 */}
+      <div className="rounded-xl bg-bg-surface border border-border p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-medium text-text-primary">提示词</h3>
+          {/* 自动提示词开关 */}
+          <button
+            onClick={() => setMmAutoPrompt(!mmAutoPrompt)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              mmAutoPrompt ? 'bg-green-500/20 text-green-600 border border-green-300' : 'bg-bg-elevated text-text-tertiary'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full ${mmAutoPrompt ? 'bg-green-500' : 'bg-text-tertiary'}`} />
+            自动提示词 {mmAutoPrompt ? '开启' : '关闭'}
+          </button>
+        </div>
+        <textarea
+          value={mmPrompt}
+          onChange={(e) => setMmPrompt(e.target.value)}
+          placeholder={mmAutoPrompt ? '开启自动提示词，可不填或填写简单描述' : '描述视频中的人物动作、表情、场景变化...'}
+          rows={4}
+          className="w-full px-3 py-2 rounded-lg bg-bg-elevated border border-border text-sm text-text-primary placeholder-slate-500 focus:outline-none focus:border-purple-400/50 resize-none"
+          disabled={isSubmitting}
+        />
+      </div>
+
+      {/* 风格设置 */}
+      <div className="rounded-xl bg-bg-surface border border-border p-4">
+        <h3 className="text-sm font-medium text-text-primary mb-3">风格设置</h3>
+        <div className="space-y-3">
+          {/* 风格模式选择 */}
+          <div>
+            <label className="text-xs text-text-secondary mb-1.5 block">风格模式</label>
+            <div className="flex gap-2">
+              {MINIMAX_STYLE_OPTIONS.map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => setMmStyleMode(opt.value)}
+                  className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${
+                    mmStyleMode === opt.value
+                      ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                      : 'bg-bg-elevated text-text-secondary hover:bg-bg-hover'
+                  }`}
+                  disabled={isSubmitting}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 时长 */}
+          <div className="grid grid-cols-4 gap-2">
+            <div className="col-span-1">
+              <ParameterSelect
+                label="时长"
+                value={mmDuration}
+                options={MINIMAX_DURATION_OPTIONS}
+                onChange={setMmDuration}
+                disabled={isSubmitting}
+              />
+            </div>
+            <div className="col-span-3">
+              <ParameterSlider
+                label="强度"
+                value={mmStrength}
+                min={0.1}
+                max={1}
+                step={0.1}
+                onChange={setMmStrength}
+                disabled={isSubmitting}
+              />
+            </div>
+          </div>
+
+          {/* 输出格式 */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setMmDirectOutput(!mmDirectOutput)}
+              className={`w-10 h-6 rounded-full transition-colors relative ${mmDirectOutput ? 'bg-text-tertiary' : 'bg-purple-500'}`}
+              disabled={isSubmitting}
+            >
+              <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${mmDirectOutput ? 'translate-x-1' : 'translate-x-5'}`} />
+            </button>
+            <span className="text-xs text-text-secondary">
+              直出模式 {mmDirectOutput ? '（直出视频）' : '（ZIP格式，默认开启）'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* 视频模型配置 */}
+      <div className="rounded-xl bg-bg-surface border border-border p-4">
+        <h3 className="text-sm font-medium text-text-primary mb-3">视频模型配置</h3>
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 gap-3">
+            <ParameterSelect
+              label="视频模型"
+              value={mmVideoModel}
+              options={MINIMAX_VIDEO_MODEL_OPTIONS}
+              onChange={setMmVideoModel}
+              disabled={isSubmitting}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* LoRA配置 */}
+      <div className="rounded-xl bg-bg-surface border border-border p-4">
+        <h3 className="text-sm font-medium text-text-primary mb-3">LoRA配置</h3>
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 gap-3">
+            <ParameterSelect
+              label="LoRA模型"
+              value={mmLora}
+              options={MINIMAX_LORA_OPTIONS}
+              onChange={setMmLora}
+              disabled={isSubmitting}
+            />
+          </div>
+          <ParameterSlider
+            label="LoRA权重"
+            value={mmLoraWeight}
+            min={0.1}
+            max={1}
+            step={0.1}
+            onChange={setMmLoraWeight}
+            disabled={isSubmitting}
+          />
+        </div>
+      </div>
+
+      {/* 生成按钮 */}
+      <div className="pt-2 pb-4">
+        <GenerateButton
+          onClick={handleSubmit}
+          isLoading={isSubmitting}
+          disabled={!mmImages[0]?.path || isSubmitting || mmUploading}
+          label={mmUploading ? '上传中...' : isSubmitting ? '提交中...' : '生成视频'}
+        />
+      </div>
+    </div>
+  );
+}
+
 // ─── 主页面 ────────────────────────────────────────────────────────────────
 
+type VideoModel = 'wan22' | 'minimaxh3';
+
 export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPageProps) {
+  // Model selector
+  const [videoModel, setVideoModel] = useState<VideoModel>('wan22');
+
+  // Wan 2.2 state
   const [imagePath, setImagePath] = useState('');
   const [imagePreview, setImagePreview] = useState('');
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -859,6 +1215,19 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
   const [isReuploading, setIsReuploading] = useState(false);
   // Spinner state for the 视频参数 → 提示词 textarea "智能扩写" button.
   const [isExpandingPrompt, setIsExpandingPrompt] = useState(false);
+
+  // MiniMax H3 state
+  const [mmImages, setMmImages] = useState<{ path: string; preview: string }[]>([]);
+  const [mmPrompt, setMmPrompt] = useState('');
+  const [mmDuration, setMmDuration] = useState('15');
+  const [mmStrength, setMmStrength] = useState(0.6);
+  const [mmStyleMode, setMmStyleMode] = useState('1');
+  const [mmAutoPrompt, setMmAutoPrompt] = useState(true); // true = 开启自动提示词
+  const [mmDirectOutput, setMmDirectOutput] = useState(false); // false = ZIP (默认开)
+  const [mmVideoModel, setMmVideoModel] = useState('DasiwaMinimaxH3_dasiwaREF2VAHybridV1_0.safetensors');
+  const [mmLora, setMmLora] = useState('MysticXXX_MMH3-V1.safetensors');
+  const [mmLoraWeight, setMmLoraWeight] = useState(0.4);
+  const [mmUploading, setMmUploading] = useState(false);
 
   const [selectedGirlfriend, setSelectedGirlfriend] = useState<GirlfriendPreset | null>(null);
   const [girlfriendUploading, setGirlfriendUploading] = useState(false);
@@ -1179,6 +1548,75 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
         maxTasks={10}
       />
 
+      {/* 视频模型选择器 */}
+      <div className="rounded-xl bg-bg-surface border border-border p-4">
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-text-primary flex items-center gap-2">
+            <Layers size={16} className="text-primary" />
+            视频模型
+          </span>
+          <div className="flex bg-bg-elevated rounded-xl p-1">
+            <button
+              onClick={() => setVideoModel('wan22')}
+              className={`px-4 py-2 rounded-lg text-xs font-medium transition-all ${
+                videoModel === 'wan22'
+                  ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-sm'
+                  : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              Wan 2.2
+            </button>
+            <button
+              onClick={() => setVideoModel('minimaxh3')}
+              className={`px-4 py-2 rounded-lg text-xs font-medium transition-all ${
+                videoModel === 'minimaxh3'
+                  ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-sm'
+                  : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              MiniMax H3
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* MiniMax H3 UI */}
+      {videoModel === 'minimaxh3' && (
+        <MiniMaxH3Panel
+          apiKey={apiKey}
+          mmImages={mmImages}
+          setMmImages={setMmImages}
+          mmPrompt={mmPrompt}
+          setMmPrompt={setMmPrompt}
+          mmDuration={mmDuration}
+          setMmDuration={setMmDuration}
+          mmStrength={mmStrength}
+          setMmStrength={setMmStrength}
+          mmStyleMode={mmStyleMode}
+          setMmStyleMode={setMmStyleMode}
+          mmAutoPrompt={mmAutoPrompt}
+          setMmAutoPrompt={setMmAutoPrompt}
+          mmDirectOutput={mmDirectOutput}
+          setMmDirectOutput={setMmDirectOutput}
+          mmVideoModel={mmVideoModel}
+          setMmVideoModel={setMmVideoModel}
+          mmLora={mmLora}
+          setMmLora={setMmLora}
+          mmLoraWeight={mmLoraWeight}
+          setMmLoraWeight={setMmLoraWeight}
+          mmUploading={mmUploading}
+          setMmUploading={setMmUploading}
+          isSubmitting={isSubmitting}
+          setIsSubmitting={setIsSubmitting}
+          onError={onError}
+          onSuccess={onSuccess}
+          taskListRef={taskListRef}
+        />
+      )}
+
+      {/* Wan 2.2 UI */}
+      {videoModel === 'wan22' && (
+        <>
       {/* Girlfriend 选择器 */}
       <GirlfriendSelector
         selectedId={selectedGirlfriend ? (selectedGirlfriend.isCustom ? `custom_${selectedGirlfriend.id}` : selectedGirlfriend.id) : null}
@@ -1415,6 +1853,8 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
           }
         />
       </div>
+        </>
+      )}
     </div>
   );
 }
