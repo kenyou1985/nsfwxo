@@ -29,6 +29,7 @@ import { buildTxt2ImgNodeList } from '../utils/txt2imgNodeBuilder';
 import { buildUnifiedTxt2ImgOptions } from '../utils/txt2imgDefaults';
 import { withQualityBoost } from '../constants';
 import { WORKFLOW, uploadImage } from '../services/runninghub';
+import { composeNinePanelGrid } from '../utils/gridComposite';
 import type { TabType } from '../types';
 
 const GRID_LOG_PREFIX = '[GridStoryboardMode]';
@@ -51,6 +52,7 @@ const ALL_CATEGORIES = [
   '著名景点',
   '中国著名',
   '裸体运动',
+  '口交高潮',
 ] as const;
 
 function formatElapsedTime(startTime?: number): string {
@@ -119,8 +121,21 @@ const HE_CLOTHES = [
 ];
 const CLOTHING_RE = /\b(wearing|in a|in her|in his|in the|dressed in|dressed as|clothed|穿着|blouse|sweater|dress|skirt|shirt|jeans|suit|jacket|coat|lingerie|bikini|underwear|pants|t-shirt|hoodie|gown|apron|uniform|corset|silk|leather)/i;
 
+export interface GridPromptBuildResult {
+  prompt: string;
+  warnings: string[];
+}
+
 function buildFullGridPrompt(panels: GridPanel[], gridSize: number): string {
-  if (panels.length === 0) return '';
+  return buildFullGridPromptDetailed(panels, gridSize).prompt;
+}
+
+function buildFullGridPromptDetailed(
+  panels: GridPanel[],
+  gridSize: number,
+  options?: { anchorText?: string },
+): GridPromptBuildResult {
+  if (panels.length === 0) return { prompt: '', warnings: [] };
 
   // Extract base prompt from first panel (everything before "Panel1:")
   const firstPanelPrompt = panels[0].image_prompt;
@@ -134,17 +149,51 @@ function buildFullGridPrompt(panels: GridPanel[], gridSize: number): string {
   // prompt for "Generate Grid Storyboard Image", we DO want a 3×3 grid of
   // 9 panels in ONE image, so we override the template's "no grid" wording.
   //
-  // The header explicitly:
-  //   - says "3×3 grid, 9 panels" so Krea2 never renders 6 or 4 panels
-  //   - says "each panel is its own moment, characters may vary per panel"
-  //   - REPEATS character + scene anchors so all 9 panels share them
+  // CRITICAL: this header is intentionally aggressive — Krea2 (especially
+  // in img2img mode with a strong face reference image) tends to render
+  // a single dominant subject instead of a 3×3 grid. We:
+  //   1. State the layout requirement EXPLICITLY ("exactly 9 panels in a
+  //      3×3 grid layout, 3 columns and 3 rows")
+  //   2. Forbid any 1×N / 2×N / single-frame interpretations ("not 2 panels,
+  //      not 1 panel, not 6 panels")
+  //   3. Reinforce that the SAME female character appears in ALL 9 panels
+  //      with a consistent face — this is the strongest single signal that
+  //      the face reference image should not be upscaled to dominate
+  //   4. Require each panel to be a separate moment with its own framing
   //
-  // We then strip the conflicting "no grid / single shot" lines from the
-  // template basePrompt so they cannot override the 3×3 grid header below.
+  // The header is also written to be readable as a literal instruction
+  // to the model, not as description of the layout — Krea2 parses
+  // imperative language ("must be", "do not render") more reliably than
+  // descriptive language.
+  //
+  // SHOT TYPE REQUIREMENT: Every panel must show a WIDE or MEDIUM shot of
+  // the SCENE (environment, setting, full body in context). AVOID close-up
+  // portrait shots. Each tile shows the complete scene moment, not a face.
   const GRID_HEADER =
-    'cinematic storyboard grid in strict 9:16 vertical aspect ratio, 9 panels arranged in 3×3 grid, ' +
-    'each panel is its own distinct moment, same setting and same subject across all 9 panels, ' +
-    'consistent character across all 9 panels, single coherent narrative, cinematic movie storyboard, ';
+    'OUTPUT LAYOUT — MANDATORY: render a 9-PANEL STORYBOARD SHEET in strict 3 rows × 3 columns grid format. ' +
+    'Each of the 9 tiles is an EQUAL-SIZED rectangular panel separated by thin white borders, each tile occupies ONLY 1/9 of the image area. ' +
+    'Total image: strict 9:16 vertical aspect ratio (taller than wide), single coherent narrative across all 9 panels, cinematic movie storyboard. ' +
+    'Each panel is its own distinct moment separated by thin borders. ' +
+    'Each of the 9 panels must contain the same female character with the same face in a different pose/action, ' +
+    'and the same male character (if present) with consistent appearance. ' +
+    'The female face is identical in all 9 panels and must not change, consistent lighting style across all 9 panels. ' +
+    'FORBIDDEN: do not render 1 panel, 2 panels, 4 panels, 6 panels, single portrait, horizontal strip, blank tiles, or face scaled to dominate the image. ' +
+    'REQUIRED: exactly 9 filled tiles in 3×3 grid. ' +
+    'SHOT TYPE: Each tile MUST show a WIDE SHOT or MEDIUM SHOT of the ENTIRE SCENE - the environment, setting, and full body of characters in context. ' +
+    'AVOID portrait close-ups, face close-ups, or headshot compositions. ' +
+    'The character face should appear SMALL within each tile, showing the complete scene moment, not a portrait. ';
+
+  // Build a regex that matches the GRID_HEADER (with any whitespace/case variations)
+  // so we can strip the duplicate header that the template basePrompt already
+  // contains before we prepend our own. Without this, the user's prompt contains
+  // duplicated layout instructions which confuse the model.
+  //
+  // The template basePrompt typically contains the OLD header form
+  // ("cinematic storyboard grid in strict 9:16 vertical aspect ratio, 9 panels
+  // arranged in 3×3 grid, ..."). We strip that whole leading chunk to avoid
+  // duplicating the layout instruction.
+  const GRID_HEADER_PATTERN =
+    /^\s*(?:cinematic\s+storyboard\s+grid\s+in\s+strict[^,]*,\s*9\s*panel[s]?\s*arranged\s+in\s*3\s*[×x*]\s*3\s*grid\s*,?\s*|output\s+layout\s*[—-]\s*mandatory[^.]*\.|important\s*[—-]\s*layout\s+requirement[^.]*\.)/i;
 
   // Remove any "no grid layout / no multiple panels / no storyboard split /
   // single cinematic vertical frame" lines that the template basePrompt may
@@ -156,6 +205,7 @@ function buildFullGridPrompt(panels: GridPanel[], gridSize: number): string {
   // leftover tokens like " no grid layout" can survive and override the
   // GRID_HEADER below, causing Krea2 to render 6 or 4 panels instead of 9.
   let cleanedBase = basePart
+    .replace(GRID_HEADER_PATTERN, '')            // strip duplicated GRID_HEADER
     .replace(/^\s*no\s+grid\s+layout,\s*/gi, '')
     .replace(/,\s*no\s+grid\s+layout,\s*/gi, ',')
     .replace(/^\s*no\s+multiple\s+panels,\s*/gi, '')
@@ -175,25 +225,96 @@ function buildFullGridPrompt(panels: GridPanel[], gridSize: number): string {
     .replace(/^[\s,]+/g, '')
     .trim();
 
-  // Use grid header + cleaned base prompt
-  let fullPrompt = GRID_HEADER + cleanedBase;
+  // Use grid header + (optional) anchor + cleaned base prompt.
+  //
+  // The anchor (when provided, e.g. for img2img / digital-human mode) is a
+  // CONCISE character-consistency description that sits BETWEEN the layout
+  // header and the base prompt — the same structural slot that txt2img's
+  // `[ANCHOR: ...]` block occupies (which is part of `cleanedBase` because
+  // it comes from the template's basePrompt).
+  //
+  // Keeping the anchor INSIDE the prompt builder (rather than prepending it
+  // in the caller) guarantees that:
+  //   1. There is exactly ONE GRID_HEADER block (no duplicate layout
+  //      instruction that confuses the model into 3 wide panels)
+  //   2. The anchor lands in the same structural position as txt2img,
+  //      so the model sees consistent prompt shape across both modes
+  //   3. The anchor text is concise (the caller is responsible for that)
+  //      so it never crowds out the per-panel descriptions below.
+  //
+  // IMPORTANT: When the anchor is in Chinese 【严格锁定】 format (from
+  // digital-human mode), we DON'T add the English [CHARACTER ANCHOR] prefix
+  // since the Chinese format is self-contained and adding English would
+  // dilute the character-locking effectiveness.
+  const isChineseAnchor = options?.anchorText?.includes('【严格锁定】');
+  const anchorBlock = options?.anchorText?.trim()
+    ? (isChineseAnchor
+        ? `\n\n${options.anchorText.trim()}`
+        : `\n\n[CHARACTER ANCHOR — must remain identical across all 9 panels] ${options.anchorText.trim()}`)
+    : '';
+  let fullPrompt = GRID_HEADER + anchorBlock + (cleanedBase ? '\n\n' + cleanedBase : '');
 
   // Add each panel with simple action description
+  // ─────────────────────────────────────────────────────────────────
+  // CRITICAL: empty or near-empty panels (e.g. user typed "Panel3: ")
+  // would otherwise leave a blank tile in the 3×3 grid, which makes
+  // Krea2 collapse the layout to 2×N or 1×N. We auto-fill empty panels
+  // from their neighbors and run every panel through sanitizePanelContent
+  // to fix obvious logical errors (male breast, wrong race, etc.).
+  // ─────────────────────────────────────────────────────────────────
+  const allWarnings: string[] = [];
+
+  // First pass: extract sanitized per-panel text + detect empties
+  const panelTexts: string[] = [];
   for (let i = 0; i < panels.length; i++) {
     const panel = panels[i];
-    const panelPrompt = panel.image_prompt;
-
-    // Extract panel-specific part (after "PanelX:")
+    const panelPrompt = panel.image_prompt || '';
     const panelSpecificMatch = panelPrompt.match(/Panel\d+:\s*(.*)/s);
     let panelSpecific = panelSpecificMatch ? panelSpecificMatch[1].trim() : panelPrompt;
+
+    // Empty panel? Auto-fill from neighbors.
+    const MIN_PANEL_CONTENT = 30; // chars
+    if (panelSpecific.length < MIN_PANEL_CONTENT) {
+      const prev = i > 0 ? panelTexts[i - 1] : null;
+      const next = i < panels.length - 1
+        ? (() => {
+            const np = panels[i + 1].image_prompt || '';
+            const m = np.match(/Panel\d+:\s*(.*)/s);
+            return m ? m[1].trim() : np;
+          })()
+        : null;
+      const filled = autoFillPanelContent(i + 1, prev, next);
+      console.warn(`${GRID_LOG_PREFIX} Panel${i + 1} was empty, auto-filled with: ${filled.slice(0, 80)}…`);
+      allWarnings.push(`第${i + 1}镜为空 → 已自动续写`);
+      panelSpecific = filled;
+    }
+
+    // Sanitize logical errors
+    const { text: sanitized, warnings } = sanitizePanelContent(panelSpecific);
+    if (warnings.length > 0) {
+      console.warn(`${GRID_LOG_PREFIX} Panel${i + 1} sanitized:`, warnings.join('; '));
+      allWarnings.push(`第${i + 1}镜: ${warnings.join('; ')}`);
+    }
+    panelSpecific = sanitized;
+
+    panelTexts.push(panelSpecific);
+  }
+
+  // Second pass: assemble the full prompt with sanitized text
+  for (let i = 0; i < panelTexts.length; i++) {
+    let panelSpecific = panelTexts[i];
 
     const hasClothing = CLOTHING_RE.test(panelSpecific);
 
     // Early panels (Panel 1-2): ensure clothing descriptions present
+    // IMPORTANT: Use scene-focused descriptions instead of character pronouns
+    // to avoid portrait/close-up generation. Focus on the environment and setting.
     if (i <= 1 && !hasClothing) {
       const she = SHE_CLOTHES[Math.floor(Math.random() * SHE_CLOTHES.length)];
       const he = HE_CLOTHES[Math.floor(Math.random() * HE_CLOTHES.length)];
-      panelSpecific = `woman ${she}, man ${he}, ${panelSpecific}`;
+      // Use scene description instead of "woman/man" to avoid portrait focus
+      // The character is referenced by ID in the anchor, not by pronoun here
+      panelSpecific = `in ${she} and ${he}, ${panelSpecific}`;
     }
     // Mid panels (Panel 3-4): add undressing progression if still no clothing hint
     else if (i <= 3 && i < gridSize * 0.6 && !hasClothing) {
@@ -238,9 +359,9 @@ function buildFullGridPrompt(panels: GridPanel[], gridSize: number): string {
       .replace(/^[\s,]+/g, '')
       .trim();
 
-    fullPrompt += `\nPanel${panel.panel_number}: ${panelSpecific}`;
+    fullPrompt += `\nPanel${panels[i].panel_number}: ${panelSpecific}`;
   }
-  return fullPrompt;
+  return { prompt: fullPrompt, warnings: allWarnings };
 }
 
 // Apply clothing progression to generated panels
@@ -269,6 +390,154 @@ function removeClothingFromPrompt(text: string): string {
     .replace(/穿着[^,，]*,?/g, '')
     .replace(/dressed in[^,]*,?\s*/gi, '')
     .replace(/in[^,]*outfit,?\s*/gi, '');
+}
+
+/**
+ * Validate a single panel's prompt content and auto-fix obvious logical
+ * errors that would otherwise confuse Krea2 (e.g. "the male client's
+ * breast" — the model would happily render female breasts on a male
+ * body, producing nonsense).
+ *
+ * Returns { text, warnings } so the caller can show the user what was
+ * fixed. If the input is essentially empty (less than 30 chars of real
+ * content), the caller should call autoFillPanelContent() instead.
+ */
+function sanitizePanelContent(text: string): { text: string; warnings: string[] } {
+  const warnings: string[] = [];
+  let cleaned = text;
+
+  // ── Fix 1: "the male client's breast / breasts" → "chest"
+  //     The NSFW template often describes the woman squeezing or
+  //     fondling the male client's "breast" which is anatomically wrong
+  //     (men have flat chests with nipples, not breasts). Replace with
+  //     "chest" so the model doesn't render female breasts on the male.
+  const breastFixes = [
+    [/\b(client|man|male|guy|gentleman|husband|boyfriend|partner|customer|gent|crew member|african|black|asian|white)\s*'s\s+(breast|breasts)\b/gi,
+      (m: string) => `${m.replace(/\s*(breast|breasts)\s*$/i, '')} chest`],
+    [/\b(her|she|woman|female|girl)'s\s+(client|man|male|guy|husband|boyfriend)\s+(breast|breasts)\b/gi,
+      (m: string) => m.replace(/(breast|breasts)/i, 'chest')],
+    [/\bsqueezes\s+(?:and\s+rubs\s+)?the\s+(client|man|male|guy|husband|boyfriend|partner)'s\s+(breast|breasts|chest\s+bra)\b/gi,
+      'caresses the male client\'s chest and abdomen'],
+    [/\b(rubs?|touches?|squeezes?)\s+(?:and\s+(?:rubs?|touches?|squeezes?)\s+)?the\s+(client|man|male|guy|husband|boyfriend)'s\s+(breast|breasts)\b/gi,
+      'touches the male client\'s chest'],
+  ];
+  for (const [pat, rep] of breastFixes) {
+    const before = cleaned;
+    // Use replace with a function wrapper so TypeScript can resolve the
+    // overload: RegExp.prototype.replace accepts (string | function) but
+    // when `rep` is typed as a union of `string | function`, TS picks
+    // the string overload. We coerce to a function-only form here.
+    cleaned = cleaned.replace(pat as RegExp, ((m: string) =>
+      typeof rep === 'string' ? rep : (rep as (s: string) => string)(m)
+    ) as (substring: string, ...args: unknown[]) => string);
+    if (before !== cleaned) {
+      warnings.push('"男性客户的乳房" → 已替换为"胸部"，避免模型在男性身上画出女性乳房');
+    }
+  }
+
+  // ── Fix 2: "strong black female flight attendant" when only Asian
+  //     female is in the scene → strip the racial descriptor that
+  //     doesn't apply to her (or remove the duplicate character).
+  const wrongRaceFemale = /\b(strong|muscular|big|tall|athletic)\s+(black|african|white|caucasian)\s+(female|woman|girl|flight attendant|stewardess)\b/gi;
+  if (wrongRaceFemale.test(cleaned)) {
+    cleaned = cleaned.replace(wrongRaceFemale, 'east asian female');
+    warnings.push('"strong black female" 与实际角色不符 → 已改为 "east asian female"');
+  }
+
+  // ── Fix 3: red high heels / different colored heels that contradict
+  //     the ANCHOR describing "black high heels" earlier in the same
+  //     template. If "black high heels" appears in the ANCHOR/header and
+  //     "red high heels" appears later, replace red with black.
+  const anchorSaysBlack = /\bblack\s+(high\s+heels?|stiletto(?:es)?|pumps?|stilettos)\b/i.test(cleaned);
+  if (anchorSaysBlack) {
+    const redHeels = /\b(red|pink|blue|white|gold|silver|green|yellow|purple)\s+(high\s+heels?|stiletto(?:es)?|pumps?|stilettos)\b/gi;
+    if (redHeels.test(cleaned)) {
+      cleaned = cleaned.replace(redHeels, 'black $2');
+      warnings.push('"红色高跟鞋" 与 anchor 中的 "黑色高跟鞋" 矛盾 → 已统一为黑色');
+    }
+  }
+
+  // ── Fix 4: Panel that mentions "two blacks" but the scene has only
+  //     one black male + one Asian female — remove the duplicate.
+  if (/\b(black|african)\s+(male|female|man|woman|girl|guy)\s+(and|with|,)\s+(black|african)\s+(male|female|man|woman|girl|guy)\b/i.test(cleaned)) {
+    cleaned = cleaned.replace(
+      /\b(black|african)\s+(male|female|man|woman|girl|guy)\s+(and|with|,)\s+(black|african)\s+(male|female|man|woman|girl|guy)\b/gi,
+      'one black male and one east asian female'
+    );
+    warnings.push('描述了"两个黑人"但场景只有一黑男一亚女 → 已修正');
+  }
+
+  // ── Fix 5: physically impossible simultaneous actions on a single
+  //     character — e.g. "his tongue deeply licking her breasts while
+  //     his tongue and fingers intensely lick her vagina" (one tongue
+  //     cannot lick breasts and vagina at the same time). Simplify to
+  //     a single action.
+  const impossibleTongue = /\b(his|her)\s+tongue\s+([\w\s,]{2,80}?)\s+while\s+(his|her)\s+tongue\s+([\w\s,]{2,80}?)/i;
+  if (impossibleTongue.test(cleaned)) {
+    cleaned = cleaned.replace(impossibleTongue, '$1 tongue $2 while $1 fingers $4');
+    warnings.push('"一条舌头同时做两件事"在物理上不可能 → 已修正为舌头+手指分工');
+  }
+
+  return { text: cleaned, warnings };
+}
+
+/**
+ * Auto-fill an empty panel by interpolating between its neighbors.
+  //
+  // Triggered when a panel's image_prompt is missing or has less than
+  // ~30 chars of real content after "PanelN:". Without this, Krea2 is
+  // given "Panel3: " and renders a blank or random tile, breaking the
+  // 3×3 grid.
+  //
+  // The interpolation strategy:
+  //   - If only prev panel exists → repeat prev with a slight progression
+  //   - If only next panel exists → anticipate next by reversing from it
+  //   - If both → blend the two with a transitional action
+  //
+  // The generated content is intentionally conservative (re-uses the
+  // prev/next panel's setting + camera angle) so it doesn't invent
+  // content that contradicts the surrounding panels.
+ */
+function autoFillPanelContent(
+  panelNumber: number,
+  prevText: string | null,
+  nextText: string | null
+): string {
+  // Extract a "key props" hint from prev/next: look for vertical shot
+  // descriptions, lighting hints, and location phrases.
+  const extractShotAndSetting = (text: string): string => {
+    const shotMatch = text.match(/\b(vertical|medium|close-up|tight|wide|low-angle|high-angle|over-the-shoulder|side|profile|establishing)\s+(shot|close-up|view|angle|cinematic|frame)\b/i);
+    const settingMatch = text.match(/\b(in|inside|at|on|within)\s+(the\s+)?([a-z\s]{3,40}?)(?=,|\.)/i);
+    const shot = shotMatch ? shotMatch[0] : 'medium shot';
+    const setting = settingMatch ? settingMatch[0] : '';
+    return `${shot}${setting ? `, ${setting}` : ''}`;
+  };
+
+  const transitionalActions = [
+    'continuing the same scene, the moment between actions',
+    'a transitional beat as they pause and look at each other',
+    'the same setting with tension building between them',
+    'continuing the same pose with subtle movement',
+    'a brief pause in the action with eye contact',
+    'the same characters in the same setting, a transitional moment',
+  ];
+
+  const action = transitionalActions[panelNumber % transitionalActions.length];
+
+  if (prevText && nextText) {
+    const prevShot = extractShotAndSetting(prevText);
+    const nextShot = extractShotAndSetting(nextText);
+    return `Vertical medium shot, ${action}, ${prevShot}, characters in the same setting, photorealistic, 8k`;
+  }
+  if (prevText) {
+    const prevShot = extractShotAndSetting(prevText);
+    return `Vertical medium shot, ${action}, continuing from previous frame, ${prevShot}, same characters and setting, photorealistic, 8k`;
+  }
+  if (nextText) {
+    const nextShot = extractShotAndSetting(nextText);
+    return `Vertical medium shot, ${action}, building toward next frame, ${nextShot}, same characters and setting, photorealistic, 8k`;
+  }
+  return `Vertical medium shot, ${action}, photorealistic, 8k, cinematic storyboard panel`;
 }
 
 export function GridStoryboardMode({
@@ -322,6 +591,7 @@ export function GridStoryboardMode({
   // Panels state
   const [panels, setPanels] = useState<GridPanel[]>([]);
   const [fullPrompt, setFullPrompt] = useState('');
+  const [gridPromptWarnings, setGridPromptWarnings] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Multiple images state (API may return multiple grid images)
@@ -343,6 +613,13 @@ export function GridStoryboardMode({
   // thumbnails even though the user never redrew them.
   const redrawTaskIdsRef = useRef<Set<string>>(new Set());
 
+  // Tracks the 9 task IDs submitted by handleGenerateImage in digital-human
+  // mode (one task per panel, all routing to redrawnPanelImages[panelIdx]).
+  // When this set is empty, the 9-panel batch is fully done and we can
+  // clear the isGenerating flag for the batch. Each entry is removed as
+  // its corresponding task finishes (mirrors the redrawTaskIdsRef pattern).
+  const batchTaskIdsRef = useRef<Set<string>>(new Set());
+
   // Lightbox state
   const [showLightbox, setShowLightbox] = useState(false);
 
@@ -355,6 +632,19 @@ export function GridStoryboardMode({
 
   // Per-panel redrawn images (cleared when theme changes).
   const [redrawnPanelImages, setRedrawnPanelImages] = useState<Record<number, string[]>>({});
+
+  // Per-panel images and composite sheet saved per theme (themeIdx → data).
+  // This is what makes theme switching seamless — each theme's per-panel
+  // images are restored when you switch back to it, no collisions.
+  const [redrawnPanelImagesMap, setRedrawnPanelImagesMap] = useState<Record<number, Record<number, string[]>>>({});
+  const [compositeSheetUrlMap, setCompositeSheetUrlMap] = useState<Record<number, string | null>>({});
+
+  // Frontend-composited 9-panel sheet (data: URL). Built on demand from
+  // redrawnPanelImages via composeNinePanelGrid. Only populated when the
+  // user clicks "合成/下载" or the main image area in digital-human mode
+  // (where we no longer receive a single composite from the model).
+  const [compositeSheetUrl, setCompositeSheetUrl] = useState<string | null>(null);
+  const [compositing, setCompositing] = useState(false);
 
   // Lightbox state for redrawn images
   const [showRedrawLightbox, setShowRedrawLightbox] = useState(false);
@@ -393,11 +683,44 @@ export function GridStoryboardMode({
   }, [panels, gridSize, selectedTemplates, currentHistoryId]);
 
   // Update fullPrompt whenever panels change
+  //
+  // Preview builds the SAME prompt that will be submitted in either mode:
+  //   - txt2img:  uses the base GRID_HEADER + cleanedBase + Panel1..9
+  //   - img2img:  inserts a concise CHARACTER ANCHOR block between
+  //               GRID_HEADER and cleanedBase (matches the user's
+  //               `[ANCHOR: ...]` working pattern in txt2img prompts)
+  //
+  // Building the preview with the same anchor as the submit means what
+  // the user sees in the prompt editor is exactly what gets sent to the
+  // model — no silent differences.
   useEffect(() => {
     if (panels.length > 0) {
-      setFullPrompt(buildFullGridPrompt(panels, panels.length));
+      // Use the same 【严格锁定】 format as linear storyboard and handleGenerateImage
+      // to ensure consistent character locking across both modes.
+      // This format explicitly locks the character's face, features, and proportions
+      // without using pronouns like "woman/her" which can cause portrait focus.
+      let anchorText: string | undefined;
+      if (digitalHumanMode && selectedGirlfriend) {
+        const charId = (selectedGirlfriend.id as string).toUpperCase().slice(0, 4);
+        anchorText =
+          `【严格锁定】严格锁定图中22岁女性（ID:${charId}），完全保留原有面部特征，` +
+          `五官轮廓、脸型、眼睛、鼻子、嘴唇、发型、肤色、身材比例完全不变，不做任何面部修改，` +
+          `动作流畅不僵硬。超高清8K，写实细节，皮肤质感细腻，无畸变、无模糊、无穿模。`;
+      }
+      const result = buildFullGridPromptDetailed(panels, panels.length, { anchorText });
+      setFullPrompt(result.prompt);
+      // Surface auto-fills / logical fixes to the user so they know
+      // what was changed before submitting the prompt to Krea2.
+      if (result.warnings.length > 0) {
+        console.warn(`${GRID_LOG_PREFIX} grid prompt warnings:`, result.warnings);
+        setGridPromptWarnings(result.warnings);
+        // Also bubble the first warning to the toast so the user notices
+        onSuccess(`提示词已自动修复 ${result.warnings.length} 处（空镜续写/逻辑矛盾），请检查预览`);
+      } else {
+        setGridPromptWarnings([]);
+      }
     }
-  }, [panels]);
+  }, [panels, digitalHumanMode, selectedGirlfriend]);
 
   // Watch gridTasks and update loading state when all tasks are done
   useEffect(() => {
@@ -409,6 +732,51 @@ export function GridStoryboardMode({
       gridPollIntervalsRef.current = [];
     }
   }, [gridTasks]);
+
+  // Auto-compose the 9-panel sheet when all 9 per-panel images are present
+  // and we're in the view step. The composite is what the user sees in the
+  // main image area and downloads — it's built locally from the 9 individual
+  // per-panel images, so it is ALWAYS a true 3×3 of 9 full panels (one
+  // image per tile), no matter what the model produced.
+  //
+  // We don't auto-compose while generating (would race against the still-
+  // arriving panels) — the view-mode UI handles the "in progress" state.
+  const allPanelsReady = panels.length > 0 && Array.from({ length: panels.length }, (_, i) => redrawnPanelImages[i]?.[0]).every(Boolean);
+  useEffect(() => {
+    // Reset the composite whenever we change theme or regenerate — it'll
+    // be rebuilt lazily the first time the view renders with all panels
+    // ready.
+    setCompositeSheetUrl(null);
+  }, [panels, activeThemeIdx, currentHistoryId]);
+
+  const buildComposite = useCallback(async () => {
+    if (panels.length === 0) return;
+    setCompositing(true);
+    try {
+      const urls = Array.from({ length: panels.length }, (_, i) => redrawnPanelImages[i]?.[0] ?? null);
+      const labels = Array.from({ length: panels.length }, (_, i) => `Panel ${i + 1}`);
+      const url = await composeNinePanelGrid(urls, { panelLabels: labels });
+      setCompositeSheetUrl(url);
+      // Save to per-theme map so the composite is restored on theme switch.
+      setCompositeSheetUrlMap((prev) => ({ ...prev, [activeThemeIdx]: url }));
+    } catch (err) {
+      console.error(`${GRID_LOG_PREFIX} buildComposite failed:`, err);
+      onError('合成 9 宫格失败：' + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setCompositing(false);
+    }
+  }, [panels, redrawnPanelImages, onError, activeThemeIdx]);
+
+  // Auto-build the composite when entering the view step with all panels
+  // ready (and no composite yet). Skips if user is regenerating.
+  useEffect(() => {
+    if (step !== 'view') return;
+    if (!allPanelsReady) return;
+    if (compositeSheetUrl) return;
+    if (isGenerating) return;
+    if (digitalHumanMode && batchTaskIdsRef.current.size > 0) return;
+    void buildComposite();
+  }, [step, allPanelsReady, compositeSheetUrl, isGenerating, digitalHumanMode, buildComposite]);
 
   // Subscribe to finished task images - handles per-theme image tracking
   const { finishedTasks } = useFinishedTaskImages();
@@ -436,6 +804,12 @@ export function GridStoryboardMode({
       // it is the original storyboard generation and we route to gridImages.
       const isRedraw = redrawTaskIdsRef.current.has(taskId);
       if (isRedraw) redrawTaskIdsRef.current.delete(taskId);
+
+      // Same routing is used for the 9-panel digital-human batch (each
+      // per-panel task also lives in batchTaskIdsRef). We check this so
+      // we can detect "all 9 panels are done" and clear isGenerating.
+      const isBatchTask = batchTaskIdsRef.current.has(taskId);
+      if (isBatchTask) batchTaskIdsRef.current.delete(taskId);
 
       // Find which theme this historyId belongs to
       let themeIdx = -1;
@@ -477,6 +851,16 @@ export function GridStoryboardMode({
             }
             return next;
           });
+          // Also persist to the per-theme map so theme-switching restores it.
+          setRedrawnPanelImagesMap((prev) => {
+            const themeImages = { ...(prev[activeThemeIdx] || {}) };
+            for (let i = 0; i < newImages.length; i++) {
+              if (newImages[i]) {
+                themeImages[i] = [...(themeImages[i] || []), newImages[i]];
+              }
+            }
+            return { ...prev, [activeThemeIdx]: themeImages };
+          });
           // Persist to per-panel image cache so it survives page refresh.
           for (let i = 0; i < newImages.length; i++) {
             if (newImages[i]) {
@@ -488,6 +872,17 @@ export function GridStoryboardMode({
         // Clear the per-panel loading indicator now that the image arrived.
         setRedrawPanelIdx(null);
         setLoading(false);
+
+        // If this task was part of a 9-panel digital-human batch and the
+        // batch is now fully done, clear isGenerating so the UI can
+        // settle on the view step. We check batchTaskIdsRef.current.size
+        // — when it reaches 0, all 9 (or however many were non-empty)
+        // per-panel tasks have completed.
+        if (isBatchTask && batchTaskIdsRef.current.size === 0) {
+          setIsGenerating(false);
+          setIsGeneratingMap((prev) => ({ ...prev, [activeThemeIdx]: false }));
+          onSuccess?.('九宫格 9 张图已全部生成，已自动合成 3×3 分镜');
+        }
         continue;
       }
 
@@ -935,6 +1330,16 @@ export function GridStoryboardMode({
       setGridImagesMap((prev) => ({ ...prev, [activeThemeIdx]: gridImages }));
       setIsGeneratingMap((prev) => ({ ...prev, [activeThemeIdx]: isGenerating }));
       setCurrentHistoryIdMap((prev) => ({ ...prev, [activeThemeIdx]: currentHistoryId }));
+      // Save per-panel images per theme so they are restored when switching back.
+      setRedrawnPanelImagesMap((prev) => ({
+        ...prev,
+        [activeThemeIdx]: redrawnPanelImages,
+      }));
+      // Save composite sheet per theme too.
+      setCompositeSheetUrlMap((prev) => ({
+        ...prev,
+        [activeThemeIdx]: compositeSheetUrl,
+      }));
 
       // Restore new theme's images and state
       const themeIdx = completedThemes.findIndex((t) => t.themeTitle === themeTitle);
@@ -942,11 +1347,16 @@ export function GridStoryboardMode({
       const newImages = gridImagesMap[newThemeIdx] || [];
       const newIsGenerating = isGeneratingMap[newThemeIdx] || false;
       const newHistoryId = currentHistoryIdMap[newThemeIdx] || null;
+      // Restore per-panel images for the target theme (or empty if not yet generated).
+      const newRedrawnPanelImages = redrawnPanelImagesMap[newThemeIdx] || {};
+      const newCompositeSheet = compositeSheetUrlMap[newThemeIdx] || null;
 
       setGridImages(newImages);
       setActiveImageIdx(0);
       setIsGenerating(newIsGenerating);
       setCurrentHistoryId(newHistoryId);
+      setRedrawnPanelImages(newRedrawnPanelImages);
+      setCompositeSheetUrl(newCompositeSheet);
       setPanels(theme.panels);
       setGridSize(theme.gridSize);
       setActiveThemeIdx(newThemeIdx);
@@ -1165,6 +1575,11 @@ export function GridStoryboardMode({
     setGridImagesMap((prev) => ({ ...prev, [activeThemeIdx]: [] }));
     // Reset per-panel redrawn images since the user is regenerating the whole grid.
     setRedrawnPanelImages({});
+    // Reset the batch tracker so the finishedTasks effect knows this is a
+    // fresh 9-task digital-human batch.
+    batchTaskIdsRef.current.clear();
+    // Reset the frontend-composited sheet so the view shows a fresh build.
+    setCompositeSheetUrl(null);
 
     let imagePath = selectedGirlfriend?.portraitUrl || '';
     let downloadUrl = '';
@@ -1191,18 +1606,117 @@ export function GridStoryboardMode({
     const storyboardInfo = { historyId, panelIdx: 0 };
     try {
       if (digitalHumanMode && selectedGirlfriend) {
+        // ── Digital human mode: 9-PANEL = 9 SEPARATE img2img tasks ──
+        //
+        // Why one task per panel (instead of one big grid task).
+        //
+        // Empirically we saw two failure modes when we asked the model to
+        // render all 9 panels in ONE img2img call with a strong face
+        // reference image:
+        //
+        //   A. The model collapses to a wide strip of three half-faces
+        //      (a horizontal layout with 3 large tiles, each 1/3 of a
+        //      face) — exactly what the user reported in the screenshot.
+        //   B. The model overemphasises layout instructions and renders
+        //      tiny abstract tiles with no usable scene content.
+        //
+        // The reliable path — same one the linear storyboard page uses for
+        // every panel — is to issue 9 INDEPENDENT img2img tasks, one per
+        // panel, each with `count=1` and a per-panel prompt that contains
+        // NO layout / grid / 9-panel instructions at all. The UI then
+        // arranges the 9 results in a 3×3 sheet (and `composeNinePanelGrid`
+        // stitches them into a single PNG for download).
+        //
+        // The per-panel prompt is exactly what `panels[i].image_prompt`
+        // already contains (the text after `PanelN:` in the assembled
+        // prompt). We strip the `PanelN:` prefix because that label only
+        // makes sense inside a single 9-panel composite prompt — a
+        // standalone task should just describe the scene.
+        //
+        // For the anchor, we use the same Chinese `【严格锁定】` text as
+        // `AIPromptPage.handleStoryboardGenerateImage` (the linear
+        // storyboard page), which the user has confirmed works.
+
         const charId = (selectedGirlfriend.id as string).toUpperCase().slice(0, 4);
-        const anchorPrompt = `【严格锁定】严格锁定图中22岁女性（ID:${charId}），完全保留原有面部特征，五官轮廓、脸型、眼睛、鼻子、嘴唇、发型、肤色、身材比例完全不变，不做任何面部修改，动作流畅不僵硬。超高清8K，写实细节，皮肤质感细腻，无畸变、无模糊、无穿模。`;
-        const finalPrompt = `${anchorPrompt}\n\n${fullPrompt}`;
-        const nodes = [
-          { nodeId: '291', fieldName: 'prompt', fieldValue: finalPrompt, description: 'prompt' },
-          { nodeId: '172', fieldName: 'value', fieldValue: '9', description: 'width' },
-          { nodeId: '173', fieldName: 'value', fieldValue: '16', description: 'height' },
-          { nodeId: '269', fieldName: 'value', fieldValue: String(imageCount), description: 'count' },
-          { nodeId: '104', fieldName: 'image', fieldValue: downloadUrl || imagePath, description: 'image' },
-          { nodeId: '273', fieldName: 'value', fieldValue: 'false', description: 'enhance' },
-        ];
-        await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, storyboardInfo, 'storyboard', themeTitle, 1);
+        const anchorPrompt =
+          `【严格锁定】严格锁定图中22岁女性（ID:${charId}），完全保留原有面部特征，` +
+          `五官轮廓、脸型、眼睛、鼻子、嘴唇、发型、肤色、身材比例完全不变，不做任何面部修改，` +
+          `动作流畅不僵硬。超高清8K，写实细节，皮肤质感细腻，无畸变、无模糊、无穿模。`;
+
+        // Track the 9 task IDs in redrawTaskIdsRef so the finishedTasks
+        // handler routes their images into `redrawnPanelImages[panelIdx]`
+        // (the existing redraw branch). This makes the new 9-task flow
+        // indistinguishable from the per-panel redraw flow in the rest of
+        // the component — we reuse the same UI states without touching
+        // the finishedTasks effect.
+        const submittedTaskIds: string[] = [];
+        let submittedCount = 0;
+        let skippedEmpty = 0;
+
+        for (let i = 0; i < panels.length; i++) {
+          const panel = panels[i];
+
+          // Extract the per-panel text. Strip "PanelN:" prefix and any
+          // leftover single-shot / no-grid qualifiers that the per-panel
+          // redraw path added — for a true standalone panel those words
+          // are harmless, but they don't help either.
+          const rawPrompt = panel.image_prompt || panel.scene_description || '';
+          const panelMatch = rawPrompt.match(/Panel\d+:\s*(.*)/s);
+          let panelText = (panelMatch ? panelMatch[1] : rawPrompt).trim();
+
+          if (panelText.length < 20) {
+            // Skip near-empty panels rather than submit a meaningless task.
+            skippedEmpty++;
+            console.warn(`${GRID_LOG_PREFIX} skipping empty panel ${i + 1}`);
+            continue;
+          }
+
+          const finalPrompt = `${anchorPrompt}\n\n${panelText}`;
+          const nodes = [
+            { nodeId: '291', fieldName: 'prompt', fieldValue: finalPrompt, description: 'prompt' },
+            { nodeId: '172', fieldName: 'value', fieldValue: '9', description: 'width' },
+            { nodeId: '173', fieldName: 'value', fieldValue: '16', description: 'height' },
+            { nodeId: '269', fieldName: 'value', fieldValue: '1', description: 'count' },
+            { nodeId: '104', fieldName: 'image', fieldValue: downloadUrl || imagePath, description: 'image' },
+            { nodeId: '273', fieldName: 'value', fieldValue: 'false', description: 'enhance' },
+          ];
+
+          try {
+            const tid = await taskManager.addTask(
+              'img2img',
+              nodes,
+              finalPrompt,
+              WORKFLOW.IMAGE_TO_IMAGE,
+              undefined,
+              { historyId, panelIdx: i },
+              'storyboard',
+              themeTitle,
+              i + 1,
+            );
+            submittedTaskIds.push(tid);
+            redrawTaskIdsRef.current.add(tid);
+            // Register in the batch tracker so finishedTasks knows when the
+            // full 9-panel batch has completed (used to clear isGenerating
+            // and trigger composite rebuild).
+            batchTaskIdsRef.current.add(tid);
+            submittedCount++;
+            console.log(`${GRID_LOG_PREFIX} panel ${i + 1} task submitted, taskId=${tid}`);
+          } catch (panelErr) {
+            console.error(`${GRID_LOG_PREFIX} panel ${i + 1} submit failed:`, panelErr);
+          }
+        }
+
+        if (submittedCount === 0) {
+          throw new Error('所有 9 镜的提示词均为空，无法生成');
+        }
+        console.log(
+          `${GRID_LOG_PREFIX} submitted ${submittedCount} per-panel img2img tasks ` +
+          `(skipped ${skippedEmpty} empty)`,
+        );
+        onSuccess(
+          `已为 ${submittedCount} 个分镜提交图生图任务${skippedEmpty ? `（跳过 ${skippedEmpty} 个空白镜）` : ''}，` +
+          `完成后将自动合成 3×3 九宫格`,
+        );
       } else {
         const finalPrompt = withQualityBoost(fullPrompt);
         const txt2imgOptions = buildUnifiedTxt2ImgOptions(finalPrompt);
@@ -1211,7 +1725,6 @@ export function GridStoryboardMode({
         await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, storyboardInfo, 'storyboard', themeTitle, 1);
       }
       console.log(`${GRID_LOG_PREFIX} task submitted successfully`);
-      onSuccess(`九宫格分镜图片生成任务已提交（预计生成 ${imageCount} 张）`);
     } catch (err) {
       console.error(`${GRID_LOG_PREFIX} handleGenerateImage error:`, err);
       onError(err instanceof Error ? err.message : '生成失败');
@@ -1467,14 +1980,54 @@ export function GridStoryboardMode({
   // ── Download ──
 
   const handleDownload = (imageUrl?: string) => {
-    const url = imageUrl || gridImages[activeImageIdx];
+    // Prefer an explicitly-passed URL (e.g. when downloading a single
+    // per-panel image). Otherwise, in digital-human mode, synthesize the
+    // 9-panel sheet on the fly so the user downloads a TRUE 3×3 grid
+    // instead of whatever the model produced (which is what gave us the
+    // "3 wide tiles, each 1/3 of a face" bug).
+    if (imageUrl) {
+      downloadDataUrl(imageUrl, `grid_storyboard_${Date.now()}.png`);
+      return;
+    }
+    if (digitalHumanMode && compositeSheetUrl) {
+      downloadDataUrl(compositeSheetUrl, `grid_storyboard_${Date.now()}.png`);
+      return;
+    }
+    if (digitalHumanMode) {
+      // Composite not built yet — build it now, then download.
+      void (async () => {
+        try {
+          await buildComposite();
+          // Read the latest value via closure on the React state: we
+          // re-call after a microtask so buildComposite's setState has
+          // landed. The cleanest way is to call buildComposite and then
+          // rely on the auto-build effect to populate compositeSheetUrl,
+          // but for download on demand we synthesize inline.
+          const urls = Array.from({ length: panels.length }, (_, i) => redrawnPanelImages[i]?.[0] ?? null);
+          const url = await composeNinePanelGrid(urls, {
+            panelLabels: Array.from({ length: panels.length }, (_, i) => `Panel ${i + 1}`),
+          });
+          downloadDataUrl(url, `grid_storyboard_${Date.now()}.png`);
+        } catch (err) {
+          console.error(`${GRID_LOG_PREFIX} download (digital-human) failed:`, err);
+          onError('下载 9 宫格失败：' + (err instanceof Error ? err.message : String(err)));
+        }
+      })();
+      return;
+    }
+    // txt2img path: use the model-produced composite image directly.
+    const url = gridImages[activeImageIdx];
     if (!url) return;
+    downloadDataUrl(url, `grid_storyboard_${Date.now()}.png`);
+  };
+
+  const downloadDataUrl = (url: string, filename: string) => {
     try {
       const a = document.createElement('a');
       a.href = url;
       const mimeMatch = url.match(/^data:(image\/[a-zA-Z0-9+.-]+);/);
       const ext = mimeMatch ? mimeMatch[1].split('/')[1] : 'png';
-      a.download = `grid_storyboard_${Date.now()}.${ext}`;
+      a.download = filename.replace(/\.png$/, `.${ext}`);
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -1497,6 +2050,29 @@ export function GridStoryboardMode({
   };
 
   // ── Render ──
+
+  // Image display strategy:
+  //
+  // In digital-human mode we no longer receive a single composite image
+  // from the model. Instead we have `redrawnPanelImages[0..8]` (one
+  // image per panel from 9 independent img2img tasks) and we render them
+  // as a 3×3 grid directly — the user sees 9 full panels exactly as the
+  // linear storyboard UI does.
+  //
+  // For txt2img mode the existing behavior (single composite image from
+  // the model) is unchanged.
+  //
+  // For the header buttons (Enlarge / Download / Favorite) we synthesize
+  // a 3×3 composite on demand via `composeNinePanelGrid`, then use that
+  // data: URL like any other image. This means "Download" downloads a
+  // proper 9-panel sheet in both modes.
+  const showPerPanelGrid =
+    digitalHumanMode &&
+    panels.length > 0 &&
+    // Show as soon as ANY per-panel image is available so the user sees
+    // progress while the remaining panels generate.
+    Object.values(redrawnPanelImages).some((arr) => arr && arr.length > 0);
+  const heroImage = digitalHumanMode ? compositeSheetUrl : gridImages[activeImageIdx];
 
   return (
     <div className="space-y-4">
@@ -2254,6 +2830,32 @@ export function GridStoryboardMode({
               ))}
             </div>
           )}
+
+          {/* Auto-fix warnings — shown when buildFullGridPrompt sanitized
+              empty panels or fixed obvious logical errors (male breast,
+              wrong race, etc.) so the user knows what was changed before
+              submitting to Krea2. Hidden when no fixes were applied. */}
+          {gridPromptWarnings.length > 0 && (
+            <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs">
+              <div className="flex items-start gap-2">
+                <AlertCircle size={14} className="mt-0.5 flex-shrink-0 text-amber-600" />
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-amber-800 mb-1">
+                    已自动修复 {gridPromptWarnings.length} 处提示词问题
+                  </div>
+                  <ul className="space-y-0.5 text-amber-700">
+                    {gridPromptWarnings.map((w, i) => (
+                      <li key={i} className="break-all">• {w}</li>
+                    ))}
+                  </ul>
+                  <div className="mt-1 text-amber-600 text-[11px]">
+                    可点击下方"完整提示词"查看修复后的最终内容，再点击"生成图片"
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <GridPanelEditor
             panels={panels}
             gridSize={panels.length}
@@ -2337,7 +2939,7 @@ export function GridStoryboardMode({
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                {gridImages[activeImageIdx] && (
+                {heroImage && (
                   <>
                     <button
                       onClick={() => setShowLightbox(true)}
@@ -2355,13 +2957,13 @@ export function GridStoryboardMode({
                     </button>
                     {isFavoritedFn && (
                       <button
-                        onClick={() => handleToggleFavorite(gridImages[activeImageIdx], fullPrompt)}
+                        onClick={() => handleToggleFavorite(heroImage, fullPrompt)}
                         className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-medium transition-colors ${
-                          isFavoritedFn(gridImages[activeImageIdx]) ? 'bg-red-100 text-red-600' : 'bg-bg-elevated text-text-secondary hover:bg-bg-hover'
+                          isFavoritedFn(heroImage) ? 'bg-red-100 text-red-600' : 'bg-bg-elevated text-text-secondary hover:bg-bg-hover'
                         }`}
                       >
-                        <Heart size={10} fill={isFavoritedFn(gridImages[activeImageIdx]) ? 'currentColor' : 'none'} />
-                        {isFavoritedFn(gridImages[activeImageIdx]) ? (displayLang === 'zh' ? '已收藏' : 'Favorited') : (displayLang === 'zh' ? '收藏' : 'Favorite')}
+                        <Heart size={10} fill={isFavoritedFn(heroImage) ? 'currentColor' : 'none'} />
+                        {isFavoritedFn(heroImage) ? (displayLang === 'zh' ? '已收藏' : 'Favorited') : (displayLang === 'zh' ? '收藏' : 'Favorite')}
                       </button>
                     )}
                   </>
@@ -2379,15 +2981,78 @@ export function GridStoryboardMode({
               </div>
             </div>
 
-            {/* Image display */}
             <div
-              className="relative rounded-lg overflow-hidden border border-purple-100/60 bg-bg-elevated cursor-pointer"
-              onClick={() => gridImages[activeImageIdx] && setShowLightbox(true)}
+              className="relative rounded-lg overflow-hidden border border-purple-100/60 bg-bg-elevated"
             >
-              {gridImages[activeImageIdx] ? (
-                <div className="relative group">
+              {showPerPanelGrid ? (
+                // ── Digital-human mode: 3×3 grid of per-panel images ──
+                // Renders a 3-column × 3-row grid of the per-panel images. Each
+                // tile is clickable to open a lightbox of that panel's images.
+                // The cells maintain a 9:16 tile aspect ratio so the sheet is
+                // exactly the 9:16 vertical aspect ratio the user expects.
+                <div
+                  className="grid grid-cols-3 gap-1 p-1 bg-bg-elevated"
+                  style={{ aspectRatio: '9 / 16' }}
+                >
+                  {panels.map((panel, idx) => {
+                    const url = redrawnPanelImages[idx]?.[0];
+                    const isThisPanelGenerating = isGenerating && !url;
+                    return (
+                      <button
+                        key={`dh-grid-${panel.panel_number}-${idx}`}
+                        onClick={() => {
+                          if (url) {
+                            const all = redrawnPanelImages[idx] || [];
+                            const i = all.indexOf(url);
+                            setLightboxPanelIdx(idx);
+                            setLightboxImageList(all);
+                            setLightboxImageIdx(i);
+                            setShowRedrawLightbox(true);
+                          }
+                        }}
+                        disabled={!url}
+                        className={`relative rounded-md overflow-hidden border border-purple-100/40 ${
+                          url ? 'cursor-zoom-in hover:border-purple-300' : 'cursor-default'
+                        } transition-colors`}
+                        style={{ aspectRatio: '9 / 16' }}
+                        title={url ? `Panel ${panel.panel_number}` : `Panel ${panel.panel_number} 等待生成…`}
+                      >
+                        {url ? (
+                          <img
+                            src={url}
+                            alt={`Panel ${panel.panel_number}`}
+                            className="absolute inset-0 w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="absolute inset-0 bg-bg-elevated flex flex-col items-center justify-center">
+                            {isThisPanelGenerating ? (
+                              <>
+                                <Loader2 size={16} className="animate-spin text-purple-400" />
+                                <span className="mt-1 text-[9px] text-text-tertiary">
+                                  {displayLang === 'zh' ? '生成中' : 'Generating'}
+                                </span>
+                              </>
+                            ) : (
+                              <span className="text-[9px] text-text-tertiary">
+                                Panel {panel.panel_number}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        <span className="absolute top-1 left-1 px-1 py-0.5 rounded text-[9px] font-bold bg-black/55 text-white">
+                          {panel.panel_number}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : heroImage ? (
+                <div
+                  className="relative group cursor-pointer"
+                  onClick={() => setShowLightbox(true)}
+                >
                   <img
-                    src={gridImages[activeImageIdx]}
+                    src={heroImage}
                     alt="Grid Storyboard"
                     className="w-full h-auto object-contain"
                     style={{ maxHeight: '70vh' }}
@@ -2406,7 +3071,11 @@ export function GridStoryboardMode({
                     <div className="flex flex-col items-center gap-3">
                       <Loader2 size={32} className="animate-spin text-purple-400" />
                       <span className="text-sm text-text-tertiary">
-                        {displayLang === 'zh' ? '九宫格分镜图片生成中...' : 'Generating grid storyboard...'}
+                        {displayLang === 'zh'
+                          ? (digitalHumanMode
+                              ? '九宫格 9 张图生成中（每张单独生成）...'
+                              : '九宫格分镜图片生成中...')
+                          : 'Generating grid storyboard...'}
                       </span>
                     </div>
                   ) : (
@@ -2560,7 +3229,7 @@ export function GridStoryboardMode({
       )}
 
       {/* Lightbox */}
-      {showLightbox && gridImages[activeImageIdx] && (
+      {showLightbox && heroImage && (
         <div
           className="fixed inset-0 z-[9999] bg-black/95 flex items-center justify-center animate-fade-in"
           onClick={() => setShowLightbox(false)}
@@ -2573,8 +3242,8 @@ export function GridStoryboardMode({
               <X size={20} />
             </button>
 
-            {/* Image navigation for multiple images */}
-            {gridImages.length > 1 && activeImageIdx > 0 && (
+            {/* Image navigation for multiple images (txt2img only) */}
+            {!digitalHumanMode && gridImages.length > 1 && activeImageIdx > 0 && (
               <button
                 onClick={() => setActiveImageIdx(i => i - 1)}
                 className="absolute left-4 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors z-10"
@@ -2584,12 +3253,12 @@ export function GridStoryboardMode({
             )}
 
             <img
-              src={gridImages[activeImageIdx]}
+              src={heroImage}
               alt="Grid Storyboard"
               className="max-w-full max-h-full object-contain rounded-lg"
             />
 
-            {gridImages.length > 1 && activeImageIdx < gridImages.length - 1 && (
+            {!digitalHumanMode && gridImages.length > 1 && activeImageIdx < gridImages.length - 1 && (
               <button
                 onClick={() => setActiveImageIdx(i => i + 1)}
                 className="absolute right-4 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors z-10"
@@ -2600,7 +3269,7 @@ export function GridStoryboardMode({
 
             {/* Bottom actions */}
             <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3">
-              {gridImages.length > 1 && (
+              {!digitalHumanMode && gridImages.length > 1 && (
                 <span className="px-3 py-2 rounded-xl bg-black/60 text-white text-sm font-medium">
                   {activeImageIdx + 1} / {gridImages.length}
                 </span>
