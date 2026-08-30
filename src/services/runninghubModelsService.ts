@@ -197,12 +197,42 @@ export async function findModel(kind: ModelKind, name: string): Promise<RunningH
 export function searchModels(list: RunningHubModelEntry[], query: string): RunningHubModelEntry[] {
   if (!query) return list;
   const q = query.toLowerCase();
+  // 支持多种筛选格式：
+  // - 普通关键词搜索
+  // - base:xxx 按底模筛选
+  // - tag:xxx 按标签筛选
+  // - trigger:xxx 按触发词筛选
+
+  // 检查是否是特殊筛选格式
+  if (q.startsWith('base:')) {
+    const baseFilter = q.slice(5).trim();
+    return list.filter((m) =>
+      (m.baseModel || '').toLowerCase().includes(baseFilter) ||
+      (m.baseModelSubtype || '').toLowerCase().includes(baseFilter)
+    );
+  }
+  if (q.startsWith('tag:')) {
+    const tagFilter = q.slice(4).trim();
+    return list.filter((m) =>
+      (m.tags || []).some((t) => t.toLowerCase().includes(tagFilter))
+    );
+  }
+  if (q.startsWith('trigger:')) {
+    const triggerFilter = q.slice(8).trim();
+    return list.filter((m) =>
+      (m.triggerWords || '').toLowerCase().includes(triggerFilter)
+    );
+  }
+
+  // 普通关键词搜索
   return list.filter((m) =>
     m.name.toLowerCase().includes(q) ||
     (m.label || '').toLowerCase().includes(q) ||
     (m.tags || []).some((t) => t.toLowerCase().includes(q)) ||
     (m.triggerWords || '').toLowerCase().includes(q) ||
-    (m.description || '').toLowerCase().includes(q)
+    (m.description || '').toLowerCase().includes(q) ||
+    (m.baseModel || '').toLowerCase().includes(q) ||
+    (m.baseModelSubtype || '').toLowerCase().includes(q)
   );
 }
 

@@ -28,6 +28,25 @@ export interface VideoTaskListHandle {
   submitTask: (prompt: string, imagePath: string, imagePreview: string, nodeInfoList: NodeInfo[], workflowId?: string) => void;
 }
 
+/** 检查 data URL 或普通 URL 是否是视频 */
+function isVideoUrl(url: string): boolean {
+  if (!url) return false;
+  const lower = url.toLowerCase();
+  if (lower.startsWith('data:video/')) return true;
+  if (lower.startsWith('data:image/')) return false;
+  // 通过文件扩展名判断
+  return /\.(mp4|webm|mov|avi|mkv)(\?|#|$)/i.test(lower);
+}
+
+/** 检查 data URL 或普通 URL 是否是图片 */
+function isImageUrl(url: string): boolean {
+  if (!url) return false;
+  const lower = url.toLowerCase();
+  if (lower.startsWith('data:image/')) return true;
+  if (lower.startsWith('data:video/')) return false;
+  return /\.(png|jpg|jpeg|webp|gif)(\?|#|$)/i.test(lower);
+}
+
 function formatElapsed(seconds: number): string {
   if (seconds < 60) return `${seconds}s`;
   const m = Math.floor(seconds / 60);
@@ -155,19 +174,29 @@ function VideoTaskCard({ task, onCancel, onRegenerate, onSelectForRegenerate }: 
           )}
         </div>
 
-        {/* Generated image preview */}
+        {/* Generated image/video preview */}
         {task.status === 'FINISHED' && task.images.length > 0 && (
           <div className="mb-2">
             <div
               className="w-full rounded-lg overflow-hidden bg-bg-elevated cursor-pointer group"
               onClick={() => openPreview(0)}
             >
-              <img
-                src={task.images[0]}
-                alt="Generated"
-                className="w-full object-contain max-h-[300px] mx-auto group-hover:opacity-90 transition-opacity"
-                style={{ maxHeight: '300px' }}
-              />
+              {isVideoUrl(task.images[0]) ? (
+                <video
+                  src={task.images[0]}
+                  controls
+                  playsInline
+                  className="w-full object-contain max-h-[300px] mx-auto"
+                  style={{ maxHeight: '300px' }}
+                />
+              ) : (
+                <img
+                  src={task.images[0]}
+                  alt="Generated"
+                  className="w-full object-contain max-h-[300px] mx-auto group-hover:opacity-90 transition-opacity"
+                  style={{ maxHeight: '300px' }}
+                />
+              )}
             </div>
             {task.images.length > 1 && (
               <div className="flex gap-1.5 mt-1.5 overflow-x-auto">
@@ -177,7 +206,14 @@ function VideoTaskCard({ task, onCancel, onRegenerate, onSelectForRegenerate }: 
                     className="relative flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-bg-elevated hover:ring-2 hover:ring-primary/50 transition-all cursor-pointer"
                     onClick={() => openPreview(i + 1)}
                   >
-                    <img src={img} alt={`Result ${i + 2}`} className="w-full h-full object-cover" />
+                    {isVideoUrl(img) ? (
+                      <div className="w-full h-full bg-black flex items-center justify-center">
+                        <video src={img} className="w-full h-full object-cover" muted />
+                        <span className="absolute inset-0 flex items-center justify-center text-white text-[8px] font-bold pointer-events-none">▶</span>
+                      </div>
+                    ) : (
+                      <img src={img} alt={`Result ${i + 2}`} className="w-full h-full object-cover" />
+                    )}
                   </div>
                 ))}
               </div>
@@ -197,7 +233,7 @@ function VideoTaskCard({ task, onCancel, onRegenerate, onSelectForRegenerate }: 
                 className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-bg-elevated hover:bg-black/5 text-text-primary text-xs font-medium transition-colors"
               >
                 <Download size={13} />
-                下载图片
+                {isVideoUrl(task.images[0]) ? '下载视频' : '下载图片'}
               </a>
             )}
             <button
@@ -223,7 +259,7 @@ function VideoTaskCard({ task, onCancel, onRegenerate, onSelectForRegenerate }: 
         )}
       </div>
 
-      {/* Lightbox for images */}
+      {/* Lightbox for images/videos */}
       {isLightboxOpen && previewIndex !== null && (
         <div className="fixed inset-0 z-50 bg-black/95" onClick={closePreview}>
           <div className="absolute top-0 left-0 right-0 flex items-center justify-between p-4 z-10" onClick={(e) => e.stopPropagation()}>
@@ -243,12 +279,23 @@ function VideoTaskCard({ task, onCancel, onRegenerate, onSelectForRegenerate }: 
               </button>
             </div>
           </div>
-          <img
-            src={task.images[previewIndex]}
-            alt="Full size"
-            className="absolute inset-0 w-full h-full object-contain"
-            onClick={(e) => e.stopPropagation()}
-          />
+          {isVideoUrl(task.images[previewIndex]) ? (
+            <video
+              src={task.images[previewIndex]}
+              controls
+              autoPlay
+              playsInline
+              className="absolute inset-0 w-full h-full object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <img
+              src={task.images[previewIndex]}
+              alt="Full size"
+              className="absolute inset-0 w-full h-full object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
           {task.images.length > 1 && (
             <>
               <button
@@ -391,6 +438,16 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
         images = pngResults.map((r) => r.url).filter(Boolean) as string[];
       }
 
+      // Handle MP4 directly (video generation returns mp4 URL)
+      if (images.length === 0) {
+        const mp4Results = results.filter((r) =>
+          r.outputType === 'mp4' || r.fileType === 'mp4' || r.url?.toLowerCase().endsWith('.mp4')
+        );
+        if (mp4Results.length > 0) {
+          images = mp4Results.map((r) => r.url).filter(Boolean) as string[];
+        }
+      }
+
       if (images.length === 0) {
         const zipResult = results.find((r) =>
           r.outputType === 'zip' || r.fileType === 'zip' || r.url?.endsWith('.zip')
@@ -447,6 +504,16 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
             );
             if (pngResults.length > 0) {
               images = pngResults.map((r) => r.url).filter(Boolean) as string[];
+            }
+
+            // Handle MP4 directly (video generation returns mp4 URL)
+            if (images.length === 0) {
+              const mp4Results = outputs.results.filter((r) =>
+                r.outputType === 'mp4' || r.fileType === 'mp4' || r.url?.toLowerCase().endsWith('.mp4')
+              );
+              if (mp4Results.length > 0) {
+                images = mp4Results.map((r) => r.url).filter(Boolean) as string[];
+              }
             }
 
             // Handle ZIP files - extract images

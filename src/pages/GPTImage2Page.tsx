@@ -343,7 +343,7 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
   const handleGenerateVideoFromImage = (url: string) => {
     if (!onNavigate) return;
     try {
-      sessionStorage.setItem('history_img2vid', JSON.stringify({ imageUrl: url }));
+      sessionStorage.setItem('history_img2vid', JSON.stringify({ imageUrl: url, targetModel: 'minimaxh3' }));
     } catch {}
     onNavigate('img2vid');
   };

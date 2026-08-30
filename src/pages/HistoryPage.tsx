@@ -51,6 +51,15 @@ interface VideoHistoryRecord {
   createdAt: number;
 }
 
+/** 检查 URL 是否是视频 */
+function isVideoUrl(url: string): boolean {
+  if (!url) return false;
+  const lower = url.toLowerCase();
+  if (lower.startsWith('data:video/')) return true;
+  if (lower.startsWith('data:image/')) return false;
+  return /\.(mp4|webm|mov|avi|mkv)(\?|#|$)/i.test(lower);
+}
+
 interface HistoryPageProps {
   onRegenerate?: (record: HistoryRecord) => void;
   onSuccess?: (msg: string) => void;
@@ -289,7 +298,7 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
       return;
     }
     try {
-      sessionStorage.setItem('history_img2vid', JSON.stringify({ imageUrl: url }));
+      sessionStorage.setItem('history_img2vid', JSON.stringify({ imageUrl: url, targetModel: 'minimaxh3' }));
     } catch (err) {
       console.error('[HistoryPage] failed to set sessionStorage', err);
       onError?.('保存图片失败');
@@ -397,13 +406,14 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
   // 历史记录 → 图生视频：把第一张图作为参考图存到 sessionStorage，
   // 跳到图生视频页面。ImageToVideoPage 会在 mount 时读取这个 key，
   // 上传图片 + 填到预览里，但**不自动生成**，由用户手动输入提示词后点击生成。
+  // 默认使用 MiniMax H3 模型。
   const handleGenerateVideoFromImage = useCallback((imageUrl: string) => {
     if (!onNavigate) {
       onError?.('当前页面无法跳转到图生视频');
       return;
     }
     try {
-      sessionStorage.setItem('history_img2vid', JSON.stringify({ imageUrl }));
+      sessionStorage.setItem('history_img2vid', JSON.stringify({ imageUrl, targetModel: 'minimaxh3' }));
     } catch (err) {
       console.error('[HistoryPage] failed to set sessionStorage', err);
       onError?.('保存图片失败：' + (err instanceof Error ? err.message : '未知错误'));
@@ -859,7 +869,7 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
 
               <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/50">
                 <span className="text-xs text-text-secondary">
-                  {record.images.length} 张图片
+                  {record.images.length} {isVideoUrl(record.images[0] || '') ? '个视频' : '张图片'}
                   {record.coins && ` · ${record.coins} RH币`}
                 </span>
                 {record.images[0] && (
@@ -870,8 +880,8 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
                     rel="noopener noreferrer"
                     className="text-xs text-primary hover:text-primary/80 transition-colors flex items-center gap-1"
                   >
-                    <ImageIcon size={12} />
-                    下载图片
+                    {isVideoUrl(record.images[0]) ? <Video size={12} /> : <ImageIcon size={12} />}
+                    {isVideoUrl(record.images[0]) ? '下载视频' : '下载图片'}
                   </a>
                 )}
               </div>

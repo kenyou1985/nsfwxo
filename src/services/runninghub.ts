@@ -818,7 +818,7 @@ export async function extractImagesFromZipAsDataUrls(zipUrl: string, retries = 2
           throw new Error('解析 ZIP 文件失败: ' + (err instanceof Error ? err.message : String(err)));
         }
 
-        const imageExtensions = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
+        const mediaExtensions = ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.mp4', '.mov', '.webm', '.avi', '.mkv'];
         const dataUrls: string[] = [];
 
         const nonDirFiles = Object.entries(zip.files).filter(([, f]) => !f.dir);
@@ -827,11 +827,24 @@ export async function extractImagesFromZipAsDataUrls(zipUrl: string, retries = 2
         for (const [, file] of nonDirFiles) {
           const filename = file.name;
           const ext = filename.toLowerCase();
-          if (!imageExtensions.some((e) => ext.endsWith(e))) continue;
+          if (!mediaExtensions.some((e) => ext.endsWith(e))) continue;
           try {
             const blob = await file.async('blob');
-            console.log(`[extractImagesFromZipAsDataUrls] Extracted blob for ${filename}: ${blob.size} bytes, type=${blob.type}`);
-            if (blob.size === 0) {
+            // 确保视频文件的 MIME 类型正确
+            let finalBlob = blob;
+            if (ext.endsWith('.mp4') && !blob.type) {
+              finalBlob = new Blob([blob], { type: 'video/mp4' });
+            } else if (ext.endsWith('.mov') && !blob.type) {
+              finalBlob = new Blob([blob], { type: 'video/quicktime' });
+            } else if (ext.endsWith('.webm') && !blob.type) {
+              finalBlob = new Blob([blob], { type: 'video/webm' });
+            } else if (ext.endsWith('.avi') && !blob.type) {
+              finalBlob = new Blob([blob], { type: 'video/x-msvideo' });
+            } else if (ext.endsWith('.mkv') && !blob.type) {
+              finalBlob = new Blob([blob], { type: 'video/x-matroska' });
+            }
+            console.log(`[extractImagesFromZipAsDataUrls] Extracted blob for ${filename}: ${finalBlob.size} bytes, type=${finalBlob.type}`);
+            if (finalBlob.size === 0) {
               console.warn(`[extractImagesFromZipAsDataUrls] Skipping empty blob: ${filename}`);
               continue;
             }
@@ -846,7 +859,7 @@ export async function extractImagesFromZipAsDataUrls(zipUrl: string, retries = 2
                 console.error(`[extractImagesFromZipAsDataUrls] FileReader error for ${filename}:`, e);
                 reject(new Error(`FileReader failed for ${filename}`));
               };
-              reader.readAsDataURL(blob);
+              reader.readAsDataURL(finalBlob);
             });
             dataUrls.push(dataUrl);
           } catch (err) {
@@ -854,10 +867,10 @@ export async function extractImagesFromZipAsDataUrls(zipUrl: string, retries = 2
           }
         }
 
-        console.log(`[extractImagesFromZipAsDataUrls] Total images converted: ${dataUrls.length}`);
+        console.log(`[extractImagesFromZipAsDataUrls] Total media converted: ${dataUrls.length}`);
 
         if (dataUrls.length === 0) {
-          throw new Error('ZIP 中未找到图片文件');
+          throw new Error('ZIP 中未找到图片或视频文件');
         }
         
         // Clear timeout AFTER all processing is done

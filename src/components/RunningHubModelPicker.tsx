@@ -70,7 +70,47 @@ export function RunningHubModelPicker({
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [selectedFavCategory, setSelectedFavCategory] = useState('all');
   const [isDefault, setIsDefault] = useState(false);
+  const [activeBaseModel, setActiveBaseModel] = useState<string>('all');
+  const [activeTag, setActiveTag] = useState<string>('all');
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // 提取底模列表（用于筛选）
+  const baseModelBuckets = useMemo(() => {
+    const map: Record<string, number> = { all: allModels.length };
+    for (const e of allModels) {
+      const bm = e.baseModel || '其他';
+      map[bm] = (map[bm] || 0) + 1;
+    }
+    // 返回排序后的底模列表
+    return Object.entries(map)
+      .filter(([, count]) => count > 0)
+      .sort((a, b) => {
+        if (a[0] === 'all') return -1;
+        if (b[0] === 'all') return 1;
+        return b[1] - a[1]; // 按数量降序
+      })
+      .map(([bm, count]) => ({ baseModel: bm, count }));
+  }, [allModels]);
+
+  // 提取标签列表（用于筛选）
+  const tagBuckets = useMemo(() => {
+    const map: Record<string, number> = { all: allModels.length };
+    for (const e of allModels) {
+      for (const tag of e.tags || []) {
+        map[tag] = (map[tag] || 0) + 1;
+      }
+    }
+    // 返回排序后的标签列表（按数量降序，最多显示20个）
+    return Object.entries(map)
+      .filter(([, count]) => count > 0)
+      .sort((a, b) => {
+        if (a[0] === 'all') return -1;
+        if (b[0] === 'all') return 1;
+        return b[1] - a[1]; // 按数量降序
+      })
+      .slice(0, 20)
+      .map(([tag, count]) => ({ tag, count }));
+  }, [allModels]);
 
   // 计算当前 picker 是否处于"默认"状态（用于 ⭐ 按钮的高亮）
   const recomputeIsDefault = useCallback(() => {
@@ -222,10 +262,18 @@ export function RunningHubModelPicker({
       }));
     } else {
       base = categoryBuckets[activeCategory] || [];
+      // 应用底模筛选
+      if (activeBaseModel !== 'all') {
+        base = base.filter((m) => (m.baseModel || '其他') === activeBaseModel);
+      }
+      // 应用标签筛选
+      if (activeTag !== 'all') {
+        base = base.filter((m) => (m.tags || []).includes(activeTag));
+      }
       if (search) base = searchModels(base, search);
     }
     return base;
-  }, [showFavoritesOnly, favorites, selectedFavCategory, search, categoryBuckets, activeCategory]);
+  }, [showFavoritesOnly, favorites, selectedFavCategory, search, categoryBuckets, activeCategory, activeBaseModel, activeTag]);
 
   // 虚拟滚动
   const totalRows = filteredModels.length;
@@ -366,7 +414,7 @@ export function RunningHubModelPicker({
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="搜索模型名 / 标签 / 触发词..."
+                placeholder="搜索模型名 / base:底模 / trigger:触发词..."
                 className="w-full pl-7 pr-2 py-1 text-[11px] bg-bg-elevated border border-border rounded text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-primary"
               />
             </div>
@@ -376,7 +424,7 @@ export function RunningHubModelPicker({
           <div className="flex gap-1 px-2 pb-1">
             <button
               type="button"
-              onClick={() => { setShowFavoritesOnly(false); setActiveCategory('all'); }}
+              onClick={() => { setShowFavoritesOnly(false); setActiveCategory('all'); setActiveTag('all'); }}
               className={[
                 'flex-1 px-2 py-0.5 rounded text-[10px] font-medium transition-colors flex items-center justify-center gap-1',
                 !showFavoritesOnly ? 'bg-primary text-white' : 'bg-bg-elevated text-text-secondary hover:bg-primary-light hover:text-primary',
@@ -469,7 +517,7 @@ export function RunningHubModelPicker({
                     <button
                       key={cat.id}
                       type="button"
-                      onClick={() => setActiveCategory(cat.id)}
+                      onClick={() => { setActiveCategory(cat.id); setActiveTag('all'); }}
                       className={[
                         'flex-shrink-0 px-2 py-0.5 rounded-full text-[11px] font-medium transition-colors flex items-center gap-1',
                         active
@@ -505,6 +553,82 @@ export function RunningHubModelPicker({
                 })
             }
           </div>
+
+          {/* Tabs row 3: base model filter (仅模型库视图) */}
+          {!showFavoritesOnly && baseModelBuckets.length > 1 && (
+            <div
+              className="flex gap-1 px-2 pb-1.5 overflow-x-auto"
+              style={{ scrollbarWidth: 'thin' }}
+            >
+              <span className="text-[9px] text-text-tertiary flex-shrink-0 flex items-center mr-1">底模</span>
+              {baseModelBuckets.slice(0, 6).map(({ baseModel, count }) => {
+                const active = activeBaseModel === baseModel;
+                return (
+                  <button
+                    key={baseModel}
+                    type="button"
+                    onClick={() => {
+                      setActiveBaseModel(baseModel);
+                      if (containerRef.current) {
+                        containerRef.current.scrollTop = 0;
+                        setScrollTop(0);
+                      }
+                    }}
+                    className={[
+                      'flex-shrink-0 px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors flex items-center gap-1',
+                      active
+                        ? 'bg-indigo-500 text-white'
+                        : 'bg-bg-elevated text-text-secondary hover:bg-indigo-50 hover:text-indigo-600',
+                    ].join(' ')}
+                  >
+                    {baseModel}
+                    <span className={`text-[9px] tabular-nums ${active ? 'text-white/80' : 'text-text-tertiary'}`}>{count}</span>
+                  </button>
+                );
+              })}
+              {baseModelBuckets.length > 6 && (
+                <span className="text-[9px] text-text-tertiary flex-shrink-0">+{baseModelBuckets.length - 6}</span>
+              )}
+            </div>
+          )}
+
+          {/* Tabs row 4: tag filter (仅模型库视图) */}
+          {!showFavoritesOnly && tagBuckets.length > 1 && (
+            <div
+              className="flex gap-1 px-2 pb-1.5 overflow-x-auto"
+              style={{ scrollbarWidth: 'thin' }}
+            >
+              <span className="text-[9px] text-text-tertiary flex-shrink-0 flex items-center mr-1">标签</span>
+              {tagBuckets.map(({ tag, count }) => {
+                const active = activeTag === tag;
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => {
+                      setActiveTag(active ? 'all' : tag);
+                      if (containerRef.current) {
+                        containerRef.current.scrollTop = 0;
+                        setScrollTop(0);
+                      }
+                    }}
+                    className={[
+                      'flex-shrink-0 px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors flex items-center gap-1',
+                      active
+                        ? 'bg-emerald-500 text-white'
+                        : 'bg-bg-elevated text-text-secondary hover:bg-emerald-50 hover:text-emerald-600',
+                    ].join(' ')}
+                  >
+                    {tag}
+                    <span className={`text-[9px] tabular-nums ${active ? 'text-white/80' : 'text-text-tertiary'}`}>{count}</span>
+                  </button>
+                );
+              })}
+              {tagBuckets.length >= 20 && (
+                <span className="text-[9px] text-text-tertiary flex-shrink-0">+更多</span>
+              )}
+            </div>
+          )}
 
           {/* Virtual scrolling list */}
           {loading ? (

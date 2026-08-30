@@ -989,7 +989,7 @@ function MiniMaxH3Panel({
       { nodeId: '238', fieldName: 'value', fieldValue: String(mmStrength), description: '强度' },
       { nodeId: '185', fieldName: 'value', fieldValue: mmDuration, description: '时长' },
       { nodeId: '182', fieldName: 'select', fieldValue: mmStyleMode, description: '风格模式' },
-      { nodeId: '127', fieldName: 'value', fieldValue: String(!mmAutoPrompt), description: '自动提示词' },
+      { nodeId: '127', fieldName: 'value', fieldValue: String(mmAutoPrompt), description: '自动提示词' },
       { nodeId: '38', fieldName: 'prompt', fieldValue: getFullPrompt(), description: '提示词' },
       { nodeId: '19', fieldName: 'unet_name', fieldValue: mmVideoModel, description: '视频模型' },
       { nodeId: '111', fieldName: 'lora_name', fieldValue: mmLora, description: 'LoRA模型' },
@@ -1241,6 +1241,7 @@ function MiniMaxH3Panel({
           <RunningHubModelPicker
             label="LoRA模型"
             kind="lora"
+            loraSlot="lora1"
             value={mmLora}
             onChange={(name) => setMmLora(name || '')}
             placeholder="不使用"
@@ -1609,6 +1610,7 @@ function MiniMaxLongVideoPanel({
           <RunningHubModelPicker
             label="LoRA模型"
             kind="lora"
+            loraSlot="lora2"
             value={mlLora}
             onChange={(name) => setMlLora(name || '')}
             placeholder="不使用"
@@ -1718,7 +1720,7 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
 
     const processData = async (data: string, autoGenerate: boolean) => {
       try {
-        const { imageUrl, imagePath: uploadedPath, prompt: videoPrompt } = JSON.parse(data);
+        const { imageUrl, imagePath: uploadedPath, prompt: videoPrompt, targetModel } = JSON.parse(data);
         let finalImagePath = uploadedPath || '';
         let finalImagePreview = imageUrl;
 
@@ -1744,8 +1746,17 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
           return;
         }
 
-        setImagePreview(finalImagePreview);
-        setImagePath(finalImagePath);
+        // 根据 targetModel 自动切换到对应的视频模型
+        if (targetModel === 'minimaxh3') {
+          // 切换到 MiniMax H3 模型
+          setVideoModel('minimaxh3');
+          // 设置图片到 MiniMax H3 面板
+          setMmImages([{ path: finalImagePath, preview: finalImagePreview }, { path: '', preview: '' }, { path: '', preview: '' }]);
+        } else {
+          // 默认使用 Wan 2.2 模型
+          setImagePreview(finalImagePreview);
+          setImagePath(finalImagePath);
+        }
 
         if (videoPrompt) {
           setPrompt(videoPrompt);
@@ -1790,7 +1801,17 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
       // 历史记录只导入图片，不带 prompt，不自动生成。
       // 复用 processData 但用空 prompt + autoGenerate=false 走完整的上传/预览路径。
       processData(historyData, false);
-      onSuccess?.('已从历史记录导入图片，请输入提示词后点击生成');
+      // 根据 targetModel 显示不同的提示信息
+      try {
+        const { targetModel } = JSON.parse(historyData);
+        if (targetModel === 'minimaxh3') {
+          onSuccess?.('已从历史记录导入图片到 MiniMax H3，请输入提示词后点击生成');
+        } else {
+          onSuccess?.('已从历史记录导入图片，请输入提示词后点击生成');
+        }
+      } catch {
+        onSuccess?.('已从历史记录导入图片，请输入提示词后点击生成');
+      }
     }
   }, [apiKey, onError, onSuccess, resolution, duration, interpolation, loraHigh, loraHighWeight, loraLow, loraLowWeight]);
 
