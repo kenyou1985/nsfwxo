@@ -1209,13 +1209,13 @@ function MiniMaxH3Panel({
           <div className="flex items-center gap-3">
             <button
               onClick={() => setMmDirectOutput(!mmDirectOutput)}
-              className={`w-10 h-6 rounded-full transition-colors relative ${mmDirectOutput ? 'bg-text-tertiary' : 'bg-purple-500'}`}
+              className={`w-10 h-6 rounded-full transition-colors relative ${mmDirectOutput ? 'bg-purple-500' : 'bg-text-tertiary'}`}
               disabled={isSubmitting}
             >
-              <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${mmDirectOutput ? 'translate-x-1' : 'translate-x-5'}`} />
+              <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${mmDirectOutput ? 'translate-x-5' : 'translate-x-1'}`} />
             </button>
             <span className="text-xs text-text-secondary">
-              直出模式 {mmDirectOutput ? '（直出视频）' : '（ZIP格式，默认开启）'}
+              直出模式 {mmDirectOutput ? '（直出视频）' : '（ZIP格式，默认关闭）'}
             </span>
           </div>
         </div>
@@ -1673,7 +1673,7 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
   const [mmStrength, setMmStrength] = useState(0.6);
   const [mmStyleMode, setMmStyleMode] = useState('1');
   const [mmAutoPrompt, setMmAutoPrompt] = useState(true); // true = 开启自动提示词
-  const [mmDirectOutput, setMmDirectOutput] = useState(false); // false = ZIP (默认开)
+  const [mmDirectOutput, setMmDirectOutput] = useState(false); // false = ZIP 格式（直出模式默认关闭）
   const [mmVideoModel, setMmVideoModel] = useState('DasiwaMinimaxH3_dasiwaREF2VAHybridV1_0.safetensors');
   const [mmLora, setMmLora] = useState('MysticXXX_MMH3-V1.safetensors');
   const [mmLoraWeight, setMmLoraWeight] = useState(0.4);

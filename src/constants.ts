@@ -932,6 +932,6 @@ export const KREA2_TXT2IMG_PARAMS = {
   lora2Weight: 0.8,
   lora3Name: 'Natural-Breasts-Krea2_epoch_10.safetensors',
   lora3Weight: 0.4,
-  /** KREA2 使用 UNet 而非 Checkpoint — krea-2-raw 是 RunningHub 官方推荐的基础底模 */
-  unet: 'krea-2-raw.safetensors',
+  /** KREA2 使用 UNet 而非 Checkpoint — Moody Krea Mix V4.0 X CUTIE Edition BF16 */
+  unet: 'Moody-Krea-Mix-v4.1MM_00001__clean.safetensors',
 };
