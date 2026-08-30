@@ -15,6 +15,8 @@ import { extractImagesFromZipAsDataUrls } from '../services/runninghub';
 import type { NodeInfo } from '../types';
 import type { GirlfriendPreset } from '../data/girlfriendPresets';
 import { PosePresetSelector } from '../components/PosePresetSelector';
+import { RunningHubModelPicker } from '../components/RunningHubModelPicker';
+import type { RunningHubModelEntry } from '../services/runninghubModelsService';
 
 const DURATION_OPTIONS = [
   { value: '5', label: '5秒' },
@@ -893,7 +895,12 @@ interface MiniMaxH3PanelProps {
   setIsSubmitting: (v: boolean) => void;
   onError: (msg: string) => void;
   onSuccess: (msg: string) => void;
-  taskListRef: React.RefObject<{ submitTask: (prompt: string, imagePath: string, imagePreview: string, nodeInfoList: NodeInfo[]) => void } | null>;
+  taskListRef: React.RefObject<{ submitTask: (prompt: string, imagePath: string, imagePreview: string, nodeInfoList: NodeInfo[], workflowId?: string) => void } | null>;
+  // Digital human (girlfriend) props
+  selectedGirlfriend: GirlfriendPreset | null;
+  setSelectedGirlfriend: (gf: GirlfriendPreset | null) => void;
+  girlfriendUploading: boolean;
+  setGirlfriendUploading: (v: boolean) => void;
 }
 
 function MiniMaxH3Panel({
@@ -903,8 +910,53 @@ function MiniMaxH3Panel({
   mmDirectOutput, setMmDirectOutput, mmVideoModel, setMmVideoModel,
   mmLora, setMmLora, mmLoraWeight, setMmLoraWeight,
   mmUploading, setMmUploading, isSubmitting, setIsSubmitting,
-  onError, onSuccess, taskListRef
+  onError, onSuccess, taskListRef,
+  selectedGirlfriend, setSelectedGirlfriend, girlfriendUploading, setGirlfriendUploading
 }: MiniMaxH3PanelProps) {
+
+  // Pose preset handler
+  const handlePoseSelect = (posePrompt: string, poseName: string) => {
+    if (mmPrompt.trim()) {
+      setMmPrompt(mmPrompt + ', ' + posePrompt);
+    } else {
+      setMmPrompt(posePrompt);
+    }
+    onSuccess(`已应用姿势: ${poseName}`);
+  };
+
+  // Girlfriend selection handler
+  const handleGirlfriendSelect = useCallback(async (gf: GirlfriendPreset) => {
+    setSelectedGirlfriend(gf);
+    setGirlfriendUploading(true);
+    try {
+      let file: File;
+      let objectUrl: string;
+
+      if (gf.portraitUrl.startsWith('data:')) {
+        const res = await fetch(gf.portraitUrl);
+        const blob = await res.blob();
+        file = new File([blob], `${gf.id}.jpg`, { type: blob.type || 'image/jpeg' });
+        objectUrl = gf.portraitUrl;
+      } else {
+        const res = await fetch(gf.portraitUrl);
+        const blob = await res.blob();
+        file = new File([blob], `${gf.id}.jpg`, { type: blob.type || 'image/jpeg' });
+        objectUrl = URL.createObjectURL(blob);
+      }
+
+      const { imagePath } = await uploadImage(apiKey, file);
+      // Add as first reference image
+      setMmImages(prev => {
+        const updated = [{ path: imagePath, preview: objectUrl }, ...prev.slice(0, 2)];
+        return updated;
+      });
+      onSuccess(`已选择女友「${gf.nameZh || gf.name}」并设为参考图`);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : '上传失败');
+    } finally {
+      setGirlfriendUploading(false);
+    }
+  }, [apiKey, setMmImages, onSuccess, onError, setSelectedGirlfriend, setGirlfriendUploading]);
 
   const handleImageUpload = async (file: File, index: number) => {
     setMmUploading(true);
@@ -938,7 +990,7 @@ function MiniMaxH3Panel({
       { nodeId: '185', fieldName: 'value', fieldValue: mmDuration, description: '时长' },
       { nodeId: '182', fieldName: 'select', fieldValue: mmStyleMode, description: '风格模式' },
       { nodeId: '127', fieldName: 'value', fieldValue: String(!mmAutoPrompt), description: '自动提示词' },
-      { nodeId: '38', fieldName: 'prompt', fieldValue: mmPrompt, description: '提示词' },
+      { nodeId: '38', fieldName: 'prompt', fieldValue: getFullPrompt(), description: '提示词' },
       { nodeId: '19', fieldName: 'unet_name', fieldValue: mmVideoModel, description: '视频模型' },
       { nodeId: '111', fieldName: 'lora_name', fieldValue: mmLora, description: 'LoRA模型' },
       { nodeId: '111', fieldName: 'strength_model', fieldValue: String(mmLoraWeight), description: 'LoRA权重' },
@@ -971,8 +1023,9 @@ function MiniMaxH3Panel({
 
     const nodeList = buildMiniMaxNodeList();
     const preview = mmImages[0]?.preview || '';
+    const fullPrompt = getFullPrompt();
 
-    taskListRef.current?.submitTask(mmPrompt, mmImages[0]?.path || '', preview, nodeList, WORKFLOW.MINIMAX_H3);
+    taskListRef.current?.submitTask(fullPrompt, mmImages[0]?.path || '', preview, nodeList, WORKFLOW.MINIMAX_H3);
     onSuccess('任务已提交');
     setMmSubmitting(false);
     setIsSubmitting(false);
@@ -981,14 +1034,40 @@ function MiniMaxH3Panel({
   // We need a local submitting state that syncs with parent
   const [mmSubmitting, setMmSubmitting] = useState(false);
 
+  // Build full prompt with character anchor
+  const getFullPrompt = (): string => {
+    const identityPrefix = selectedGirlfriend?.characterPrompt || '';
+    return identityPrefix ? `${identityPrefix} ${mmPrompt}`.trim() : mmPrompt;
+  };
+
   return (
     <div className="space-y-4">
+      {/* GirlfriendSelector - 数字人锚定 */}
+      <GirlfriendSelector
+        selectedId={selectedGirlfriend ? (selectedGirlfriend.isCustom ? `custom_${selectedGirlfriend.id}` : selectedGirlfriend.id) : null}
+        onSelect={handleGirlfriendSelect}
+        disabled={girlfriendUploading || isSubmitting}
+      />
+
+      {/* PosePresetSelector - 视频姿势预设 */}
+      <PosePresetSelector
+        type="video"
+        onSelect={handlePoseSelect}
+        disabled={isSubmitting}
+        selectedGirlfriend={selectedGirlfriend}
+      />
+
       {/* 参考图上传 - 支持最多3张 */}
       <div className="rounded-xl bg-bg-surface border border-border p-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-medium text-text-primary flex items-center gap-2">
             <ImageIcon size={16} className="text-purple-500" />
             参考图（最多3张）
+            {selectedGirlfriend && (
+              <span className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-500 text-[10px] font-medium">
+                AI 女友模式
+              </span>
+            )}
           </h3>
           <span className="text-xs text-text-tertiary">
             {mmImages.filter(img => img.path).length}/3
@@ -1070,6 +1149,11 @@ function MiniMaxH3Panel({
           className="w-full px-3 py-2 rounded-lg bg-bg-elevated border border-border text-sm text-text-primary placeholder-slate-500 focus:outline-none focus:border-purple-400/50 resize-none"
           disabled={isSubmitting}
         />
+        {selectedGirlfriend && (
+          <div className="mt-2 px-2 py-1 rounded bg-red-50 border border-red-200 text-[10px] text-red-600">
+            已锚定数字人：{selectedGirlfriend.nameZh || selectedGirlfriend.name}
+          </div>
+        )}
       </div>
 
       {/* 风格设置 */}
@@ -1140,32 +1224,28 @@ function MiniMaxH3Panel({
       {/* 视频模型配置 */}
       <div className="rounded-xl bg-bg-surface border border-border p-4">
         <h3 className="text-sm font-medium text-text-primary mb-3">视频模型配置</h3>
-        <div className="space-y-3">
-          <div className="grid grid-cols-1 gap-3">
-            <ParameterSelect
-              label="视频模型"
-              value={mmVideoModel}
-              options={MINIMAX_VIDEO_MODEL_OPTIONS}
-              onChange={setMmVideoModel}
-              disabled={isSubmitting}
-            />
-          </div>
-        </div>
+        <RunningHubModelPicker
+          label="视频模型"
+          kind="unet"
+          value={mmVideoModel}
+          onChange={(name) => setMmVideoModel(name || '')}
+          placeholder="不使用"
+          disabled={isSubmitting}
+        />
       </div>
 
       {/* LoRA配置 */}
       <div className="rounded-xl bg-bg-surface border border-border p-4">
         <h3 className="text-sm font-medium text-text-primary mb-3">LoRA配置</h3>
         <div className="space-y-3">
-          <div className="grid grid-cols-1 gap-3">
-            <ParameterSelect
-              label="LoRA模型"
-              value={mmLora}
-              options={MINIMAX_LORA_OPTIONS}
-              onChange={setMmLora}
-              disabled={isSubmitting}
-            />
-          </div>
+          <RunningHubModelPicker
+            label="LoRA模型"
+            kind="lora"
+            value={mmLora}
+            onChange={(name) => setMmLora(name || '')}
+            placeholder="不使用"
+            disabled={isSubmitting}
+          />
           <ParameterSlider
             label="LoRA权重"
             value={mmLoraWeight}
@@ -1191,9 +1271,377 @@ function MiniMaxH3Panel({
   );
 }
 
+// ─── MiniMax Long Video 面板 ─────────────────────────────────────────────────────────
+
+interface MiniMaxLongVideoPanelProps {
+  apiKey: string;
+  mlImages: { path: string; preview: string }[];
+  setMlImages: React.Dispatch<React.SetStateAction<{ path: string; preview: string }[]>>;
+  mlPrompts: string[];
+  setMlPrompts: (v: string[]) => void;
+  mlVideoModel: string;
+  setMlVideoModel: (v: string) => void;
+  mlLora: string;
+  setMlLora: (v: string) => void;
+  mlLoraWeight: number;
+  setMlLoraWeight: (v: number) => void;
+  mlUploading: boolean;
+  setMlUploading: (v: boolean) => void;
+  isSubmitting: boolean;
+  setIsSubmitting: (v: boolean) => void;
+  onError: (msg: string) => void;
+  onSuccess: (msg: string) => void;
+  taskListRef: React.RefObject<{ submitTask: (prompt: string, imagePath: string, imagePreview: string, nodeInfoList: NodeInfo[], workflowId?: string) => void } | null>;
+  selectedGirlfriend: GirlfriendPreset | null;
+  setSelectedGirlfriend: (gf: GirlfriendPreset | null) => void;
+  girlfriendUploading: boolean;
+  setGirlfriendUploading: (v: boolean) => void;
+}
+
+function MiniMaxLongVideoPanel({
+  apiKey, mlImages, setMlImages, mlPrompts, setMlPrompts,
+  mlVideoModel, setMlVideoModel, mlLora, setMlLora, mlLoraWeight, setMlLoraWeight,
+  mlUploading, setMlUploading, isSubmitting, setIsSubmitting,
+  onError, onSuccess, taskListRef,
+  selectedGirlfriend, setSelectedGirlfriend, girlfriendUploading, setGirlfriendUploading
+}: MiniMaxLongVideoPanelProps) {
+
+  // Handle image upload
+  const handleImageUpload = async (file: File, index: number) => {
+    setMlUploading(true);
+    try {
+      const objectUrl = URL.createObjectURL(file);
+      const { imagePath } = await uploadImage(apiKey, file);
+      setMlImages(prev => {
+        const updated = [...prev];
+        updated[index] = { path: imagePath, preview: objectUrl };
+        return updated;
+      });
+      onSuccess(`参考图 ${index + 1} 上传成功`);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : '上传失败');
+    } finally {
+      setMlUploading(false);
+    }
+  };
+
+  const handleImageRemove = (index: number) => {
+    setMlImages(prev => {
+      const updated = [...prev];
+      updated[index] = { path: '', preview: '' };
+      return updated;
+    });
+  };
+
+  // Pose preset handler
+  const handlePoseSelect = (posePrompt: string, poseName: string) => {
+    // Apply to first empty prompt
+    const idx = mlPrompts.findIndex(p => !p.trim());
+    if (idx >= 0) {
+      const newPrompts = [...mlPrompts];
+      newPrompts[idx] = posePrompt;
+      setMlPrompts(newPrompts);
+    } else {
+      // All filled, append to first
+      const newPrompts = [...mlPrompts];
+      newPrompts[0] = mlPrompts[0] + ', ' + posePrompt;
+      setMlPrompts(newPrompts);
+    }
+    onSuccess(`已应用姿势: ${poseName}`);
+  };
+
+  // Girlfriend selection handler
+  const handleGirlfriendSelect = useCallback(async (gf: GirlfriendPreset) => {
+    setSelectedGirlfriend(gf);
+    setGirlfriendUploading(true);
+    try {
+      let file: File;
+      let objectUrl: string;
+
+      if (gf.portraitUrl.startsWith('data:')) {
+        const res = await fetch(gf.portraitUrl);
+        const blob = await res.blob();
+        file = new File([blob], `${gf.id}.jpg`, { type: blob.type || 'image/jpeg' });
+        objectUrl = gf.portraitUrl;
+      } else {
+        const res = await fetch(gf.portraitUrl);
+        const blob = await res.blob();
+        file = new File([blob], `${gf.id}.jpg`, { type: blob.type || 'image/jpeg' });
+        objectUrl = URL.createObjectURL(blob);
+      }
+
+      const { imagePath } = await uploadImage(apiKey, file);
+      // Add as first reference image
+      setMlImages(prev => {
+        const updated = [{ path: imagePath, preview: objectUrl }, ...prev.slice(0, 2)];
+        return updated;
+      });
+      onSuccess(`已选择女友「${gf.nameZh || gf.name}」并设为参考图`);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : '上传失败');
+    } finally {
+      setGirlfriendUploading(false);
+    }
+  }, [apiKey, setMlImages, onSuccess, onError, setSelectedGirlfriend, setGirlfriendUploading]);
+
+  // Build full prompt with character anchor
+  const getFullPrompt = (index: number): string => {
+    const identityPrefix = selectedGirlfriend?.characterPrompt || '';
+    const prompt = mlPrompts[index] || '';
+    return identityPrefix ? `${identityPrefix} ${prompt}`.trim() : prompt;
+  };
+
+  // Build node list
+  const buildNodeList = (): NodeInfo[] => {
+    const nodeList: NodeInfo[] = [];
+
+    // Add prompts (3段提示词)
+    const promptNodeIds = ['38', '40', '42'];
+    mlPrompts.forEach((prompt, idx) => {
+      const fullPrompt = getFullPrompt(idx);
+      if (fullPrompt) {
+        nodeList.push({
+          nodeId: promptNodeIds[idx],
+          fieldName: 'prompt',
+          fieldValue: fullPrompt,
+          description: `提示词${idx + 1}`
+        });
+      }
+    });
+
+    // Add video model
+    if (mlVideoModel) {
+      nodeList.push({
+        nodeId: '19',
+        fieldName: 'unet_name',
+        fieldValue: mlVideoModel,
+        description: '视频模型'
+      });
+    }
+
+    // Add LoRA
+    if (mlLora) {
+      nodeList.push({
+        nodeId: '111',
+        fieldName: 'lora_name',
+        fieldValue: mlLora,
+        description: 'LoRA模型'
+      });
+      nodeList.push({
+        nodeId: '111',
+        fieldName: 'strength_model',
+        fieldValue: String(mlLoraWeight),
+        description: 'LoRA权重'
+      });
+    }
+
+    // Add images (up to 3)
+    const imageNodeIds = ['50', '76', '79'];
+    mlImages.forEach((img, idx) => {
+      if (img.path) {
+        nodeList.push({
+          nodeId: imageNodeIds[idx],
+          fieldName: 'image',
+          fieldValue: img.path,
+          description: `参考图${idx + 1}`
+        });
+      }
+    });
+
+    return nodeList;
+  };
+
+  const [mlSubmitting, setMlSubmitting] = useState(false);
+
+  const handleSubmit = () => {
+    if (mlImages.length === 0 || !mlImages[0]?.path) {
+      onError('请至少上传一张参考图');
+      return;
+    }
+    if (mlSubmitting) return;
+    setMlSubmitting(true);
+    setIsSubmitting(true);
+
+    const nodeList = buildNodeList();
+    const preview = mlImages[0]?.preview || '';
+    const combinedPrompt = mlPrompts.filter(Boolean).join(' | ');
+
+    taskListRef.current?.submitTask(combinedPrompt, mlImages[0]?.path || '', preview, nodeList, WORKFLOW.MINIMAX_LONG);
+    onSuccess('任务已提交');
+    setMlSubmitting(false);
+    setIsSubmitting(false);
+  };
+
+  const updatePrompt = (index: number, value: string) => {
+    const newPrompts = [...mlPrompts];
+    newPrompts[index] = value;
+    setMlPrompts(newPrompts);
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* GirlfriendSelector - 数字人锚定 */}
+      <GirlfriendSelector
+        selectedId={selectedGirlfriend ? (selectedGirlfriend.isCustom ? `custom_${selectedGirlfriend.id}` : selectedGirlfriend.id) : null}
+        onSelect={handleGirlfriendSelect}
+        disabled={girlfriendUploading || isSubmitting}
+      />
+
+      {/* PosePresetSelector - 视频姿势预设 */}
+      <PosePresetSelector
+        type="video"
+        onSelect={handlePoseSelect}
+        disabled={isSubmitting}
+        selectedGirlfriend={selectedGirlfriend}
+      />
+
+      {/* 参考图上传 - 支持最多3张 */}
+      <div className="rounded-xl bg-bg-surface border border-border p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-medium text-text-primary flex items-center gap-2">
+            <ImageIcon size={16} className="text-cyan-500" />
+            参考图（最多3张）
+            {selectedGirlfriend && (
+              <span className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-500 text-[10px] font-medium">
+                AI 女友模式
+              </span>
+            )}
+          </h3>
+          <span className="text-xs text-text-tertiary">
+            {mlImages.filter(img => img.path).length}/3
+          </span>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          {[0, 1, 2].map(idx => (
+            <div key={idx} className="relative">
+              {mlImages[idx]?.preview ? (
+                <div className="relative aspect-square rounded-xl overflow-hidden border-2 border-cyan-200 bg-bg-elevated">
+                  <img
+                    src={mlImages[idx].preview}
+                    alt={`参考图${idx + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                  <button
+                    onClick={() => handleImageRemove(idx)}
+                    className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-colors"
+                    disabled={isSubmitting}
+                  >
+                    <X size={12} />
+                  </button>
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1">
+                    <span className="text-[10px] text-white/90">参考图 {idx + 1}</span>
+                  </div>
+                </div>
+              ) : (
+                <label className="relative flex flex-col items-center justify-center aspect-square rounded-xl border-2 border-dashed border-border hover:border-cyan-400 bg-bg-elevated cursor-pointer transition-colors">
+                  {mlUploading ? (
+                    <Loader2 size={20} className="text-cyan-400 animate-spin" />
+                  ) : (
+                    <>
+                      <ImageIcon size={20} className="text-text-tertiary" />
+                      <span className="text-[10px] text-text-tertiary mt-1">上传</span>
+                    </>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleImageUpload(file, idx);
+                    }}
+                    disabled={isSubmitting || mlUploading}
+                  />
+                </label>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <p className="text-[11px] text-text-tertiary mt-2">
+          第一张图将作为视频首帧，后续图片作为动作参考
+        </p>
+      </div>
+
+      {/* 3段提示词 */}
+      <div className="rounded-xl bg-bg-surface border border-border p-4">
+        <h3 className="text-sm font-medium text-text-primary mb-3">提示词（3段）</h3>
+        <div className="space-y-3">
+          {[0, 1, 2].map(idx => (
+            <div key={idx}>
+              <label className="text-xs text-text-secondary mb-1 block">提示词 {idx + 1}</label>
+              <textarea
+                value={mlPrompts[idx]}
+                onChange={(e) => updatePrompt(idx, e.target.value)}
+                placeholder={`描述第${idx + 1}段视频的动作、表情、场景变化...`}
+                rows={3}
+                className="w-full px-3 py-2 rounded-lg bg-bg-elevated border border-border text-sm text-text-primary placeholder-slate-500 focus:outline-none focus:border-cyan-400/50 resize-none"
+                disabled={isSubmitting}
+              />
+            </div>
+          ))}
+        </div>
+        {selectedGirlfriend && (
+          <div className="mt-2 px-2 py-1 rounded bg-red-50 border border-red-200 text-[10px] text-red-600">
+            已锚定数字人：{selectedGirlfriend.nameZh || selectedGirlfriend.name}
+          </div>
+        )}
+      </div>
+
+      {/* 视频模型配置 */}
+      <div className="rounded-xl bg-bg-surface border border-border p-4">
+        <h3 className="text-sm font-medium text-text-primary mb-3">视频模型配置</h3>
+        <RunningHubModelPicker
+          label="视频模型"
+          kind="unet"
+          value={mlVideoModel}
+          onChange={(name) => setMlVideoModel(name || '')}
+          placeholder="不使用"
+          disabled={isSubmitting}
+        />
+      </div>
+
+      {/* LoRA配置 */}
+      <div className="rounded-xl bg-bg-surface border border-border p-4">
+        <h3 className="text-sm font-medium text-text-primary mb-3">LoRA配置</h3>
+        <div className="space-y-3">
+          <RunningHubModelPicker
+            label="LoRA模型"
+            kind="lora"
+            value={mlLora}
+            onChange={(name) => setMlLora(name || '')}
+            placeholder="不使用"
+            disabled={isSubmitting}
+          />
+          <ParameterSlider
+            label="LoRA权重"
+            value={mlLoraWeight}
+            min={0.1}
+            max={1}
+            step={0.1}
+            onChange={setMlLoraWeight}
+            disabled={isSubmitting}
+          />
+        </div>
+      </div>
+
+      {/* 生成按钮 */}
+      <div className="pt-2 pb-4">
+        <GenerateButton
+          onClick={handleSubmit}
+          isLoading={isSubmitting}
+          disabled={!mlImages[0]?.path || isSubmitting || mlUploading}
+          label={mlUploading ? '上传中...' : isSubmitting ? '提交中...' : '生成视频'}
+        />
+      </div>
+    </div>
+  );
+}
+
 // ─── 主页面 ────────────────────────────────────────────────────────────────
 
-type VideoModel = 'wan22' | 'minimaxh3';
+type VideoModel = 'wan22' | 'minimaxh3' | 'minimaxlong';
 
 export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPageProps) {
   // Model selector
@@ -1228,6 +1676,16 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
   const [mmLora, setMmLora] = useState('MysticXXX_MMH3-V1.safetensors');
   const [mmLoraWeight, setMmLoraWeight] = useState(0.4);
   const [mmUploading, setMmUploading] = useState(false);
+
+  // MiniMax Long Video state
+  const [mlImages, setMlImages] = useState<{ path: string; preview: string }[]>([]);
+  const [mlPrompts, setMlPrompts] = useState<string[]>(['', '', '']);
+  const [mlVideoModel, setMlVideoModel] = useState('');
+  const [mlLora, setMlLora] = useState('');
+  const [mlLoraWeight, setMlLoraWeight] = useState(0.4);
+  const [mlUploading, setMlUploading] = useState(false);
+  const [mlSelectedGirlfriend, setMlSelectedGirlfriend] = useState<GirlfriendPreset | null>(null);
+  const [mlGirlfriendUploading, setMlGirlfriendUploading] = useState(false);
 
   const [selectedGirlfriend, setSelectedGirlfriend] = useState<GirlfriendPreset | null>(null);
   const [girlfriendUploading, setGirlfriendUploading] = useState(false);
@@ -1576,6 +2034,16 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
             >
               MiniMax H3
             </button>
+            <button
+              onClick={() => setVideoModel('minimaxlong')}
+              className={`px-4 py-2 rounded-lg text-xs font-medium transition-all ${
+                videoModel === 'minimaxlong'
+                  ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-sm'
+                  : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              MiniMax 长视频
+            </button>
           </div>
         </div>
       </div>
@@ -1611,6 +2079,38 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
           onError={onError}
           onSuccess={onSuccess}
           taskListRef={taskListRef}
+          selectedGirlfriend={selectedGirlfriend}
+          setSelectedGirlfriend={setSelectedGirlfriend}
+          girlfriendUploading={girlfriendUploading}
+          setGirlfriendUploading={setGirlfriendUploading}
+        />
+      )}
+
+      {/* MiniMax Long Video UI */}
+      {videoModel === 'minimaxlong' && (
+        <MiniMaxLongVideoPanel
+          apiKey={apiKey}
+          mlImages={mlImages}
+          setMlImages={setMlImages}
+          mlPrompts={mlPrompts}
+          setMlPrompts={setMlPrompts}
+          mlVideoModel={mlVideoModel}
+          setMlVideoModel={setMlVideoModel}
+          mlLora={mlLora}
+          setMlLora={setMlLora}
+          mlLoraWeight={mlLoraWeight}
+          setMlLoraWeight={setMlLoraWeight}
+          mlUploading={mlUploading}
+          setMlUploading={setMlUploading}
+          isSubmitting={isSubmitting}
+          setIsSubmitting={setIsSubmitting}
+          onError={onError}
+          onSuccess={onSuccess}
+          taskListRef={taskListRef}
+          selectedGirlfriend={mlSelectedGirlfriend}
+          setSelectedGirlfriend={setMlSelectedGirlfriend}
+          girlfriendUploading={mlGirlfriendUploading}
+          setGirlfriendUploading={setMlGirlfriendUploading}
         />
       )}
 

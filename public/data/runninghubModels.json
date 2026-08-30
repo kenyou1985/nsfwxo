@@ -107311,6 +107311,30 @@
       "updateTime": "2025-07-19 14:10:12",
       "owner": "野猪氏",
       "version": "V1.0"
+    },
+    {
+      "id": "minimax-lora-001",
+      "name": "MysticXXX_MMH3-V1.safetensors",
+      "label": "MiniMax H3 LoRA",
+      "category": [
+        "video",
+        "rh-pick"
+      ],
+      "defaultWeight": 0.4,
+      "description": "MiniMax H3 视频模型配套LoRA - 增强视频生成质量",
+      "baseModel": "MiniMax-H3",
+      "baseModelSubtype": "video",
+      "triggerWords": "",
+      "tags": [
+        "视频生成",
+        "LoRA",
+        "MiniMax"
+      ],
+      "cover": "",
+      "owner": "RunningHUB",
+      "createTime": "2026-08-30 00:00:00",
+      "updateTime": "2026-08-30 00:00:00",
+      "version": "V1.0"
     }
   ],
   "unets": [
@@ -155072,6 +155096,30 @@
       "owner": "白白",
       "createTime": "2025-04-28 17:02:24",
       "updateTime": "2025-04-28 17:02:24"
+    },
+    {
+      "id": "minimax-h3-001",
+      "name": "DasiwaMinimaxH3_dasiwaREF2VAHybridV1_0.safetensors",
+      "label": "MiniMax H3 视频模型",
+      "category": [
+        "video",
+        "rh-pick"
+      ],
+      "defaultWeight": 1,
+      "description": "MiniMax H3 图生视频模型 - 支持高质量人物动作视频生成",
+      "baseModel": "MiniMax-H3",
+      "baseModelSubtype": "video",
+      "version": "V1.0",
+      "triggerWords": "",
+      "tags": [
+        "视频生成",
+        "人物动作",
+        "图生视频"
+      ],
+      "cover": "",
+      "owner": "RunningHUB",
+      "createTime": "2026-08-30 00:00:00",
+      "updateTime": "2026-08-30 00:00:00"
     }
   ],
   "updatedAt": "2026-08-24T15:04:05.955Z",

@@ -141,6 +141,8 @@ export const WORKFLOW = {
   KREA2: '2082140662178611201',
   /** MiniMax H3 图生视频模型 */
   MINIMAX_H3: '2084661265636839425',
+  /** MiniMax 长视频（0.4像素）模型 */
+  MINIMAX_LONG: '2093509966656491521',
 } as const;
 
 export interface WorkflowNode {
