@@ -1,8 +1,12 @@
 {
-  "version": 5,
-  "baseModelFilter": "IL-XL",
+  "version": 9,
+  "baseModelFilter": [
+    "IL-XL",
+    "krea2",
+    "minimax-h3"
+  ],
   "source": "https://www.runninghub.ai/openapi/v2/resource/list",
-  "fetchedAt": "2026-06-27T04:41:15.588Z",
+  "fetchedAt": "2026-08-30T17:56:22.960980Z",
   "categories": [
     {
       "id": "all",
@@ -14703,6 +14707,144 @@
       "updateTime": "2025-08-12 07:45:13",
       "owner": "PiPiAi",
       "version": "V1.0"
+    },
+    {
+      "id": "2093998393717702657",
+      "name": "realism-sdxl.safetensors",
+      "label": "Realism-sdxl.safetensors",
+      "category": [
+        "realistic"
+      ],
+      "defaultWeight": 1,
+      "description": "sdxl nsfw",
+      "baseModel": "Pony-XL",
+      "tags": [
+        "摄影",
+        "写实",
+        "逼真的",
+        "逼真",
+        "现实的",
+        "寫實"
+      ],
+      "triggerWords": "",
+      "cover": "https://rh-hk-images.xiaoyaoyou.com/9690ecf63ad8a987954dddbbeddee296/2026-08-30/6ea100a995826f64e6186ffe999f0d4f.png?imageMogr2/format/jpg/ignore-error/1",
+      "createTime": "2026-08-30 17:44:56",
+      "updateTime": "2026-08-30 17:44:56",
+      "owner": "Studio ComfyUI",
+      "version": "V1.0",
+      "versionName": "V1.0"
+    },
+    {
+      "id": "2093984042559913986",
+      "name": "zeitstein_V51.safetensors",
+      "label": "Zeitstein",
+      "category": [
+        "rh-pick"
+      ],
+      "defaultWeight": 1,
+      "description": "https://civitai.com/models/1769709?modelVersionId=3280069",
+      "baseModel": "IL-XL",
+      "tags": [
+        "女生"
+      ],
+      "triggerWords": "",
+      "cover": "https://rh-hk-images.xiaoyaoyou.com/b3942378f6d44a38330f184fa79219b1/2026-08-30/748fc717b3d4d1e822029468a36b0f09.png?imageMogr2/format/jpg/ignore-error/1",
+      "createTime": "2026-08-30 16:47:54",
+      "updateTime": "2026-08-30 16:47:54",
+      "owner": "gGiRBDn",
+      "version": "V1.0",
+      "versionName": "V1.0"
+    },
+    {
+      "id": "2093980988984967170",
+      "name": "moodyAmateurMixKrea2_v30JAVStyle.safetensors",
+      "label": "Moody Amateur Mix (Krea2 Uncensored)",
+      "category": [
+        "realistic"
+      ],
+      "defaultWeight": 1,
+      "description": "https://civitai.com/models/2859971?modelVersionId=3279534",
+      "baseModel": "krea2",
+      "tags": [
+        "写实"
+      ],
+      "triggerWords": "",
+      "cover": "https://rh-hk-images.xiaoyaoyou.com/b3942378f6d44a38330f184fa79219b1/2026-08-30/76eaba4b2b9dbb62a8086fee7afa6e7c.png?imageMogr2/format/jpeg/ignore-error/1",
+      "createTime": "2026-08-30 16:35:46",
+      "updateTime": "2026-08-30 16:35:46",
+      "owner": "gGiRBDn",
+      "version": "V1.0",
+      "versionName": "V1.0"
+    },
+    {
+      "id": "2093918065293967362",
+      "name": "reedNSFWIllustrious_v150.safetensors",
+      "label": "REED_XXX_illustrious_SDXL",
+      "category": [
+        "anime"
+      ],
+      "defaultWeight": 1,
+      "description": "REED XXX Illustrious MixI created a keyword generation Bot, and I deployed it in the Prysai Discord channel. It supports comic style/Furry style. It is free. https://discord.gg/52q6zuxcr2Currently using the WAI role set and supporting Lazypos plugin commands. Logs for each version can also be viewed in the respective version. Thank you for choosing REED XXX.目前使用WAI角色集並且支持Lazypos插件指令。每個版本的日誌可以在相應的版本中查看，感謝你選擇REED XXX⚙️ Recommended Settings• Steps: 15–40 (Best around 30 )• CFG Scale: 5–8 (Best around 7 )• Sampler: Euler a (or DPM++ 2M )• CLIP Skip: 2• VAE: Already integrated• Restore Faces: Off• Adetailer: On (for clean facial detail)🖼️ High-Res Generation Setup• Base Resolution: 1024×1024 or larger• Highres Fix: On• Upscale Factor: 1.5×• Hires Steps: 20• Upscaler: R-ESRGAN 4x+ Anime6B• Denoising Strength: 0.35–0.5✅ Positive Prompt (Universal &amp; Stable)masterpiece, best quality, amazing quality, absurdres,🚫 Negative Prompt (Recommended for Clean Results)lowres,early,sketch,monochrome,greyscale,worst quality,bad_quality,normal quality,lowres,anatomical nonsense,bad anatomy,anatomical nonsense,watermark,simple background,transparent,bad_feet,bad_hands,logo,text,bad_anatomy,signature,face backlighting,(worst quality, bad quality:1.2),jpeg artifacts,censored,extra digit,ugly,deformed anatomy,bad proportions,🧩 Helpful Tags for Composition• Viewpoint:portrait, full body, 3/4 view, close-up, side view• Pose:standing, centered, looking at viewer, natural pose, dynamic🔒 Safety &amp; FilteringThis model is flexible and allows all styles, but if you’d like to avoid NSFW content, simply add:nsfwto your negative prompt.🌟 Why Use REED_NSFW_illustrious_SDXL?\t•\tSupports both 2D and 3D visual styles\t•\tWorks great for portraits, character sheets, and dynamic poses\t•\tClean structure, strong lighting, and minimal prompt tuning needed",
+      "baseModel": "IL-XL",
+      "tags": [
+        "动漫游戏",
+        "插画",
+        "二次元",
+        "幻想",
+        "女生",
+        "男生",
+        "动物",
+        "风景"
+      ],
+      "triggerWords": "",
+      "cover": "https://rh-hk-images.xiaoyaoyou.com/cba99ec5ec4806c4b7ca79ab7b14c00f/2026-08-29/d70d6cbf3733695616eac6e3f5218619.png?imageMogr2/format/jpg/ignore-error/1",
+      "createTime": "2026-08-30 12:25:44",
+      "updateTime": "2026-08-30 12:25:44",
+      "owner": "ReedVaughn",
+      "version": "V15.0",
+      "versionName": "V15.0"
+    },
+    {
+      "id": "2093881798513147905",
+      "name": "h3ErosMax_beta4.safetensors",
+      "label": "H3 Eros Max",
+      "category": [
+        "realistic"
+      ],
+      "defaultWeight": 1,
+      "description": "https://civitai.com/models/2851079?modelVersionId=3275279",
+      "baseModel": "minimax-h3",
+      "tags": [
+        "写实"
+      ],
+      "triggerWords": "",
+      "cover": "https://rh-hk-images.xiaoyaoyou.com/b3942378f6d44a38330f184fa79219b1/2026-08-30/fbe544087a60b6bc41272ccc535b0fde.png?imageMogr2/format/jpeg/ignore-error/1",
+      "createTime": "2026-08-30 10:01:37",
+      "updateTime": "2026-08-30 10:01:37",
+      "owner": "gGiRBDn",
+      "version": "V1.0",
+      "versionName": "V1.0"
+    },
+    {
+      "id": "2093801160460521474",
+      "name": "ultra_v15.safetensors",
+      "label": "ULTRA",
+      "category": [
+        "realistic"
+      ],
+      "defaultWeight": 1,
+      "description": "https://civitai.com/models/228525?modelVersionId=3215898",
+      "baseModel": "krea2",
+      "tags": [
+        "写实"
+      ],
+      "triggerWords": "",
+      "cover": "https://rh-hk-images.xiaoyaoyou.com/b3942378f6d44a38330f184fa79219b1/2026-08-29/1b15d6b9bc8aed3993b96bd7f3fbcbd6.png?imageMogr2/format/jpeg/ignore-error/1",
+      "createTime": "2026-08-30 04:41:12",
+      "updateTime": "2026-08-30 04:41:12",
+      "owner": "gGiRBDn",
+      "version": "V1.0",
+      "versionName": "V1.0"
     }
   ],
   "loras": [

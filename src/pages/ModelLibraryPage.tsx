@@ -276,6 +276,9 @@ export function ModelLibraryPage({ onNavigate, onSuccess }: ModelLibraryPageProp
 
   const refreshFavorites = useCallback(() => setFavorites(getModelFavorites()), []);
 
+  // 底模筛选仅在 UNET / LoRA 视图下显示
+  const showBaseModelFilter = filter === 'unet' || filter === 'lora';
+
   // 过滤后的列表
   const list = useMemo<RunningHubModelEntry[]>(() => {
     let src: RunningHubModelEntry[] = [];
@@ -309,10 +312,15 @@ export function ModelLibraryPage({ onNavigate, onSuccess }: ModelLibraryPageProp
     let out = src;
     if (category !== 'all') out = out.filter((m) => (m.category || []).includes(category));
 
-    // 底模筛选（仅 UNET）
-    if (filter === 'unet' && baseModelFilter !== 'all') {
-      const bm = baseModelFilter === 'il-xl' ? 'IL-XL' : 'krea2';
-      out = out.filter((m) => (m.baseModel || '').toLowerCase().includes(bm.toLowerCase()));
+    // 底模筛选（UNET 和 LoRA 支持）
+    if (showBaseModelFilter && baseModelFilter !== 'all') {
+      if (filter === 'lora') {
+        // LoRA: 仅 MiniMax-H3 筛选
+        out = out.filter((m) => (m.baseModel || '').toLowerCase().includes('minimax'));
+      } else {
+        const bm = baseModelFilter === 'il-xl' ? 'IL-XL' : 'krea2';
+        out = out.filter((m) => (m.baseModel || '').toLowerCase().includes(bm.toLowerCase()));
+      }
     }
 
     // 搜索
@@ -371,7 +379,6 @@ export function ModelLibraryPage({ onNavigate, onSuccess }: ModelLibraryPageProp
     favorites: favorites.length,
   }), [checkpoints, loras, unets, favorites]);
 
-  const showBaseModelFilter = filter === 'unet';
   const currentSort = SORT_OPTIONS.find(s => s.id === sortField) || SORT_OPTIONS[0];
 
   return (
@@ -484,24 +491,43 @@ export function ModelLibraryPage({ onNavigate, onSuccess }: ModelLibraryPageProp
             </div>
           </div>
 
-          {/* Base model filter — only for UNET */}
+          {/* Base model filter — for UNET and LoRA */}
           {showBaseModelFilter && (
             <div className="flex items-center gap-1.5">
               <span className="text-[11px] text-text-tertiary flex-shrink-0">底模:</span>
-              {BASE_MODEL_OPTIONS.map((bm) => (
-                <button
-                  key={bm.id}
-                  onClick={() => setBaseModelFilter(bm.id)}
-                  className={[
-                    'flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] transition-colors',
-                    baseModelFilter === bm.id
-                      ? 'bg-primary text-white'
-                      : 'bg-bg-base text-text-secondary hover:bg-primary-light hover:text-primary border border-border-default',
-                  ].join(' ')}
-                >
-                  {bm.label}
-                </button>
-              ))}
+              {filter === 'lora' ? (
+                // LoRA: 仅显示 MiniMax-H3 选项
+                BASE_MODEL_OPTIONS.filter(bm => bm.id === 'all' || bm.id === 'minimax-h3').map((bm) => (
+                  <button
+                    key={bm.id}
+                    onClick={() => setBaseModelFilter(bm.id)}
+                    className={[
+                      'flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] transition-colors',
+                      baseModelFilter === bm.id
+                        ? 'bg-primary text-white'
+                        : 'bg-bg-base text-text-secondary hover:bg-primary-light hover:text-primary border border-border-default',
+                    ].join(' ')}
+                  >
+                    {bm.label}
+                  </button>
+                ))
+              ) : (
+                // UNET: 显示全部选项
+                BASE_MODEL_OPTIONS.map((bm) => (
+                  <button
+                    key={bm.id}
+                    onClick={() => setBaseModelFilter(bm.id)}
+                    className={[
+                      'flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] transition-colors',
+                      baseModelFilter === bm.id
+                        ? 'bg-primary text-white'
+                        : 'bg-bg-base text-text-secondary hover:bg-primary-light hover:text-primary border border-border-default',
+                    ].join(' ')}
+                  >
+                    {bm.label}
+                  </button>
+                ))
+              )}
             </div>
           )}
 

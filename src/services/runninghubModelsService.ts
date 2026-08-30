@@ -148,12 +148,13 @@ export const MODEL_KIND_META: Record<ModelKind, { label: string; badge: string; 
   unet:       { label: 'UNET',     badge: 'UNET', badgeClass: 'bg-green-500/85 text-white' },
 };
 
-export type BaseModelFilter = 'all' | 'il-xl' | 'krea2';
+export type BaseModelFilter = 'all' | 'il-xl' | 'krea2' | 'minimax-h3';
 
 export const BASE_MODEL_OPTIONS: { id: BaseModelFilter; label: string; apiValue?: string }[] = [
   { id: 'all',   label: '全部底模' },
   { id: 'il-xl', label: 'IL-XL', apiValue: 'IL-XL' },
-  { id: 'krea2', label: 'kea2', apiValue: 'krea2' },
+  { id: 'krea2', label: 'krea2', apiValue: 'krea2' },
+  { id: 'minimax-h3', label: 'MiniMax-H3', apiValue: 'minimax-h3' },
 ];
 
 export type SortField = 'default' | 'newest' | 'oldest' | 'name';
@@ -174,10 +175,20 @@ export async function filterByKindAndCategory(
   const buckets = kind === 'checkpoint' ? ckptBuckets : kind === 'unet' ? unetBuckets : loraBuckets;
   let list = buckets.get(categoryId || 'all') || [];
 
-  // baseModel filter for UNET (kea2 vs IL-XL)
+  // baseModel filter for UNET (krea2 vs IL-XL vs MiniMax-H3)
   if (kind === 'unet' && baseModelFilter !== 'all') {
-    const bm = baseModelFilter === 'il-xl' ? 'IL-XL' : 'krea2';
+    const bm = baseModelFilter === 'il-xl' ? 'IL-XL' : baseModelFilter;
     list = list.filter(e => (e.baseModel || '').toLowerCase().includes(bm.toLowerCase()));
+  }
+
+  // baseModel filter for CHECKPOINT (MiniMax-H3)
+  if (kind === 'checkpoint' && baseModelFilter === 'minimax-h3') {
+    list = list.filter(e => (e.baseModel || '').toLowerCase().includes('minimax'));
+  }
+
+  // baseModel filter for LORA (MiniMax-H3)
+  if (kind === 'lora' && baseModelFilter === 'minimax-h3') {
+    list = list.filter(e => (e.baseModel || '').toLowerCase().includes('minimax'));
   }
 
   return list;
