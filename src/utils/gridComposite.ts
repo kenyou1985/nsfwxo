@@ -1,27 +1,37 @@
 /**
  * Grid composite utility
  *
- * 9-Panel storyboard frontend compositor.
+ * Multi-panel storyboard frontend compositor.
  *
  * Why this exists
  * ───────────────
- * The grid storyboard's "Generate Image" button wants to produce ONE 9-panel
- * image. But running a SINGLE img2img task that asks the model to render a
- * 3×3 grid in a single image is unreliable when a strong face reference is
- * supplied: Krea2 tends to collapse the layout into a wide strip of three
- * half-faces (we observed this empirically — 3 wide tiles, each containing
- * 1/3 of a face, instead of a true 3×3 grid).
+ * The grid storyboard's "Generate Image" button wants to produce ONE
+ * multi-panel image. But running a SINGLE img2img task that asks the
+ * model to render e.g. a 3×3 grid in a single image is unreliable when a
+ * strong face reference is supplied: Krea2 tends to collapse the layout
+ * into a wide strip of three half-faces (we observed this empirically —
+ * 3 wide tiles, each containing 1/3 of a face, instead of a true 3×3 grid).
  *
  * The reliable approach, used by the linear-storyboard page, is to issue
- * 9 INDEPENDENT img2img tasks — one per panel, each with `count=1` and a
+ * N INDEPENDENT img2img tasks — one per panel, each with `count=1` and a
  * per-panel prompt that contains NO layout / grid instructions. The UI then
- * arranges the 9 results into a 3×3 grid display, and this helper stitches
- * them into a single PNG when the user clicks "保存 9 宫格" or "下载".
+ * arranges the N results into a grid display, and this helper stitches
+ * them into a single PNG when the user clicks "保存" or "下载".
  *
  * ── Public API ─────────────────────────────────────────────────────────
  *
- *   composeNinePanelGrid(images: (string | null | undefined)[]): Promise<string>
- *     → returns a data: URL of a vertically-laid-out 3×3 sheet (9:16).
+ *   composeNinePanelGrid(images, options?): Promise<string>
+ *     → legacy alias for composeGridStoryboard. Kept for backwards-compat
+ *       with existing callers; internally forces a 3×3 (9-panel) layout.
+ *
+ *   composeGridStoryboard(images, options?): Promise<string>
+ *     → returns a data: URL of a vertically-laid-out storyboard sheet.
+ *       The (cols, rows) layout is auto-derived from images.length when
+ *       no explicit cols/rows are passed:
+ *         4 panels  → 2×2
+ *         6 panels  → 2×3
+ *         9 panels  → 3×3
+ *        12 panels  → 3×4
  *       Missing panels are rendered as empty placeholder tiles so the user
  *       can see which slots haven't been generated yet.
  *
@@ -42,6 +52,10 @@ export interface CompositeOptions {
   showPlaceholder?: boolean;
   /** Placeholder color. Default #1f2937 (slate-800). */
   placeholderColor?: string;
+  /** Force a specific number of columns. Default: auto-derive from count. */
+  cols?: number;
+  /** Force a specific number of rows. Default: auto-derive from count. */
+  rows?: number;
 }
 
 const DEFAULT_WIDTH = 832;          // 832 × 16 / 9 ≈ 1479 (a comfy 9:16 sheet)
@@ -49,8 +63,28 @@ const DEFAULT_BORDER = 2;
 const DEFAULT_PLACEHOLDER = '#1f2937';
 
 /**
+ * Compute the (cols, rows) layout for a given panel count.
+ *
+ * Layout mapping (always cols ≤ rows to keep the sheet vertical):
+ *   4 panels  → 2 cols × 2 rows (2×2)
+ *   6 panels  → 2 cols × 3 rows (2×3)
+ *   9 panels  → 3 cols × 3 rows (3×3)
+ *  12 panels  → 3 cols × 4 rows (3×4)
+ *  other      → smallest cols s.t. cols*rows >= count
+ */
+function getLayoutForCount(count: number): { cols: number; rows: number } {
+  if (count === 4) return { cols: 2, rows: 2 };
+  if (count === 6) return { cols: 2, rows: 3 };
+  if (count === 9) return { cols: 3, rows: 3 };
+  if (count === 12) return { cols: 3, rows: 4 };
+  const cols = Math.max(2, Math.ceil(Math.sqrt(count)));
+  const rows = Math.ceil(count / cols);
+  return { cols, rows };
+}
+
+/**
  * Load an image URL into an HTMLImageElement. Resolves only when the image
- * has fully decoded (or failed). Used by composeNinePanelGrid and reusable
+ * has fully decoded (or failed). Used by composeGridStoryboard and reusable
  * for callers that want to draw on top of a panel image.
  *
  * Supports http(s) URLs and data: URLs. Cross-origin images that don't
@@ -68,32 +102,53 @@ export function loadImage(url: string): Promise<HTMLImageElement> {
 }
 
 /**
- * Compose 9 panel images into a single 3×3 grid image (data: URL).
+ * Compose N panel images into a single storyboard sheet (data: URL).
  *
- * Layout (9:16 vertical, 3 rows × 3 columns):
+ * Layout is auto-derived from images.length when options.cols/rows are not
+ * provided. Supports 2×2 (4 panels), 2×3 (6 panels), 3×3 (9 panels),
+ * 3×4 (12 panels), and other balanced grids.
  *
- *   ┌─────┬─────┬─────┐
- *   │  1  │  2  │  3  │
- *   ├─────┼─────┼─────┤
- *   │  4  │  5  │  6  │
- *   ├─────┼─────┼─────┤
- *   │  7  │  8  │  9  │
- *   └─────┴─────┴─────┘
+ * The output is always a strict 9:16 vertical aspect ratio (taller than
+ * wide) regardless of the panel count — this matches Krea2's native
+ * 9:16 storyboard output so the composite looks correct when uploaded
+ * back to the model.
  *
- * - Each tile is the SAME size (1/3 width × 1/3 height of the canvas).
+ *   ┌─────┬─────┐    ┌─────┬─────┐    ┌─────┬─────┬─────┐
+ *   │  1  │  2  │    │  1  │  2  │    │  1  │  2  │  3  │
+ *   ├─────┼─────┤    ├─────┼─────┤    ├─────┼─────┼─────┤
+ *   │  3  │  4  │    │  3  │  4  │    │  4  │  5  │  6  │
+ *   └─────┴─────┘    ├─────┼─────┤    ├─────┼─────┼─────┤
+ *                   │  5  │  6  │    │  7  │  8  │  9  │
+ *                   └─────┴─────┘    └─────┴─────┴─────┘
+ *     2×2 (4)           2×3 (6)            3×3 (9)
+ *
+ * - Each tile is the SAME size (1/cols width × 1/rows height of the canvas).
  * - Missing images render as a dark placeholder with a small "等待生成…"
- *   hint so the user can see which slots still need generation.
+ *   hint so the user sees which slots still need generation.
  * - A thin white border separates the tiles for visual clarity.
  *
  * Always returns a Promise; never throws synchronously.
  */
-export async function composeNinePanelGrid(
+export async function composeGridStoryboard(
   images: Array<string | null | undefined>,
   options: CompositeOptions = {},
 ): Promise<string> {
   const width = options.width ?? DEFAULT_WIDTH;
-  const cols = 3;
-  const rows = 3;
+  const layout = (() => {
+    if (options.cols && options.rows) {
+      return { cols: options.cols, rows: options.rows };
+    }
+    if (options.cols) {
+      return { cols: options.cols, rows: Math.ceil(images.length / options.cols) };
+    }
+    if (options.rows) {
+      return { cols: Math.ceil(images.length / options.rows), rows: options.rows };
+    }
+    return getLayoutForCount(images.length);
+  })();
+  const cols = layout.cols;
+  const rows = layout.rows;
+  const slotCount = cols * rows;
   const tileW = Math.floor(width / cols);
   const tileH = Math.floor((width * 16 / 9) / rows);
   const totalW = tileW * cols;
@@ -104,7 +159,7 @@ export async function composeNinePanelGrid(
   const showPlaceholder = options.showPlaceholder ?? true;
 
   if (typeof document === 'undefined') {
-    throw new Error('composeNinePanelGrid requires a browser DOM (document/canvas)');
+    throw new Error('composeGridStoryboard requires a browser DOM (document/canvas)');
   }
 
   const canvas = document.createElement('canvas');
@@ -120,7 +175,7 @@ export async function composeNinePanelGrid(
   // Pre-load all present images in parallel; tolerate failures (the
   // placeholder will be drawn instead).
   const slots = await Promise.all(
-    images.slice(0, cols * rows).map(async (url) => {
+    images.slice(0, slotCount).map(async (url) => {
       if (!url) return null;
       try {
         return await loadImage(url);
@@ -130,7 +185,7 @@ export async function composeNinePanelGrid(
     }),
   );
 
-  for (let i = 0; i < cols * rows; i++) {
+  for (let i = 0; i < slotCount; i++) {
     const row = Math.floor(i / cols);
     const col = i % cols;
     const x = col * tileW;
@@ -175,6 +230,22 @@ export async function composeNinePanelGrid(
   }
 
   return canvas.toDataURL('image/png');
+}
+
+/**
+ * Legacy alias for composeGridStoryboard. Kept for backwards-compat with
+ * existing callers; internally always used a hardcoded 3×3 (9-panel) grid.
+ *
+ * New code should call composeGridStoryboard directly so the layout
+ * matches the user's selected panel count.
+ */
+export async function composeNinePanelGrid(
+  images: Array<string | null | undefined>,
+  options: CompositeOptions = {},
+): Promise<string> {
+  // Preserve historical behaviour: 3×3 layout when no explicit cols/rows.
+  const merged: CompositeOptions = { cols: 3, rows: 3, ...options };
+  return composeGridStoryboard(images, merged);
 }
 
 /**

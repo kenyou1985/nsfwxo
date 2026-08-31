@@ -276,8 +276,8 @@ export function ModelLibraryPage({ onNavigate, onSuccess }: ModelLibraryPageProp
 
   const refreshFavorites = useCallback(() => setFavorites(getModelFavorites()), []);
 
-  // 底模筛选仅在 UNET / LoRA 视图下显示
-  const showBaseModelFilter = filter === 'unet' || filter === 'lora';
+  // 底模筛选在 UNET / LoRA / CHECKPOINT 视图下显示
+  const showBaseModelFilter = filter === 'unet' || filter === 'lora' || filter === 'checkpoint';
 
   // 过滤后的列表
   const list = useMemo<RunningHubModelEntry[]>(() => {
@@ -312,12 +312,28 @@ export function ModelLibraryPage({ onNavigate, onSuccess }: ModelLibraryPageProp
     let out = src;
     if (category !== 'all') out = out.filter((m) => (m.category || []).includes(category));
 
-    // 底模筛选（UNET 和 LoRA 支持）
+    // 底模筛选（UNET、LoRA 和 CHECKPOINT 支持）
     if (showBaseModelFilter && baseModelFilter !== 'all') {
       if (filter === 'lora') {
-        // LoRA: 仅 MiniMax-H3 筛选
-        out = out.filter((m) => (m.baseModel || '').toLowerCase().includes('minimax'));
+        // LoRA: 按底模筛选
+        if (baseModelFilter === 'minimax-h3') {
+          out = out.filter((m) => (m.baseModel || '').toLowerCase().includes('minimax'));
+        } else if (baseModelFilter === 'il-xl') {
+          out = out.filter((m) => (m.baseModel || '').toLowerCase().includes('il-xl'));
+        } else if (baseModelFilter === 'krea2') {
+          out = out.filter((m) => (m.baseModel || '').toLowerCase().includes('krea2'));
+        }
+      } else if (filter === 'checkpoint') {
+        // CHECKPOINT: 按底模筛选
+        if (baseModelFilter === 'minimax-h3') {
+          out = out.filter((m) => (m.baseModel || '').toLowerCase().includes('minimax'));
+        } else if (baseModelFilter === 'il-xl') {
+          out = out.filter((m) => (m.baseModel || '').toLowerCase().includes('il-xl'));
+        } else if (baseModelFilter === 'krea2') {
+          out = out.filter((m) => (m.baseModel || '').toLowerCase().includes('krea2'));
+        }
       } else {
+        // UNET: 按底模筛选
         const bm = baseModelFilter === 'il-xl' ? 'IL-XL' : 'krea2';
         out = out.filter((m) => (m.baseModel || '').toLowerCase().includes(bm.toLowerCase()));
       }
@@ -441,7 +457,7 @@ export function ModelLibraryPage({ onNavigate, onSuccess }: ModelLibraryPageProp
                 { id: 'checkpoint', label: 'Checkpoint', n: counts.checkpoint },
                 { id: 'lora', label: 'LoRA', n: counts.lora },
                 { id: 'unet', label: 'UNET', n: counts.unet },
-                { id: 'favorites', label: '★ 我的收藏', n: counts.favorites },
+                { id: 'favorites', label: '★ 收藏', n: counts.favorites },
               ] as { id: FilterMode; label: string; n: number }[]).map((t) => (
                 <button
                   key={t.id}
@@ -491,43 +507,65 @@ export function ModelLibraryPage({ onNavigate, onSuccess }: ModelLibraryPageProp
             </div>
           </div>
 
-          {/* Base model filter — for UNET and LoRA */}
+          {/* Base model filter — for UNET, LoRA and Checkpoint */}
           {showBaseModelFilter && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-text-tertiary flex-shrink-0">底模:</span>
-              {filter === 'lora' ? (
-                // LoRA: 仅显示 MiniMax-H3 选项
-                BASE_MODEL_OPTIONS.filter(bm => bm.id === 'all' || bm.id === 'minimax-h3').map((bm) => (
-                  <button
-                    key={bm.id}
-                    onClick={() => setBaseModelFilter(bm.id)}
-                    className={[
-                      'flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] transition-colors',
-                      baseModelFilter === bm.id
-                        ? 'bg-primary text-white'
-                        : 'bg-bg-base text-text-secondary hover:bg-primary-light hover:text-primary border border-border-default',
-                    ].join(' ')}
-                  >
-                    {bm.label}
-                  </button>
-                ))
-              ) : (
-                // UNET: 显示全部选项
-                BASE_MODEL_OPTIONS.map((bm) => (
-                  <button
-                    key={bm.id}
-                    onClick={() => setBaseModelFilter(bm.id)}
-                    className={[
-                      'flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] transition-colors',
-                      baseModelFilter === bm.id
-                        ? 'bg-primary text-white'
-                        : 'bg-bg-base text-text-secondary hover:bg-primary-light hover:text-primary border border-border-default',
-                    ].join(' ')}
-                  >
-                    {bm.label}
-                  </button>
-                ))
-              )}
+            <div className="space-y-2">
+              {/* 分组标题 */}
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-medium text-text-tertiary uppercase tracking-wider">基础模型</span>
+                <div className="flex-1 h-px bg-border-default"></div>
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {/* Checkpoint: 显示全部底模选项 */}
+                {filter === 'checkpoint' ? (
+                  BASE_MODEL_OPTIONS.map((bm) => (
+                    <button
+                      key={bm.id}
+                      onClick={() => setBaseModelFilter(bm.id)}
+                      className={[
+                        'flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] transition-colors',
+                        baseModelFilter === bm.id
+                          ? 'bg-primary text-white'
+                          : 'bg-bg-base text-text-secondary hover:bg-primary-light hover:text-primary border border-border-default',
+                      ].join(' ')}
+                    >
+                      {bm.label}
+                    </button>
+                  ))
+                ) : filter === 'lora' ? (
+                  // LoRA: 显示全部底模选项（原：仅 MiniMax-H3）
+                  BASE_MODEL_OPTIONS.map((bm) => (
+                    <button
+                      key={bm.id}
+                      onClick={() => setBaseModelFilter(bm.id)}
+                      className={[
+                        'flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] transition-colors',
+                        baseModelFilter === bm.id
+                          ? 'bg-primary text-white'
+                          : 'bg-bg-base text-text-secondary hover:bg-primary-light hover:text-primary border border-border-default',
+                      ].join(' ')}
+                    >
+                      {bm.label}
+                    </button>
+                  ))
+                ) : (
+                  // UNET: 显示全部选项
+                  BASE_MODEL_OPTIONS.map((bm) => (
+                    <button
+                      key={bm.id}
+                      onClick={() => setBaseModelFilter(bm.id)}
+                      className={[
+                        'flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] transition-colors',
+                        baseModelFilter === bm.id
+                          ? 'bg-primary text-white'
+                          : 'bg-bg-base text-text-secondary hover:bg-primary-light hover:text-primary border border-border-default',
+                      ].join(' ')}
+                    >
+                      {bm.label}
+                    </button>
+                  ))
+                )}
+              </div>
             </div>
           )}
 

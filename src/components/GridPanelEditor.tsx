@@ -15,6 +15,12 @@ interface GridPanelEditorProps {
   displayLang: 'en' | 'zh';
   // Per-panel redrawn images keyed by panel index (most-recent-last ordering).
   redrawnPanelImages?: Record<number, string[]>;
+  // Generate mode: separate per-panel images vs one composite grid image.
+  generateSeparatePanels: boolean;
+  // Called when the user toggles the generate mode. Undefined when locked.
+  onGenerateSeparatePanelsChange?: (value: boolean) => void;
+  // Whether digital-human (character anchor) mode is active — forces separate panel generation.
+  isDigitalHumanMode?: boolean;
   // Called when the user clicks a redrawn image — opens the lightbox preview.
   onImageClick?: (panelIdx: number, imageUrl: string) => void;
   // Download a single panel image to the user's machine.
@@ -37,6 +43,9 @@ export function GridPanelEditor({
   redrawPanelIdx,
   displayLang,
   redrawnPanelImages,
+  generateSeparatePanels,
+  onGenerateSeparatePanelsChange,
+  isDigitalHumanMode,
   onImageClick,
   onDownloadImage,
   onToggleFavorite,
@@ -112,7 +121,9 @@ export function GridPanelEditor({
         <div className="bg-purple-50/50 rounded-lg p-3 border border-purple-100">
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-[10px] text-purple-600 font-medium">
-              {displayLang === 'zh' ? '完整九宫格提示词（一次性生成一张图）' : 'Full Grid Prompt (generates one image)'}
+              {generateSeparatePanels
+                ? (displayLang === 'zh' ? '完整分镜提示词预览（每个分镜独立生成）' : 'Full Prompt Preview (separate per-panel)')
+                : (displayLang === 'zh' ? '完整九宫格提示词（一次性生成一张图）' : 'Full Grid Prompt (generates one image)')}
             </span>
           </div>
           <textarea
@@ -271,23 +282,87 @@ export function GridPanelEditor({
         </div>
       </div>
 
-      {/* Generate button */}
-      <button
-        onClick={onGenerateImages}
-        disabled={isGenerating}
-        className="w-full py-2.5 rounded-lg text-[11px] font-medium bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-      >
-        <span className="flex items-center justify-center gap-1.5">
-          {isGenerating ? (
-            <Loader2 size={12} className="animate-spin" />
-          ) : (
-            <Wand2 size={12} />
-          )}
-          {displayLang === 'zh'
-            ? '生成一张九宫格分镜图片'
-            : 'Generate Grid Storyboard Image'}
-        </span>
-      </button>
+      {/* ── Generate mode toggle + generate button ── */}
+      <div className="space-y-2">
+        {/* Toggle row */}
+        <div className="flex items-center justify-between bg-purple-50/50 rounded-lg px-3 py-2 border border-purple-100">
+          <div className="flex items-center gap-1.5">
+            <Wand2 size={12} className="text-purple-500" />
+            <span className="text-[10px] text-purple-700 font-medium">
+              {displayLang === 'zh' ? '生成模式' : 'Generate Mode'}
+            </span>
+            {isDigitalHumanMode && (
+              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-600 font-medium">
+                {displayLang === 'zh' ? '锚定数字人' : 'Digital Human'}
+              </span>
+            )}
+          </div>
+
+          {/* Toggle switch */}
+          <button
+            onClick={() => onGenerateSeparatePanelsChange?.(!generateSeparatePanels)}
+            disabled={isGenerating || isDigitalHumanMode}
+            className={`relative inline-flex items-center h-5 w-9 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-purple-300 focus:ring-offset-1 ${
+              generateSeparatePanels
+                ? 'bg-purple-500'
+                : 'bg-gray-300'
+            } ${(isGenerating || isDigitalHumanMode) ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+            title={
+              isDigitalHumanMode
+                ? (displayLang === 'zh' ? '锚定数字人模式：强制独立分镜图' : 'Digital Human mode: forced to separate panel images')
+                : generateSeparatePanels
+                  ? (displayLang === 'zh'
+                      ? '关闭：生成一张完整九宫格图'
+                      : 'Off: generate one composite grid image')
+                  : (displayLang === 'zh'
+                      ? '开启：一键生成独立分镜图'
+                      : 'On: generate separate panel images')
+            }
+          >
+            <span
+              className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                generateSeparatePanels ? 'translate-x-4' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
+
+        {/* Mode labels */}
+        <div className="flex items-center justify-between px-1">
+          <span className={`text-[9px] font-medium ${generateSeparatePanels ? 'text-purple-600' : 'text-gray-400'}`}>
+            {displayLang === 'zh' ? '一键生成独立张图' : 'Separate Panel Images'}
+          </span>
+          <span className={`text-[9px] font-medium ${!generateSeparatePanels ? 'text-indigo-600' : 'text-gray-400'}`}>
+            {displayLang === 'zh' ? '生成一张九宫格图' : 'One Composite Image'}
+          </span>
+        </div>
+
+        {/* Generate button */}
+        <button
+          onClick={onGenerateImages}
+          disabled={isGenerating}
+          className="w-full py-2.5 rounded-lg text-[11px] font-medium bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+        >
+          <span className="flex items-center justify-center gap-1.5">
+            {isGenerating ? (
+              <Loader2 size={12} className="animate-spin" />
+            ) : (
+              <Wand2 size={12} />
+            )}
+            {isDigitalHumanMode
+              ? (displayLang === 'zh'
+                  ? `生成 ${panels.length} 张独立分镜图`
+                  : `Generate ${panels.length} Separate Panel Images`)
+              : generateSeparatePanels
+                ? (displayLang === 'zh'
+                    ? `一键生成 ${panels.length} 张独立分镜图`
+                    : `Generate ${panels.length} Separate Panel Images`)
+                : (displayLang === 'zh'
+                    ? '生成一张九宫格分镜图片'
+                    : 'Generate One Composite Grid Image')}
+          </span>
+        </button>
+      </div>
     </div>
   );
 }

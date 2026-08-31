@@ -39,7 +39,7 @@ const LORA_LOW_OPTIONS = [
 
 // MiniMax H3 constants
 const MINIMAX_VIDEO_MODEL_OPTIONS = [
-  { value: 'DasiwaMinimaxH3_dasiwaREF2VAHybridV1_0.safetensors', label: 'MiniMax H3 (默认)' },
+  { value: 'DasiwaMinimaxH3_dasiwaREF2VAHybridV1.safetensors', label: 'MiniMax H3 (默认)' },
 ];
 
 const MINIMAX_LORA_OPTIONS = [
@@ -924,6 +924,12 @@ function MiniMaxH3Panel({
     onSuccess(`已应用姿势: ${poseName}`);
   };
 
+  // Template preset handler
+  const handleTemplateApply = (template: typeof H3_VIDEO_TEMPLATES[0]) => {
+    setMmPrompt(template.prompt);
+    onSuccess(`已应用模板：${template.name}`);
+  };
+
   // Girlfriend selection handler
   const handleGirlfriendSelect = useCallback(async (gf: GirlfriendPreset) => {
     setSelectedGirlfriend(gf);
@@ -1057,12 +1063,12 @@ function MiniMaxH3Panel({
         selectedGirlfriend={selectedGirlfriend}
       />
 
-      {/* 参考图上传 - 支持最多3张 */}
+      {/* 参考图上传 - 支持最多9张 */}
       <div className="rounded-xl bg-bg-surface border border-border p-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-medium text-text-primary flex items-center gap-2">
             <ImageIcon size={16} className="text-purple-500" />
-            参考图（最多3张）
+            参考图（最多9张）
             {selectedGirlfriend && (
               <span className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-500 text-[10px] font-medium">
                 AI 女友模式
@@ -1070,12 +1076,12 @@ function MiniMaxH3Panel({
             )}
           </h3>
           <span className="text-xs text-text-tertiary">
-            {mmImages.filter(img => img.path).length}/3
+            {mmImages.filter(img => img.path).length}/9
           </span>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
-          {[0, 1, 2].map(idx => (
+        <div className="grid grid-cols-5 gap-2">
+          {[0, 1, 2, 3, 4, 5, 6, 7, 8].map(idx => (
             <div key={idx} className="relative">
               {mmImages[idx]?.preview ? (
                 <div className="relative aspect-square rounded-xl overflow-hidden border-2 border-purple-200 bg-bg-elevated">
@@ -1140,6 +1146,22 @@ function MiniMaxH3Panel({
             <span className={`w-2 h-2 rounded-full ${mmAutoPrompt ? 'bg-green-500' : 'bg-text-tertiary'}`} />
             自动提示词 {mmAutoPrompt ? '开启' : '关闭'}
           </button>
+        </div>
+        {/* 模版预设 */}
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-xs text-text-tertiary flex-shrink-0">模版：</span>
+          <div className="flex flex-wrap gap-1.5">
+            {H3_VIDEO_TEMPLATES.map((tpl) => (
+              <button
+                key={tpl.name}
+                onClick={() => handleTemplateApply(tpl)}
+                className={`px-3 py-1 rounded-lg text-xs font-medium bg-gradient-to-r ${tpl.color} text-white hover:opacity-90 transition-opacity`}
+                disabled={isSubmitting}
+              >
+                {tpl.name}
+              </button>
+            ))}
+          </div>
         </div>
         <textarea
           value={mmPrompt}
@@ -1226,11 +1248,12 @@ function MiniMaxH3Panel({
         <h3 className="text-sm font-medium text-text-primary mb-3">视频模型配置</h3>
         <RunningHubModelPicker
           label="视频模型"
-          kind="unet"
+          kind="checkpoint"
           value={mmVideoModel}
           onChange={(name) => setMmVideoModel(name || '')}
           placeholder="不使用"
           disabled={isSubmitting}
+          baseModelFilter="minimax-h3"
         />
       </div>
 
@@ -1246,6 +1269,7 @@ function MiniMaxH3Panel({
             onChange={(name) => setMmLora(name || '')}
             placeholder="不使用"
             disabled={isSubmitting}
+            baseModelFilter="minimax-h3"
           />
           <ParameterSlider
             label="LoRA权重"
@@ -1280,6 +1304,12 @@ interface MiniMaxLongVideoPanelProps {
   setMlImages: React.Dispatch<React.SetStateAction<{ path: string; preview: string }[]>>;
   mlPrompts: string[];
   setMlPrompts: (v: string[]) => void;
+  mlDuration: number;
+  setMlDuration: (v: number) => void;
+  mlAutoPrompt: boolean;
+  setMlAutoPrompt: (v: boolean) => void;
+  mlDirectOutput: boolean;
+  setMlDirectOutput: (v: boolean) => void;
   mlVideoModel: string;
   setMlVideoModel: (v: string) => void;
   mlLora: string;
@@ -1301,6 +1331,7 @@ interface MiniMaxLongVideoPanelProps {
 
 function MiniMaxLongVideoPanel({
   apiKey, mlImages, setMlImages, mlPrompts, setMlPrompts,
+  mlDuration, setMlDuration, mlAutoPrompt, setMlAutoPrompt, mlDirectOutput, setMlDirectOutput,
   mlVideoModel, setMlVideoModel, mlLora, setMlLora, mlLoraWeight, setMlLoraWeight,
   mlUploading, setMlUploading, isSubmitting, setIsSubmitting,
   onError, onSuccess, taskListRef,
@@ -1351,6 +1382,14 @@ function MiniMaxLongVideoPanel({
     onSuccess(`已应用姿势: ${poseName}`);
   };
 
+  // Template preset handler (apply to first prompt slot)
+  const handleTemplateApply = (template: typeof H3_VIDEO_TEMPLATES[0]) => {
+    const newPrompts = [...mlPrompts];
+    newPrompts[0] = template.prompt;
+    setMlPrompts(newPrompts);
+    onSuccess(`已应用模板：${template.name}`);
+  };
+
   // Girlfriend selection handler
   const handleGirlfriendSelect = useCallback(async (gf: GirlfriendPreset) => {
     setSelectedGirlfriend(gf);
@@ -1392,53 +1431,91 @@ function MiniMaxLongVideoPanel({
     return identityPrefix ? `${identityPrefix} ${prompt}`.trim() : prompt;
   };
 
-  // Build node list
+  // Build node list — node IDs match the MiniMax Long Video workflow template (workflowId: 2091369701523136514)
   const buildNodeList = (): NodeInfo[] => {
     const nodeList: NodeInfo[] = [];
 
-    // Add prompts (3段提示词)
-    const promptNodeIds = ['38', '40', '42'];
-    mlPrompts.forEach((prompt, idx) => {
-      const fullPrompt = getFullPrompt(idx);
-      if (fullPrompt) {
-        nodeList.push({
-          nodeId: promptNodeIds[idx],
-          fieldName: 'prompt',
-          fieldValue: fullPrompt,
-          description: `提示词${idx + 1}`
-        });
-      }
+    // ── Duration (per-segment, default 10 seconds) ──────────────────────────
+    nodeList.push({
+      nodeId: '159',
+      fieldName: 'value',
+      fieldValue: String(mlDuration),
+      description: '单段时长(秒)'
     });
 
-    // Add video model
+    // ── Strength (matching template default 0.4) ──────────────────────────────
+    nodeList.push({
+      nodeId: '25',
+      fieldName: 'value',
+      fieldValue: String(mlLoraWeight),
+      description: '强度'
+    });
+
+    // ── HDR and other bool flags (matching template defaults) ────────────────
+    nodeList.push({
+      nodeId: '329',
+      fieldName: 'value',
+      fieldValue: 'true',
+      description: 'enable_hdr'
+    });
+    nodeList.push({
+      nodeId: '272',
+      fieldName: 'value',
+      fieldValue: 'false',
+      description: 'denoise'
+    });
+
+    // ── Combined prompt (nodeId 59) ─────────────────────────────────────────
+    const combinedPrompt = mlPrompts.filter(Boolean).join(' | ');
+    if (combinedPrompt) {
+      nodeList.push({
+        nodeId: '59',
+        fieldName: 'prompt',
+        fieldValue: combinedPrompt,
+        description: '提示词'
+      });
+    }
+
+    // ── Per-segment durations (nodes 210, 211, 212) ─────────────────────────
+    const segmentDurations = [210, 211, 212];
+    segmentDurations.forEach((nodeId) => {
+      nodeList.push({
+        nodeId: String(nodeId),
+        fieldName: 'text',
+        fieldValue: String(mlDuration),
+        description: '单段时长'
+      });
+    });
+
+    // ── Video model (UNet, nodeId 11) ───────────────────────────────────────
     if (mlVideoModel) {
       nodeList.push({
-        nodeId: '19',
+        nodeId: '11',
         fieldName: 'unet_name',
         fieldValue: mlVideoModel,
         description: '视频模型'
       });
     }
 
-    // Add LoRA
+    // ── LoRA (nodeId 57) ────────────────────────────────────────────────────
     if (mlLora) {
       nodeList.push({
-        nodeId: '111',
+        nodeId: '57',
         fieldName: 'lora_name',
         fieldValue: mlLora,
         description: 'LoRA模型'
       });
       nodeList.push({
-        nodeId: '111',
+        nodeId: '57',
         fieldName: 'strength_model',
         fieldValue: String(mlLoraWeight),
         description: 'LoRA权重'
       });
     }
 
-    // Add images (up to 3)
-    const imageNodeIds = ['50', '76', '79'];
-    mlImages.forEach((img, idx) => {
+    // ── Reference images (nodeIds 28, 273, 285 — up to 3) ──────────────────
+    const imageNodeIds = ['28', '273', '285'];
+    mlImages.slice(0, 3).forEach((img, idx) => {
       if (img.path) {
         nodeList.push({
           nodeId: imageNodeIds[idx],
@@ -1496,12 +1573,12 @@ function MiniMaxLongVideoPanel({
         selectedGirlfriend={selectedGirlfriend}
       />
 
-      {/* 参考图上传 - 支持最多3张 */}
+      {/* 参考图上传 - 支持最多9张 */}
       <div className="rounded-xl bg-bg-surface border border-border p-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-medium text-text-primary flex items-center gap-2">
             <ImageIcon size={16} className="text-cyan-500" />
-            参考图（最多3张）
+            参考图（最多9张）
             {selectedGirlfriend && (
               <span className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-500 text-[10px] font-medium">
                 AI 女友模式
@@ -1509,12 +1586,12 @@ function MiniMaxLongVideoPanel({
             )}
           </h3>
           <span className="text-xs text-text-tertiary">
-            {mlImages.filter(img => img.path).length}/3
+            {mlImages.filter(img => img.path).length}/9
           </span>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
-          {[0, 1, 2].map(idx => (
+        <div className="grid grid-cols-5 gap-2">
+          {[0, 1, 2, 3, 4, 5, 6, 7, 8].map(idx => (
             <div key={idx} className="relative">
               {mlImages[idx]?.preview ? (
                 <div className="relative aspect-square rounded-xl overflow-hidden border-2 border-cyan-200 bg-bg-elevated">
@@ -1567,7 +1644,35 @@ function MiniMaxLongVideoPanel({
 
       {/* 3段提示词 */}
       <div className="rounded-xl bg-bg-surface border border-border p-4">
-        <h3 className="text-sm font-medium text-text-primary mb-3">提示词（3段）</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-medium text-text-primary">提示词（3段）</h3>
+          {/* 自动提示词开关 */}
+          <button
+            onClick={() => setMlAutoPrompt(!mlAutoPrompt)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              mlAutoPrompt ? 'bg-green-500/20 text-green-600 border border-green-300' : 'bg-bg-elevated text-text-tertiary'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full ${mlAutoPrompt ? 'bg-green-500' : 'bg-text-tertiary'}`} />
+            自动提示词 {mlAutoPrompt ? '开启' : '关闭'}
+          </button>
+        </div>
+        {/* 模版预设 */}
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-xs text-text-tertiary flex-shrink-0">模版：</span>
+          <div className="flex flex-wrap gap-1.5">
+            {H3_VIDEO_TEMPLATES.map((tpl) => (
+              <button
+                key={tpl.name}
+                onClick={() => handleTemplateApply(tpl)}
+                className={`px-3 py-1 rounded-lg text-xs font-medium bg-gradient-to-r ${tpl.color} text-white hover:opacity-90 transition-opacity`}
+                disabled={isSubmitting}
+              >
+                {tpl.name}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="space-y-3">
           {[0, 1, 2].map(idx => (
             <div key={idx}>
@@ -1575,7 +1680,7 @@ function MiniMaxLongVideoPanel({
               <textarea
                 value={mlPrompts[idx]}
                 onChange={(e) => updatePrompt(idx, e.target.value)}
-                placeholder={`描述第${idx + 1}段视频的动作、表情、场景变化...`}
+                placeholder={mlAutoPrompt ? '开启自动提示词，可不填或填写简单描述' : `描述第${idx + 1}段视频的动作、表情、场景变化...`}
                 rows={3}
                 className="w-full px-3 py-2 rounded-lg bg-bg-elevated border border-border text-sm text-text-primary placeholder-slate-500 focus:outline-none focus:border-cyan-400/50 resize-none"
                 disabled={isSubmitting}
@@ -1595,12 +1700,57 @@ function MiniMaxLongVideoPanel({
         <h3 className="text-sm font-medium text-text-primary mb-3">视频模型配置</h3>
         <RunningHubModelPicker
           label="视频模型"
-          kind="unet"
+          kind="checkpoint"
           value={mlVideoModel}
           onChange={(name) => setMlVideoModel(name || '')}
           placeholder="不使用"
           disabled={isSubmitting}
+          baseModelFilter="minimax-h3"
         />
+      </div>
+
+      {/* 单段时长设置 */}
+      <div className="rounded-xl bg-bg-surface border border-border p-4">
+        <h3 className="text-sm font-medium text-text-primary mb-3">单段时长</h3>
+        <div className="flex items-center gap-4">
+          <input
+            type="range"
+            min={5}
+            max={30}
+            step={1}
+            value={mlDuration}
+            onChange={(e) => setMlDuration(Number(e.target.value))}
+            disabled={isSubmitting}
+            className="flex-1 h-2 rounded-lg appearance-none bg-gray-200 cursor-pointer accent-cyan-500 disabled:opacity-50"
+          />
+          <div className="flex items-center gap-1 w-20">
+            <input
+              type="number"
+              min={5}
+              max={30}
+              value={mlDuration}
+              onChange={(e) => setMlDuration(Math.max(5, Math.min(30, Number(e.target.value))))}
+              disabled={isSubmitting}
+              className="w-14 px-2 py-1 rounded-lg border border-border bg-bg-elevated text-sm text-text-primary text-center focus:outline-none focus:border-cyan-400 disabled:opacity-50"
+            />
+            <span className="text-xs text-text-tertiary">秒</span>
+          </div>
+        </div>
+        <p className="text-[10px] text-text-tertiary mt-1.5">设置每个分段的视频时长（5-30秒），影响生成视频的总长度</p>
+
+        {/* ZIP直出开关 */}
+        <div className="flex items-center gap-3 mt-3">
+          <button
+            onClick={() => setMlDirectOutput(!mlDirectOutput)}
+            className={`w-10 h-5 rounded-full transition-colors relative ${mlDirectOutput ? 'bg-cyan-500' : 'bg-text-tertiary'}`}
+            disabled={isSubmitting}
+          >
+            <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${mlDirectOutput ? 'translate-x-5' : 'translate-x-0.5'}`} />
+          </button>
+          <span className="text-xs text-text-secondary">
+            直出模式 {mlDirectOutput ? '（直出视频）' : '（ZIP格式，默认关闭）'}
+          </span>
+        </div>
       </div>
 
       {/* LoRA配置 */}
@@ -1615,6 +1765,7 @@ function MiniMaxLongVideoPanel({
             onChange={(name) => setMlLora(name || '')}
             placeholder="不使用"
             disabled={isSubmitting}
+            baseModelFilter="minimax-h3"
           />
           <ParameterSlider
             label="LoRA权重"
@@ -1641,13 +1792,321 @@ function MiniMaxLongVideoPanel({
   );
 }
 
+// ─── MiniMax H3 视频模板（文生视频 / 图生视频 / 图生长视频 通用） ─────────────────────────
+
+const H3_VIDEO_TEMPLATES = [
+  {
+    name: '指挥舞蹈',
+    color: 'from-amber-500 to-orange-500',
+    prompt: `subject_definitions:
+
+<Subject 1>是一位年轻东亚女性，精致五官，清冷气质，黑色长直发，身穿修身吊带连衣裙，在视频中展现自信妩媚的神态与舞蹈动作。
+
+<Subject 2>是位于画面前景右下角的手指控制器，作为发出指令的视觉主体，其动作遵循固定的屏幕坐标映射逻辑。
+
+summary:
+
+目标视频展示<Subject 1>在卧室环境中根据<Subject 2>的四向指令进行舞蹈。视频采用稳定的单镜头构图，通过手指的上下左右移动驱动女性同拍做出升降重心或全身横移的响应动作，并在验证轴向规则后以一次短促的收尾动作结束。
+
+detailed_description:
+
+视频采用写实电影风格，卧室环境光线柔和且带有暖色调，营造出私密而暧昧的氛围。
+
+[Shot 1] 画面中景呈现<Subject 1>，她身穿修身吊带连衣裙，神情妩媚地注视镜头。前景右下角的<Subject 2>手指清晰可见，确立了同框且可读的空间关系。
+
+[Shot 2] At 00:01.500，<Subject 2>向上方移动发出指令，<Subject 1>在同一节拍内迅速抬高身体重心，挺胸并微微仰头，展现出明显的纵向位移。
+
+[Shot 3] At 00:03.000，<Subject 2>向下方移动，<Subject 1>随即压低重心，腰部下沉并向一侧轻微扭转，完成"下"的映射。
+
+[Shot 4] At 00:05.000，<Subject 2>向左平移，<Subject 1>进行全身性的向左横移，保持姿态连贯。
+
+[Shot 5] At 00:07.000，<Subject 2>向右平移，<Subject 1>跟随指令向右侧整体位移，与上一动作形成对称验证。
+
+[Shot 6] At 00:09.000，<Subject 2>再次向上方移动，<Subject 1>重复抬升重心的动作，进一步确认纵向轴的映射规则。
+
+[Shot 7] At 00:11.000，<Subject 2>向下方移动，<Subject 1>完成最后一次重心下沉，确保纵横轴均已得到重复验证。
+
+[Shot 8] At 00:13.000，<Subject 2>快速点动一次作为收尾信号，<Subject 1>配合做一个短促的甩发与定格动作，表情保持妩媚。
+
+overall_soundscape:
+
+室内环境背景音轻微，伴随着女性衣物摩擦的细微声响和节奏感极强的节拍器音效，每个指令发出时伴有清脆的提示音。
+
+non_diegetic_music:
+
+一段节奏明快、带有电子合成器元素的舞曲，BPM约为120，低音贝斯贯穿始终，在动作切换点有明显的重音强调。`,
+  },
+  {
+    name: '时间停止',
+    color: 'from-violet-500 to-purple-600',
+    prompt: `subject_definitions:
+
+<Picture 1>是视频主角的参考图，由用户上传，图中女性将作为目标视频的核心角色出现。
+
+summary:
+
+目标视频展示<Picture 1>中的女性角色在时间停止效果触发后，完全陷入静止状态，一名男性趁机对她实施不可描述行为。视频采用写实电影风格，第一人称视角，镜头稳定略带手持轻微晃动。
+
+retention_analysis:
+
+<Picture 1>中的女性在所有镜头中 fully_preserved（面部 / 发型 / 妆容 / 身材比例 / 服装完全保留）。
+
+detailed_description:
+
+[Shot 1] 00:00.000，实拍电影风格，第一人称视角，中景镜头完整呈现<Picture 1>中的女性角色正面朝向镜头站立于画面中央，完整保留其面部特征、发型、妆容、身材比例及上身完整服装。她的左手抬起放在脸侧，手指比出和平手势指向镜头。镜头稳定拍摄，略带轻微手持晃动。At 00:02.000，一只男性手从画面右侧进入帧中手持一枚怀表，怀表顶部表面有可见按钮。食指向下按动按钮，动作清晰、机械感十足。随即触发时间停止视觉效果：强烈的菱形光线折射在画面中爆发，图像短暂扭曲变形，整个场景冻结，时间完全停止。
+
+[Shot 2] At 00:02.500，镜头切至同一第一人称视角构图。<Picture 1>中的女性现已完全冻结僵硬——她的身体笔直僵硬，比出和平手势的手锁定原位，眼睛空洞无神无聚焦，没有眨眼和任何眼球运动，身体各部分完全静止。两只手进入画面用力撕开她的上身服装，从领口或中心接缝处撕裂布料，露出大尺寸裸露乳房。撕裂过程中，女性的身体、和平手势和眼睛保持完全冻结静止。
+
+[Shot 3] At 00:05.000，镜头小幅向下倾斜缓慢移动拍摄她的下半身。两只手用力撕开她的裙子或裤子，从中间撕裂布料露出私处。一只手揉捏挤压她的大腿内侧和外侧。镜头随后小幅拉远缓慢移动拍摄她的全身。
+
+[Shot 4] At 00:07.000，镜头切至更近的中景。<Picture 1>中的女性保持完全冻结静止，两只手用力揉捏和挤压她裸露的乳房，动作清晰、刻意、强劲。一只手向上移动抓住她的下巴或脸颊。<Picture 1>中的女性保持和平手势无任何变化，眼睛保持空洞完全无眨眼，眼球不动，全身保持绝对冻结静止直到视频结束。At no point does the woman blink, move her eyes, shift any body part, change her peace-sign gesture, or react in any way after the time-stop effect. No man's face, subtitles, watermarks, or additional characters appear. The background remains unchanged throughout the video. The clothes are fully intact before being torn.
+
+[Shot 5] At 00:10.000，阴茎从后方拔出，浓稠白色精液喷射在她的脸上、脸颊、嘴唇和张开的嘴中，分多次喷出（颜射）。视频以颜射后的冷冻面部定格结束。
+
+overall_soundscape:
+
+清脆响亮的机械咔哒声在怀表按钮按下的瞬间发出，紧接着是短暂的时间停止音效，模拟时钟齿轮快速旋转的声音。效果消退后，响亮的暴力撕裂布料声主导音景，伴随着轻微潮湿的肉体被揉捏挤压的声音。视频结束时大量精液喷出的潮湿喷射声。没有女性发出的任何声音、呼吸声或任何其他声音。
+
+non_diegetic_music: N/A`,
+  },
+  {
+    name: '远程换装',
+    color: 'from-pink-500 to-rose-500',
+    prompt: `subject_definitions:
+
+<Picture 1>是视频主角的参考图，由用户上传，图中女性将作为目标视频的核心角色出现。
+
+summary:
+
+目标视频展示<Picture 1>中的女性角色在试衣间镜子前持续展示服装，一名男性手持手机通过按钮切换服装，最终触发时间停止并实施不可描述行为。视频采用写实电影风格，第一人称视角，镜头稳定略带手持轻微晃动。
+
+retention_analysis:
+
+<Picture 1>中的女性在所有镜头中 fully_preserved（面部 / 发型 / 妆容 / 身材比例 / 原始服装完全保留）。
+
+detailed_description:
+
+[Shot 1] 00:00.000，实拍电影风格，明亮干净的试衣间配全身镜，中景镜头呈现<Picture 1>中的女性站立于镜子前，完整保留其面部特征、发型、妆容、身材比例及完整原始服装。她已经持续扭动身体、左右旋转、小幅旋转展示服装和身材，表情骄傲俏皮。镜头稳定中景拍摄，略带轻微手持晃动。At 00:03.000，一只男性手从画面底部以第一人称视角进入帧中手持智能手机。手机屏幕清晰显示一个无面白色全身人体模型穿着时尚短外套和迷你裙，下方有亮红色按钮。食指按下红色按钮。瞬间，零延迟，女性的服装切换为完全相同的短外套和迷你裙。她实时惊讶地向下看，然后继续愉快地扭动和旋转。
+
+[Shot 2] At 00:05.000，手向左滑动；人体模型现在穿着紧身露背迷你裙。红色按钮再次按下。瞬间她的服装变为同一款连衣裙。她惊喜地睁大眼睛，继续更夸张地旋转。
+
+[Shot 3] At 00:08.000，再次滑动显示白色蕾丝比基尼。按钮按下。瞬间她穿着白色蕾丝比基尼。她僵住0.5-1秒，眼睛因真实震惊和尴尬而睁大，双手遮住胸部，身体变得僵硬和拘束。
+
+[Shot 4] At 00:10.000，最后一次滑动显示完全赤裸的空白人体模型。按钮按下。瞬间她所有衣服消失，完全赤裸露出大尺寸裸露乳房和暴露的私处。同时触发怀表时间停止效果：菱形光线折射闪烁，场景冻结。<Picture 1>中的女性完全僵硬冻结，眼睛空洞无眨眼，如果存在之前的和平手势也锁定原位。两只手撕裂任何剩余布料（如需要），然后抓住她的臀部，以站立狗式姿势用力节奏抽插。一只手绕过身体粗略地揉捏和挤压她的乳房。
+
+[Shot 5] At 00:14.000，在她保持绝对冻结静止的同时，阴茎拔出。浓稠白色精液喷射在她的脸上、脸颊、嘴唇和张开的嘴中，分多次喷出（颜射）。视频以颜射后的冷冻面部定格结束。At no point after the time-stop does the woman blink, move her eyes, shift any body part, or react. No man's face, subtitles, watermarks, or additional characters appear. Background unchanged. Clothes fully intact before each switch.
+
+overall_soundscape:
+
+开始时轻柔的布料摩擦声和她旋转时的轻快脚步声。每次按下按钮时清脆的按钮点击声。短暂的时钟齿轮时间停止音效。然后是响亮的潮湿冲击声和肉体撞击声。最后是大量颜射的潮湿喷射声。时间停止后没有女性发出的任何声音或呼吸声。
+
+non_diegetic_music: N/A`,
+  },
+];
+
+const MH3_ASPECT_RATIOS = [
+  { value: '1:1 (Square)', label: '1:1', sub: '方形' },
+  { value: '2:3 (Portrait Photo)', label: '2:3', sub: '竖向照片' },
+  { value: '3:2 (Photo)', label: '3:2', sub: '横向照片' },
+  { value: '3:4 (Portrait Standard)', label: '3:4', sub: '竖向标准' },
+  { value: '4:3 (Standard)', label: '4:3', sub: '标准' },
+  { value: '9:16 (Portrait Widescreen)', label: '9:16', sub: '竖屏宽银幕' },
+  { value: '16:9 (Widescreen)', label: '16:9', sub: '宽银幕' },
+  { value: '21:9 (Ultrawide)', label: '21:9', sub: '超宽银幕' },
+];
+
+interface MiniMaxH3T2VPanelProps {
+  apiKey: string;
+  mh3Prompt: string;
+  setMh3Prompt: (v: string) => void;
+  mh3AutoPrompt: boolean;
+  setMh3AutoPrompt: (v: boolean) => void;
+  mh3DirectOutput: boolean;
+  setMh3DirectOutput: (v: boolean) => void;
+  mh3Duration: number;
+  setMh3Duration: (v: number) => void;
+  mh3AspectRatio: string;
+  setMh3AspectRatio: (v: string) => void;
+  mh3Submitting: boolean;
+  setMh3Submitting: (v: boolean) => void;
+  isSubmitting: boolean;
+  setIsSubmitting: (v: boolean) => void;
+  onError: (msg: string) => void;
+  onSuccess: (msg: string) => void;
+  taskListRef: React.RefObject<{ submitTask: (prompt: string, imagePath: string, imagePreview: string, nodeInfoList: NodeInfo[], workflowId?: string) => void } | null>;
+}
+
+function MiniMaxH3T2VPanel({
+  apiKey, mh3Prompt, setMh3Prompt,
+  mh3AutoPrompt, setMh3AutoPrompt,
+  mh3DirectOutput, setMh3DirectOutput,
+  mh3Duration, setMh3Duration,
+  mh3AspectRatio, setMh3AspectRatio,
+  mh3Submitting, setMh3Submitting,
+  isSubmitting, setIsSubmitting,
+  onError, onSuccess, taskListRef,
+}: MiniMaxH3T2VPanelProps) {
+
+  const buildNodeList = (): NodeInfo[] => {
+    const nodeList: NodeInfo[] = [
+      { nodeId: '171', fieldName: 'index', fieldValue: '0', description: '序号' },
+      { nodeId: '115', fieldName: 'aspect_ratio', fieldValue: mh3AspectRatio, description: '视频比例' },
+      { nodeId: '133', fieldName: 'value', fieldValue: String(mh3Duration), description: '时长' },
+      { nodeId: '186', fieldName: 'text', fieldValue: mh3Prompt, description: '提示词' },
+    ];
+    // 直出模式 (true=MP4直出, false=ZIP)
+    nodeList.push({
+      nodeId: '171',
+      fieldName: 'direct_output',
+      fieldValue: String(mh3DirectOutput),
+      description: '直出模式'
+    });
+    return nodeList;
+  };
+
+  const handleSubmit = () => {
+    if (!mh3Prompt.trim()) {
+      onError('请输入提示词');
+      return;
+    }
+    if (mh3Submitting) return;
+    setMh3Submitting(true);
+    setIsSubmitting(true);
+
+    const nodeList = buildNodeList();
+    taskListRef.current?.submitTask(mh3Prompt, '', '', nodeList, WORKFLOW.MINIMAX_H3_T2V);
+    onSuccess('任务已提交');
+    setMh3Submitting(false);
+    setIsSubmitting(false);
+  };
+
+  const handleTemplateApply = (template: typeof H3_VIDEO_TEMPLATES[0]) => {
+    setMh3Prompt(template.prompt);
+    onSuccess(`已应用模板：${template.name}`);
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* 提示词 */}
+      <div className="rounded-xl bg-bg-surface border border-border p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-medium text-text-primary">提示词</h3>
+          <div className="flex items-center gap-2">
+            {/* 自动优化提示词开关 — 默认开启 */}
+            <button
+              onClick={() => setMh3AutoPrompt(!mh3AutoPrompt)}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                mh3AutoPrompt ? 'bg-green-500/20 text-green-600 border border-green-300' : 'bg-bg-elevated text-text-tertiary'
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${mh3AutoPrompt ? 'bg-green-500' : 'bg-text-tertiary'}`} />
+              自动优化提示词 {mh3AutoPrompt ? '开' : '关'}
+            </button>
+            {/* 直出模式开关 — 默认关闭（ZIP） */}
+            <button
+              onClick={() => setMh3DirectOutput(!mh3DirectOutput)}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                mh3DirectOutput ? 'bg-blue-500/20 text-blue-600 border border-blue-300' : 'bg-bg-elevated text-text-tertiary'
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${mh3DirectOutput ? 'bg-blue-500' : 'bg-text-tertiary'}`} />
+              直出模式 {mh3DirectOutput ? '开' : '关'}
+            </button>
+          </div>
+        </div>
+
+        {/* 模版预设 */}
+        {H3_VIDEO_TEMPLATES.length > 0 && (
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-xs text-text-tertiary flex-shrink-0">模版：</span>
+            <div className="flex flex-wrap gap-1.5">
+              {H3_VIDEO_TEMPLATES.map((tpl) => (
+                <button
+                  key={tpl.name}
+                  onClick={() => handleTemplateApply(tpl)}
+                  className={`px-3 py-1 rounded-lg text-xs font-medium bg-gradient-to-r ${tpl.color} text-white hover:opacity-90 transition-opacity`}
+                  disabled={isSubmitting}
+                >
+                  {tpl.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <textarea
+          value={mh3Prompt}
+          onChange={(e) => setMh3Prompt(e.target.value)}
+          placeholder={mh3AutoPrompt ? '开启自动优化提示词，可不填或填写简单描述' : '描述视频中的人物动作、表情、场景变化...'}
+          rows={4}
+          className="w-full px-3 py-2 rounded-lg bg-bg-elevated border border-border text-sm text-text-primary placeholder-slate-500 focus:outline-none focus:border-blue-400/50 resize-none"
+          disabled={isSubmitting}
+        />
+      </div>
+
+      {/* 时长 */}
+      <div className="rounded-xl bg-bg-surface border border-border p-4">
+        <h3 className="text-sm font-medium text-text-primary mb-3">时长</h3>
+        <div className="flex items-center gap-4">
+          <input
+            type="range"
+            min={5}
+            max={15}
+            value={mh3Duration}
+            onChange={(e) => setMh3Duration(Number(e.target.value))}
+            className="flex-1 h-2 bg-bg-elevated rounded-full appearance-none cursor-pointer accent-blue-500"
+            disabled={isSubmitting}
+          />
+          <span className="w-12 text-center text-sm font-medium text-text-primary">{mh3Duration}秒</span>
+        </div>
+        <p className="text-[10px] text-text-tertiary mt-1.5">设置视频生成时长（5-15秒）</p>
+      </div>
+
+      {/* 视频比例 */}
+      <div className="rounded-xl bg-bg-surface border border-border p-4">
+        <h3 className="text-sm font-medium text-text-primary mb-3">视频比例</h3>
+        <div className="grid grid-cols-4 gap-2">
+          {MH3_ASPECT_RATIOS.map((ar) => {
+            const isSelected = mh3AspectRatio === ar.value;
+            return (
+              <button
+                key={ar.value}
+                onClick={() => setMh3AspectRatio(ar.value)}
+                className={`flex flex-col items-center justify-center py-2.5 rounded-xl border text-xs transition-all ${
+                  isSelected
+                    ? 'border-blue-400 bg-blue-50 text-blue-600'
+                    : 'border-border bg-bg-elevated text-text-secondary hover:border-blue-300 hover:bg-blue-50/30'
+                }`}
+                disabled={isSubmitting}
+              >
+                <span className="text-sm font-semibold">{ar.label}</span>
+                <span className="text-[10px] opacity-70">{ar.sub}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 生成按钮 */}
+      <div className="pt-2 pb-4">
+        <GenerateButton
+          onClick={handleSubmit}
+          isLoading={isSubmitting}
+          disabled={!mh3Prompt.trim() || isSubmitting || mh3Submitting}
+          label={isSubmitting ? '提交中...' : '生成视频'}
+        />
+      </div>
+    </div>
+  );
+}
+
 // ─── 主页面 ────────────────────────────────────────────────────────────────
 
-type VideoModel = 'wan22' | 'minimaxh3' | 'minimaxlong';
+type VideoModel = 'wan22' | 'minimaxh3' | 'minimaxlong' | 'minimaxh3t2v';
 
 export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPageProps) {
   // Model selector
-  const [videoModel, setVideoModel] = useState<VideoModel>('wan22');
+  const [videoModel, setVideoModel] = useState<VideoModel>('minimaxh3');
 
   // Wan 2.2 state
   const [imagePath, setImagePath] = useState('');
@@ -1667,27 +2126,58 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
   const [isExpandingPrompt, setIsExpandingPrompt] = useState(false);
 
   // MiniMax H3 state
-  const [mmImages, setMmImages] = useState<{ path: string; preview: string }[]>([]);
+  const [mmImages, setMmImages] = useState<{ path: string; preview: string }[]>([
+    { path: '', preview: '' },
+    { path: '', preview: '' },
+    { path: '', preview: '' },
+    { path: '', preview: '' },
+    { path: '', preview: '' },
+    { path: '', preview: '' },
+    { path: '', preview: '' },
+    { path: '', preview: '' },
+    { path: '', preview: '' },
+  ]);
   const [mmPrompt, setMmPrompt] = useState('');
   const [mmDuration, setMmDuration] = useState('15');
   const [mmStrength, setMmStrength] = useState(0.6);
   const [mmStyleMode, setMmStyleMode] = useState('1');
   const [mmAutoPrompt, setMmAutoPrompt] = useState(true); // true = 开启自动提示词
   const [mmDirectOutput, setMmDirectOutput] = useState(false); // false = ZIP 格式（直出模式默认关闭）
-  const [mmVideoModel, setMmVideoModel] = useState('DasiwaMinimaxH3_dasiwaREF2VAHybridV1_0.safetensors');
+  const [mmVideoModel, setMmVideoModel] = useState('DasiwaMinimaxH3_dasiwaREF2VAHybridV1.safetensors');
   const [mmLora, setMmLora] = useState('MysticXXX_MMH3-V1.safetensors');
   const [mmLoraWeight, setMmLoraWeight] = useState(0.4);
   const [mmUploading, setMmUploading] = useState(false);
 
   // MiniMax Long Video state
-  const [mlImages, setMlImages] = useState<{ path: string; preview: string }[]>([]);
+  const [mlImages, setMlImages] = useState<{ path: string; preview: string }[]>([
+    { path: '', preview: '' },
+    { path: '', preview: '' },
+    { path: '', preview: '' },
+    { path: '', preview: '' },
+    { path: '', preview: '' },
+    { path: '', preview: '' },
+    { path: '', preview: '' },
+    { path: '', preview: '' },
+    { path: '', preview: '' },
+  ]);
   const [mlPrompts, setMlPrompts] = useState<string[]>(['', '', '']);
+  const [mlDuration, setMlDuration] = useState(10);
+  const [mlAutoPrompt, setMlAutoPrompt] = useState(false); // false = 关闭自动提示词
+  const [mlDirectOutput, setMlDirectOutput] = useState(false); // false = ZIP 格式（直出模式默认关闭）
   const [mlVideoModel, setMlVideoModel] = useState('');
   const [mlLora, setMlLora] = useState('');
   const [mlLoraWeight, setMlLoraWeight] = useState(0.4);
   const [mlUploading, setMlUploading] = useState(false);
   const [mlSelectedGirlfriend, setMlSelectedGirlfriend] = useState<GirlfriendPreset | null>(null);
   const [mlGirlfriendUploading, setMlGirlfriendUploading] = useState(false);
+
+  // MiniMax H3 T2V state
+  const [mh3Prompt, setMh3Prompt] = useState('');
+  const [mh3AutoPrompt, setMh3AutoPrompt] = useState(true); // true = 开启自动优化提示词
+  const [mh3DirectOutput, setMh3DirectOutput] = useState(false); // false = ZIP 格式（直出模式默认关闭）
+  const [mh3Duration, setMh3Duration] = useState(12);
+  const [mh3AspectRatio, setMh3AspectRatio] = useState('9:16 (Portrait Widescreen)');
+  const [mh3Submitting, setMh3Submitting] = useState(false);
 
   const [selectedGirlfriend, setSelectedGirlfriend] = useState<GirlfriendPreset | null>(null);
   const [girlfriendUploading, setGirlfriendUploading] = useState(false);
@@ -2046,6 +2536,16 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
               Wan 2.2
             </button>
             <button
+              onClick={() => setVideoModel('minimaxh3t2v')}
+              className={`px-4 py-2 rounded-lg text-xs font-medium transition-all ${
+                videoModel === 'minimaxh3t2v'
+                  ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-sm'
+                  : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              MiniMax H3 文生视频
+            </button>
+            <button
               onClick={() => setVideoModel('minimaxh3')}
               className={`px-4 py-2 rounded-lg text-xs font-medium transition-all ${
                 videoModel === 'minimaxh3'
@@ -2068,6 +2568,30 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
           </div>
         </div>
       </div>
+
+      {/* MiniMax H3 文生视频 UI */}
+      {videoModel === 'minimaxh3t2v' && (
+        <MiniMaxH3T2VPanel
+          apiKey={apiKey}
+          mh3Prompt={mh3Prompt}
+          setMh3Prompt={setMh3Prompt}
+          mh3AutoPrompt={mh3AutoPrompt}
+          setMh3AutoPrompt={setMh3AutoPrompt}
+          mh3DirectOutput={mh3DirectOutput}
+          setMh3DirectOutput={setMh3DirectOutput}
+          mh3Duration={mh3Duration}
+          setMh3Duration={setMh3Duration}
+          mh3AspectRatio={mh3AspectRatio}
+          setMh3AspectRatio={setMh3AspectRatio}
+          mh3Submitting={mh3Submitting}
+          setMh3Submitting={setMh3Submitting}
+          isSubmitting={isSubmitting}
+          setIsSubmitting={setIsSubmitting}
+          onError={onError}
+          onSuccess={onSuccess}
+          taskListRef={taskListRef}
+        />
+      )}
 
       {/* MiniMax H3 UI */}
       {videoModel === 'minimaxh3' && (
@@ -2115,6 +2639,12 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
           setMlImages={setMlImages}
           mlPrompts={mlPrompts}
           setMlPrompts={setMlPrompts}
+          mlDuration={mlDuration}
+          setMlDuration={setMlDuration}
+          mlAutoPrompt={mlAutoPrompt}
+          setMlAutoPrompt={setMlAutoPrompt}
+          mlDirectOutput={mlDirectOutput}
+          setMlDirectOutput={setMlDirectOutput}
           mlVideoModel={mlVideoModel}
           setMlVideoModel={setMlVideoModel}
           mlLora={mlLora}

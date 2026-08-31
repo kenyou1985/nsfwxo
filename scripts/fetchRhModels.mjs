@@ -140,6 +140,11 @@ async function downloadCover(record, kind) {
   }
 }
 
+/** 直接返回远程 URL 作为封面（推荐方式） */
+function getRemoteCover(record) {
+  return record.thumbnailUrl || record.posterUrl || '';
+}
+
 // ─── classify ───────────────────────────────────────────────────────────────
 
 const TAG_MAP = {
@@ -243,15 +248,14 @@ async function transformRecords(records, kind, baseModel, downloadCoverMode = 'f
       tags: (r.tags || []).map((t) => t.name).filter(Boolean),
       posterUrl: r.posterUrl || '',
       thumbnailUrl: r.thumbnailUrl || '',
-      cover: '',
+      cover: '', // 将在下面设置为远程 URL
       owner: r.owner?.name || '',
       createTime: r.createTime || '',
       updateTime: r.updateTime || r.createTime || '',
     };
-    if (downloadCoverMode === 'first') {
-      const localPath = await downloadCover(r, kind === 'CHECKPOINT' ? 'ckpt' : kind === 'UNET' ? 'unet' : 'lora');
-      entry.cover = localPath;
-    }
+    // 直接使用远程 URL 作为封面（更快，不依赖本地存储）
+    const remoteCover = getRemoteCover(r);
+    entry.cover = remoteCover;
     out.push(entry);
     if ((i + 1) % 100 === 0) console.log(`  transformed ${i + 1}/${records.length}`);
   }

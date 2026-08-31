@@ -3,7 +3,7 @@ import {
   CATEGORIES, DB_META,
   filterByKindAndCategory, searchModels,
   getModelInitial, getModelAccent,
-  type ModelKind, type RunningHubModelEntry,
+  type ModelKind, type RunningHubModelEntry, type BaseModelFilter,
 } from '../services/runninghubModelsService';
 import {
   getModelFavorites, isModelFavorited,
@@ -33,6 +33,8 @@ interface RunningHubModelPickerProps {
   loraSlot?: 'lora1' | 'lora2' | 'lora3';
   /** 设为默认：当前工作流 id（仅 checkpoint） */
   workflowId?: string;
+  /** 按底模名称过滤（如 'minimax-h3'），不传则显示全部 */
+  baseModelFilter?: BaseModelFilter;
 }
 
 const ROW_HEIGHT = 56; // 48 cover + py-2
@@ -55,6 +57,7 @@ export function RunningHubModelPicker({
   disabled = false,
   loraSlot,
   workflowId,
+  baseModelFilter,
 }: RunningHubModelPickerProps) {
   const [expanded, setExpanded] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string>('all');
@@ -170,16 +173,16 @@ export function RunningHubModelPicker({
     if (!expanded || allModels.length > 0) return;
     let cancelled = false;
     setLoading(true);
-    filterByKindAndCategory(kind, 'all').then((list) => {
-      if (!cancelled) {
-        setAllModels(list);
-        setLoading(false);
-      }
+    // baseModelFilter 直接透传给 service 层做底模过滤
+    filterByKindAndCategory(kind, 'all', baseModelFilter || 'all').then((list) => {
+      if (cancelled) return;
+      setAllModels(list);
+      setLoading(false);
     }).catch(() => {
       if (!cancelled) setLoading(false);
     });
     return () => { cancelled = true; };
-  }, [expanded, kind, allModels.length]);
+  }, [expanded, kind, allModels.length, baseModelFilter]);
 
   // 收藏列表（每次展开或变动时刷新）
   const refreshFavorites = useCallback(() => {
@@ -554,8 +557,8 @@ export function RunningHubModelPicker({
             }
           </div>
 
-          {/* Tabs row 3: base model filter (仅模型库视图) */}
-          {!showFavoritesOnly && baseModelBuckets.length > 1 && (
+          {/* Tabs row 3: base model filter (仅模型库视图，非 baseModelFilter 模式) */}
+          {!showFavoritesOnly && !baseModelFilter && baseModelBuckets.length > 1 && (
             <div
               className="flex gap-1 px-2 pb-1.5 overflow-x-auto"
               style={{ scrollbarWidth: 'thin' }}

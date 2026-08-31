@@ -29,13 +29,33 @@ import { buildTxt2ImgNodeList } from '../utils/txt2imgNodeBuilder';
 import { buildUnifiedTxt2ImgOptions } from '../utils/txt2imgDefaults';
 import { withQualityBoost } from '../constants';
 import { WORKFLOW, uploadImage } from '../services/runninghub';
-import { composeNinePanelGrid } from '../utils/gridComposite';
+import { composeGridStoryboard } from '../utils/gridComposite';
 import type { TabType } from '../types';
 
 const GRID_LOG_PREFIX = '[GridStoryboardMode]';
 
 type GridStep = 'themes' | 'edit' | 'view';
-type GridSize = 4 | 9 | 12;
+type GridSize = 4 | 6 | 9 | 12;
+
+/**
+ * Compute the (cols, rows) layout for a given number of panels.
+ * Always uses a vertical 9:16 sheet, so cols ≤ rows:
+ *   4 panels  → 2 cols × 2 rows (2×2)
+ *   6 panels  → 2 cols × 3 rows (2×3)
+ *   9 panels  → 3 cols × 3 rows (3×3)
+ *  12 panels  → 3 cols × 4 rows (3×4)
+ *  other → square-root balanced layout (still cols ≤ rows).
+ */
+function getGridLayout(panelCount: number): { cols: number; rows: number; label: string } {
+  if (panelCount === 4) return { cols: 2, rows: 2, label: '2×2' };
+  if (panelCount === 6) return { cols: 2, rows: 3, label: '2×3' };
+  if (panelCount === 9) return { cols: 3, rows: 3, label: '3×3' };
+  if (panelCount === 12) return { cols: 3, rows: 4, label: '3×4' };
+  // Generic fallback — pick the smallest cols such that cols*rows >= count
+  const cols = Math.max(2, Math.ceil(Math.sqrt(panelCount)));
+  const rows = Math.ceil(panelCount / cols);
+  return { cols, rows, label: `${cols}×${rows}` };
+}
 
 // All available categories for built-in templates
 const ALL_CATEGORIES = [
@@ -142,21 +162,31 @@ function buildFullGridPromptDetailed(
   const baseMatch = firstPanelPrompt.match(/^(.*?)(?=Panel\d+:|$)/s);
   const basePart = baseMatch ? baseMatch[1].trim() : firstPanelPrompt;
 
-  // The 9-panel GRID HEADER must ALWAYS be present at the start of the
+  // Determine the actual layout for this prompt — derived from the panel
+  // count the user has chosen (2×2 / 2×3 / 3×3 / 3×4). Without this, even
+  // when the user picks 2×2 the prompt still says "9-panel 3×3 grid" and
+  // the model obediently renders 9 panels.
+  const layout = getGridLayout(gridSize);
+  const cols = layout.cols;
+  const rows = layout.rows;
+  const panelTotal = cols * rows;
+  const layoutLabel = layout.label;
+
+  // The grid layout HEADER must ALWAYS be present at the start of the
   // assembled prompt — even when the template's basePrompt already says
   // "no grid layout / single cinematic vertical frame" (which was added
-  // for the per-panel redraw path). When we re-assemble the full 9-panel
-  // prompt for "Generate Grid Storyboard Image", we DO want a 3×3 grid of
-  // 9 panels in ONE image, so we override the template's "no grid" wording.
+  // for the per-panel redraw path). When we re-assemble the full grid
+  // prompt for "Generate Grid Storyboard Image", we DO want a
+  // ${cols}×${rows} grid of ${panelTotal} panels in ONE image, so we
+  // override the template's "no grid" wording.
   //
   // CRITICAL: this header is intentionally aggressive — Krea2 (especially
   // in img2img mode with a strong face reference image) tends to render
-  // a single dominant subject instead of a 3×3 grid. We:
-  //   1. State the layout requirement EXPLICITLY ("exactly 9 panels in a
-  //      3×3 grid layout, 3 columns and 3 rows")
-  //   2. Forbid any 1×N / 2×N / single-frame interpretations ("not 2 panels,
-  //      not 1 panel, not 6 panels")
-  //   3. Reinforce that the SAME female character appears in ALL 9 panels
+  // a single dominant subject instead of a grid. We:
+  //   1. State the layout requirement EXPLICITLY ("exactly N panels in a
+  //      ${cols}×${rows} grid layout, ${cols} columns and ${rows} rows")
+  //   2. Forbid any 1×N / 2×N / single-frame interpretations
+  //   3. Reinforce that the SAME female character appears in ALL panels
   //      with a consistent face — this is the strongest single signal that
   //      the face reference image should not be upscaled to dominate
   //   4. Require each panel to be a separate moment with its own framing
@@ -169,19 +199,26 @@ function buildFullGridPromptDetailed(
   // SHOT TYPE REQUIREMENT: Every panel must show a WIDE or MEDIUM shot of
   // the SCENE (environment, setting, full body in context). AVOID close-up
   // portrait shots. Each tile shows the complete scene moment, not a face.
+
+  // Build the list of forbidden panel counts so the model doesn't render
+  // 1, 2, 4, 6 or 9 panels when we only want 4 / 6 / etc.
+  const forbiddenCounts = [1, 2, 3, 4, 6, 9, 12]
+    .filter((n) => n !== panelTotal)
+    .join(', ');
+
   const GRID_HEADER =
-    'OUTPUT LAYOUT — MANDATORY: render a 9-PANEL STORYBOARD SHEET in strict 3 rows × 3 columns grid format. ' +
-    'Each of the 9 tiles is an EQUAL-SIZED rectangular panel separated by thin white borders, each tile occupies ONLY 1/9 of the image area. ' +
-    'Total image: strict 9:16 vertical aspect ratio (taller than wide), single coherent narrative across all 9 panels, cinematic movie storyboard. ' +
-    'Each panel is its own distinct moment separated by thin borders. ' +
-    'Each of the 9 panels must contain the same female character with the same face in a different pose/action, ' +
-    'and the same male character (if present) with consistent appearance. ' +
-    'The female face is identical in all 9 panels and must not change, consistent lighting style across all 9 panels. ' +
-    'FORBIDDEN: do not render 1 panel, 2 panels, 4 panels, 6 panels, single portrait, horizontal strip, blank tiles, or face scaled to dominate the image. ' +
-    'REQUIRED: exactly 9 filled tiles in 3×3 grid. ' +
-    'SHOT TYPE: Each tile MUST show a WIDE SHOT or MEDIUM SHOT of the ENTIRE SCENE - the environment, setting, and full body of characters in context. ' +
-    'AVOID portrait close-ups, face close-ups, or headshot compositions. ' +
-    'The character face should appear SMALL within each tile, showing the complete scene moment, not a portrait. ';
+    `OUTPUT LAYOUT — MANDATORY: render a ${panelTotal}-PANEL STORYBOARD SHEET in strict ${rows} rows × ${cols} columns grid format (${layoutLabel}). ` +
+    `Each of the ${panelTotal} tiles is an EQUAL-SIZED rectangular panel separated by thin white borders, each tile occupies ONLY 1/${panelTotal} of the image area. ` +
+    `Total image: strict 9:16 vertical aspect ratio (taller than wide), single coherent narrative across all ${panelTotal} panels, cinematic movie storyboard. ` +
+    `Each panel is its own distinct moment separated by thin borders. ` +
+    `Each of the ${panelTotal} panels must contain the same female character with the same face in a different pose/action, ` +
+    `and the same male character (if present) with consistent appearance. ` +
+    `The female face is identical in all ${panelTotal} panels and must not change, consistent lighting style across all ${panelTotal} panels. ` +
+    `FORBIDDEN: do not render ${forbiddenCounts} panels, single portrait, horizontal strip, blank tiles, or face scaled to dominate the image. ` +
+    `REQUIRED: exactly ${panelTotal} filled tiles in ${layoutLabel} grid. ` +
+    `SHOT TYPE: Each tile MUST show a WIDE SHOT or MEDIUM SHOT of the ENTIRE SCENE - the environment, setting, and full body of characters in context. ` +
+    `AVOID portrait close-ups, face close-ups, or headshot compositions. ` +
+    `The character face should appear SMALL within each tile, showing the complete scene moment, not a portrait. `;
 
   // Build a regex that matches the GRID_HEADER (with any whitespace/case variations)
   // so we can strip the duplicate header that the template basePrompt already
@@ -192,18 +229,23 @@ function buildFullGridPromptDetailed(
   // ("cinematic storyboard grid in strict 9:16 vertical aspect ratio, 9 panels
   // arranged in 3×3 grid, ..."). We strip that whole leading chunk to avoid
   // duplicating the layout instruction.
+  //
+  // This regex matches the original 9-panel header — even when gridSize is
+  // not 9, the user's basePrompt may still contain the old 9-panel wording
+  // and we want to remove it so the dynamic header below wins.
   const GRID_HEADER_PATTERN =
-    /^\s*(?:cinematic\s+storyboard\s+grid\s+in\s+strict[^,]*,\s*9\s*panel[s]?\s*arranged\s+in\s*3\s*[×x*]\s*3\s*grid\s*,?\s*|output\s+layout\s*[—-]\s*mandatory[^.]*\.|important\s*[—-]\s*layout\s+requirement[^.]*\.)/i;
+    /^\s*(?:cinematic\s+storyboard\s+grid\s+in\s+strict[^,]*,\s*\d*\s*panel[s]?\s*arranged\s+in\s*\d*\s*[×x*]\s*\d*\s*grid\s*,?\s*|output\s+layout\s*[—-]\s*mandatory[^.]*\.|important\s*[—-]\s*layout\s+requirement[^.]*\.)/i;
 
   // Remove any "no grid layout / no multiple panels / no storyboard split /
   // single cinematic vertical frame" lines that the template basePrompt may
   // contain (these were added to fix per-panel redraw, but they conflict
-  // with the 3×3 grid header we are injecting now).
+  // with the dynamic grid header we are injecting now).
   //
   // NOTE on regex flavor: every starts-with pattern uses \s* to tolerate
   // leading whitespace left behind by prior [^,]*, strips. Without \s*,
-  // leftover tokens like " no grid layout" can survive and override the
-  // GRID_HEADER below, causing Krea2 to render 6 or 4 panels instead of 9.
+  // leftover tokens like " no grid layout" / " no multiple panels" can leak
+  // through and Krea2 lays out the wrong panel count instead of the one
+  // the user picked.
   let cleanedBase = basePart
     .replace(GRID_HEADER_PATTERN, '')            // strip duplicated GRID_HEADER
     .replace(/^\s*no\s+grid\s+layout,\s*/gi, '')
@@ -250,7 +292,7 @@ function buildFullGridPromptDetailed(
   const anchorBlock = options?.anchorText?.trim()
     ? (isChineseAnchor
         ? `\n\n${options.anchorText.trim()}`
-        : `\n\n[CHARACTER ANCHOR — must remain identical across all 9 panels] ${options.anchorText.trim()}`)
+        : `\n\n[CHARACTER ANCHOR — must remain identical across all ${panelTotal} panels] ${options.anchorText.trim()}`)
     : '';
   let fullPrompt = GRID_HEADER + anchorBlock + (cleanedBase ? '\n\n' + cleanedBase : '');
 
@@ -588,6 +630,22 @@ export function GridStoryboardMode({
   const [redrawPanelIdx, setRedrawPanelIdx] = useState<number | null>(null);
   const streamPanelsRef = useRef<GridPanel[]>([]);
 
+  // ── Generate mode toggle: separate per-panel images vs one composite grid ──
+  // When true, txt2img submits one task per panel (like digital-human mode),
+  // each going to redrawnPanelImages so they auto-compose after completion.
+  // Locked to true when digitalHumanMode is active.
+  const [generateSeparatePanels, setGenerateSeparatePanels] = useState(false);
+  // Dedicated historyId for the separate-panel generation batch — used by
+  // finishedTasks to distinguish these tasks from the composite-grid path.
+  const [separatePanelsHistoryId, setSeparatePanelsHistoryId] = useState<string | null>(null);
+
+  // Enforce separate-panel mode when digital-human anchoring is active.
+  useEffect(() => {
+    if (digitalHumanMode) {
+      setGenerateSeparatePanels(true);
+    }
+  }, [digitalHumanMode]);
+
   // Panels state
   const [panels, setPanels] = useState<GridPanel[]>([]);
   const [fullPrompt, setFullPrompt] = useState('');
@@ -755,13 +813,16 @@ export function GridStoryboardMode({
     try {
       const urls = Array.from({ length: panels.length }, (_, i) => redrawnPanelImages[i]?.[0] ?? null);
       const labels = Array.from({ length: panels.length }, (_, i) => `Panel ${i + 1}`);
-      const url = await composeNinePanelGrid(urls, { panelLabels: labels });
+      // composeGridStoryboard auto-derives the (cols, rows) layout from
+      // urls.length, so the composite sheet always matches the user's
+      // selected panel count (2×2 / 2×3 / 3×3 / 3×4).
+      const url = await composeGridStoryboard(urls, { panelLabels: labels });
       setCompositeSheetUrl(url);
       // Save to per-theme map so the composite is restored on theme switch.
       setCompositeSheetUrlMap((prev) => ({ ...prev, [activeThemeIdx]: url }));
     } catch (err) {
       console.error(`${GRID_LOG_PREFIX} buildComposite failed:`, err);
-      onError('合成 9 宫格失败：' + (err instanceof Error ? err.message : String(err)));
+      onError('合成面板图失败：' + (err instanceof Error ? err.message : String(err)));
     } finally {
       setCompositing(false);
     }
@@ -786,6 +847,8 @@ export function GridStoryboardMode({
     if (currentHistoryId) allHistoryIds.add(currentHistoryId);
     Object.values(currentHistoryIdMap).forEach((hid) => { if (hid) allHistoryIds.add(hid); });
     if (sessionStorage.getItem('sb_latest_history_id')) allHistoryIds.add(sessionStorage.getItem('sb_latest_history_id')!);
+    // Also track the separate-panel batch history ID.
+    if (separatePanelsHistoryId) allHistoryIds.add(separatePanelsHistoryId);
 
     if (allHistoryIds.size === 0) return;
 
@@ -876,12 +939,14 @@ export function GridStoryboardMode({
         // If this task was part of a 9-panel digital-human batch and the
         // batch is now fully done, clear isGenerating so the UI can
         // settle on the view step. We check batchTaskIdsRef.current.size
-        // — when it reaches 0, all 9 (or however many were non-empty)
-        // per-panel tasks have completed.
+        // — when it reaches 0, all N per-panel tasks have completed.
         if (isBatchTask && batchTaskIdsRef.current.size === 0) {
           setIsGenerating(false);
           setIsGeneratingMap((prev) => ({ ...prev, [activeThemeIdx]: false }));
-          onSuccess?.('九宫格 9 张图已全部生成，已自动合成 3×3 分镜');
+          // Clear the separate-panel history ID since the batch is done.
+          setSeparatePanelsHistoryId(null);
+          const layoutHint = panels.length >= 9 ? '3×3' : panels.length >= 6 ? '2×3' : '2×2';
+          onSuccess?.(`独立 ${panels.length} 张分镜图已全部生成，已自动合成 ${layoutHint} 分镜`);
         }
         continue;
       }
@@ -1603,9 +1668,14 @@ export function GridStoryboardMode({
     // Submit image generation tasks (may produce multiple images)
     // We submit one task per expected image (usually 1-2)
     const imageCount = 2; // Request 2 images by default
-    const storyboardInfo = { historyId, panelIdx: 0 };
+
+    // ── Determine the effective generation mode ────────────────────────────
+    // digitalHumanMode always uses separate-per-panel tasks (character anchor).
+    // For txt2img, the user can choose via the generateSeparatePanels toggle.
+    const useSeparatePanels = digitalHumanMode || generateSeparatePanels;
+
     try {
-      if (digitalHumanMode && selectedGirlfriend) {
+      if (useSeparatePanels && selectedGirlfriend && digitalHumanMode) {
         // ── Digital human mode: 9-PANEL = 9 SEPARATE img2img tasks ──
         //
         // Why one task per panel (instead of one big grid task).
@@ -1624,7 +1694,7 @@ export function GridStoryboardMode({
         // every panel — is to issue 9 INDEPENDENT img2img tasks, one per
         // panel, each with `count=1` and a per-panel prompt that contains
         // NO layout / grid / 9-panel instructions at all. The UI then
-        // arranges the 9 results in a 3×3 sheet (and `composeNinePanelGrid`
+        // arranges the 9 results in a 3×3 sheet (and `composeGridStoryboard`
         // stitches them into a single PNG for download).
         //
         // The per-panel prompt is exactly what `panels[i].image_prompt`
@@ -1715,22 +1785,90 @@ export function GridStoryboardMode({
         );
         onSuccess(
           `已为 ${submittedCount} 个分镜提交图生图任务${skippedEmpty ? `（跳过 ${skippedEmpty} 个空白镜）` : ''}，` +
-          `完成后将自动合成 3×3 九宫格`,
+          `完成后将自动合成 ${panels.length >= 9 ? '3×3' : panels.length >= 6 ? '2×3' : '2×2'} 分镜`,
+        );
+      } else if (useSeparatePanels && !digitalHumanMode) {
+        // ── Txt2img separate panel mode ─────────────────────────────────
+        //
+        // User toggled "一键生成独立9张" in txt2img mode (no character anchor).
+        // We submit one txt2img task per panel, each going to redrawnPanelImages
+        // so they auto-compose after all complete — same UX as digital-human mode.
+        //
+        // We create a dedicated historyId so finishedTasks can distinguish
+        // these separate-panel tasks from any concurrent composite-grid tasks.
+
+        const sepHistoryId = addGridHistory({
+          plot: `${themeTitle}（独立分镜）`,
+          grid_size: panels.length,
+          r18: r18Mode,
+          panels,
+        });
+        setSeparatePanelsHistoryId(sepHistoryId);
+
+        let submittedCount = 0;
+        let skippedEmpty = 0;
+
+        for (let i = 0; i < panels.length; i++) {
+          const panel = panels[i];
+          const rawPrompt = panel.image_prompt || panel.scene_description || '';
+          const panelMatch = rawPrompt.match(/Panel\d+:\s*(.*)/s);
+          let panelText = (panelMatch ? panelMatch[1] : rawPrompt).trim();
+
+          if (panelText.length < 20) {
+            skippedEmpty++;
+            continue;
+          }
+
+          const finalPrompt = withQualityBoost(panelText);
+          const txt2imgOptions = buildUnifiedTxt2ImgOptions(finalPrompt);
+          txt2imgOptions.imageCount = 1; // one panel = one image
+          txt2imgOptions.width = 832;
+          txt2imgOptions.height = 1475; // ~9:16
+          const nodes = buildTxt2ImgNodeList(txt2imgOptions);
+
+          try {
+            const tid = await taskManager.addTask(
+              'txt2img',
+              nodes,
+              finalPrompt,
+              undefined,
+              undefined,
+              { historyId: sepHistoryId, panelIdx: i },
+              'storyboard',
+              themeTitle,
+              i + 1,
+            );
+            redrawTaskIdsRef.current.add(tid);
+            batchTaskIdsRef.current.add(tid);
+            submittedCount++;
+          } catch (panelErr) {
+            console.error(`${GRID_LOG_PREFIX} panel ${i + 1} txt2img submit failed:`, panelErr);
+          }
+        }
+
+        if (submittedCount === 0) {
+          throw new Error('所有分镜的提示词均为空，无法生成');
+        }
+        onSuccess(
+          `已为 ${submittedCount} 个分镜提交独立图生图任务，${skippedEmpty > 0 ? `跳过 ${skippedEmpty} 个空白镜，` : ''}完成后自动合成`,
         );
       } else {
+        // ── Default: one composite grid image (existing behaviour) ────────
+        const storyboardInfo = { historyId, panelIdx: 0 };
         const finalPrompt = withQualityBoost(fullPrompt);
         const txt2imgOptions = buildUnifiedTxt2ImgOptions(finalPrompt);
         txt2imgOptions.imageCount = imageCount;
         const nodes = buildTxt2ImgNodeList(txt2imgOptions);
         await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, storyboardInfo, 'storyboard', themeTitle, 1);
+        onSuccess('九宫格合成图生成中...');
       }
-      console.log(`${GRID_LOG_PREFIX} task submitted successfully`);
+      console.log(`${GRID_LOG_PREFIX} task(s) submitted successfully`);
     } catch (err) {
       console.error(`${GRID_LOG_PREFIX} handleGenerateImage error:`, err);
       onError(err instanceof Error ? err.message : '生成失败');
       setIsGenerating(false);
     }
-  }, [fullPrompt, panels, taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, r18Mode, selectedTemplates]);
+  }, [fullPrompt, panels, taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, r18Mode, selectedTemplates, generateSeparatePanels]);
 
   // ── Regenerate handler ──
 
@@ -2004,7 +2142,7 @@ export function GridStoryboardMode({
           // rely on the auto-build effect to populate compositeSheetUrl,
           // but for download on demand we synthesize inline.
           const urls = Array.from({ length: panels.length }, (_, i) => redrawnPanelImages[i]?.[0] ?? null);
-          const url = await composeNinePanelGrid(urls, {
+          const url = await composeGridStoryboard(urls, {
             panelLabels: Array.from({ length: panels.length }, (_, i) => `Panel ${i + 1}`),
           });
           downloadDataUrl(url, `grid_storyboard_${Date.now()}.png`);
@@ -2072,6 +2210,21 @@ export function GridStoryboardMode({
     // Show as soon as ANY per-panel image is available so the user sees
     // progress while the remaining panels generate.
     Object.values(redrawnPanelImages).some((arr) => arr && arr.length > 0);
+
+  // CSS grid-template-columns value for the per-panel digital-human view.
+  // Derived from the user's selected panel count so the visible layout
+  // matches what the model was asked to render:
+  //   4 panels  → 2 cols
+  //   6 panels  → 2 cols
+  //   9 panels  → 3 cols
+  //  12 panels  → 3 cols
+  const perPanelCols = (() => {
+    if (panels.length === 4) return 2;
+    if (panels.length === 6) return 2;
+    if (panels.length === 9) return 3;
+    if (panels.length === 12) return 3;
+    return Math.max(2, Math.ceil(Math.sqrt(panels.length)));
+  })();
   const heroImage = digitalHumanMode ? compositeSheetUrl : gridImages[activeImageIdx];
 
   return (
@@ -2120,7 +2273,7 @@ export function GridStoryboardMode({
           <div className="flex items-center gap-3 mb-3">
             <span className="text-xs text-text-tertiary">{displayLang === 'zh' ? '网格尺寸:' : 'Grid:'}</span>
             <div className="flex gap-1">
-              {([4, 9, 12] as GridSize[]).map((n) => (
+              {([4, 6, 9, 12] as GridSize[]).map((n) => (
                 <button
                   key={n}
                   onClick={() => setGridSize(n)}
@@ -2130,7 +2283,7 @@ export function GridStoryboardMode({
                       : 'bg-bg-elevated text-text-tertiary hover:bg-bg-hover'
                   }`}
                 >
-                  {n === 4 ? '2×2' : n === 9 ? '3×3' : '3×4'}
+                  {n === 4 ? '2×2' : n === 6 ? '2×3' : n === 9 ? '3×3' : '3×4'}
                 </button>
               ))}
             </div>
@@ -2868,6 +3021,10 @@ export function GridStoryboardMode({
             redrawPanelIdx={redrawPanelIdx}
             displayLang={displayLang}
             redrawnPanelImages={redrawnPanelImages}
+            // Generate mode toggle — locked to true when digitalHumanMode is active
+            generateSeparatePanels={generateSeparatePanels}
+            onGenerateSeparatePanelsChange={digitalHumanMode ? undefined : setGenerateSeparatePanels}
+            isDigitalHumanMode={digitalHumanMode}
             onImageClick={(panelIdx, imgUrl) => {
               const all = redrawnPanelImages[panelIdx] || [];
               const idx = all.indexOf(imgUrl);
@@ -2991,8 +3148,8 @@ export function GridStoryboardMode({
                 // The cells maintain a 9:16 tile aspect ratio so the sheet is
                 // exactly the 9:16 vertical aspect ratio the user expects.
                 <div
-                  className="grid grid-cols-3 gap-1 p-1 bg-bg-elevated"
-                  style={{ aspectRatio: '9 / 16' }}
+                  className="grid gap-1 p-1 bg-bg-elevated"
+                  style={{ aspectRatio: '9 / 16', gridTemplateColumns: `repeat(${perPanelCols}, minmax(0, 1fr))` }}
                 >
                   {panels.map((panel, idx) => {
                     const url = redrawnPanelImages[idx]?.[0];
