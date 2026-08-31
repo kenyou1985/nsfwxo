@@ -1408,14 +1408,6 @@ function MiniMaxH38RefPanel({
       }
     });
 
-    // 直出模式 (true=MP4直出灰图, false=ZIP默认)
-    nodeList.push({
-      nodeId: '171',
-      fieldName: 'direct_output',
-      fieldValue: String(mrDirectOutput),
-      description: '直出模式'
-    });
-
     return nodeList;
   };
 
@@ -1636,7 +1628,8 @@ function MiniMaxH38RefPanel({
               <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${mrDirectOutput ? 'translate-x-5' : 'translate-x-1'}`} />
             </button>
             <span className="text-xs text-text-secondary">
-              直出模式 {mrDirectOutput ? '（MP4直出）' : '（ZIP格式，默认）'}
+              直出模式 {mrDirectOutput ? '（MP4直出）' : '（ZIP格式）'}
+              <span className="text-text-tertiary ml-1">(工作流控制)</span>
             </span>
           </div>
         </div>
