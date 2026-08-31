@@ -1354,7 +1354,6 @@ function MiniMaxH38RefPanel({
   const [mrAspectRatio, setMrAspectRatio] = useState('9:16 (Portrait Widescreen)');
   const [mrDuration, setMrDuration] = useState('6');
   const [mrQuality, setMrQuality] = useState(0.3); // 默认画质0.3
-  const [mrRefMode, setMrRefMode] = useState('2'); // select field, default 2
   const [mrSubmitting, setMrSubmitting] = useState(false);
 
   const handleImageUpload = async (file: File, index: number) => {
@@ -1388,7 +1387,7 @@ function MiniMaxH38RefPanel({
       { nodeId: '115', fieldName: 'aspect_ratio', fieldValue: mrAspectRatio, description: '宽高比' },
       { nodeId: '115', fieldName: 'megapixels', fieldValue: String(mrQuality), description: '画质' },
       { nodeId: '132', fieldName: 'value', fieldValue: mrDuration, description: '时长' },
-      { nodeId: '158', fieldName: 'select', fieldValue: mrRefMode, description: '参考模式' },
+      { nodeId: '158', fieldName: 'select', fieldValue: mrDirectOutput ? '2' : '1', description: '输出模式' },
       { nodeId: '138', fieldName: 'value', fieldValue: mrPrompt, description: '提示词' },
       { nodeId: '162', fieldName: 'audio', fieldValue: 'None', description: '音频1' },
       { nodeId: '163', fieldName: 'audio', fieldValue: 'None', description: '音频2' },
@@ -1578,59 +1577,33 @@ function MiniMaxH38RefPanel({
             disabled={isSubmitting}
           />
 
-          {/* 参考模式 */}
+          {/* 输出模式 (node 158 select: 1=ZIP, 2=MP4灰图) */}
           <div>
-            <label className="text-xs text-text-secondary mb-1.5 block">参考模式</label>
+            <label className="text-xs text-text-secondary mb-1.5 block">输出模式</label>
             <div className="flex gap-2">
               <button
-                onClick={() => setMrRefMode('2')}
+                onClick={() => setMrDirectOutput(false)}
                 className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${
-                  mrRefMode === '2'
-                    ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white'
+                  !mrDirectOutput
+                    ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white'
                     : 'bg-bg-elevated text-text-secondary hover:bg-bg-hover'
                 }`}
                 disabled={isSubmitting}
               >
-                多参考融合
+                ZIP格式
               </button>
               <button
-                onClick={() => setMrRefMode('1')}
+                onClick={() => setMrDirectOutput(true)}
                 className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${
-                  mrRefMode === '1'
+                  mrDirectOutput
                     ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white'
                     : 'bg-bg-elevated text-text-secondary hover:bg-bg-hover'
                 }`}
                 disabled={isSubmitting}
               >
-                主体保持
-              </button>
-              <button
-                onClick={() => setMrRefMode('0')}
-                className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${
-                  mrRefMode === '0'
-                    ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white'
-                    : 'bg-bg-elevated text-text-secondary hover:bg-bg-hover'
-                }`}
-                disabled={isSubmitting}
-              >
-                构图参考
+                MP4直出(灰图)
               </button>
             </div>
-          </div>
-
-          {/* 直出模式 */}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setMrDirectOutput(!mrDirectOutput)}
-              className={`w-10 h-6 rounded-full transition-colors relative ${mrDirectOutput ? 'bg-orange-500' : 'bg-text-tertiary'}`}
-              disabled={isSubmitting}
-            >
-              <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${mrDirectOutput ? 'translate-x-5' : 'translate-x-1'}`} />
-            </button>
-            <span className="text-xs text-text-secondary">
-              直出模式 {mrDirectOutput ? '（MP4直出）' : '（ZIP格式）'}
-              <span className="text-text-tertiary ml-1">(工作流控制)</span>
-            </span>
           </div>
         </div>
       </div>
