@@ -145,6 +145,8 @@ export const WORKFLOW = {
   MINIMAX_LONG: '2091369701523136514',
   /** MiniMax H3 文生视频模型 */
   MINIMAX_H3_T2V: '2086701195858923521',
+  /** MiniMax H3 8参考图模型 */
+  MINIMAX_H3_8REF: '2084227059892015105',
 } as const;
 
 export interface WorkflowNode {
