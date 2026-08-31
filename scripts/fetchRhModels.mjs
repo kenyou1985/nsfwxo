@@ -17,13 +17,17 @@ import { writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 
+// 支持的底模列表（CHECKPOINT / LORA 逐个抓取）
+// 注意：UNET 无需指定底模（全量抓取）
+const BASE_MODELS = ['IL-XL', 'minimax-h3'];
+
 const API_KEY = '4bdff125174140bb804395756f8c597d';
 const ENDPOINT = 'https://www.runninghub.ai/openapi/v2/resource/list';
 const PAGE_SIZE = 50;
 const REQUEST_DELAY_MS = 3500;
 const MAX_RETRY = 5;
-const OUTPUT_JSON = resolve(process.cwd(), '../public/data/runninghubModels.json');
-const COVER_DIR = resolve(process.cwd(), '../public/rh-covers');
+const OUTPUT_JSON = resolve(process.cwd(), 'public/data/runninghubModels.json');
+const COVER_DIR = resolve(process.cwd(), 'public/rh-covers');
 
 const args = process.argv.slice(2);
 const MODE_INCREMENTAL = args.includes('--incremental');
@@ -94,9 +98,10 @@ async function fetchAll(kind, baseModels = null) {
 }
 
 /** 抓取增量: 仅返回 createTime > cutoff 的记录 */
-async function fetchSince(kind, baseModels, cutoff) {
-  const baseStr = baseModels ? baseModels.join(',') : '(all)';
-  console.log(`\n==== Fetching ${kind} since ${cutoff} [baseModels=${baseStr}] ====`);
+async function fetchSince(kind, baseModel, cutoff) {
+  const baseStr = baseModel || '(all)';
+  console.log(`\n==== Fetching ${kind} since ${cutoff} [baseModel=${baseStr}] ====`);
+  const baseModels = baseModel ? [baseModel] : null;
   const first = await fetchPage(kind, baseModels, 1);
   const total = parseInt(first.data.total, 10);
   const allRecords = [...first.data.records];
@@ -188,6 +193,17 @@ function pickBaseModelSubtype(record, baseModel) {
   return v?.baseModelSubtype || '';
 }
 
+/** 根据名称关键词推断底模 */
+function inferBaseModel(name, fallback) {
+  const n = name.toLowerCase();
+  if (fallback && fallback.toLowerCase() !== 'other' && fallback !== '') return fallback;
+  if (n.includes('minimax-h3') || n.includes('minimax_h3') || n.includes('minimaxh3')) return 'minimax-h3';
+  if (n.includes('minimax') || n.includes('dasiwa') && n.includes('minimax')) return 'minimax-h3';
+  if (n.includes('krea') || n.includes('kea')) return 'krea2';
+  if (n.includes('illustrious') || n.includes('il-xl') || n.includes('ilxl')) return 'IL-XL';
+  return fallback || '';
+}
+
 function descToText(html) {
   if (!html) return '';
   return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
@@ -212,6 +228,7 @@ async function transformRecords(records, kind, baseModel, downloadCoverMode = 'f
     if (triggerWords && description) description = `触发词: ${triggerWords} | ${description}`;
     else if (triggerWords) description = `触发词: ${triggerWords}`;
     const sub = pickBaseModelSubtype(r, baseModel);
+    const resolvedBaseModel = inferBaseModel(fileName, baseModel || sub || '');
     const entry = {
       id: r.id,
       name: fileName,
@@ -219,7 +236,7 @@ async function transformRecords(records, kind, baseModel, downloadCoverMode = 'f
       category: cats,
       defaultWeight: kind === 'CHECKPOINT' ? 1.0 : 0.7,
       description,
-      baseModel: baseModel || sub || '',
+      baseModel: resolvedBaseModel,
       baseModelSubtype: sub,
       version: r.versions?.[0]?.version || '',
       triggerWords,
@@ -297,7 +314,7 @@ async function main() {
 
   // ── UNET ──
   if (MODE_UNET || (!MODE_CHECKPOINT && !MODE_LORA)) {
-    // UNET 不过滤 baseModels，因为 krea2/kea2 的 UNET 不过滤拿不到
+    // UNET 不过滤 baseModels，全量抓取
     let unetRaw;
     if (MODE_INCREMENTAL && cutoff) {
       unetRaw = await fetchSince('UNET', null, cutoff);
@@ -311,41 +328,45 @@ async function main() {
       : unets;
   }
 
-  // ── CHECKPOINT (IL-XL) ──
+  // ── CHECKPOINT ──
   if (MODE_CHECKPOINT || (!MODE_UNET && !MODE_LORA)) {
-    let ckptRaw;
-    if (MODE_INCREMENTAL && cutoff) {
-      ckptRaw = await fetchSince('CHECKPOINT', ['IL-XL'], cutoff);
-    } else {
-      ckptRaw = await fetchAll('CHECKPOINT', ['IL-XL']);
+    for (const baseModel of BASE_MODELS) {
+      let ckptRaw;
+      if (MODE_INCREMENTAL && cutoff) {
+        ckptRaw = await fetchSince('CHECKPOINT', baseModel, cutoff);
+      } else {
+        ckptRaw = await fetchAll('CHECKPOINT', [baseModel]);
+      }
+      await sleep(REQUEST_DELAY_MS);
+      const ckpts = await transformRecords(ckptRaw, 'CHECKPOINT', baseModel, downloadMode);
+      existing.checkpoints = MODE_INCREMENTAL
+        ? dedupeAndMerge(existing.checkpoints, ckpts)
+        : dedupeAndMerge(existing.checkpoints, ckpts);
     }
-    await sleep(REQUEST_DELAY_MS);
-    const ckpts = await transformRecords(ckptRaw, 'CHECKPOINT', 'IL-XL', downloadMode);
-    existing.checkpoints = MODE_INCREMENTAL
-      ? dedupeAndMerge(existing.checkpoints, ckpts)
-      : ckpts;
   }
 
-  // ── LORA (IL-XL) ──
+  // ── LORA ──
   if (MODE_LORA || (!MODE_UNET && !MODE_CHECKPOINT)) {
-    let loraRaw;
-    if (MODE_INCREMENTAL && cutoff) {
-      loraRaw = await fetchSince('LORA', ['IL-XL'], cutoff);
-    } else {
-      loraRaw = await fetchAll('LORA', ['IL-XL']);
+    for (const baseModel of BASE_MODELS) {
+      let loraRaw;
+      if (MODE_INCREMENTAL && cutoff) {
+        loraRaw = await fetchSince('LORA', baseModel, cutoff);
+      } else {
+        loraRaw = await fetchAll('LORA', [baseModel]);
+      }
+      await sleep(REQUEST_DELAY_MS);
+      const loras = await transformRecords(loraRaw, 'LORA', baseModel, downloadMode);
+      existing.loras = MODE_INCREMENTAL
+        ? dedupeAndMerge(existing.loras, loras)
+        : dedupeAndMerge(existing.loras, loras);
     }
-    await sleep(REQUEST_DELAY_MS);
-    const loras = await transformRecords(loraRaw, 'LORA', 'IL-XL', downloadMode);
-    existing.loras = MODE_INCREMENTAL
-      ? dedupeAndMerge(existing.loras, loras)
-      : loras;
   }
 
   // ── write ──
-  existing.version = 5;
+  existing.version = 9;
   existing.updatedAt = now;
   existing.lastFetchedAt = now;
-  existing.baseModelFilter = ['IL-XL (Checkpoint/LoRA)', 'kea2 (UNET)', 'all'];
+  existing.baseModelFilter = BASE_MODELS;
   existing.categories = [
     { id: 'all', label: '全部' },
     { id: 'rh-pick', label: '推荐' },
