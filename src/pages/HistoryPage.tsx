@@ -298,6 +298,28 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
       return;
     }
     try {
+      sessionStorage.setItem('history_img2vid', JSON.stringify({ imageUrl: url, targetModel: 'minimaxh3' }));
+    } catch (err) {
+      console.error('[HistoryPage] failed to set sessionStorage', err);
+      onError?.('保存图片失败');
+      return;
+    }
+    onNavigate('img2vid');
+  }, [onNavigate, onError, gpt2CachedImages]);
+
+  // GPT Image 2 → 长视频 v1.1
+  const handleGpt2LongVideo = useCallback((record: GptImage2Record, imgIndex: number) => {
+    if (!onNavigate) {
+      onError?.('当前页面无法跳转到图生视频');
+      return;
+    }
+    const cached = gpt2CachedImages[record.id];
+    const url = cached?.[imgIndex];
+    if (!url) {
+      onError?.('图片尚未加载完成');
+      return;
+    }
+    try {
       sessionStorage.setItem('history_img2vid', JSON.stringify({ imageUrl: url, targetModel: 'longvideov2' }));
     } catch (err) {
       console.error('[HistoryPage] failed to set sessionStorage', err);
@@ -403,11 +425,24 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
     return record.images || [];
   };
 
-  // 历史记录 → 图生视频：把第一张图作为参考图存到 sessionStorage，
-  // 跳到图生视频页面。ImageToVideoPage 会在 mount 时读取这个 key，
-  // 上传图片 + 填到预览里，但**不自动生成**，由用户手动输入提示词后点击生成。
-  // 默认使用 长视频 v1.1 (longvideov2) 模型。
+  // 图片历史 → 图生视频（MiniMax H3）：把图片存到 sessionStorage，跳到图生视频页面。
   const handleGenerateVideoFromImage = useCallback((imageUrl: string) => {
+    if (!onNavigate) {
+      onError?.('当前页面无法跳转到图生视频');
+      return;
+    }
+    try {
+      sessionStorage.setItem('history_img2vid', JSON.stringify({ imageUrl, targetModel: 'minimaxh3' }));
+    } catch (err) {
+      console.error('[HistoryPage] failed to set sessionStorage', err);
+      onError?.('保存图片失败：' + (err instanceof Error ? err.message : '未知错误'));
+      return;
+    }
+    onNavigate('img2vid');
+  }, [onNavigate, onError]);
+
+  // 图片历史 → 长视频 v1.1：把图片存到 sessionStorage，跳到图生视频页面。
+  const handleGenerateLongVideoFromImage = useCallback((imageUrl: string) => {
     if (!onNavigate) {
       onError?.('当前页面无法跳转到图生视频');
       return;
@@ -792,9 +827,20 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
                           handleGenerateVideoFromImage(url);
                         }}
                         className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90 transition-all"
-                        title={`使用第 ${(selectedImg2vidIndex[record.id] ?? 0) + 1} 张图片作为参考图，跳转到图生视频页面`}
+                        title={`使用第 ${(selectedImg2vidIndex[record.id] ?? 0) + 1} 张图片生视频（MiniMax H3）`}
                       >
                         <Video size={11} />生视频
+                      </button>
+                      <button
+                        onClick={() => {
+                          const selectedIdx = selectedImg2vidIndex[record.id] ?? 0;
+                          const url = images[selectedIdx] ?? images[0];
+                          handleGenerateLongVideoFromImage(url);
+                        }}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-gradient-to-r from-orange-500 to-red-500 text-white hover:opacity-90 transition-all"
+                        title={`使用第 ${(selectedImg2vidIndex[record.id] ?? 0) + 1} 张图片生长视频（长视频 v1.1）`}
+                      >
+                        <Video size={11} />长视频 1.1
                       </button>
                     </div>
                   )}
@@ -1288,9 +1334,16 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
                           <button
                             onClick={() => handleGpt2Video(record, selectedGpt2Img2vidIdx[record.id] ?? 0)}
                             className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90 transition-all"
-                            title={`使用第 ${(selectedGpt2Img2vidIdx[record.id] ?? 0) + 1} 张图片生视频`}
+                            title={`使用第 ${(selectedGpt2Img2vidIdx[record.id] ?? 0) + 1} 张图片生视频（MiniMax H3）`}
                           >
                             <Video size={11} />生视频
+                          </button>
+                          <button
+                            onClick={() => handleGpt2LongVideo(record, selectedGpt2Img2vidIdx[record.id] ?? 0)}
+                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-gradient-to-r from-orange-500 to-red-500 text-white hover:opacity-90 transition-all"
+                            title={`使用第 ${(selectedGpt2Img2vidIdx[record.id] ?? 0) + 1} 张图片生长视频（长视频 v1.1）`}
+                          >
+                            <Video size={11} />长视频 1.1
                           </button>
                         </div>
                       )}
