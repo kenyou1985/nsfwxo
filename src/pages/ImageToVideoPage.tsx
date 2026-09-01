@@ -1353,7 +1353,7 @@ function MiniMaxH38RefPanel({
 
   const [mrAspectRatio, setMrAspectRatio] = useState('9:16 (Portrait Widescreen)');
   const [mrDuration, setMrDuration] = useState('6');
-  const [mrQuality, setMrQuality] = useState(0.3); // 默认画质0.3
+  const [mrQuality, setMrQuality] = useState(0.2); // 默认画质0.2
   const [mrSubmitting, setMrSubmitting] = useState(false);
 
   const handleImageUpload = async (file: File, index: number) => {
