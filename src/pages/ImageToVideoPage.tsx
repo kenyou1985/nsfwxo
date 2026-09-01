@@ -1821,7 +1821,7 @@ function MiniMaxLongVideoPanel({
 
 // ─── MiniMax H3 视频模板（文生视频 / 图生视频 / 图生长视频 通用） ─────────────────────────
 
-const H3_VIDEO_TEMPLATES = [
+export const H3_VIDEO_TEMPLATES = [
   {
     name: '指挥舞蹈',
     color: 'from-amber-500 to-orange-500',

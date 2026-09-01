@@ -7,6 +7,7 @@ import { VideoTaskList } from '../components/VideoTaskList';
 import type { NodeInfo } from '../types';
 import type { GirlfriendPreset } from '../data/girlfriendPresets';
 import { GirlfriendSelector } from '../components/GirlfriendSelector';
+import { H3_VIDEO_TEMPLATES } from './ImageToVideoPage';
 
 // ────────────────────────────────────────────────────────────────────────────────
 // N无限X一键长视频 v1.1 — workflowId 2094226327238135810 (Minimax H3)
@@ -263,6 +264,12 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
   const uploadedCount = images.filter((img) => img.path && img.path !== 'None').length;
   const finalDuration = customDuration ? parseInt(customDuration, 10) || duration : duration;
 
+  // ── 模板预设 ──────────────────────────────────────────────────────────────────
+  const handleTemplateApply = useCallback((template: typeof H3_VIDEO_TEMPLATES[0]) => {
+    setPrompt(template.prompt);
+    onSuccess(`已应用模板：${template.name}`);
+  }, [onSuccess]);
+
   return (
     <div className="space-y-4 pb-24">
       {/* 标题 */}
@@ -356,6 +363,25 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
             提示词 (node 205)
           </h3>
         </div>
+        {/* 模版预设 */}
+        {H3_VIDEO_TEMPLATES.length > 0 && (
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-xs text-text-tertiary flex-shrink-0">模版：</span>
+            <div className="flex flex-wrap gap-1.5">
+              {H3_VIDEO_TEMPLATES.map((tpl) => (
+                <button
+                  key={tpl.name}
+                  type="button"
+                  onClick={() => handleTemplateApply(tpl)}
+                  disabled={submitting}
+                  className={`px-3 py-1 rounded-lg text-xs font-medium bg-gradient-to-r ${tpl.color} text-white hover:opacity-90 transition-opacity disabled:opacity-50`}
+                >
+                  {tpl.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
