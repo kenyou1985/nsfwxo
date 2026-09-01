@@ -298,7 +298,7 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
       return;
     }
     try {
-      sessionStorage.setItem('history_img2vid', JSON.stringify({ imageUrl: url, targetModel: 'minimaxh3' }));
+      sessionStorage.setItem('history_img2vid', JSON.stringify({ imageUrl: url, targetModel: 'longvideov2' }));
     } catch (err) {
       console.error('[HistoryPage] failed to set sessionStorage', err);
       onError?.('保存图片失败');
@@ -406,14 +406,14 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
   // 历史记录 → 图生视频：把第一张图作为参考图存到 sessionStorage，
   // 跳到图生视频页面。ImageToVideoPage 会在 mount 时读取这个 key，
   // 上传图片 + 填到预览里，但**不自动生成**，由用户手动输入提示词后点击生成。
-  // 默认使用 MiniMax H3 模型。
+  // 默认使用 长视频 v1.1 (longvideov2) 模型。
   const handleGenerateVideoFromImage = useCallback((imageUrl: string) => {
     if (!onNavigate) {
       onError?.('当前页面无法跳转到图生视频');
       return;
     }
     try {
-      sessionStorage.setItem('history_img2vid', JSON.stringify({ imageUrl, targetModel: 'minimaxh3' }));
+      sessionStorage.setItem('history_img2vid', JSON.stringify({ imageUrl, targetModel: 'longvideov2' }));
     } catch (err) {
       console.error('[HistoryPage] failed to set sessionStorage', err);
       onError?.('保存图片失败：' + (err instanceof Error ? err.message : '未知错误'));
@@ -808,85 +808,107 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
       {/* Video history */}
       {activeTab === 'video' && videoRecords.length > 0 && (
         <div className="space-y-3">
-          {videoRecords.map((record) => (
-            <div
-              key={record.id}
-              className="rounded-xl bg-bg-surface border border-border p-4"
-            >
-              <div className="flex items-start justify-between gap-2 mb-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-500 text-[10px]">
-                      图生视频
-                    </span>
-                    <span className="text-xs text-text-secondary flex items-center gap-1">
-                      <Clock size={11} />
-                      {formatDate(record.createdAt)}
-                    </span>
-                  </div>
-                  {record.prompt && (
-                    <p className="text-sm text-text-primary line-clamp-2 mt-1">
-                      {record.prompt}
-                    </p>
-                  )}
-                </div>
-                <button
-                  onClick={() => handleDeleteVideo(record.id)}
-                  className="w-7 h-7 rounded-lg hover:bg-red-500/20 flex items-center justify-center text-text-secondary hover:text-red-400 transition-colors"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-
-              {/* Image previews */}
-              {record.images && record.images.length > 0 && (
-                <div className="mb-3">
-                  <div className="flex justify-center">
-                    <AspectAwareImage
-                      src={record.images[0]}
-                      alt="Generated"
-                      maxHeight={240}
-                      objectFit="contain"
-                      className="rounded-lg"
-                    />
-                  </div>
-                  {record.images.length > 1 && (
-                    <div className="flex gap-1.5 mt-1.5 overflow-x-auto">
-                      {record.images.slice(1, 5).map((url, imgIndex) => (
-                        <AspectAwareImage
-                          key={imgIndex}
-                          src={url}
-                          alt={`预览 ${imgIndex + 2}`}
-                          maxHeight={56}
-                          objectFit="cover"
-                          className="rounded-lg flex-shrink-0"
-                        />
-                      ))}
+          {videoRecords.map((record) => {
+            const firstIsVideo = isVideoUrl(record.images[0] || '');
+            return (
+              <div
+                key={record.id}
+                className="rounded-xl bg-bg-surface border border-border p-4"
+              >
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-500 text-[10px]">
+                        图生视频
+                      </span>
+                      <span className="text-xs text-text-secondary flex items-center gap-1">
+                        <Clock size={11} />
+                        {formatDate(record.createdAt)}
+                      </span>
                     </div>
+                    {record.prompt && (
+                      <p className="text-sm text-text-primary line-clamp-2 mt-1">
+                        {record.prompt}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {record.prompt?.trim() && (
+                      <button
+                        onClick={() => handleCopyPrompt(record.prompt!)}
+                        className="w-7 h-7 rounded-lg hover:bg-blue-500/20 flex items-center justify-center text-text-secondary hover:text-blue-400 transition-colors"
+                        title="复制提示词"
+                      >
+                        <Copy size={14} />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDeleteVideo(record.id)}
+                      className="w-7 h-7 rounded-lg hover:bg-red-500/20 flex items-center justify-center text-text-secondary hover:text-red-400 transition-colors"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Media preview — video player or image */}
+                {record.images && record.images.length > 0 && (
+                  <div className="mb-3">
+                    {firstIsVideo ? (
+                      <video
+                        src={record.images[0]}
+                        controls
+                        className="w-full max-h-80 rounded-lg bg-black"
+                      />
+                    ) : (
+                      <div className="flex justify-center">
+                        <AspectAwareImage
+                          src={record.images[0]}
+                          alt="Generated"
+                          maxHeight={240}
+                          objectFit="contain"
+                          className="rounded-lg"
+                        />
+                      </div>
+                    )}
+                    {!firstIsVideo && record.images.length > 1 && (
+                      <div className="flex gap-1.5 mt-1.5 overflow-x-auto">
+                        {record.images.slice(1, 5).map((url, imgIndex) => (
+                          <AspectAwareImage
+                            key={imgIndex}
+                            src={url}
+                            alt={`预览 ${imgIndex + 2}`}
+                            maxHeight={56}
+                            objectFit="cover"
+                            className="rounded-lg flex-shrink-0"
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/50">
+                  <span className="text-xs text-text-secondary">
+                    {record.images.length} {firstIsVideo ? '个视频' : '张图片'}
+                    {record.coins && ` · ${record.coins} RH币`}
+                  </span>
+                  {record.images[0] && (
+                    <a
+                      href={record.images[0]}
+                      download
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-primary hover:text-primary/80 transition-colors flex items-center gap-1"
+                    >
+                      {firstIsVideo ? <Video size={12} /> : <ImageIcon size={12} />}
+                      {firstIsVideo ? '下载视频' : '下载图片'}
+                    </a>
                   )}
                 </div>
-              )}
-
-              <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/50">
-                <span className="text-xs text-text-secondary">
-                  {record.images.length} {isVideoUrl(record.images[0] || '') ? '个视频' : '张图片'}
-                  {record.coins && ` · ${record.coins} RH币`}
-                </span>
-                {record.images[0] && (
-                  <a
-                    href={record.images[0]}
-                    download
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-primary hover:text-primary/80 transition-colors flex items-center gap-1"
-                  >
-                    {isVideoUrl(record.images[0]) ? <Video size={12} /> : <ImageIcon size={12} />}
-                    {isVideoUrl(record.images[0]) ? '下载视频' : '下载图片'}
-                  </a>
-                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

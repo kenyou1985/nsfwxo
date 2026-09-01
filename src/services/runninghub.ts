@@ -141,12 +141,14 @@ export const WORKFLOW = {
   KREA2: '2082140662178611201',
   /** MiniMax H3 图生视频模型 */
   MINIMAX_H3: '2084661265636839425',
-  /** MiniMax 长视频（0.4像素）模型 */
+  /** MiniMax 长视频 (独立工作流, 不在 NinfiniteLongVideoPage 中使用) */
   MINIMAX_LONG: '2091369701523136514',
   /** MiniMax H3 文生视频模型 */
   MINIMAX_H3_T2V: '2086701195858923521',
-  /** MiniMax H3 8参考图模型 */
-  MINIMAX_H3_8REF: '2084227059892015105',
+  /** N无限X一键长视频 v1.1 (已验证可用, Minimax H3, 替代旧版 v1.1) */
+  NINFINITE_LONG_V3: '2094226327238135810',
+  /** N无限X一键长视频 v1.1 旧版 (workflowId 2094672102264090625, 有 bug, 仅保留给历史记录参考) */
+  NINFINITE_LONG_V2: '2094672102264090625',
 } as const;
 
 export interface WorkflowNode {
@@ -350,7 +352,9 @@ export async function runTask(
   const body: RunTaskRequest = {
     nodeInfoList,
     instanceType: 'default',
-    usePersonalQueue: 'false',
+    usePersonalQueue: false,
+    randomSeed: true,
+    retainSeconds: 0,
   };
 
   const url = `${BASE_URL}/run/ai-app/${workflowId}`;
@@ -365,6 +369,16 @@ export async function runTask(
 
   const taskId = (data.taskId as string) || ((data.data as Record<string, unknown> | null)?.taskId as string) || '';
   const errorCode = (data.errorCode as string) || '';
+
+  // Verbose submission log — print full server response so we can see promptTips
+  // (contains outputs_to_execute), clientId, status, and any immediate errorCode.
+  // Group everything under a single collapsible label so the console isn't spammed.
+  console.groupCollapsed(`[runTask] workflow=${workflowId} taskId=${taskId || '(empty)'} status=${data.status} errorCode=${errorCode}`);
+  console.log('[runTask] server response =', JSON.stringify(data, null, 2));
+  console.log('[runTask] image node fieldValues =', nodeInfoList
+    .filter((n) => n.fieldName === 'image')
+    .map((n) => ({ nodeId: n.nodeId, ext: String(n.fieldValue).match(/\.[a-z0-9]+$/i)?.[0] || '(none)' })));
+  console.groupEnd();
 
   // Server-side concurrency limit (errorCode 421). The task never made it
   // to RunningHub; return a normal TaskResponse with an empty taskId so
@@ -433,6 +447,9 @@ export async function getTaskStatus(
   }, apiKey, true);
 
   const status = statusData.data || 'RUNNING';
+
+  // Log every poll so we can correlate submission time → first failure poll
+  console.log(`[getTaskStatus] taskId=${taskId} status=${status} (code=${statusData.code} msg=${statusData.msg || ''})`);
 
   return {
     taskId,
@@ -530,6 +547,16 @@ export async function getTaskResults(
     const data = outputsData.data as Record<string, unknown> | null;
     const failedReason = (data?.failedReason as Record<string, unknown>) || {};
     const msg = (data?.exception_message as string) || outputsData.msg || '任务失败';
+
+    // Verbose failure log — print every field in failedReason so we can see
+    // exactly which node, which file extension, and which input caused the
+    // failure. Previously we only returned this data; now it also shows up
+    // in the browser console for direct inspection.
+    console.groupCollapsed(`[getTaskResults] ❌ FAILED taskId=${taskId}`);
+    console.log('[getTaskResults] failedReason =', JSON.stringify(failedReason, null, 2));
+    console.log('[getTaskResults] exception_message =', msg);
+    console.log('[getTaskResults] full data =', JSON.stringify(data, null, 2));
+    console.groupEnd();
 
     return {
       taskId,
@@ -956,6 +983,11 @@ export async function uploadImage(
       if (!fileName) {
         throw new Error('Upload response missing fileName');
       }
+
+      // Log the upload response so we can see exactly what fileName the
+      // workflow will receive (matters for tracking down any extension
+      // mismatch — e.g. .zip filename reaching SaveStringKJ).
+      console.log(`[uploadImage] file=${file.name} → fileName=${fileName} download_url=${downloadUrl}`);
 
       return { imagePath: fileName, downloadUrl };
     } catch (err) {

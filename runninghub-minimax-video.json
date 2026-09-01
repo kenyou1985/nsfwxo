@@ -1,0 +1,201 @@
+{
+  "name": "Minimax图生视频（自动提示词）",
+  "description": "基于MiniMax H3模型的图生视频应用，支持自动生成提示词。单图输入，生成动态视频内容。",
+  "category": "图生视频",
+  "tags": ["视频生成", "AI视频", "MiniMax", "自动提示词"],
+  "appId": "2085778601816334338",
+  "apiId": "2084661265636839425",
+  "workflowId": "2084661265636839425",
+  "baseUrl": "https://www.runninghub.ai",
+  "apiVersion": "v2",
+  "successRate": "97%",
+  "avgRuntime": "440s",
+  "runs": "27.8K",
+  
+  "parameters": {
+    "nodeInfoList": [
+      {
+        "nodeId": "50",
+        "fieldName": "image",
+        "fieldValue": "",
+        "description": "输入图片 - 用于生成视频的源图片",
+        "type": "image",
+        "required": true
+      },
+      {
+        "nodeId": "38",
+        "fieldName": "prompt",
+        "fieldValue": "",
+        "description": "提示词 - 描述视频内容，支持自动生成",
+        "type": "text",
+        "required": true,
+        "defaultPrompt": "自由发挥"
+      },
+      {
+        "nodeId": "185",
+        "fieldName": "value",
+        "fieldValue": "15",
+        "description": "视频时长(秒) - 生成视频的时长",
+        "type": "number",
+        "min": 1,
+        "max": 60,
+        "default": 15
+      },
+      {
+        "nodeId": "238",
+        "fieldName": "value",
+        "fieldValue": "0.6",
+        "description": "随机种子 - 控制生成随机性，0为随机",
+        "type": "float",
+        "min": 0,
+        "max": 1,
+        "default": 0.6
+      },
+      {
+        "nodeId": "182",
+        "fieldName": "select",
+        "fieldValue": "1",
+        "description": "运动模式 - 选择视频运动方式",
+        "type": "select",
+        "options": [
+          {"label": "模式1", "value": "1"},
+          {"label": "模式2", "value": "2"},
+          {"label": "模式3", "value": "3"}
+        ],
+        "default": "1"
+      },
+      {
+        "nodeId": "127",
+        "fieldName": "value",
+        "fieldValue": "false",
+        "description": "高级选项 - 是否启用高级设置",
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "nodeId": "19",
+        "fieldName": "unet_name",
+        "fieldValue": "DasiwaMinimaxH3_dasiwaREF2VAHybridV1_0.safetensors",
+        "description": "UNet模型 - 视频生成主干网络",
+        "type": "model",
+        "default": "DasiwaMinimaxH3_dasiwaREF2VAHybridV1_0.safetensors"
+      },
+      {
+        "nodeId": "111",
+        "fieldName": "lora_name",
+        "fieldValue": "MysticXXX_MMH3-V1.safetensors",
+        "description": "LoRA模型 - 可选的风格增强模型",
+        "type": "lora",
+        "default": "MysticXXX_MMH3-V1.safetensors"
+      },
+      {
+        "nodeId": "111",
+        "fieldName": "strength_model",
+        "fieldValue": "0.4",
+        "description": "LoRA强度 - LoRA对生成结果的影响程度",
+        "type": "float",
+        "min": 0,
+        "max": 1,
+        "default": 0.4
+      },
+      {
+        "nodeId": "76",
+        "fieldName": "image",
+        "fieldValue": "",
+        "description": "参考图1 - 可选的风格参考图片",
+        "type": "image",
+        "required": false
+      },
+      {
+        "nodeId": "79",
+        "fieldName": "image",
+        "fieldValue": "",
+        "description": "参考图2 - 可选的额外参考图片",
+        "type": "image",
+        "required": false
+      }
+    ],
+    "optionalParameters": {
+      "instanceType": {
+        "type": "string",
+        "description": "运行实例类型",
+        "options": [
+          {"label": "默认 (24G显存)", "value": "default"},
+          {"label": "增强 (48G显存)", "value": "plus"}
+        ],
+        "default": "default"
+      },
+      "usePersonalQueue": {
+        "type": "boolean",
+        "description": "使用个人独占队列",
+        "default": false
+      },
+      "retainSeconds": {
+        "type": "integer",
+        "description": "实例保留时长(秒)，仅企业API Key有效",
+        "min": 10,
+        "max": 180,
+        "default": null
+      },
+      "webhookUrl": {
+        "type": "string",
+        "description": "Webhook回调地址，任务完成时通知",
+        "default": null
+      }
+    }
+  },
+  
+  "apiEndpoints": {
+    "run": "https://www.runninghub.ai/openapi/v2/run/ai-app/2084661265636839425",
+    "query": "https://www.runninghub.ai/openapi/v2/query",
+    "upload": "https://www.runninghub.ai/openapi/v2/media/upload/binary"
+  },
+  
+  "usage": {
+    "pricing": "按实际用量计费",
+    "requirements": {
+      "consumer": "需拥有基础版及以上会员",
+      "enterprise": "无会员限制"
+    },
+    "costEstimation": {
+      "avgCoinsPerRun": 50,
+      "avgRuntimeSeconds": 440
+    }
+  },
+  
+  "exampleRequest": {
+    "nodeInfoList": [
+      {"nodeId": "238", "fieldName": "value", "fieldValue": "0.6000000000000001"},
+      {"nodeId": "185", "fieldName": "value", "fieldValue": "15"},
+      {"nodeId": "182", "fieldName": "select", "fieldValue": "1"},
+      {"nodeId": "127", "fieldName": "value", "fieldValue": "false"},
+      {"nodeId": "50", "fieldName": "image", "fieldValue": "2e623eb7fce8a1aa7802777a2b6a25437501dd94c0d4c4ebeccd01fbfbbfe609.png"},
+      {"nodeId": "76", "fieldName": "image", "fieldValue": ""},
+      {"nodeId": "79", "fieldName": "image", "fieldValue": ""},
+      {"nodeId": "38", "fieldName": "prompt", "fieldValue": "自由发挥，15s恐怖剧情"},
+      {"nodeId": "19", "fieldName": "unet_name", "fieldValue": "DasiwaMinimaxH3_dasiwaREF2VAHybridV1_0.safetensors"},
+      {"nodeId": "111", "fieldName": "lora_name", "fieldValue": "MysticXXX_MMH3-V1.safetensors"},
+      {"nodeId": "111", "fieldName": "strength_model", "fieldValue": "0.4000000000000001"}
+    ],
+    "instanceType": "default",
+    "usePersonalQueue": "false"
+  },
+  
+  "responseFields": {
+    "taskId": "任务ID，用于后续查询任务状态",
+    "status": "任务状态: QUEUED(排队中), RUNNING(运行中), SUCCESS(成功), FAILED(失败)",
+    "results": "生成结果列表",
+    "results[].url": "文件URL，注意：链接有效期仅24小时",
+    "results[].nodeId": "生成该结果的工作流节点ID",
+    "results[].outputType": "文件扩展名 (如 png, mp4)",
+    "usage": "任务消耗信息"
+  },
+  
+  "metadata": {
+    "version": "1.0",
+    "created": "2026-09-01",
+    "source": "RunningHub AI Apps",
+    "appUrl": "https://www.runninghub.ai/zh-cn/ai-detail/2085778601816334338",
+    "apiDocUrl": "https://www.runninghub.ai/zh-cn/call-api/api-detail/2084661265636839425?apiType=4"
+  }
+}

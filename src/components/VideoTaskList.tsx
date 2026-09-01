@@ -22,6 +22,7 @@ interface VideoTaskListProps {
   onError: (msg: string) => void;
   onSuccess: (msg: string) => void;
   maxTasks?: number;
+  workflowId?: string;  // 默认工作流 ID，可被外部覆盖
 }
 
 export interface VideoTaskListHandle {
@@ -318,7 +319,7 @@ function VideoTaskCard({ task, onCancel, onRegenerate, onSelectForRegenerate }: 
   );
 }
 
-export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>(({ apiKey, onError, onSuccess, maxTasks = 10 }, ref) => {
+export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>(({ apiKey, onError, onSuccess, maxTasks = 10, workflowId: defaultWorkflowId }, ref) => {
   // Restore ALL tasks from localStorage, including completed ones (within 24h).
   // Previously only QUEUEING/RUNNING tasks were restored, causing completed tasks
   // submitted from other pages (e.g. smart storyboard) to disappear on return.
@@ -486,6 +487,13 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
         const displayStatus = newStatus === 'FINISHED' && !imagesExtractedRef.current[task.id] ? 'RUNNING' : newStatus;
         setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, status: displayStatus } : t));
 
+        // Log status transitions so a future 551/SaveStringKJ failure can be
+        // correlated with the submission payload, prompt text, image nodes,
+        // and upload responses (all already logged by runninghub.ts).
+        if (newStatus === 'FINISHED' || newStatus === 'FAILED') {
+          console.log(`[VideoTaskList] taskId=${task.taskId} status=${newStatus}`);
+        }
+
         if (newStatus === 'FINISHED') {
           // Skip if already extracting
           if (imagesExtractedRef.current[task.id]) return;
@@ -545,8 +553,29 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
             onSuccessRef.current?.(`生成完成！${coins ? `消耗 ${coins} 币` : ''}`);
           }
         } else if (newStatus === 'FAILED') {
-          setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, status: 'FAILED', error: '任务失败' } : t));
-          onErrorRef.current?.('视频生成任务失败');
+          // Pull the actual failure detail (failedReason) from getTaskResults so
+          // the user can see *why* the workflow failed (e.g. node 551 / SaveStringKJ
+          // rejecting a .zip filename). Without this we'd only ever show a
+          // generic "任务失败" message regardless of the real cause.
+          let detail = '';
+          try {
+            const failedOutputs = await getTaskResults(apiKey, task.taskId!);
+            const fr = failedOutputs.failedReason as Record<string, unknown> | undefined;
+            if (fr && Object.keys(fr).length > 0) {
+              const nodeName = (fr.node_name as string) || '';
+              const nodeId = (fr.node_id as string) || '';
+              const excMsg = (fr.exception_message as string) || '';
+              const errMsg = failedOutputs.errorMessage || '';
+              detail = [errMsg, nodeName && `node ${nodeId || '?'} (${nodeName})`, excMsg]
+                .filter(Boolean)
+                .join(' — ');
+            }
+          } catch {
+            // ignore — fall back to generic message below
+          }
+          const errorText = detail ? `任务失败：${detail}` : '任务失败';
+          setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, status: 'FAILED', error: errorText } : t));
+          onErrorRef.current?.(errorText);
         } else {
           pollingRef.current[task.id] = setTimeout(poll, 10000);
         }
@@ -563,7 +592,7 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
     imagePath: string,
     imagePreview: string,
     nodeInfoList: NodeInfo[],
-    workflowId: string = '2018678819216953345' // Default to Wan 2.2 workflow
+    workflowId: string = defaultWorkflowId ?? '2018678819216953345' // 默认 Wan 2.2，可被 prop 覆盖
   ) => {
     if (tasks.length >= maxTasks) {
       onError('任务队列已满');
@@ -592,6 +621,18 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
     try {
       const result = await runTask(apiKey, workflowId, nodeInfoList);
       console.log(`[VideoTaskList] handleSubmit: task ${id} got taskId=${result.taskId}, status=${result.status}`);
+      if (!result.taskId) {
+        // runTask returned a server-side rejection (e.g. errorCode 803
+        // NODE_INFO_MISMATCH, or 421 concurrency limit). Mark the task as
+        // failed so the user sees the real error message instead of having
+        // it sit in "RUNNING" forever.
+        const msg = result.errorMessage || result.errorCode
+          ? `提交失败：${result.errorCode || ''} ${result.errorMessage}`.trim()
+          : '提交失败，未返回 taskId';
+        setTasks((prev) => prev.map((t) => t.id === id ? { ...t, status: 'FAILED', error: msg } : t));
+        onError(msg);
+        return;
+      }
       const taskWithId = { ...newTask, taskId: result.taskId, status: 'RUNNING' as const };
       setTasks((prev) => prev.map((t) => t.id === id ? taskWithId : t));
       onSuccess('任务已提交');

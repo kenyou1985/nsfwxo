@@ -3,13 +3,15 @@ export interface NodeInfo {
   fieldName: string;
   fieldValue: string;
   fieldData?: string;
-  description: string;
+  description: string | null;
 }
 
 export interface RunTaskRequest {
   nodeInfoList: NodeInfo[];
   instanceType: string;
-  usePersonalQueue: string;
+  usePersonalQueue: boolean | string;
+  randomSeed?: boolean;
+  retainSeconds?: number;
 }
 
 export type TaskStatus = 'PENDING' | 'QUEUEING' | 'RUNNING' | 'FINISHED' | 'FAILED';

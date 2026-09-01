@@ -1,0 +1,92 @@
+{
+  "api_key": "YOUR_RUNNINGHUB_API_KEY",
+  "workflow_id": "2084661265636839425",
+  "app_id": "2085778601816334338",
+  "endpoint": "https://www.runninghub.ai/openapi/v2/run/ai-app/2084661265636839425",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer YOUR_RUNNINGHUB_API_KEY"
+  },
+  "request_body": {
+    "nodeInfoList": [
+      {
+        "nodeId": "50",
+        "fieldName": "image",
+        "fieldValue": "",
+        "description": "输入图片（必填）"
+      },
+      {
+        "nodeId": "38",
+        "fieldName": "prompt",
+        "fieldValue": "",
+        "description": "提示词"
+      },
+      {
+        "nodeId": "185",
+        "fieldName": "value",
+        "fieldValue": "15",
+        "description": "视频时长（秒）"
+      },
+      {
+        "nodeId": "238",
+        "fieldName": "value",
+        "fieldValue": "0.6",
+        "description": "随机种子"
+      },
+      {
+        "nodeId": "182",
+        "fieldName": "select",
+        "fieldValue": "1",
+        "description": "运动模式"
+      },
+      {
+        "nodeId": "127",
+        "fieldName": "value",
+        "fieldValue": "false",
+        "description": "高级选项"
+      },
+      {
+        "nodeId": "19",
+        "fieldName": "unet_name",
+        "fieldValue": "DasiwaMinimaxH3_dasiwaREF2VAHybridV1_0.safetensors",
+        "description": "UNet模型"
+      },
+      {
+        "nodeId": "111",
+        "fieldName": "lora_name",
+        "fieldValue": "MysticXXX_MMH3-V1.safetensors",
+        "description": "LoRA模型"
+      },
+      {
+        "nodeId": "111",
+        "fieldName": "strength_model",
+        "fieldValue": "0.4",
+        "description": "LoRA强度"
+      },
+      {
+        "nodeId": "76",
+        "fieldName": "image",
+        "fieldValue": "",
+        "description": "参考图1（可选）"
+      },
+      {
+        "nodeId": "79",
+        "fieldName": "image",
+        "fieldValue": "",
+        "description": "参考图2（可选）"
+      }
+    ],
+    "instanceType": "default",
+    "usePersonalQueue": "false"
+  },
+  "example_values": {
+    "input_image_hash": "2e623eb7fce8a1aa7802777a2b6a25437501dd94c0d4c4ebeccd01fbfbbfe609.png",
+    "prompt": "自由发挥，15s恐怖剧情",
+    "duration": "15",
+    "seed": "0.6000000000000001",
+    "motion_mode": "1",
+    "advanced": "false",
+    "lora_strength": "0.4000000000000001"
+  }
+}

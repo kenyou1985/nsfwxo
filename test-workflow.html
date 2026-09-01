@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>工作流验证 — N无限X一键长视频 V1.1（Minimax H3）</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f0f0f;
+      --surface: #1a1a1a;
+      --elevated: #222;
+      --border: #333;
+      --text: #e5e5e5;
+      --muted: #888;
+      --primary: #7c6df0;
+      --primary-dim: rgba(124,109,240,0.15);
+      --green: #34d399;
+      --red: #f87171;
+      --amber: #fbbf24;
+      --radius: 12px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      padding: 24px;
+      line-height: 1.5;
+    }
+
+    .container { max-width: 860px; margin: 0 auto; }
+
+    header { text-align: center; margin-bottom: 32px; }
+    header h1 {
+      font-size: 22px; font-weight: 700;
+      color: var(--text); margin-bottom: 6px;
+    }
+    header p {
+      font-size: 13px; color: var(--muted);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin-bottom: 16px;
+    }
+    .card-title {
+      font-size: 13px; font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 16px;
+    }
+
+    /* ── Form ── */
+    label {
+      display: block; font-size: 12px;
+      color: var(--muted); margin-bottom: 6px;
+    }
+    input[type="text"],
+    input[type="number"],
+    textarea,
+    select {
+      width: 100%;
+      background: var(--elevated);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 14px;
+      padding: 10px 14px;
+      font-family: inherit;
+      transition: border-color 0.15s;
+      outline: none;
+    }
+    input:focus, textarea:focus, select:focus { border-color: var(--primary); }
+    textarea { resize: vertical; min-height: 100px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px; }
+    select { cursor: pointer; }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+    /* ── Image upload ── */
+    .image-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+      gap: 10px; margin-top: 10px;
+    }
+    .img-slot {
+      aspect-ratio: 1;
+      border-radius: 10px;
+      border: 2px dashed var(--border);
+      overflow: hidden; position: relative;
+      cursor: pointer; background: var(--elevated);
+      transition: border-color 0.15s;
+    }
+    .img-slot:hover { border-color: var(--primary); }
+    .img-slot.filled { border-style: solid; border-color: var(--primary); }
+    .img-slot input[type="file"] {
+      position: absolute; inset: 0;
+      opacity: 0; cursor: pointer;
+      width: 100%; height: 100%;
+    }
+    .img-slot img { width: 100%; height: 100%; object-fit: cover; }
+    .img-slot .slot-label {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      font-size: 10px; color: var(--muted);
+      pointer-events: none;
+    }
+    .img-slot .remove-btn {
+      position: absolute; top: 3px; right: 3px;
+      width: 18px; height: 18px;
+      border-radius: 50%; background: var(--red);
+      border: none; cursor: pointer;
+      font-size: 10px; color: white;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; transition: opacity 0.15s;
+    }
+    .img-slot:hover .remove-btn { opacity: 1; }
+    .img-slot .slot-num {
+      position: absolute; bottom: 3px; left: 50%;
+      transform: translateX(-50%);
+      font-size: 9px; color: rgba(255,255,255,0.8);
+      background: rgba(0,0,0,0.5);
+      padding: 1px 5px; border-radius: 4px;
+    }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 10px 20px; border-radius: 8px;
+      font-size: 14px; font-weight: 600;
+      font-family: inherit;
+      cursor: pointer; border: none; transition: all 0.15s;
+    }
+    .btn-primary {
+      background: var(--primary); color: white; width: 100%;
+    }
+    .btn-primary:hover { filter: brightness(1.1); }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; filter: none; }
+
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 12px; padding: 6px 12px;
+    }
+    .btn-ghost:hover { border-color: var(--primary); color: var(--primary); }
+
+    /* ── Toggle ── */
+    .toggle-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 14px;
+      background: var(--elevated);
+      border-radius: 8px;
+      margin-bottom: 10px;
+    }
+    .toggle-label { font-size: 13px; color: var(--text); }
+    .toggle-desc  { font-size: 11px; color: var(--muted); margin-top: 1px; }
+    .toggle {
+      width: 40px; height: 22px;
+      background: var(--border);
+      border-radius: 11px;
+      position: relative; cursor: pointer;
+      transition: background 0.2s;
+      flex-shrink: 0;
+    }
+    .toggle.on { background: var(--primary); }
+    .toggle::after {
+      content: ''; position: absolute;
+      top: 3px; left: 3px;
+      width: 16px; height: 16px;
+      border-radius: 50%; background: white;
+      transition: transform 0.2s;
+    }
+    .toggle.on::after { transform: translateX(18px); }
+
+    /* ── Log ── */
+    .log-box {
+      background: #0a0a0a;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 12px;
+      max-height: 400px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .log-line { margin-bottom: 4px; }
+    .log-time { color: var(--muted); margin-right: 8px; }
+    .log-ok   { color: var(--green); }
+    .log-err  { color: var(--red); }
+    .log-warn { color: var(--amber); }
+    .log-info { color: var(--text); }
+    .log-muted { color: var(--muted); }
+
+    /* ── Progress ── */
+    .progress-bar {
+      height: 4px; background: var(--border);
+      border-radius: 2px; overflow: hidden;
+      margin-bottom: 16px;
+    }
+    .progress-fill {
+      height: 100%; background: var(--primary);
+      border-radius: 2px;
+      transition: width 0.4s ease;
+    }
+    .status-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 12px; border-radius: 20px;
+      font-size: 12px; font-weight: 600;
+    }
+    .status-running { background: rgba(59,130,246,0.15); color: #60a5fa; }
+    .status-success { background: rgba(52,211,153,0.15); color: var(--green); }
+    .status-failed  { background: rgba(248,113,113,0.15); color: var(--red); }
+    .status-queued  { background: rgba(251,191,36,0.15); color: var(--amber); }
+
+    .spinner {
+      width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,0.2);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Results ── */
+    .results-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 12px; margin-top: 12px;
+    }
+    .result-item {
+      background: var(--elevated);
+      border-radius: 10px; overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .result-item img, .result-item video { width: 100%; display: block; }
+    .result-info { padding: 8px 10px; font-size: 11px; color: var(--muted); }
+    .result-info a { color: var(--primary); text-decoration: none; }
+    .result-info a:hover { text-decoration: underline; }
+
+    @media (max-width: 600px) {
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+      .image-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <header>
+    <h1>🧪 N无限X一键长视频 V1.1（Minimax H3）</h1>
+    <p>workflowId: 2094226327238135810 · api.runninghub.ai</p>
+  </header>
+
+  <!-- Step 1: API Key -->
+  <div class="card">
+    <div class="card-title">Step 1 — API Key</div>
+    <input
+      type="text"
+      id="apiKey"
+      placeholder="输入你的 RunningHub API Key（32位）"
+      autocomplete="off"
+      spellcheck="false"
+    />
+  </div>
+
+  <!-- Step 2: Parameters -->
+  <div class="card">
+    <div class="card-title">Step 2 — 核心参数</div>
+
+    <!-- Prompt -->
+    <div style="margin-bottom: 14px;">
+      <label>提示词（node 205）— 用大白话描述剧情即可</label>
+      <textarea id="prompt" rows="6">1、打开提示词增强的时候只需要像seedance一样用大白话描述你想要的剧情就行，若报错可以换随机种子再试一下
+2、若关闭了提示词增强，则对提示词格式有特殊要求，否则会报错，推荐先运行一轮，除了获得视频之外，还会获得一个提示词txt，在它的格式基础上进行调整（￥===之类的符号不可以改动）修改后再粘贴进来
+3、目前这个工作流的强项是文戏和🚢戏，打斗之类的问题比较大，还在优化中</textarea>
+    </div>
+
+    <!-- Duration -->
+    <div style="margin-bottom: 14px;">
+      <label>视频时长 / 秒（node 217）</label>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn-ghost" onclick="setDuration(5)">5s</button>
+        <button class="btn-ghost" onclick="setDuration(15)">15s</button>
+        <button class="btn-ghost" onclick="setDuration(30)">30s</button>
+        <button class="btn-ghost" onclick="setDuration(60)">60s</button>
+        <input type="number" id="duration" value="60" min="1" max="300"
+          style="width:90px;" />
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <!-- Mode (node 533) -->
+      <div>
+        <label>模式选择（node 533）</label>
+        <select id="mode">
+          <option value="1" selected>1 — 4步快速（文戏）</option>
+          <option value="2">2 — 20步质量（高动态武戏）</option>
+        </select>
+      </div>
+      <!-- Aspect ratio (node 435) -->
+      <div>
+        <label>画幅比例（node 435）</label>
+        <select id="aspectRatio">
+          <option value="0">0 — 16:9 横版</option>
+          <option value="1">1 — 1:1 方形</option>
+          <option value="2">2 — 2:3 竖向照片</option>
+          <option value="3">3 — 3:4 竖向标准</option>
+          <option value="4">4 — 4:3 横向标准</option>
+          <option value="5">5 — 9:16 竖屏</option>
+          <option value="6">6 — 21:9 超宽</option>
+          <option value="7" selected>7 — 原生比例（推荐）</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="grid-3" style="margin-top:12px;">
+      <!-- UNet index (node 417) -->
+      <div>
+        <label>UNet 模型（node 417）</label>
+        <select id="unetIndex">
+          <option value="0" selected>0 — 默认</option>
+        </select>
+      </div>
+      <!-- LoRA index (node 483) -->
+      <div>
+        <label>放大目标（node 483）</label>
+        <select id="loraIndex">
+          <option value="0">0 — 1280×736</option>
+          <option value="1" selected>1 — 1920×1088</option>
+          <option value="2">2 — 1504×832</option>
+          <option value="3">3 — 1824×1024</option>
+          <option value="4">4 — 1664×928</option>
+          <option value="5">5 — 960×544</option>
+        </select>
+      </div>
+      <!-- Ref resolution (node 520) -->
+      <div>
+        <label>参考图分辨率（node 520）</label>
+        <select id="refResolution">
+          <option value="0">0 — match 匹配</option>
+          <option value="1">1 — 544P</option>
+          <option value="2">2 — 736P</option>
+          <option value="3" selected>3 — 1024P（推荐）</option>
+          <option value="4">4 — 2048P</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Seed -->
+    <div style="margin-top:12px;">
+      <label>随机种子（node 500）</label>
+      <div style="display:flex; gap:8px;">
+        <input type="text" id="seed" value="111" style="max-width:140px;" />
+        <button class="btn-ghost" onclick="randomizeSeed()">🎲 随机</button>
+      </div>
+    </div>
+
+    <!-- Toggles -->
+    <div class="toggle-row">
+      <div>
+        <div class="toggle-label">二采放大（node 315）</div>
+        <div class="toggle-desc">开启后画质更好但耗时翻倍</div>
+      </div>
+      <div class="toggle" id="toggleUpscale" onclick="toggleEl('toggleUpscale')"></div>
+    </div>
+    <div class="toggle-row">
+      <div>
+        <div class="toggle-label">提示词增强（node 494）</div>
+        <div class="toggle-desc">建议开启；关闭后提示词格式需严格对齐（看返回的 txt）</div>
+      </div>
+      <div class="toggle on" id="togglePromptEnhance" onclick="toggleEl('togglePromptEnhance')"></div>
+    </div>
+    <div class="toggle-row">
+      <div>
+        <div class="toggle-label">额外开关（node 465）</div>
+        <div class="toggle-desc">官方 curl 默认 false</div>
+      </div>
+      <div class="toggle" id="toggleNode465" onclick="toggleEl('toggleNode465')"></div>
+    </div>
+    <div class="toggle-row">
+      <div>
+        <div class="toggle-label">随机种子</div>
+        <div class="toggle-desc">每次提交生成新种子</div>
+      </div>
+      <div class="toggle on" id="toggleRandomSeed" onclick="toggleEl('toggleRandomSeed')"></div>
+    </div>
+  </div>
+
+  <!-- Step 3: Images -->
+  <div class="card">
+    <div class="card-title">Step 3 — 参考图（最多9张，节点 368,361-367,356）</div>
+    <div style="font-size:12px; color:var(--muted); margin-bottom:10px;">
+      已上传: <span id="uploadCount">0</span>/9
+    </div>
+    <div class="image-grid" id="imageGrid"></div>
+  </div>
+
+  <!-- Step 4: Submit -->
+  <div class="card">
+    <div class="card-title">Step 4 — 提交</div>
+    <button class="btn btn-primary" id="submitBtn" onclick="handleSubmit()">
+      🚀 提交任务
+    </button>
+  </div>
+
+  <!-- Step 5: Progress -->
+  <div class="card" id="progressCard" style="display:none;">
+    <div class="card-title">
+      进度 — <span id="taskIdLabel" style="font-family:monospace;"></span>
+    </div>
+    <div class="progress-bar">
+      <div class="progress-fill" id="progressFill" style="width:0%"></div>
+    </div>
+    <div id="statusArea">
+      <span class="status-badge status-queued" id="statusBadge">⏳ 排队中</span>
+    </div>
+  </div>
+
+  <!-- Step 6: Log -->
+  <div class="card" id="logCard" style="display:none;">
+    <div class="card-title">日志</div>
+    <div class="log-box" id="logBox"></div>
+  </div>
+
+  <!-- Step 7: Results -->
+  <div class="card" id="resultsCard" style="display:none;">
+    <div class="card-title">生成结果</div>
+    <div class="results-grid" id="resultsGrid"></div>
+  </div>
+
+</div>
+
+<script>
+  // ── Config ──────────────────────────────────────────────────────────────────
+  const WORKFLOW_ID = '2094226327238135810';
+  const API_BASE    = 'https://www.runninghub.ai/openapi/v2';
+  const UPLOAD_URL  = `${API_BASE}/media/upload/binary`;
+
+  // Node IDs — exactly matching the official curl example for V1.1 (Minimax H3)
+  const NODES = {
+    duration:      '217',
+    unetIndex:     '417',
+    loraIndex:     '483',
+    aspectRatio:   '435',
+    mode:          '533',
+    refResolution: '520',
+    seed:          '500',
+    enableUpscale: '315',
+    promptEnhance: '494',
+    prompt:        '205',
+    node465:       '465',  // 官方 curl 示例中存在，文档未说明用途
+    // 9 image slots
+    img: ['368','361','362','363','364','365','366','367','356'],
+  };
+
+  // ── State ────────────────────────────────────────────────────────────────────
+  const state = {
+    uploadedImages: Array(9).fill(null),
+    currentTaskId: null,
+    pollingInterval: null,
+    pollCount: 0,
+  };
+
+  // ── Image Grid ──────────────────────────────────────────────────────────────
+  function buildImageGrid() {
+    const grid = document.getElementById('imageGrid');
+    grid.innerHTML = '';
+    for (let i = 0; i < 9; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'img-slot';
+      slot.id = `slot-${i}`;
+      slot.innerHTML = `
+        <input type="file" accept="image/*" onchange="handleFileChange(this, ${i})" />
+        <div class="slot-label">
+          <span>📷</span>
+          <span>图 ${i + 1}</span>
+        </div>
+        <span class="slot-num">${i + 1}</span>
+        <button class="remove-btn" onclick="event.stopPropagation(); removeImage(${i})">✕</button>
+      `;
+      grid.appendChild(slot);
+    }
+  }
+
+  function updateSlotUI(i, img) {
+    const slot = document.getElementById(`slot-${i}`);
+    if (img) {
+      slot.classList.add('filled');
+      slot.querySelector('.slot-label').innerHTML = `<img src="${img.preview}" style="width:100%;height:100%;object-fit:cover;" />`;
+    } else {
+      slot.classList.remove('filled');
+      slot.querySelector('.slot-label').innerHTML = `<span>📷</span><span>图 ${i + 1}</span>`;
+    }
+    const count = state.uploadedImages.filter(Boolean).length;
+    document.getElementById('uploadCount').textContent = count;
+  }
+
+  async function handleFileChange(input, i) {
+    const file = input.files[0];
+    if (!file) return;
+
+    log('info', `正在上传图片 ${i + 1}: ${file.name}`);
+    try {
+      const { imagePath } = await uploadImage(file);
+      state.uploadedImages[i] = {
+        nodeId: NODES.img[i],
+        path: imagePath,
+        preview: URL.createObjectURL(file),
+      };
+      updateSlotUI(i, state.uploadedImages[i]);
+      log('ok', `图片 ${i + 1} 上传成功 → ${imagePath}`);
+    } catch (err) {
+      log('err', `图片 ${i + 1} 上传失败: ${err.message}`);
+    }
+  }
+
+  function removeImage(i) {
+    state.uploadedImages[i] = null;
+    updateSlotUI(i, null);
+  }
+
+  // ── Upload ──────────────────────────────────────────────────────────────────
+  async function uploadImage(file) {
+    const apiKey = document.getElementById('apiKey').value.trim();
+    if (!apiKey) throw new Error('请先输入 API Key');
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const res = await fetch(UPLOAD_URL, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${apiKey}` },
+      body: formData,
+    });
+
+    const json = await res.json();
+    if (json.code !== 0) throw new Error(`上传失败: ${json.message}`);
+    return {
+      imagePath: json.data.fileName,
+      download_url: json.data.download_url,
+    };
+  }
+
+  // ── UI helpers ──────────────────────────────────────────────────────────────
+  function toggleEl(id) {
+    document.getElementById(id).classList.toggle('on');
+  }
+  function isOn(id) { return document.getElementById(id).classList.contains('on'); }
+  function setDuration(s) { document.getElementById('duration').value = s; }
+  function randomizeSeed() {
+    document.getElementById('seed').value = Math.floor(Math.random() * 999999999);
+    document.getElementById('toggleRandomSeed').classList.add('on');
+  }
+
+  // ── Logging ────────────────────────────────────────────────────────────────
+  function log(type, msg) {
+    const box = document.getElementById('logBox');
+    const card = document.getElementById('logCard');
+    card.style.display = 'block';
+    const line = document.createElement('div');
+    line.className = 'log-line';
+    const cls =
+      type === 'ok'   ? 'log-ok'   :
+      type === 'err'  ? 'log-err'  :
+      type === 'warn' ? 'log-warn' :
+      type === 'muted'? 'log-muted': 'log-info';
+    const time = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+    line.innerHTML = `<span class="log-time">${time}</span><span class="${cls}">${escapeHtml(msg)}</span>`;
+    box.appendChild(line);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── Build nodeInfoList ──────────────────────────────────────────────────────
+  function buildNodeInfoList() {
+    const duration     = parseInt(document.getElementById('duration').value, 10) || 60;
+    const seed        = isOn('toggleRandomSeed') ? String(Math.floor(Math.random() * 1_000_000_000)) : document.getElementById('seed').value;
+    const prompt      = document.getElementById('prompt').value;
+    const mode        = document.getElementById('mode').value;
+    const aspectRatio = document.getElementById('aspectRatio').value;
+    const unetIndex   = document.getElementById('unetIndex').value;
+    const loraIndex   = document.getElementById('loraIndex').value;
+    const refRes      = document.getElementById('refResolution').value;
+
+    const nodes = [
+      { nodeId: NODES.duration,      fieldName: 'value',  fieldValue: String(duration) },
+      { nodeId: NODES.unetIndex,    fieldName: 'index',  fieldValue: unetIndex },
+      { nodeId: NODES.mode,          fieldName: 'select', fieldValue: mode },
+      { nodeId: NODES.seed,          fieldName: 'value',  fieldValue: seed },
+      { nodeId: NODES.enableUpscale, fieldName: 'value',  fieldValue: String(isOn('toggleUpscale')) },
+      { nodeId: NODES.loraIndex,    fieldName: 'index',  fieldValue: loraIndex },
+      { nodeId: NODES.node465,       fieldName: 'value',  fieldValue: String(isOn('toggleNode465')) },
+      { nodeId: NODES.aspectRatio,  fieldName: 'index',  fieldValue: aspectRatio },
+      { nodeId: NODES.promptEnhance, fieldName: 'value',  fieldValue: String(isOn('togglePromptEnhance')) },
+      { nodeId: NODES.prompt,        fieldName: 'value',  fieldValue: prompt },
+      { nodeId: NODES.refResolution, fieldName: 'select', fieldValue: refRes },
+    ];
+
+    NODES.img.forEach((nodeId, i) => {
+      const img = state.uploadedImages[i];
+      nodes.push({
+        nodeId,
+        fieldName: 'image',
+        fieldValue: img ? img.path : 'None',
+      });
+    });
+
+    // 官方 curl 示例里所有项都带 description: null，按官方格式补齐
+    return nodes.map(n => ({ ...n, description: null }));
+  }
+
+  // ── Submit ──────────────────────────────────────────────────────────────────
+  async function handleSubmit() {
+    const apiKey = document.getElementById('apiKey').value.trim();
+    if (!apiKey) { log('err', '❌ 请先输入 RunningHub API Key'); return; }
+
+    const nodeInfoList = buildNodeInfoList();
+    const body = {
+      nodeInfoList,
+      instanceType: 'default',
+      usePersonalQueue: false,
+    };
+
+    log('info', `提交请求到 workflow ${WORKFLOW_ID}...`);
+    log('muted', `参数预览: duration=${document.getElementById('duration').value}s, ` +
+      `prompt="${document.getElementById('prompt').value.slice(0, 40)}...", ` +
+      `images=${state.uploadedImages.filter(Boolean).length}/9`);
+
+    log('muted', `请求体: ${JSON.stringify(body, null, 2).slice(0, 1500)}...`);
+
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<div class="spinner"></div> 提交中...';
+
+    try {
+      const res = await fetch(`${API_BASE}/run/ai-app/${WORKFLOW_ID}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      const json = await res.json();
+      log('info', `HTTP ${res.status} 响应: ${JSON.stringify(json)}`);
+
+      if (json.taskId) {
+        state.currentTaskId = json.taskId;
+        document.getElementById('progressCard').style.display = 'block';
+        document.getElementById('taskIdLabel').textContent = json.taskId;
+        log('ok', `✅ 任务已提交! taskId: ${json.taskId}`);
+        log('info', `状态: ${json.status}`);
+        if (json.promptTips) log('muted', `promptTips: ${json.promptTips}`);
+        startPolling(apiKey, json.taskId);
+      } else {
+        log('err', `❌ 提交失败: ${json.errorMessage || json.message || JSON.stringify(json)}`);
+      }
+    } catch (err) {
+      log('err', `❌ 网络错误: ${err.message}`);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '🚀 提交任务';
+    }
+  }
+
+  // ── Polling ────────────────────────────────────────────────────────────────
+  function startPolling(apiKey, taskId) {
+    if (state.pollingInterval) clearInterval(state.pollingInterval);
+    state.pollCount = 0;
+
+    updateStatusBadge('QUEUED', '⏳ 排队中...');
+    log('info', '开始轮询状态 (5秒/次)...');
+
+    state.pollingInterval = setInterval(async () => {
+      state.pollCount++;
+      const pct = Math.min(state.pollCount * 5, 95);
+      document.getElementById('progressFill').style.width = pct + '%';
+
+      try {
+        const status = await getTaskStatus(apiKey, taskId);
+        log('muted', `轮询 #${state.pollCount}: ${status}`);
+
+        if (status === 'RUNNING') {
+          updateStatusBadge('RUNNING', '⚙️ 运行中...');
+          document.getElementById('progressFill').style.width = '60%';
+        } else if (status === 'SUCCESS') {
+          clearInterval(state.pollingInterval);
+          document.getElementById('progressFill').style.width = '100%';
+          updateStatusBadge('SUCCESS', '✅ 成功!');
+          log('ok', '🎉 任务成功完成!');
+          await fetchResults(apiKey, taskId);
+        } else if (status === 'FAILED') {
+          clearInterval(state.pollingInterval);
+          updateStatusBadge('FAILED', '❌ 失败');
+          document.getElementById('progressFill').style.width = '100%';
+          log('err', '❌ 任务失败，正在获取错误信息...');
+          await fetchError(apiKey, taskId);
+        } else if (status === 'QUEUED') {
+          updateStatusBadge('QUEUED', '⏳ 排队中...');
+        }
+      } catch (err) {
+        log('warn', `轮询出错: ${err.message}`);
+      }
+    }, 5000);
+  }
+
+  function updateStatusBadge(status, label) {
+    const badge = document.getElementById('statusBadge');
+    badge.className = 'status-badge';
+    if (status === 'RUNNING')  badge.classList.add('status-running');
+    if (status === 'SUCCESS')  badge.classList.add('status-success');
+    if (status === 'FAILED')   badge.classList.add('status-failed');
+    if (status === 'QUEUED')   badge.classList.add('status-queued');
+    badge.textContent = label;
+  }
+
+  async function getTaskStatus(apiKey, taskId) {
+    const res = await fetch(`${API_BASE}/query`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({ taskId }),
+    });
+    const json = await res.json();
+    return json.status || json.data || 'UNKNOWN';
+  }
+
+  async function fetchResults(apiKey, taskId) {
+    log('info', '正在获取结果...');
+    try {
+      const res = await fetch(`${API_BASE}/query`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({ taskId }),
+      });
+      const json = await res.json();
+      log('info', `完整响应: ${JSON.stringify(json).slice(0, 800)}`);
+
+      if (json.usage) {
+        const u = json.usage;
+        log('muted', `消耗: cost=${u.taskCostTime}s · coins=${u.consumeCoins} · money=${u.consumeMoney}`);
+      }
+
+      const results = json.results || [];
+      if (results.length === 0) {
+        log('warn', '没有返回任何结果文件');
+        return;
+      }
+
+      document.getElementById('resultsCard').style.display = 'block';
+      const grid = document.getElementById('resultsGrid');
+      grid.innerHTML = '';
+
+      for (const r of results) {
+        const ext = (r.outputType || '').toLowerCase();
+        const isImage = ['png','jpg','jpeg','gif','webp'].includes(ext);
+        const isVideo = ['mp4','webm','mov','avi'].includes(ext);
+
+        const item = document.createElement('div');
+        item.className = 'result-item';
+
+        if (isImage) {
+          item.innerHTML = `
+            <img src="${r.url}" alt="${ext}" loading="lazy" />
+            <div class="result-info">
+              <div>node: ${r.nodeId} · .${ext}</div>
+              <div><a href="${r.url}" target="_blank" download>下载 / Open</a></div>
+              <div style="margin-top:4px; color:var(--amber); font-size:10px;">⚠️ 24h 后过期</div>
+            </div>
+          `;
+        } else if (isVideo) {
+          item.innerHTML = `
+            <video src="${r.url}" controls loop style="width:100%;"></video>
+            <div class="result-info">
+              <div>node: ${r.nodeId} · .${ext}</div>
+              <div><a href="${r.url}" target="_blank" download>下载 / Open</a></div>
+              <div style="margin-top:4px; color:var(--amber); font-size:10px;">⚠️ 24h 后过期</div>
+            </div>
+          `;
+        } else {
+          // 可能是 txt（提示词模板）或 json 等
+          item.innerHTML = `
+            <div class="result-info" style="padding:12px;">
+              <div>node: ${r.nodeId} · .${ext}</div>
+              <div style="margin-top:6px;"><a href="${r.url}" target="_blank">下载 / Open</a></div>
+              ${r.text ? `<pre style="margin-top:8px; padding:8px; background:#0a0a0a; border-radius:6px; font-size:11px; white-space:pre-wrap; max-height:300px; overflow:auto;">${escapeHtml(r.text)}</pre>` : ''}
+            </div>
+          `;
+        }
+        grid.appendChild(item);
+      }
+
+      log('ok', `显示 ${results.length} 个结果`);
+    } catch (err) {
+      log('err', `获取结果失败: ${err.message}`);
+    }
+  }
+
+  async function fetchError(apiKey, taskId) {
+    log('err', '正在获取详细错误信息...');
+    try {
+      const res = await fetch(`${API_BASE}/query`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({ taskId }),
+      });
+      const json = await res.json();
+      const errMsg = json.errorMessage || json.failedReason?.exception_message ||
+                     JSON.stringify(json.failedReason || json, null, 2);
+      log('err', `错误详情: ${errMsg}`);
+
+      const nodeName = json.failedReason?.node_name;
+      const nodeId   = json.failedReason?.node_id;
+      const trace    = json.failedReason?.traceback;
+      if (nodeName) log('err', `失败节点: ${nodeName} (node ${nodeId})`);
+      if (trace) {
+        const lines = String(trace).split('\\n').filter(Boolean).slice(-8);
+        log('err', `调用栈: ${lines.join(' | ')}`);
+      }
+    } catch (err) {
+      log('err', `获取错误信息失败: ${err.message}`);
+    }
+  }
+
+  // ── Init ────────────────────────────────────────────────────────────────────
+  buildImageGrid();
+</script>
+</body>
+</html>

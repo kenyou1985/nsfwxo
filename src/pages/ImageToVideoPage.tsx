@@ -17,6 +17,7 @@ import type { GirlfriendPreset } from '../data/girlfriendPresets';
 import { PosePresetSelector } from '../components/PosePresetSelector';
 import { RunningHubModelPicker } from '../components/RunningHubModelPicker';
 import type { RunningHubModelEntry } from '../services/runninghubModelsService';
+import { NinfiniteLongVideoPage } from './NinfiniteLongVideoPage';
 
 const DURATION_OPTIONS = [
   { value: '5', label: '5秒' },
@@ -1309,318 +1310,6 @@ function MiniMaxH3Panel({
   );
 }
 
-// ─── MiniMax H3 8参考图 面板 ─────────────────────────────────────────────────────────
-
-interface MiniMaxH38RefPanelProps {
-  apiKey: string;
-  mrImages: { path: string; preview: string }[];
-  setMrImages: React.Dispatch<React.SetStateAction<{ path: string; preview: string }[]>>;
-  mrPrompt: string;
-  setMrPrompt: (v: string) => void;
-  mrDirectOutput: boolean;
-  setMrDirectOutput: (v: boolean) => void;
-  mrUploading: boolean;
-  setMrUploading: (v: boolean) => void;
-  isSubmitting: boolean;
-  setIsSubmitting: (v: boolean) => void;
-  onError: (msg: string) => void;
-  onSuccess: (msg: string) => void;
-  taskListRef: React.RefObject<{ submitTask: (prompt: string, imagePath: string, imagePreview: string, nodeInfoList: NodeInfo[], workflowId?: string) => void } | null>;
-}
-
-const H3_8REF_ASPECT_OPTIONS = [
-  { value: '1:1 (Square)', label: '1:1' },
-  { value: '2:3 (Portrait Photo)', label: '2:3' },
-  { value: '3:2 (Photo)', label: '3:2' },
-  { value: '3:4 (Portrait Standard)', label: '3:4' },
-  { value: '4:3 (Standard)', label: '4:3' },
-  { value: '9:16 (Portrait Widescreen)', label: '9:16' },
-  { value: '16:9 (Widescreen)', label: '16:9' },
-  { value: '21:9 (Ultrawide)', label: '21:9' },
-];
-
-const H3_8REF_DURATION_OPTIONS = [
-  { value: '6', label: '6秒' },
-  { value: '10', label: '10秒' },
-  { value: '15', label: '15秒' },
-];
-
-function MiniMaxH38RefPanel({
-  apiKey, mrImages, setMrImages, mrPrompt, setMrPrompt,
-  mrDirectOutput, setMrDirectOutput, mrUploading, setMrUploading,
-  isSubmitting, setIsSubmitting, onError, onSuccess, taskListRef
-}: MiniMaxH38RefPanelProps) {
-
-  const [mrAspectRatio, setMrAspectRatio] = useState('9:16 (Portrait Widescreen)');
-  const [mrDuration, setMrDuration] = useState('6');
-  const [mrQuality, setMrQuality] = useState(0.2); // 默认画质0.2
-  const [mrSubmitting, setMrSubmitting] = useState(false);
-
-  const handleImageUpload = async (file: File, index: number) => {
-    setMrUploading(true);
-    try {
-      const objectUrl = URL.createObjectURL(file);
-      const { imagePath } = await uploadImage(apiKey, file);
-      setMrImages(prev => {
-        const updated = [...prev];
-        updated[index] = { path: imagePath, preview: objectUrl };
-        return updated;
-      });
-      onSuccess(`参考图 ${index + 1} 上传成功`);
-    } catch (err) {
-      onError(err instanceof Error ? err.message : '上传失败');
-    } finally {
-      setMrUploading(false);
-    }
-  };
-
-  const handleImageRemove = (index: number) => {
-    setMrImages(prev => {
-      const updated = [...prev];
-      updated[index] = { path: '', preview: '' };
-      return updated;
-    });
-  };
-
-  const buildNodeList = (): NodeInfo[] => {
-    const nodeList: NodeInfo[] = [
-      { nodeId: '115', fieldName: 'aspect_ratio', fieldValue: mrAspectRatio, description: '宽高比' },
-      { nodeId: '115', fieldName: 'megapixels', fieldValue: String(mrQuality), description: '画质' },
-      { nodeId: '132', fieldName: 'value', fieldValue: mrDuration, description: '时长' },
-      { nodeId: '158', fieldName: 'select', fieldValue: mrDirectOutput ? '2' : '1', description: '输出模式' },
-      { nodeId: '138', fieldName: 'value', fieldValue: mrPrompt, description: '提示词' },
-      { nodeId: '162', fieldName: 'audio', fieldValue: 'None', description: '音频1' },
-      { nodeId: '163', fieldName: 'audio', fieldValue: 'None', description: '音频2' },
-      { nodeId: '164', fieldName: 'audio', fieldValue: 'None', description: '音频3' },
-    ];
-
-    // Add images (8 reference images)
-    const imageNodeIds = ['137', '139', '161', '166', '167', '168', '169', '170'];
-    mrImages.forEach((img, idx) => {
-      if (img.path) {
-        nodeList.push({
-          nodeId: imageNodeIds[idx],
-          fieldName: 'image',
-          fieldValue: img.path,
-          description: `参考图${idx + 1}`
-        });
-      }
-    });
-
-    return nodeList;
-  };
-
-  const handleSubmit = () => {
-    // Check if at least first image is uploaded
-    if (mrImages.length === 0 || !mrImages[0]?.path) {
-      onError('请至少上传第一张参考图');
-      return;
-    }
-    if (mrSubmitting) return;
-    setMrSubmitting(true);
-    setIsSubmitting(true);
-
-    const nodeList = buildNodeList();
-    const preview = mrImages[0]?.preview || '';
-
-    taskListRef.current?.submitTask(mrPrompt || '视频生成', mrImages[0]?.path || '', preview, nodeList, WORKFLOW.MINIMAX_H3_8REF);
-    onSuccess('任务已提交');
-    setMrSubmitting(false);
-    setIsSubmitting(false);
-  };
-
-  const handleTemplateApply = (template: typeof H3_VIDEO_TEMPLATES[0]) => {
-    setMrPrompt(template.prompt);
-    onSuccess(`已应用模板：${template.name}`);
-  };
-
-  return (
-    <div className="space-y-4">
-      {/* 参考图上传 - 8张参考图 */}
-      <div className="rounded-xl bg-bg-surface border border-border p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-medium text-text-primary flex items-center gap-2">
-            <Layers size={16} className="text-orange-500" />
-            8参考图模式
-          </h3>
-          <span className="text-xs text-text-tertiary">
-            {mrImages.filter(img => img.path).length}/8
-          </span>
-        </div>
-
-        <div className="grid grid-cols-4 gap-2">
-          {[0, 1, 2, 3, 4, 5, 6, 7].map(idx => (
-            <div key={idx} className="relative">
-              {mrImages[idx]?.preview ? (
-                <div className="relative aspect-square rounded-xl overflow-hidden border-2 border-orange-200 bg-bg-elevated">
-                  <img
-                    src={mrImages[idx].preview}
-                    alt={`参考图${idx + 1}`}
-                    className="w-full h-full object-cover"
-                  />
-                  <button
-                    onClick={() => handleImageRemove(idx)}
-                    className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-colors"
-                    disabled={isSubmitting}
-                  >
-                    <X size={12} />
-                  </button>
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1">
-                    <span className="text-[10px] text-white/90">参考图 {idx + 1}</span>
-                  </div>
-                </div>
-              ) : (
-                <label className="relative flex flex-col items-center justify-center aspect-square rounded-xl border-2 border-dashed border-border hover:border-orange-400 bg-bg-elevated cursor-pointer transition-colors">
-                  {mrUploading ? (
-                    <Loader2 size={20} className="text-orange-400 animate-spin" />
-                  ) : (
-                    <>
-                      <ImageIcon size={20} className="text-text-tertiary" />
-                      <span className="text-[10px] text-text-tertiary mt-1">上传</span>
-                    </>
-                  )}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="absolute inset-0 opacity-0 cursor-pointer"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleImageUpload(file, idx);
-                    }}
-                    disabled={isSubmitting || mrUploading}
-                  />
-                </label>
-              )}
-            </div>
-          ))}
-        </div>
-
-        <p className="text-[11px] text-text-tertiary mt-2">
-          支持上传8张参考图，多图协同生成更丰富的视频内容
-        </p>
-      </div>
-
-      {/* 提示词 */}
-      <div className="rounded-xl bg-bg-surface border border-border p-4">
-        <h3 className="text-sm font-medium text-text-primary mb-3">提示词 / 脚本</h3>
-        {/* 模版预设 */}
-        {H3_VIDEO_TEMPLATES.length > 0 && (
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-xs text-text-tertiary flex-shrink-0">模版：</span>
-            <div className="flex flex-wrap gap-1.5">
-              {H3_VIDEO_TEMPLATES.map((tpl) => (
-                <button
-                  key={tpl.name}
-                  onClick={() => handleTemplateApply(tpl)}
-                  className={`px-3 py-1 rounded-lg text-xs font-medium bg-gradient-to-r ${tpl.color} text-white hover:opacity-90 transition-opacity`}
-                  disabled={isSubmitting}
-                >
-                  {tpl.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-        <div className="relative">
-          <textarea
-            value={mrPrompt}
-            onChange={(e) => setMrPrompt(e.target.value)}
-            placeholder="描述视频内容、人物动作、场景变化...（可选）"
-            rows={6}
-            className="w-full px-3 py-2 pr-9 rounded-lg bg-bg-elevated border border-border text-sm text-text-primary placeholder-slate-500 focus:outline-none focus:border-orange-400/50 resize-none"
-            disabled={isSubmitting}
-          />
-          {mrPrompt && (
-            <button
-              type="button"
-              onClick={() => setMrPrompt('')}
-              disabled={isSubmitting}
-              className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full bg-bg-surface border border-border text-text-tertiary hover:text-red-500 hover:border-red-300 hover:bg-red-500/10 transition-colors disabled:opacity-50"
-              title="清除提示词"
-            >
-              <X size={12} />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* 参数设置 */}
-      <div className="rounded-xl bg-bg-surface border border-border p-4">
-        <h3 className="text-sm font-medium text-text-primary mb-3">参数设置</h3>
-        <div className="space-y-3">
-          {/* 宽高比和时长 */}
-          <div className="grid grid-cols-2 gap-3">
-            <ParameterSelect
-              label="宽高比"
-              value={mrAspectRatio}
-              options={H3_8REF_ASPECT_OPTIONS}
-              onChange={setMrAspectRatio}
-              disabled={isSubmitting}
-            />
-            <ParameterSelect
-              label="时长"
-              value={mrDuration}
-              options={H3_8REF_DURATION_OPTIONS}
-              onChange={setMrDuration}
-              disabled={isSubmitting}
-            />
-          </div>
-
-          {/* 画质 */}
-          <ParameterSlider
-            label="画质"
-            value={mrQuality}
-            min={0.1}
-            max={0.4}
-            step={0.1}
-            onChange={setMrQuality}
-            disabled={isSubmitting}
-          />
-
-          {/* 输出模式 (node 158 select: 1=ZIP, 2=MP4灰图) */}
-          <div>
-            <label className="text-xs text-text-secondary mb-1.5 block">输出模式</label>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setMrDirectOutput(false)}
-                className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${
-                  !mrDirectOutput
-                    ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white'
-                    : 'bg-bg-elevated text-text-secondary hover:bg-bg-hover'
-                }`}
-                disabled={isSubmitting}
-              >
-                ZIP格式
-              </button>
-              <button
-                onClick={() => setMrDirectOutput(true)}
-                className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${
-                  mrDirectOutput
-                    ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white'
-                    : 'bg-bg-elevated text-text-secondary hover:bg-bg-hover'
-                }`}
-                disabled={isSubmitting}
-              >
-                MP4直出(灰图)
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 生成按钮 */}
-      <div className="pt-2 pb-4">
-        <GenerateButton
-          onClick={handleSubmit}
-          isLoading={isSubmitting}
-          disabled={!mrImages[0]?.path || isSubmitting || mrUploading}
-          label={mrUploading ? '上传中...' : isSubmitting ? '提交中...' : '生成视频'}
-        />
-      </div>
-    </div>
-  );
-}
-
 // ─── MiniMax Long Video 面板 ─────────────────────────────────────────────────────────
 
 interface MiniMaxLongVideoPanelProps {
@@ -2453,11 +2142,14 @@ function MiniMaxH3T2VPanel({
 
 // ─── 主页面 ────────────────────────────────────────────────────────────────
 
-type VideoModel = 'wan22' | 'minimaxh3' | 'minimaxh38ref' | 'minimaxlong' | 'minimaxh3t2v';
+type VideoModel = 'wan22' | 'minimaxh3' | 'minimaxlong' | 'minimaxh3t2v' | 'longvideov2';
 
 export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPageProps) {
   // Model selector
   const [videoModel, setVideoModel] = useState<VideoModel>('minimaxh3');
+
+  // 长视频 v1.1 初始参考图（从历史记录跳转时设置，由 NinfiniteLongVideoPage 一次性消费）
+  const [nlInitialImage, setNlInitialImage] = useState<{ path: string; preview: string } | null>(null);
 
   // Wan 2.2 state
   const [imagePath, setImagePath] = useState('');
@@ -2498,14 +2190,6 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
   const [mmLora, setMmLora] = useState('MysticXXX_MMH3-V1.safetensors');
   const [mmLoraWeight, setMmLoraWeight] = useState(0.4);
   const [mmUploading, setMmUploading] = useState(false);
-
-  // MiniMax H3 8参考图 state
-  const [mrImages, setMrImages] = useState<{ path: string; preview: string }[]>(
-    Array.from({ length: 8 }, () => ({ path: '', preview: '' }))
-  );
-  const [mrPrompt, setMrPrompt] = useState('');
-  const [mrDirectOutput, setMrDirectOutput] = useState(false); // 默认关闭
-  const [mrUploading, setMrUploading] = useState(false);
 
   // MiniMax Long Video state
   const [mlImages, setMlImages] = useState<{ path: string; preview: string }[]>([
@@ -2596,7 +2280,11 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
         }
 
         // 根据 targetModel 自动切换到对应的视频模型
-        if (targetModel === 'minimaxh3') {
+        if (targetModel === 'longvideov2') {
+          // 切换到 长视频 v1.1 模型，并写入 slot 0
+          setVideoModel('longvideov2');
+          setNlInitialImage({ path: finalImagePath, preview: finalImagePreview });
+        } else if (targetModel === 'minimaxh3') {
           // 切换到 MiniMax H3 模型
           setVideoModel('minimaxh3');
           // 设置图片到 MiniMax H3 面板
@@ -2655,6 +2343,8 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
         const { targetModel } = JSON.parse(historyData);
         if (targetModel === 'minimaxh3') {
           onSuccess?.('已从历史记录导入图片到 MiniMax H3，请输入提示词后点击生成');
+        } else if (targetModel === 'longvideov2') {
+          onSuccess?.('已从历史记录导入图片到长视频 v1.1，请输入提示词后点击生成');
         } else {
           onSuccess?.('已从历史记录导入图片，请输入提示词后点击生成');
         }
@@ -2925,20 +2615,20 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
               MiniMax 长视频
             </button>
             <button
-              onClick={() => setVideoModel('minimaxh38ref')}
+              onClick={() => setVideoModel('longvideov2')}
               className={`px-4 py-2 rounded-lg text-xs font-medium transition-all ${
-                videoModel === 'minimaxh38ref'
-                  ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-sm'
+                videoModel === 'longvideov2'
+                  ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-sm'
                   : 'text-text-secondary hover:text-text-primary'
               }`}
             >
-              MiniMax H3 8参考图
+              长视频 v1.1
             </button>
           </div>
         </div>
       </div>
 
-      {/* MiniMax H3 文生视频 UI */}
+      {/* 视频模型面板 */}
       {videoModel === 'minimaxh3t2v' && (
         <MiniMaxH3T2VPanel
           apiKey={apiKey}
@@ -3034,23 +2724,13 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
         />
       )}
 
-      {/* MiniMax H3 8参考图 UI */}
-      {videoModel === 'minimaxh38ref' && (
-        <MiniMaxH38RefPanel
+      {/* 长视频 v1.1 UI */}
+      {videoModel === 'longvideov2' && (
+        <NinfiniteLongVideoPage
           apiKey={apiKey}
-          mrImages={mrImages}
-          setMrImages={setMrImages}
-          mrPrompt={mrPrompt}
-          setMrPrompt={setMrPrompt}
-          mrDirectOutput={mrDirectOutput}
-          setMrDirectOutput={setMrDirectOutput}
-          mrUploading={mrUploading}
-          setMrUploading={setMrUploading}
-          isSubmitting={isSubmitting}
-          setIsSubmitting={setIsSubmitting}
           onError={onError}
           onSuccess={onSuccess}
-          taskListRef={taskListRef}
+          initialImage={nlInitialImage}
         />
       )}
 
