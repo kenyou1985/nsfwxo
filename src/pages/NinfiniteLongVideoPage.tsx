@@ -20,7 +20,6 @@ const WORKFLOW_ID = '2094226327238135810';
 const NODE = {
   videoDuration:  '217',          // value, 秒数
   unetModelIndex: '417',         // index, UNet 模型序号
-  upscaleLoraIndex: '483',       // index, LoRA 序号
   aspectRatioIndex: '435',       // index, 画幅比例序号
   modeSelect:     '533',         // select, 模式选择
   refImageResolution: '520',     // select, 参考图分辨率
@@ -53,15 +52,6 @@ const DURATION_PRESETS = [
 
 const UNET_MODEL_OPTIONS = [
   { value: '0', label: '0 - 默认 UNet 模型' },
-];
-
-const UPSCALE_LORA_OPTIONS = [
-  { value: '0', label: '0 - 1280x736 (0.9M)' },
-  { value: '1', label: '1 - 1920x1088 (2.0M)' },
-  { value: '2', label: '2 - 1504x832 (1.2M)' },
-  { value: '3', label: '3 - 1824x1024 (1.8M)' },
-  { value: '4', label: '4 - 1664x928 (1.5M)' },
-  { value: '5', label: '5 - 960x544 (0.5M)' },
 ];
 
 const ASPECT_RATIO_OPTIONS = [
@@ -131,7 +121,6 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
   const [duration, setDuration] = useState<number>(60);
   const [customDuration, setCustomDuration] = useState<string>('');
   const [unetModelIndex, setUnetModelIndex] = useState<string>('0');
-  const [upscaleLoraIndex, setUpscaleLoraIndex] = useState<string>('0');
   const [aspectRatioIndex, setAspectRatioIndex] = useState<string>('5');
   const [mode, setMode] = useState<string>('1');
   const [refResolution, setRefResolution] = useState<string>('3');
@@ -202,22 +191,24 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
   }, [apiKey, onSuccess, onError]);
 
   // ── 构建节点列表 — 100% 对齐官方 curl 示例 (description: null) ─────────────
+  // 注意：node 483 (upscaleLoraIndex) 所有选项均为 16:9 分辨率，
+  // 上传后处理 upscale 会强制将输出转为 16:9，覆盖 node 435 的画幅设置，
+  // 故不提交 node 483，保持原始生成画幅。
   const buildNodeList = useCallback((): NodeInfo[] => {
     const finalDuration = customDuration ? parseInt(customDuration, 10) || duration : duration;
     const finalSeed = randomizeSeed ? Math.floor(Math.random() * 1_000_000_000).toString() : seed;
 
     const nodeInfoList: NodeInfo[] = [
       { nodeId: NODE.videoDuration,      fieldName: 'value',  fieldValue: String(finalDuration), description: null },
-      { nodeId: NODE.unetModelIndex,     fieldName: 'index',  fieldValue: unetModelIndex,        description: null },
-      { nodeId: NODE.upscaleLoraIndex,  fieldName: 'index',  fieldValue: upscaleLoraIndex,      description: null },
+      { nodeId: NODE.unetModelIndex,    fieldName: 'index',  fieldValue: unetModelIndex,        description: null },
       { nodeId: NODE.aspectRatioIndex,   fieldName: 'index',  fieldValue: aspectRatioIndex,      description: null },
-      { nodeId: NODE.modeSelect,         fieldName: 'select', fieldValue: mode,                  description: null },
-      { nodeId: NODE.refImageResolution, fieldName: 'select', fieldValue: refResolution,         description: null },
-      { nodeId: NODE.randomSeed,         fieldName: 'value',  fieldValue: finalSeed,             description: null },
-      { nodeId: NODE.enableUpscale,      fieldName: 'value',  fieldValue: String(enableUpscale), description: null },
-      { nodeId: NODE.promptEnhance,      fieldName: 'value',  fieldValue: String(promptEnhance), description: null },
-      { nodeId: NODE.node465,            fieldName: 'value',  fieldValue: String(node465),        description: null },
-      { nodeId: NODE.prompt,             fieldName: 'value',  fieldValue: prompt,                description: null },
+      { nodeId: NODE.modeSelect,        fieldName: 'select', fieldValue: mode,                  description: null },
+      { nodeId: NODE.refImageResolution,fieldName: 'select', fieldValue: refResolution,         description: null },
+      { nodeId: NODE.randomSeed,        fieldName: 'value',  fieldValue: finalSeed,             description: null },
+      { nodeId: NODE.enableUpscale,     fieldName: 'value',  fieldValue: String(enableUpscale), description: null },
+      { nodeId: NODE.promptEnhance,     fieldName: 'value',  fieldValue: String(promptEnhance), description: null },
+      { nodeId: NODE.node465,           fieldName: 'value',  fieldValue: String(node465),        description: null },
+      { nodeId: NODE.prompt,            fieldName: 'value',  fieldValue: prompt,                description: null },
     ];
 
     // 9 个图片节点, 未上传的填 'None' (与官方文档一致)
@@ -231,7 +222,7 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
     });
 
     return nodeInfoList;
-  }, [customDuration, duration, unetModelIndex, upscaleLoraIndex, aspectRatioIndex,
+  }, [customDuration, duration, unetModelIndex, aspectRatioIndex,
       mode, refResolution, randomizeSeed, seed, enableUpscale, promptEnhance,
       node465, prompt, images]);
 
@@ -466,19 +457,6 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
                 className="w-full h-9 px-3 rounded-lg text-xs border border-border bg-bg-elevated text-text-primary focus:outline-none focus:border-primary appearance-none cursor-pointer"
               >
                 {UNET_MODEL_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
-              </select>
-            </div>
-
-            {/* LoRA / 放大目标 (node 483) */}
-            <div>
-              <label className="text-xs text-text-secondary block mb-1.5">LoRA / 放大目标 (node 483)</label>
-              <select
-                value={upscaleLoraIndex}
-                onChange={(e) => setUpscaleLoraIndex(e.target.value)}
-                disabled={submitting}
-                className="w-full h-9 px-3 rounded-lg text-xs border border-border bg-bg-elevated text-text-primary focus:outline-none focus:border-primary appearance-none cursor-pointer"
-              >
-                {UPSCALE_LORA_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
               </select>
             </div>
 
