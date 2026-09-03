@@ -798,6 +798,8 @@ export interface StoryboardSession {
   // key 格式：`${sbHistoryId}_${idx}`（多主题）或 `solo_${idx}`（单主题）
   panelVideoPrompts?: Record<string, string>;
   panelH3Prompts?: Record<string, string>;
+  // H3 强制约束开关状态（per historyId）
+  panelH3ConstraintEnabled?: Record<string, boolean>;
   // H3 共享部分按 historyId 隔离，序列化为 plain object（不存 Map/Set）
   panelH3CommonParts?: Record<string, {
     subjectDefinitions: string;

@@ -146,7 +146,16 @@ export function GridPanelEditor({
             {displayLang === 'zh' ? '✏️ 点击文字编辑' : '✏️ Click to edit'}
           </span>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+        {/* 
+          Layout: 2 columns per row on every breakpoint ≥ sm.
+          Was previously `lg:grid-cols-3` (3 cards × 3 rows for 9 panels),
+          but each card was so narrow that the textarea text was clipped on
+          standard laptop viewports. At 2 cards per row, each card takes
+          ~50% of the row width which gives the prompt textarea enough
+          horizontal space to show full sentences without truncation.
+          Single column on mobile to keep cards readable on phones.
+        */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-2">
           {panels.map((panel, idx) => (
             <div
               key={panel.panel_number}

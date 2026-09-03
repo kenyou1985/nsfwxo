@@ -157,56 +157,44 @@ function buildFullGridPromptDetailed(
 ): GridPromptBuildResult {
   if (panels.length === 0) return { prompt: '', warnings: [] };
 
-  // Extract base prompt from first panel (everything before "Panel1:")
+  // Extract base prompt from first panel (everything before "Panel1:").
+  // This is the user's photographic base prompt (e.g. "realistic
+  // photography, natural skin texture, ... 50mm prime lens, ... high
+  // detail,") — kept AS-IS per the working format. Previous experiments
+  // rewrote "shallow depth of field" / "50mm prime lens" keywords but
+  // the user's working format uses these unchanged and it works. Don't
+  // touch them.
   const firstPanelPrompt = panels[0].image_prompt;
   const baseMatch = firstPanelPrompt.match(/^(.*?)(?=Panel\d+:|$)/s);
   const basePart = baseMatch ? baseMatch[1].trim() : firstPanelPrompt;
 
-  // Determine the actual layout for this prompt — derived from the panel
-  // count the user has chosen (2×2 / 2×3 / 3×3 / 3×4). Without this, even
-  // when the user picks 2×2 the prompt still says "9-panel 3×3 grid" and
-  // the model obediently renders 9 panels.
+  // Determine the actual layout for this prompt — derived from the
+  // panel count the user has chosen (2×2 / 2×3 / 3×3 / 3×4). Without
+  // this, even when the user picks 2×2 the prompt still says "9-panel
+  // 3×3 grid" and the model obediently renders 9 panels.
   const layout = getGridLayout(gridSize);
   const cols = layout.cols;
   const rows = layout.rows;
   const panelTotal = cols * rows;
   const layoutLabel = layout.label;
 
-  // The grid layout HEADER must ALWAYS be present at the start of the
-  // assembled prompt — even when the template's basePrompt already says
-  // "no grid layout / single cinematic vertical frame" (which was added
-  // for the per-panel redraw path). When we re-assemble the full grid
-  // prompt for "Generate Grid Storyboard Image", we DO want a
-  // ${cols}×${rows} grid of ${panelTotal} panels in ONE image, so we
-  // override the template's "no grid" wording.
-  //
-  // CRITICAL: this header is intentionally aggressive — Krea2 (especially
-  // in img2img mode with a strong face reference image) tends to render
-  // a single dominant subject instead of a grid. We:
-  //   1. State the layout requirement EXPLICITLY ("exactly N panels in a
-  //      ${cols}×${rows} grid layout, ${cols} columns and ${rows} rows")
-  //   2. Forbid any 1×N / 2×N / single-frame interpretations
-  //   3. Reinforce that the SAME female character appears in ALL panels
-  //      with a consistent face — this is the strongest single signal that
-  //      the face reference image should not be upscaled to dominate
-  //   4. Require each panel to be a separate moment with its own framing
-  //
-  // The header is also written to be readable as a literal instruction
-  // to the model, not as description of the layout — Krea2 parses
-  // imperative language ("must be", "do not render") more reliably than
-  // descriptive language.
-  //
-  // SHOT TYPE REQUIREMENT: Every panel must show a WIDE or MEDIUM shot of
-  // the SCENE (environment, setting, full body in context). AVOID close-up
-  // portrait shots. Each tile shows the complete scene moment, not a face.
-
-  // Build the list of forbidden panel counts so the model doesn't render
-  // 1, 2, 4, 6 or 9 panels when we only want 4 / 6 / etc.
+  // Build the list of forbidden panel counts so the model doesn't
+  // render 1, 2, 4, 6 or 9 panels when we only want 4 / 6 / etc.
   const forbiddenCounts = [1, 2, 3, 4, 6, 9, 12]
     .filter((n) => n !== panelTotal)
     .join(', ');
 
-  const GRID_HEADER =
+  // LAYOUT_BLOCK — the working format the user has confirmed produces
+  // correct 9-panel grids. Uses the original "OUTPUT LAYOUT — MANDATORY"
+  // + "WIDE SHOT / MEDIUM SHOT" wording that the model responds to.
+  //
+  // The previous revisions tried various reorderings + extra blocks
+  // (FRAMING & COMPOSITION at position 1, TALL PORTRAIT RECTANGLE,
+  // 24mm short lens, per-tile camera assignments, GRID COMPOSITION
+  // OVERRIDE, etc.) — all of them regressed the output: either to
+  // 3 landscape tiles stacked vertically (the "变成 3 宫格" issue) or
+  // to 9 face close-ups. This is the exact wording that works.
+  const LAYOUT_BLOCK =
     `OUTPUT LAYOUT — MANDATORY: render a ${panelTotal}-PANEL STORYBOARD SHEET in strict ${rows} rows × ${cols} columns grid format (${layoutLabel}). ` +
     `Each of the ${panelTotal} tiles is an EQUAL-SIZED rectangular panel separated by thin white borders, each tile occupies ONLY 1/${panelTotal} of the image area. ` +
     `Total image: strict 9:16 vertical aspect ratio (taller than wide), single coherent narrative across all ${panelTotal} panels, cinematic movie storyboard. ` +
@@ -220,93 +208,56 @@ function buildFullGridPromptDetailed(
     `AVOID portrait close-ups, face close-ups, or headshot compositions. ` +
     `The character face should appear SMALL within each tile, showing the complete scene moment, not a portrait. `;
 
-  // Build a regex that matches the GRID_HEADER (with any whitespace/case variations)
-  // so we can strip the duplicate header that the template basePrompt already
-  // contains before we prepend our own. Without this, the user's prompt contains
-  // duplicated layout instructions which confuse the model.
-  //
-  // The template basePrompt typically contains the OLD header form
-  // ("cinematic storyboard grid in strict 9:16 vertical aspect ratio, 9 panels
-  // arranged in 3×3 grid, ..."). We strip that whole leading chunk to avoid
-  // duplicating the layout instruction.
-  //
-  // This regex matches the original 9-panel header — even when gridSize is
-  // not 9, the user's basePrompt may still contain the old 9-panel wording
-  // and we want to remove it so the dynamic header below wins.
-  const GRID_HEADER_PATTERN =
+  // Strip any pre-existing layout headers from basePart (older templates
+  // might embed "cinematic storyboard grid ... 9 panels arranged in 3×3
+  // grid" or "output layout — mandatory ... " tokens). We don't want
+  // them duplicated before our LAYOUT_BLOCK.
+  const LEGACY_HEADER_PATTERN =
     /^\s*(?:cinematic\s+storyboard\s+grid\s+in\s+strict[^,]*,\s*\d*\s*panel[s]?\s*arranged\s+in\s*\d*\s*[×x*]\s*\d*\s*grid\s*,?\s*|output\s+layout\s*[—-]\s*mandatory[^.]*\.|important\s*[—-]\s*layout\s+requirement[^.]*\.)/i;
-
-  // Remove any "no grid layout / no multiple panels / no storyboard split /
-  // single cinematic vertical frame" lines that the template basePrompt may
-  // contain (these were added to fix per-panel redraw, but they conflict
-  // with the dynamic grid header we are injecting now).
-  //
-  // NOTE on regex flavor: every starts-with pattern uses \s* to tolerate
-  // leading whitespace left behind by prior [^,]*, strips. Without \s*,
-  // leftover tokens like " no grid layout" / " no multiple panels" can leak
-  // through and Krea2 lays out the wrong panel count instead of the one
-  // the user picked.
   let cleanedBase = basePart
-    .replace(GRID_HEADER_PATTERN, '')            // strip duplicated GRID_HEADER
-    .replace(/^\s*no\s+grid\s+layout,\s*/gi, '')
-    .replace(/,\s*no\s+grid\s+layout,\s*/gi, ',')
-    .replace(/^\s*no\s+multiple\s+panels,\s*/gi, '')
-    .replace(/,\s*no\s+multiple\s+panels,\s*/gi, ',')
-    .replace(/^\s*no\s+storyboard\s+split,\s*/gi, '')
-    .replace(/,\s*no\s+storyboard\s+split,\s*/gi, ',')
-    .replace(/^\s*full\s+frame\s+single\s+subject\s+composition,\s*/gi, '')
-    .replace(/,\s*full\s+frame\s+single\s+subject\s+composition,\s*/gi, ',')
-    .replace(/^\s*single\s+cinematic\s+vertical\s+frame[^,]*,/gi, '')
-    .replace(/,\s*single\s+cinematic\s+vertical\s+frame[^,]*,/gi, ',')
-    .replace(/^\s*single\s+cinematic\s+shot,\s*/gi, '')
-    .replace(/,\s*single\s+cinematic\s+shot,\s*/gi, ',')
-    .replace(/^\s*single\s+subject\s+only,\s*/gi, '')
-    .replace(/,\s*single\s+subject\s+only,\s*/gi, ',')
-    .replace(/^\s*focused\s+on\s+this\s+moment\s+only,\s*/gi, '')
-    .replace(/,\s*focused\s+on\s+this\s+moment\s+only,\s*/gi, ',')
+    .replace(LEGACY_HEADER_PATTERN, '')
+    // Also strip a trailing "no grid layout" / "no multiple panels"
+    // / "no storyboard split" token from the end of the base prompt
+    // if a previous LLM generation left it there.
+    .replace(/,\s*no\s+grid\s+layout\s*,?\s*$/gi, '')
+    .replace(/,\s*no\s+multiple\s+panels\s*,?\s*$/gi, '')
+    .replace(/,\s*no\s+storyboard\s+split\s*,?\s*$/gi, '')
     .replace(/^[\s,]+/g, '')
     .trim();
 
-  // Use grid header + (optional) anchor + cleaned base prompt.
+  // Assemble the prompt in the working format:
+  //   <base prompt> <LAYOUT_BLOCK>
+  //   <blank line>
+  //   [ANCHOR: <anchor>] <main scene = Panel1 content>      ← unnumbered intro
+  //   Panel1: [ANCHOR: <anchor>] <main scene>              ← Panel 1 with anchor
+  //   Panel2: <panel2 content>                             ← Panel 2-9 without anchor
+  //   ...
+  //   PanelN: <panelN content>
   //
-  // The anchor (when provided, e.g. for img2img / digital-human mode) is a
-  // CONCISE character-consistency description that sits BETWEEN the layout
-  // header and the base prompt — the same structural slot that txt2img's
-  // `[ANCHOR: ...]` block occupies (which is part of `cleanedBase` because
-  // it comes from the template's basePrompt).
-  //
-  // Keeping the anchor INSIDE the prompt builder (rather than prepending it
-  // in the caller) guarantees that:
-  //   1. There is exactly ONE GRID_HEADER block (no duplicate layout
-  //      instruction that confuses the model into 3 wide panels)
-  //   2. The anchor lands in the same structural position as txt2img,
-  //      so the model sees consistent prompt shape across both modes
-  //   3. The anchor text is concise (the caller is responsible for that)
-  //      so it never crowds out the per-panel descriptions below.
-  //
-  // IMPORTANT: When the anchor is in Chinese 【严格锁定】 format (from
-  // digital-human mode), we DON'T add the English [CHARACTER ANCHOR] prefix
-  // since the Chinese format is self-contained and adding English would
-  // dilute the character-locking effectiveness.
-  const isChineseAnchor = options?.anchorText?.includes('【严格锁定】');
-  const anchorBlock = options?.anchorText?.trim()
-    ? (isChineseAnchor
-        ? `\n\n${options.anchorText.trim()}`
-        : `\n\n[CHARACTER ANCHOR — must remain identical across all ${panelTotal} panels] ${options.anchorText.trim()}`)
-    : '';
-  let fullPrompt = GRID_HEADER + anchorBlock + (cleanedBase ? '\n\n' + cleanedBase : '');
+  // Two structural notes:
+  //   1. The base prompt + LAYOUT_BLOCK are concatenated with a single
+  //      space (no newline). The working format has them joined
+  //      seamlessly, e.g. "...high detail, OUTPUT LAYOUT — MANDATORY:
+  //      render a 9-PANEL..." — the base prompt's trailing comma
+  //      directly precedes the LAYOUT_BLOCK.
+  //   2. The "[ANCHOR: ...] <main scene>" line BEFORE Panel1 is the
+  //      "global intro" — it states the anchor + scene once without a
+  //      "Panel1:" prefix. Then Panel1 immediately repeats the same
+  //      content with the "Panel1:" prefix + anchor. This duplication
+  //      is intentional in the working format and locks both the
+  //      character and the establishing shot into the model's
+  //      attention before Panel2 onwards.
+  const anchor = options?.anchorText?.trim() || '';
+  const anchorTag = anchor ? `[ANCHOR: ${anchor}]` : '';
 
-  // Add each panel with simple action description
-  // ─────────────────────────────────────────────────────────────────
-  // CRITICAL: empty or near-empty panels (e.g. user typed "Panel3: ")
-  // would otherwise leave a blank tile in the 3×3 grid, which makes
-  // Krea2 collapse the layout to 2×N or 1×N. We auto-fill empty panels
-  // from their neighbors and run every panel through sanitizePanelContent
-  // to fix obvious logical errors (male breast, wrong race, etc.).
-  // ─────────────────────────────────────────────────────────────────
+  let fullPrompt = cleanedBase + ' ' + LAYOUT_BLOCK;
+
+  // First pass: extract sanitized per-panel text + detect empties.
+  // Empty panels (e.g. user typed "Panel3: ") would leave a blank tile
+  // in the 3×3 grid. We auto-fill empty panels from their neighbors
+  // and run every panel through sanitizePanelContent to fix obvious
+  // logical errors (male breast, wrong race, etc.).
   const allWarnings: string[] = [];
-
-  // First pass: extract sanitized per-panel text + detect empties
   const panelTexts: string[] = [];
   for (let i = 0; i < panels.length; i++) {
     const panel = panels[i];
@@ -314,7 +265,6 @@ function buildFullGridPromptDetailed(
     const panelSpecificMatch = panelPrompt.match(/Panel\d+:\s*(.*)/s);
     let panelSpecific = panelSpecificMatch ? panelSpecificMatch[1].trim() : panelPrompt;
 
-    // Empty panel? Auto-fill from neighbors.
     const MIN_PANEL_CONTENT = 30; // chars
     if (panelSpecific.length < MIN_PANEL_CONTENT) {
       const prev = i > 0 ? panelTexts[i - 1] : null;
@@ -331,7 +281,6 @@ function buildFullGridPromptDetailed(
       panelSpecific = filled;
     }
 
-    // Sanitize logical errors
     const { text: sanitized, warnings } = sanitizePanelContent(panelSpecific);
     if (warnings.length > 0) {
       console.warn(`${GRID_LOG_PREFIX} Panel${i + 1} sanitized:`, warnings.join('; '));
@@ -342,67 +291,33 @@ function buildFullGridPromptDetailed(
     panelTexts.push(panelSpecific);
   }
 
-  // Second pass: assemble the full prompt with sanitized text
+  // Strip a leading "PanelN:" / "Panel N:" from the panel text so we
+  // don't get "Panel 1: ... Panel 1: ..." when we re-prepend "PanelN:".
   for (let i = 0; i < panelTexts.length; i++) {
-    let panelSpecific = panelTexts[i];
-
-    const hasClothing = CLOTHING_RE.test(panelSpecific);
-
-    // Early panels (Panel 1-2): ensure clothing descriptions present
-    // IMPORTANT: Use scene-focused descriptions instead of character pronouns
-    // to avoid portrait/close-up generation. Focus on the environment and setting.
-    if (i <= 1 && !hasClothing) {
-      const she = SHE_CLOTHES[Math.floor(Math.random() * SHE_CLOTHES.length)];
-      const he = HE_CLOTHES[Math.floor(Math.random() * HE_CLOTHES.length)];
-      // Use scene description instead of "woman/man" to avoid portrait focus
-      // The character is referenced by ID in the anchor, not by pronoun here
-      panelSpecific = `in ${she} and ${he}, ${panelSpecific}`;
-    }
-    // Mid panels (Panel 3-4): add undressing progression if still no clothing hint
-    else if (i <= 3 && i < gridSize * 0.6 && !hasClothing) {
-      panelSpecific = `partially undressed, ${panelSpecific}`;
-    }
-
-    // For late panels (60%+), remove clothing descriptions (nude/intimate scenes)
-    if (i >= gridSize * 0.6) {
-      panelSpecific = panelSpecific
-        .replace(/wearing[^,.;]{2,40}/gi, '')
-        .replace(/穿着[^,.;。]{2,20}/g, '')
-        .replace(/dressed in[^,.;]{2,40}/gi, '')
-        .replace(/in a (black|white|red|blue|pink|grey|dark|light|silk|leather|casual|floral|cozy|summer)[^,.;]{2,30}/gi, '');
-    }
-
-    // Strip any per-panel "single cinematic shot / no grid layout" leftovers
-    // that were added for the per-panel redraw path. When assembling the
-    // FULL 9-panel prompt we want the 3×3 grid header (GRID_HEADER) to win.
-    //
-    // NOTE on regex flavor: each "starts-with" pattern must accept optional
-    // leading whitespace (^\s*) because the prior `[^,]*,` strip can leave
-    // a leading space when the matched fragment ends with a comma. Without
-    // \s* the leading " no grid layout" / " no multiple panels" tokens leak
-    // through and Krea2 lays out a 6-panel or 4-panel grid instead of 9.
-    panelSpecific = panelSpecific
-      .replace(/^\s*single\s+cinematic\s+vertical\s+frame[^,]*,/gi, '')
-      .replace(/,\s*single\s+cinematic\s+vertical\s+frame[^,]*,/gi, ',')
-      .replace(/^\s*single\s+cinematic\s+shot,\s*/gi, '')
-      .replace(/^\s*no\s+grid\s+layout,\s*/gi, '')
-      .replace(/,\s*no\s+grid\s+layout,\s*/gi, ',')
-      .replace(/^\s*no\s+multiple\s+panels,\s*/gi, '')
-      .replace(/,\s*no\s+multiple\s+panels,\s*/gi, ',')
-      .replace(/^\s*full\s+frame\s+single\s+subject,\s*/gi, '')
-      .replace(/,\s*full\s+frame\s+single\s+subject,\s*/gi, ',')
-      .replace(/,\s*full\s+frame\s+single\s+subject\s+composition,\s*/gi, ',')
-      .replace(/^\s*focused\s+on\s+this\s+moment\s+only,\s*/gi, '')
-      .replace(/,\s*focused\s+on\s+this\s+moment\s+only,\s*/gi, ',')
-      .replace(/,\s*no\s+storyboard\s+split,\s*/gi, ',')
-      .replace(/,\s*single\s+subject\s+only,\s*/gi, ',')
-      .replace(/^\s*Partially\s+undressed,\s*/gi, '')
-      .replace(/^\s*partially\s+undressed,\s*/gi, '')
-      .replace(/^[\s,]+/g, '')
-      .trim();
-
-    fullPrompt += `\nPanel${panels[i].panel_number}: ${panelSpecific}`;
+    panelTexts[i] = panelTexts[i].replace(/^\s*Panel\s*\d+\s*[:：]\s*/i, '').trim();
   }
+
+  // Drop the unnumbered "global intro" line — the working format has
+  // "[ANCHOR: ...] <main scene>" before Panel1 with the same anchor
+  // prepended. We only emit it when an anchor is present, since the
+  // unnumbered intro without an anchor would just duplicate Panel1
+  // text and add no signal.
+  if (panelTexts.length > 0 && anchorTag) {
+    fullPrompt += `\n\n${anchorTag} ${panelTexts[0]}`;
+  }
+
+  // Emit each panel line. Only Panel1 gets the [ANCHOR: ...] prefix
+  // prepended — Panel2 through PanelN do not, matching the working
+  // format exactly.
+  for (let i = 0; i < panelTexts.length; i++) {
+    const panelSpecific = panelTexts[i];
+    if (i === 0 && anchorTag) {
+      fullPrompt += `\nPanel${panels[i].panel_number}: ${anchorTag} ${panelSpecific}`;
+    } else {
+      fullPrompt += `\nPanel${panels[i].panel_number}: ${panelSpecific}`;
+    }
+  }
+
   return { prompt: fullPrompt, warnings: allWarnings };
 }
 
@@ -742,15 +657,17 @@ export function GridStoryboardMode({
 
   // Update fullPrompt whenever panels change
   //
-  // Preview builds the SAME prompt that will be submitted in either mode:
-  //   - txt2img:  uses the base GRID_HEADER + cleanedBase + Panel1..9
-  //   - img2img:  inserts a concise CHARACTER ANCHOR block between
-  //               GRID_HEADER and cleanedBase (matches the user's
-  //               `[ANCHOR: ...]` working pattern in txt2img prompts)
+  // The preview shown in the prompt editor uses EXACTLY the same
+  // `buildFullGridPromptDetailed` builder that the image-submit path
+  // uses — including the working-format structure:
+  //   <base prompt> <LAYOUT_BLOCK>
+  //   [ANCHOR: <anchor>] <main scene = Panel1 content>
+  //   Panel1: [ANCHOR: <anchor>] <main scene>
+  //   Panel2: <panel2 content> ... PanelN: <panelN content>
   //
-  // Building the preview with the same anchor as the submit means what
-  // the user sees in the prompt editor is exactly what gets sent to the
-  // model — no silent differences.
+  // The anchor is the [ANCHOR: ...] block (or Chinese 【严格锁定】 in
+  // digital-human mode). What the user sees in the prompt editor is
+  // exactly what gets sent to the model — no silent differences.
   useEffect(() => {
     if (panels.length > 0) {
       // Use the same 【严格锁定】 format as linear storyboard and handleGenerateImage
@@ -1855,7 +1772,16 @@ export function GridStoryboardMode({
       } else {
         // ── Default: one composite grid image (existing behaviour) ────────
         const storyboardInfo = { historyId, panelIdx: 0 };
-        const finalPrompt = withQualityBoost(sanitizePromptForClip(fullPrompt));
+        // The full grid prompt (~9k chars) MUST be sent intact. The default
+        // 900-char limit in sanitizePromptForClip is calibrated for single-panel
+        // prompts and STRIPS the OUTPUT LAYOUT block + all 9 Panel lines from
+        // a grid prompt — the symptom was "变成单图了，9宫格前缀都没有了" (no
+        // grid, layout prefix dropped). Bypass the truncation here by passing a
+        // 20k-char ceiling (the grid prompt is well-structured, not repetitive,
+        // so the only failure mode this trim guards against doesn't apply).
+        // The repetitive-adverb dedupe still runs and is harmless for grid
+        // prompts since Chinese adverbs aren't part of the OUTPUT LAYOUT block.
+        const finalPrompt = withQualityBoost(sanitizePromptForClip(fullPrompt, 20000));
         const txt2imgOptions = buildUnifiedTxt2ImgOptions(finalPrompt);
         txt2imgOptions.imageCount = imageCount;
         const nodes = buildTxt2ImgNodeList(txt2imgOptions);
@@ -3258,7 +3184,9 @@ export function GridStoryboardMode({
                     {displayLang === 'zh' ? '✏️ 点击编辑 🔄 重绘' : '✏️ Edit 🔄 Redraw'}
                   </span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {/* 2 cards per row (was 3) so each textarea shows full sentences
+                    instead of clipping on standard laptop viewports. */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-2">
                   {panels.map((panel, idx) => (
                     <div
                       key={panel.panel_number}

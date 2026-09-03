@@ -9,8 +9,15 @@ import {
   AlertCircle, Settings, Eye, Tag, History, Trash2, Plus, Clock,
   Image, Zap, X, Download, User, Heart, Star, Clapperboard,
   ChevronLeft, ChevronRight, Video, ZoomIn, RefreshCw, Bookmark,
-  Grid3X3,
+  Grid3X3, ShieldCheck,
 } from 'lucide-react';
+
+/** H3 提示词强制约束文本（开启约束开关时追加到完整提示词前） */
+const H3_CONSTRAINT_TEXT = `【最高优先级强制约束】
+严格忠实执行本提示词全部指令，禁止任何自主创作、额外联想、擅自脑补新增剧情、私自增加未描述动作、特效、人物行为、场景细节。
+不允许改写、扩充、演绎故事内容，所有画面、动作、人物、镜头、氛围必须完全遵循detailed_description与参考图片<Picture X>内容。
+禁止自行添加额外镜头、额外互动、多余表情、额外物体。只生成提示词明确写明的内容，未写明的元素一律不要出现。
+人物样貌、服装、场景构图必须严格跟随subject_definitions和对应<Picture X>参考图，不得主观美化或修改人物形象。`;
 
 /**
  * Build a short, scene-and-pose-flavored Chinese summary for a抽卡 result.
@@ -3216,6 +3223,11 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   });
   const [panelH3Duration, setPanelH3Duration] = useState<15 | 30 | 60>(15); // 默认 15 秒
   const [panelH3Loading, setPanelH3Loading] = useState<Record<string, boolean>>({});
+  /** 强制约束开关（per historyId）：打开时在 H3 提示词前加入严格约束文本 */
+  const [panelH3ConstraintEnabled, setPanelH3ConstraintEnabled] = useState<Record<string, boolean>>(() => {
+    const s = getStoryboardSession();
+    return s?.panelH3ConstraintEnabled || {};
+  });
   // H3 共享部分缓存：按 historyId 隔离，每个主题独立一份（多主题并行生成时不会互相覆盖）
   const [panelH3CommonParts, setPanelH3CommonParts] = useState<Record<string, H3CommonParts>>(() => {
     const s = getStoryboardSession();
@@ -4177,6 +4189,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         // 持久化多主题隔离提示词状态（Bug 修复：返回页面后不再丢失）
         panelVideoPrompts: Object.keys(panelVideoPrompts).length > 0 ? panelVideoPrompts : undefined,
         panelH3Prompts: Object.keys(panelH3Prompts).length > 0 ? panelH3Prompts : undefined,
+        panelH3ConstraintEnabled: Object.keys(panelH3ConstraintEnabled).length > 0 ? panelH3ConstraintEnabled : undefined,
         panelH3CommonParts: Object.keys(panelH3CommonParts).length > 0 ? panelH3CommonParts : undefined,
         panelH3ShotMap: Object.keys(panelH3ShotMapSerial).length > 0 ? panelH3ShotMapSerial : undefined,
         activeThemeTab,
@@ -4186,7 +4199,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     } else {
       clearStoryboardSession();
     }
-  }, [plot, panelCount, panels, expandedPanel, selectedTheme, outlineArc, outlineScenes, currentHistoryId, panelVideoPrompts, panelH3Prompts, panelH3CommonParts, panelH3ShotMap, activeThemeTab, themeOutlineStates, selectedThemes]);
+  }, [plot, panelCount, panels, expandedPanel, selectedTheme, outlineArc, outlineScenes, currentHistoryId, panelVideoPrompts, panelH3Prompts, panelH3ConstraintEnabled, panelH3CommonParts, panelH3ShotMap, activeThemeTab, themeOutlineStates, selectedThemes]);
 
   // Step 1: Generate theme options (supports custom description)
   const handleGenerateThemes = async (customDesc?: string, customCnt?: number) => {
@@ -4964,6 +4977,15 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     setPanelH3Prompts((prev) => ({ ...prev, [pK]: newPrompt }));
   }, [sbHistoryId]);
 
+  /** 切换 H3 强制约束开关（per historyId 隔离） */
+  const handleTogglePanelH3Constraint = useCallback(() => {
+    const curHistoryId = sbHistoryId || 'solo';
+    setPanelH3ConstraintEnabled((prev) => ({
+      ...prev,
+      [curHistoryId]: !prev[curHistoryId],
+    }));
+  }, [sbHistoryId]);
+
   // Handle image selection for a panel
   const handleSelectPanelImage = useCallback((panelKey: string, imageIndex: number, imageUrl: string) => {
     setSelectedPanelImages(prev => ({
@@ -5476,8 +5498,10 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       }
 
       // Step 3: 拼装完整 H3 提示词（按 panelIndex 排序）
+      // 如果开启了强制约束开关，在提示词前追加约束文本
       const sortedShots = Array.from(curShotMap.values()).sort((a, b) => a.panelIndex - b.panelIndex);
-      const fullH3Prompt = assembleH3Prompt(curCommonParts, sortedShots, panelH3Duration);
+      const prependConstraint = panelH3ConstraintEnabled[curHistoryId] ? H3_CONSTRAINT_TEXT : undefined;
+      const fullH3Prompt = assembleH3Prompt(curCommonParts, sortedShots, panelH3Duration, prependConstraint);
 
       // Step 4: 存储到 sessionStorage，由 ImageToVideoPage 消费
       // 注意：使用新的 key storyboard_h3_longvideo_batch，与单分镜的 storyboard_h3_longvideo 区分
@@ -6593,14 +6617,26 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
           {/* Active theme label + batch action bar — hidden when the active
               theme tab is still in flight (no panels yet) because there's
               nothing to operate on. The "generating" placeholder below
-              replaces this section's purpose for in-flight tabs. */}
+              replaces this section's purpose for in-flight tabs.
+              MOBILE LAYOUT FIX: previously this was `flex items-center
+              justify-between` with no wrap, which on a 390px viewport
+              pushed the H3 subgroup to its 2nd internal row because of
+              `flex-wrap`, and the bottom-right "一键长视频v1.1" button
+              ended up *between* the title row and the panel cards —
+              overflowing the toolbar's vertical bounds on small screens.
+              On the iPhone-class viewport users were tapping, the
+              button's bounding box overlapped with the first panel
+              card (which has its own click handlers), so the click
+              reached the panel card instead of the long-video button
+              and "didn't navigate". Stack everything vertically on
+              `< sm`, restore side-by-side only on `≥ sm`. */}
           {!activeThemeTabInFlight && (
-            <div className="flex items-center justify-between px-1">
+            <div className="flex flex-col gap-2 px-1 sm:flex-row sm:items-center sm:justify-between sm:gap-0">
               <span className="text-xs text-text-tertiary font-medium">
                 {activeThemeInfo && <span className="mr-1">{activeThemeInfo.title} · </span>}
                 {activePanels.length} 个分镜
               </span>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
                 <button
                   onClick={handleBatchGenerate}
                   disabled={batchLoading || taskManager.isFull || (digitalHumanMode && !selectedGirlfriend)}
@@ -6615,9 +6651,14 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                     ? <><Loader2 size={12} className="animate-spin" />图片生成中…</>
                     : <><Zap size={12} />一键批量生图</>}
                 </button>
-                {/* H3 提示词引擎 */}
-                <div className="flex items-center gap-1 flex-wrap">
-                  <span className="text-[10px] text-indigo-500">H3:</span>
+                {/* H3 提示词引擎
+                    - Mobile (`< sm`): each row is its own flex line so 按钮
+                      不被裁切；duration 三个按钮 + 长视频 1.1 按钮各占
+                      一行（手指头大 ≈ 44px 高度，拇指可点）。
+                    - Desktop (`≥ sm`): 单行排列，开关紧凑。 */}
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-1 sm:flex-wrap">
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <span className="text-[10px] text-indigo-500">H3:</span>
                   {([15, 30, 60] as const).map((d) => (
                     <button
                       key={d}
@@ -6630,6 +6671,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                       {d}秒
                     </button>
                   ))}
+                  </div>
                   <button
                     type="button"
                     onClick={handleBatchGenerateH3}
@@ -6766,6 +6808,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                 panelH3Prompt={panelH3Prompts[pK]}
                 panelH3Duration={panelH3Duration}
                 panelH3Loading={!!panelH3Loading[pK]}
+                panelH3ConstraintEnabled={panelH3ConstraintEnabled[sbHistoryId || 'solo']}
+                onTogglePanelH3Constraint={handleTogglePanelH3Constraint}
                 onGeneratePanelH3={() => handleGeneratePanelH3(idx, panel)}
                 onGotoLongVideoWithH3={(imageUrl) => handleGotoLongVideoWithH3(idx, panel, imageUrl, panelH3Prompts[pK])}
               />
@@ -7084,7 +7128,7 @@ function FavoritesList({ favorites, r18Mode, onRemove, onClear }: {
   );
 }
 
-function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onToggle, onCopyPanel, genState, onGenerateImage, onFavorited, onDownload, taskManager, digitalHumanMode, selectedGirlfriend, selectedImageIndex, onSelectImage, onGenerateVideo, videoPrompt, hasGeneratedImages, onPreviewImage, videoGenLoading, onDirectGenerateVideo, themeTitle, onRegenerateVideoPrompt, promptEditLoading, onVideoPromptChange, historyId, panelH3Prompt, panelH3Duration, panelH3Loading, onGeneratePanelH3, onGotoLongVideoWithH3, onImagePromptChange, onRegenerateImagePrompt, imagePromptRegenLoading, onPanelH3PromptChange }: {
+function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onToggle, onCopyPanel, genState, onGenerateImage, onFavorited, onDownload, taskManager, digitalHumanMode, selectedGirlfriend, selectedImageIndex, onSelectImage, onGenerateVideo, videoPrompt, hasGeneratedImages, onPreviewImage, videoGenLoading, onDirectGenerateVideo, themeTitle, onRegenerateVideoPrompt, promptEditLoading, onVideoPromptChange, historyId, panelH3Prompt, panelH3Duration, panelH3Loading, onGeneratePanelH3, onGotoLongVideoWithH3, onImagePromptChange, onRegenerateImagePrompt, imagePromptRegenLoading, onPanelH3PromptChange, panelH3ConstraintEnabled, onTogglePanelH3Constraint }: {
   panel: { panel_number: number; scene_description: string; image_prompt: string };
   idx: number; isExpanded: boolean; r18Mode: boolean; copiedPanel: number | null;
   onToggle: () => void; onCopyPanel: () => void;
@@ -7124,6 +7168,10 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
   imagePromptRegenLoading?: boolean;
   /** H3 提示词编辑回调（用户在卡片内直接改 H3 提示词） */
   onPanelH3PromptChange?: (newPrompt: string) => void;
+  /** H3 强制约束开关状态 */
+  panelH3ConstraintEnabled?: boolean;
+  /** H3 强制约束开关切换回调 */
+  onTogglePanelH3Constraint?: () => void;
 }) {
   const isGenLoading = genState?.loading;
   const displayImages = genState?.images ?? [];
@@ -7521,18 +7569,37 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
                       </button>
                     </div>
                   </div>
+                  {/* 强制约束开关 */}
+                  <div className="flex items-center gap-2 mb-2">
+                    <button
+                      type="button"
+                      onClick={onTogglePanelH3Constraint}
+                      className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-medium transition-all ${
+                        panelH3ConstraintEnabled
+                          ? 'bg-indigo-500 text-white border border-indigo-600 hover:bg-indigo-600'
+                          : 'bg-indigo-50 border border-indigo-200 text-indigo-600 hover:bg-indigo-100'
+                      }`}
+                      title="开启后将追加严格约束文本到提示词开头"
+                    >
+                      <ShieldCheck size={11} />
+                      强制约束 {panelH3ConstraintEnabled ? '已开启' : '已关闭'}
+                    </button>
+                    <span className="text-[9px] text-indigo-400">
+                      提示：提示词中可用 &lt;Picture 1&gt;, &lt;Picture 2&gt; 等引用参考图
+                    </span>
+                  </div>
                   {onPanelH3PromptChange ? (
                     <textarea
                       value={panelH3Prompt}
                       onChange={(e) => onPanelH3PromptChange(e.target.value)}
-                      rows={2}
+                      rows={4}
                       placeholder={"H3 Ref2VA 六段式提示词...\n\n提示：\n- 可用 <Picture 1> 引用第一张参考图\n- 可用 <Picture 2> 引用第二张参考图\n- 格式：Subject + Detailed Description + Camera + Lighting + Style + Music"}
                       className="w-full px-2 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 text-[10px] text-indigo-800 font-mono focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-300 resize-y"
                     />
                   ) : (
                     <textarea
                       value={panelH3Prompt}
-                      rows={2}
+                      rows={4}
                       readOnly
                       className="w-full px-2 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 text-[10px] text-indigo-800 font-mono focus:outline-none resize-none"
                       placeholder={"H3 Ref2VA 六段式提示词...\n\n提示：\n- 可用 <Picture 1> 引用第一张参考图\n- 可用 <Picture 2> 引用第二张参考图\n- 格式：Subject + Detailed Description + Camera + Lighting + Style + Music"}
