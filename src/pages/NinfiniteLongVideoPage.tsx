@@ -114,31 +114,54 @@ interface NinfiniteLongVideoPageProps {
   onSuccess: (msg: string) => void;
   /** 初始参考图 (用于历史记录 → 长视频 v1.1 的场景，会被写入 slot 0) */
   initialImage?: { path: string; preview: string } | null;
+  /** 初始参考图列表 (用于剧情分镜 → 长视频 v1.1 多图场景，按顺序写入 slot 0..N-1) */
+  initialImages?: Array<{ path: string; preview: string }> | null;
   /** 初始提示词 (用于 H3 提示词引擎 → 长视频 v1.1 的场景) */
   initialPrompt?: string | null;
 }
 
-export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImage, initialPrompt }: NinfiniteLongVideoPageProps) {
+export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImage, initialImages, initialPrompt }: NinfiniteLongVideoPageProps) {
   // ── 表单状态 (默认值全部对齐官方 curl 示例) ────────────────────────────────
   const [images, setImages] = useState<ReferenceImage[]>(
     Array.from({ length: 9 }, () => ({ path: 'None', preview: '' }))
   );
 
-  // ── 一次性注入初始参考图 (从历史记录跳转过来时) ────────────────────────────────
-  // 使用 ref 来跟踪已应用的 initialPrompt 值，确保只应用一次
+  // ── 一次性注入初始参考图 (从历史记录/分镜跳转过来时) ────────────────────────────────
+  // 使用 ref 来跟踪已应用的值，确保只应用一次
   const appliedPromptRef = useRef<string | null>(null);
   const appliedImageRef = useRef<string | null>(null);
+  const appliedImagesKeyRef = useRef<string | null>(null);
   useEffect(() => {
     // 注入初始提示词（来自 H3 提示词引擎）
-    // 只有当 initialPrompt 存在且与已应用的值不同时才应用
     if (initialPrompt && initialPrompt !== appliedPromptRef.current) {
       setPrompt(initialPrompt);
       appliedPromptRef.current = initialPrompt;
       onSuccess('已填入 H3 视频提示词');
     }
 
-    // 注入初始参考图
-    // 只有当 initialImage.path 存在且与已应用的值不同时才应用
+    // 注入多张初始参考图（来自剧情分镜批量上传，按顺序写入 slot 0..N-1）
+    if (initialImages && initialImages.length > 0) {
+      const key = initialImages.map((img) => img.path).join('|');
+      if (key !== appliedImagesKeyRef.current) {
+        setImages((prev) => {
+          const next = [...prev];
+          initialImages.forEach((img, idx) => {
+            if (idx < 9 && img.path) {
+              next[idx] = { path: img.path, preview: img.preview || img.path };
+            }
+          });
+          return next;
+        });
+        appliedImagesKeyRef.current = key;
+        appliedImageRef.current = initialImages[0].path;
+        if (!initialPrompt) {
+          onSuccess(`已从剧情分镜导入 ${initialImages.length} 张图片到长视频 v1.1`);
+        }
+      }
+      return;
+    }
+
+    // 注入单张初始参考图（来自历史记录 / 单分镜跳转，写入 slot 0）
     if (initialImage?.path && initialImage.path !== appliedImageRef.current) {
       setImages((prev) => {
         const next = [...prev];
@@ -150,7 +173,7 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
         onSuccess('已从历史记录导入图片到长视频 v1.1（参考图 1）');
       }
     }
-  }, [initialImage, initialPrompt, onSuccess]);
+  }, [initialImage, initialImages, initialPrompt, onSuccess]);
   const [prompt, setPrompt] = useState<string>('图片1为男主，图片2为女主，生成两人约会的视频提示词');
   const [duration, setDuration] = useState<number>(60);
   const [customDuration, setCustomDuration] = useState<string>('');

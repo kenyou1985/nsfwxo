@@ -665,3 +665,224 @@ export function generateH3PromptsForPanels(
 
   return result;
 }
+
+// ════════════════════════════════════════════════════════════════════════════════
+// ─── 分镜分片模式 (Per-Panel Shot Mode) ────────────────────────────────────
+//
+// 1 个图片分镜 ↔ 1 个视频提示词 (1:1 对应)。每个分镜的提示词只包含：
+//   [Shot N] 对应<Picture N>，<运动/动作描述>
+//
+// 共享部分 (subject_definitions, summary, detailed_description 开场白,
+// overall_soundscape, non_diegetic_music) 只生成一次，
+// 在最终调用长视频 v1.1 时拼接成完整提示词。
+//
+// 工作流：
+//   1. 调用 generateH3PromptsForPanelsV2 生成每个分镜的 [Shot N] 提示词
+//   2. 调用 generateH3CommonParts 一次性生成共享部分
+//   3. 用户点击"批量上传到长视频 v1.1"时：
+//      - 上传所有分镜图到 slots 0..N-1
+//      - 调用 assembleH3Prompt 拼接完整提示词
+//      - 跳转到 NinfiniteLongVideoPage
+// ════════════════════════════════════════════════════════════════════════════════
+
+/** 单个分镜的 Shot 提示词结构 */
+export interface H3PanelShot {
+  /** 分镜序号 (从 1 开始) */
+  panelIndex: number;
+  /** 对应的图片引用编号 */
+  pictureNumber: number;
+  /** 时间戳 (第一个镜头为 undefined) */
+  timestamp?: string;
+  /** Shot 提示词完整字符串，例如：
+   *   "[Shot 1] 对应<Picture 1>，中景，<Subject 1>端着咖啡站在店内，..."
+   *   或
+   *   "[Shot 2] At 00:01.800，对应<Picture 2>，<Subject 2>走入画面，..."
+   */
+  shotPrompt: string;
+}
+
+/** 共享部分结构 */
+export interface H3CommonParts {
+  subjectDefinitions: string;
+  summary: string;
+  retentionAnalysis: string;
+  detailedDescriptionIntro: string;
+  overallSoundscape: string;
+  nonDiegeticMusic: string;
+}
+
+/**
+ * 从图片提示词中提取运动/动作描述（用于 Shot 提示词）
+ * 优先使用 scene_description (LLM 扩写后的视频提示词)，
+ * 否则从 image_prompt 中提取静态描述并轻微调整使其偏向"动作"含义。
+ */
+function extractMotionFromPanel(panel: { image_prompt: string; scene_description?: string }, r18: boolean): string {
+  if (panel.scene_description && panel.scene_description.trim()) {
+    return panel.scene_description.trim();
+  }
+  // Fallback: 使用 image_prompt 作为描述基线
+  const base = (panel.image_prompt || '').trim();
+  if (!base) return '角色保持画面构图，动作自然流畅。';
+  return base;
+}
+
+/**
+ * 为单个分镜生成 Shot 提示词（[Shot N] 对应<Picture N>，<description>）
+ *
+ * 输出格式严格对齐官方 H3 模板：
+ *   [Shot 1] 对应<Picture 1>，<motion description>
+ *   [Shot 2] At 00:01.800，对应<Picture 2>，<motion description>
+ *
+ * @param panelIndex 分镜序号 (从 1 开始)
+ * @param panelIndex 0-based index in panels array
+ * @param panel { image_prompt, scene_description }
+ * @param totalPanels 总分镜数
+ * @param duration 总视频时长（秒）
+ * @param r18 是否 R18
+ * @returns H3PanelShot 对象
+ */
+export function generateH3ShotPrompt(
+  panelIndex: number,  // 0-based
+  panel: { image_prompt: string; scene_description?: string },
+  totalPanels: number,
+  duration: number = 15,
+  r18: boolean = false,
+): H3PanelShot {
+  const pictureNumber = panelIndex + 1;
+  const shotNumber = pictureNumber;
+  const motion = extractMotionFromPanel(panel, r18);
+
+  // 计算时间戳：每个 Shot 持续 duration/totalPanels 秒
+  let timestamp: string | undefined;
+  if (shotNumber > 1) {
+    const interval = duration / totalPanels;
+    const seconds = Math.round((shotNumber - 1) * interval * 1000) / 1000;
+    const mins = Math.floor(seconds / 60);
+    const secs = (seconds % 60).toFixed(3).padStart(6, '0');
+    timestamp = `${String(mins).padStart(2, '0')}:${secs}`;
+  }
+
+  let shotPrompt: string;
+  if (shotNumber === 1) {
+    shotPrompt = `[Shot ${shotNumber}] 对应<Picture ${pictureNumber}>，${motion}`;
+  } else {
+    shotPrompt = `[Shot ${shotNumber}] At ${timestamp}，对应<Picture ${pictureNumber}>，${motion}`;
+  }
+
+  return {
+    panelIndex: pictureNumber,
+    pictureNumber,
+    timestamp,
+    shotPrompt,
+  };
+}
+
+/**
+ * 批量为多个分镜生成 Shot 提示词
+ */
+export function generateH3ShotPromptsForPanels(
+  panels: { image_prompt: string; scene_description?: string }[],
+  duration: number = 15,
+  r18: boolean = false,
+): Map<number, H3PanelShot> {
+  const result = new Map<number, H3PanelShot>();
+  const total = panels.length;
+  panels.forEach((panel, idx) => {
+    const shot = generateH3ShotPrompt(idx, panel, total, duration, r18);
+    result.set(shot.panelIndex, shot);
+  });
+  return result;
+}
+
+/**
+ * 生成 H3 共享部分 (subject_definitions, summary, retention_analysis,
+ * detailed_description intro, overall_soundscape, non_diegetic_music)。
+ *
+ * 这部分在一次生图中只生成一次，最终在调用长视频 v1.1 时
+ * 与每个分镜的 Shot 提示词拼接成完整的 H3 提示词。
+ */
+export function generateH3CommonParts(
+  panels: { image_prompt: string; scene_description?: string }[],
+  options: {
+    duration?: number;
+    r18?: boolean;
+    sceneDescription?: string;
+    subjectDescriptions?: string[];
+  } = {},
+): H3CommonParts {
+  const { duration = 15, r18 = false, sceneDescription, subjectDescriptions = [] } = options;
+
+  // 用一个虚拟的 imageUrls 长度代表 Picture 数量
+  const virtualImageUrls = Array(panels.length).fill('placeholder');
+  const effectiveSubjectDescs = subjectDescriptions.length === panels.length
+    ? subjectDescriptions
+    : panels.map((p, i) => {
+        // 从第一个图片提示词中提取简短主体描述
+        const cleaned = (p.image_prompt || '').replace(/\[.*?\]/g, '').replace(/\s+/g, ' ').trim();
+        if (cleaned.length > 80) {
+          return cleaned.slice(0, 80).trim() + '…';
+        }
+        return cleaned || `<Picture ${i + 1}> 中的角色`;
+      });
+
+  return {
+    subjectDefinitions: buildSubjectDefinitions(virtualImageUrls, effectiveSubjectDescs, r18),
+    summary: buildSummary(virtualImageUrls, r18, sceneDescription),
+    retentionAnalysis: buildRetentionAnalysis(virtualImageUrls, r18),
+    detailedDescriptionIntro: r18
+      ? '目标视频采用真实感、电影级成人片风格，暧昧氛围灯光，自然音效。'
+      : '目标视频采用真实感、电影级风格，自然光照明，氛围音效。',
+    overallSoundscape: buildSoundscape(r18),
+    nonDiegeticMusic: buildMusic(),
+  };
+}
+
+/**
+ * 将共享部分和每个分镜的 Shot 提示词拼接成完整 H3 提示词。
+ */
+export function assembleH3Prompt(
+  commonParts: H3CommonParts,
+  shotPrompts: H3PanelShot[],
+  duration: number = 15,
+): string {
+  const shotLines = shotPrompts.map((s) => s.shotPrompt);
+
+  // detailed_description 由 intro + shots 拼接
+  const detailedDescription = [
+    'detailed_description:',
+    commonParts.detailedDescriptionIntro,
+    ...shotLines,
+  ].join('\n');
+
+  const parts = [
+    commonParts.subjectDefinitions,
+    commonParts.summary,
+    commonParts.retentionAnalysis,
+    detailedDescription,
+    commonParts.overallSoundscape,
+    commonParts.nonDiegeticMusic,
+  ];
+
+  return parts.join('\n\n');
+}
+
+/**
+ * 一次性函数：批量生成分镜 Shot 提示词 + 共享部分。
+ * 返回 { shotPrompts: Map, commonParts } 供 UI 层缓存，
+ * 后续上传时调用 assembleH3Prompt 拼接完整提示词。
+ */
+export function generateH3PromptsForPanelsV2(
+  panels: { image_prompt: string; scene_description?: string }[],
+  options: {
+    duration?: number;
+    r18?: boolean;
+    sceneDescription?: string;
+    subjectDescriptions?: string[];
+  } = {},
+): { shotPrompts: Map<number, H3PanelShot>; commonParts: H3CommonParts } {
+  const { duration = 15, r18 = false } = options;
+  return {
+    shotPrompts: generateH3ShotPromptsForPanels(panels, duration, r18),
+    commonParts: generateH3CommonParts(panels, options),
+  };
+}

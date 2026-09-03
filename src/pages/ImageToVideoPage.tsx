@@ -2231,6 +2231,8 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
 
   // 长视频 v1.1 初始参考图（从历史记录跳转时设置，由 NinfiniteLongVideoPage 一次性消费）
   const [nlInitialImage, setNlInitialImage] = useState<{ path: string; preview: string } | null>(null);
+  // 长视频 v1.1 初始多张参考图（来自剧情分镜批量上传）
+  const [nlInitialImages, setNlInitialImages] = useState<Array<{ path: string; preview: string }> | null>(null);
   // 长视频 v1.1 初始提示词（来自 H3 提示词引擎）
   const [nlInitialPrompt, setNlInitialPrompt] = useState<string | null>(null);
 
@@ -2359,6 +2361,8 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
       const historyData = sessionStorage.getItem('history_img2vid');
       // H3 提示词引擎 → 长视频 1.1：预填图片和 H3 提示词
       const h3LongVideoData = sessionStorage.getItem('storyboard_h3_longvideo');
+      // 剧情分镜批量 → 长视频 1.1：多图 + 完整 H3 提示词
+      const h3BatchLongVideoData = sessionStorage.getItem('storyboard_h3_longvideo_batch');
       // 随机抽卡 → 长视频 1.1：预填图片和提示词（如果有的话）
       const randomLongVideoData = sessionStorage.getItem('random_longvideo_v1_1');
 
@@ -2389,6 +2393,28 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
           onSuccess?.('已从剧情分镜导入图片和 H3 提示词到长视频 1.1');
         } catch (err) {
           console.warn('[ImageToVideoPage] Failed to process storyboard_h3_longvideo:', err);
+        }
+      }
+      // 处理剧情分镜批量 → 长视频 1.1 数据（多图 + 完整 H3 提示词）
+      if (h3BatchLongVideoData) {
+        sessionStorage.removeItem('storyboard_h3_longvideo_batch');
+        try {
+          const { images: batchImages, h3Prompt: batchH3Prompt, totalPanels } = JSON.parse(h3BatchLongVideoData);
+          // 切换到长视频 1.1 模型
+          setVideoModel('longvideov2');
+          // 设置多张参考图（用于 NinfiniteLongVideoPage 的多图 slots）
+          if (Array.isArray(batchImages) && batchImages.length > 0) {
+            setNlInitialImages(batchImages);
+            // 同时设置 slot 0 的图片（向后兼容）
+            setNlInitialImage({ path: batchImages[0].path, preview: batchImages[0].preview || batchImages[0].path });
+          }
+          // 设置完整 H3 提示词
+          if (batchH3Prompt) {
+            setMlH3Prompt(batchH3Prompt);
+          }
+          onSuccess?.(`已从剧情分镜批量导入 ${batchImages?.length || 0}/${totalPanels || '?'} 张图片 + 完整 H3 提示词到长视频 1.1`);
+        } catch (err) {
+          console.warn('[ImageToVideoPage] Failed to process storyboard_h3_longvideo_batch:', err);
         }
       }
       // 处理随机抽卡 → 长视频 1.1 数据
@@ -2938,6 +2964,7 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
           onError={onError}
           onSuccess={onSuccess}
           initialImage={nlInitialImage}
+          initialImages={nlInitialImages}
           initialPrompt={nlInitialPrompt}
         />
       )}
