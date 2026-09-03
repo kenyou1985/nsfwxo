@@ -4,17 +4,21 @@ import asyncio
 import json
 import logging
 import re
-from typing import AsyncIterator, List, Optional, Union
+from typing import AsyncIterator, List, Optional, Union, Tuple
 from openai import AsyncOpenAI, APIError, AuthenticationError, RateLimitError
 
 logger = logging.getLogger(__name__)
 
 OPENLUX_BASE_URL = "https://api.openlux.ai/v1"
+# 优化模型顺序：优先 grok-4.6（更快更强），失败时快速切换到 grok-4.3
 MODEL_NAME = "grok-4.6"
 MODEL_FALLBACK = "grok-4.3"
-REQUEST_TIMEOUT = 90
-MAX_RETRIES = 3
+# 优化超时：增加超时时间以处理大输出
+REQUEST_TIMEOUT = 60  # 60 秒超时
+MAX_RETRIES = 2      # 减少重试次数，加快失败检测
 _RETRY_BASE_DELAY = 1
+# 增加到 16384 tokens 以支持更长的输出（避免截断问题）
+MAX_COMPLETION_TOKENS = 16384
 
 
 _REFUSAL_PATTERNS = [
@@ -39,6 +43,86 @@ def _is_refusal(text: str) -> bool:
         return False
     for pat in _REFUSAL_PATTERNS:
         if pat.search(text):
+            return True
+    return False
+
+
+def _salvage_truncated_json(text: str) -> tuple[Optional[str], bool]:
+    """
+    尝试从截断的文本中提取可用的 JSON。
+    如果文本以 .... 结尾但 JSON 本身完整，视为正常返回（ends_with_dots=False）。
+    如果 JSON 真的不完整（需要提取），返回 ends_with_dots=True。
+    返回 (清理后的文本, 是否真正截断) 元组。
+    - 如果 JSON 完整且可用，返回 (文本, False)
+    - 如果 JSON 真的不完整（需要从中间提取），返回 (提取的JSON, True)
+    - 如果无法提取可用 JSON，返回 (None, False)
+    """
+    if not text:
+        return None, False
+    
+    stripped = text.rstrip()
+    ends_with_dots = stripped.endswith('....') or stripped.endswith('...')
+    
+    # 如果以 .... 或 ... 结尾，尝试移除截断标记
+    if stripped.endswith('....'):
+        candidate = stripped[:-4]
+    elif stripped.endswith('...'):
+        candidate = stripped[:-3]
+    else:
+        candidate = stripped
+    
+    # 移除 markdown 代码块标记
+    if candidate.startswith("```"):
+        candidate = re.sub(r"^```(?:json)?\s*", "", candidate)
+        candidate = re.sub(r"\s*```$", "", candidate)
+    
+    candidate = candidate.strip()
+    if not candidate:
+        return None, ends_with_dots
+    
+    # 尝试解析 JSON（完整解析）
+    try:
+        parsed = json.loads(candidate)
+        # JSON 完整！即使末尾有 .... 标记，JSON 也是有效的
+        # 返回 ends_with_dots=False，告知调用方这是正常输出，不需要重试
+        return candidate, False
+    except json.JSONDecodeError:
+        pass
+    
+    # JSON 不完整，尝试提取 JSON 对象或数组
+    for pattern in [
+        r'\{[\s\S]*\}',  # 对象
+        r'\[[\s\S]*\]',   # 数组
+    ]:
+        match = re.search(pattern, candidate)
+        if match:
+            try:
+                json.loads(match.group())
+                # 提取到了可用的 JSON，说明原文本确实被截断了
+                return match.group(), True
+            except json.JSONDecodeError:
+                continue
+    
+    # 无法提取可用 JSON，返回 None
+    return None, ends_with_dots
+
+
+def _is_truncated(text: str) -> bool:
+    """检测模型输出是否被截断（以 .... 或 ... 结尾，或以不完整句子结尾）。"""
+    if not text:
+        return False
+    stripped = text.rstrip()
+    # 以 3 个或以上句点结尾（模型截断标志）
+    if stripped.endswith('....') or stripped.endswith('...'):
+        return True
+    # 以逗号、冒号、连字符等明显未完成的标点结尾
+    if stripped.endswith(',') or stripped.endswith(':') or stripped.endswith('-') or stripped.endswith('–'):
+        return True
+    # 最后一个完整句子没有句号，且文本长度超过 100 字（正常提示词应有完整句子）
+    sentences = stripped.split('.')
+    if len(sentences) >= 2:
+        last_sentence = sentences[-1].strip()
+        if last_sentence and not last_sentence.endswith('?') and not last_sentence.endswith('!') and len(stripped) > 100:
             return True
     return False
 
@@ -70,12 +154,37 @@ async def _call_model_single(
                 model=model_name,
                 messages=messages,
                 temperature=0.7,
+                max_completion_tokens=MAX_COMPLETION_TOKENS,
             )
             result_text = response.choices[0].message.content
             logger.info(
                 f"[LLM] model={model_name} raw response (len={len(result_text) if result_text else 0}): "
                 f"{result_text[:500] if result_text else 'EMPTY'}"
             )
+            
+            # 检测输出是否被截断
+            if _is_truncated(result_text):
+                # 尝试从截断的输出中提取可用的 JSON
+                salvage_text, was_truly_truncated = _salvage_truncated_json(result_text)
+                if salvage_text:
+                    # 只有真正截断时才输出警告，JSON 完整只是末尾有 .... 标记的不警告
+                    if was_truly_truncated:
+                        logger.warning(
+                            f"[LLM] model={model_name} output truncated but salvaged JSON "
+                            f"(original len={len(result_text)}, salvaged len={len(salvage_text)})"
+                        )
+                    return salvage_text
+                
+                # 无法 salvage，严格重试
+                if retry < MAX_RETRIES - 1:
+                    logger.warning(
+                        f"[LLM] model={model_name} output truncated, could not salvage JSON, "
+                        f"retry {retry+1}/{MAX_RETRIES}"
+                    )
+                    continue
+                raise OpenLuxTruncationError(
+                    f"模型输出被截断（可能因 token 限制）: {result_text[-200:]}"
+                )
             if _is_refusal(result_text):
                 if retry < MAX_RETRIES - 1:
                     logger.warning(
@@ -244,6 +353,7 @@ async def _stream_model_single(
                 model=model_name,
                 messages=messages,
                 temperature=0.7,
+                max_completion_tokens=MAX_COMPLETION_TOKENS,
                 stream=True,
             )
             collected_parts: List[str] = []
@@ -391,6 +501,11 @@ class OpenLuxRateLimitError(Exception):
 
 class OpenLuxTimeoutError(Exception):
     """请求超时"""
+    pass
+
+
+class OpenLuxTruncationError(Exception):
+    """模型输出被截断（检测到 .... 或不完整句子结尾）"""
     pass
 
 

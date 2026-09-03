@@ -557,9 +557,7 @@ export function resolveImageRef(ref: string): string {
   if (ref.startsWith('data:') || ref.startsWith('blob:') || ref.startsWith('http')) return ref;
   if (ref.startsWith('FALLBACK:')) return ref.replace('FALLBACK:', '');
   const entry = _memStore[ref];
-  if (!entry) {
-    console.warn('[resolveImageRef] ref not found in cache:', ref, '(store has', Object.keys(_memStore).length, 'entries)');
-  }
+  // 静默处理缓存未命中的情况（当缓存为空或数据已过期时会出现）
   return entry?.dataUrl || '';
 }
 

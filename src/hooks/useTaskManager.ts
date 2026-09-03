@@ -504,8 +504,9 @@ export function useTaskManager({
       inFlightRef.current.delete(task.id);
       drainPendingQueueRef.current();
 
-      // Skip extraction if restoreTasks is already handling this task
-      if (restoringRef.current[task.id]) {
+      // Skip extraction if another path is already handling this task
+      // (restoreTasks sets restoringRef, submitTask sets imagesExtractedRef)
+      if (restoringRef.current[task.id] || imagesExtractedRef.current[task.id]) {
         setTasks((prev) =>
           prev.map((t) =>
             t.id === task.id ? { ...t, status: 'FINISHED' as TaskStatus, zipUrl, coins, elapsedSeconds: elapsed } : t
@@ -665,6 +666,8 @@ export function useTaskManager({
 
           if (initialStatus === 'FINISHED') {
             pollingRef.current[id] = true;
+            // Mark as extracted so pollTask skips duplicate extraction
+            imagesExtractedRef.current[id] = true;
             const taskToExtract: QueuedTask = { ...task, taskId, zipUrl: initialZipUrl, coins: initialCoins, elapsedSeconds: initialElapsed, images: initialDirectImages };
             extractFinishedTaskImages(taskToExtract, currentApiKey, taskId)
               .then(({ updatedTask }) => {
@@ -854,6 +857,8 @@ export function useTaskManager({
 
             if (initialStatus === 'FINISHED') {
               pollingRef.current[newId] = true;
+              // Mark as extracted so pollTask skips duplicate extraction
+              imagesExtractedRef.current[newId] = true;
               const taskToExtract: QueuedTask = { ...newTask, taskId, zipUrl: initialZipUrl, coins: initialCoins, elapsedSeconds: initialElapsed, images: initialDirectImages };
               extractFinishedTaskImages(taskToExtract, currentApiKey, taskId)
                 .then(({ updatedTask }) => {

@@ -17,16 +17,82 @@ interface VideoTask {
   nodeInfoList: NodeInfo[];
 }
 
+// ─── localStorage 配额保护 ─────────────────────────────────────────────────────
+// localStorage 默认上限 ~5MB；保留在内存里的大对象（例如从 ZIP 解出的 data:image/jpeg;base64,...，
+// 单帧常常 1~3 MB，几张合起来轻松破限额）一旦序列化进去就会触发 QuotaExceededError。
+// 这里把"重的字段"集中处理：data URL 一律剥掉，只保留 CDN/直链/小文本。
+type StrippedVideoTask = Omit<VideoTask, 'images' | 'imagePreview'> & {
+  imagePreview: string;
+  images: string[];
+};
+
+function stripHeavyMedia(task: VideoTask): StrippedVideoTask {
+  return {
+    ...task,
+    // images[] 里 data: URL 直接丢掉（恢复出来时失去的图不影响任务元数据，
+    // 用户可以从历史记录或重新查询时再拉）
+    images: task.images.filter((u) => !!u && !u.startsWith('data:')),
+    // imagePreview 是上传时给的缩略图 (blob: URL)，刷新后必然失效，留空即可
+    imagePreview: '',
+  };
+}
+
+/**
+ * 把数组按限额逐级降级写入 localStorage；任何一次成功立刻返回。
+ * 失败的极端情况下退化为"清空 key"，避免抛错影响主流程。
+ */
+function tryPersistWithFallback(
+  storageKey: string,
+  buildPayload: (cap: number) => unknown,
+  caps: number[],
+  onSuccess: (label: string) => void,
+): void {
+  let lastError: unknown = null;
+  for (const cap of caps) {
+    try {
+      const payload = buildPayload(cap);
+      const json = JSON.stringify(payload);
+      localStorage.setItem(storageKey, json);
+      onSuccess(`cap=${cap}, ${(json.length / 1024).toFixed(1)} KB`);
+      return;
+    } catch (e) {
+      lastError = e;
+      const msg = e instanceof Error ? e.message : String(e);
+      // QuotaExceededError 是 storage 满了，其他错误应当抛上去给上层 try/catch
+      if (!/quota/i.test(msg) && !(e instanceof DOMException && e.name === 'QuotaExceededError')) {
+        // 非配额错误直接吞掉，避免页面崩溃；记录日志供排查
+        console.warn(`[VideoTaskList] persist ${storageKey} failed at cap=${cap}:`, e);
+        return;
+      }
+      console.warn(`[VideoTaskList] persist ${storageKey} cap=${cap} exceeded quota, retrying smaller:`, e);
+    }
+  }
+  // 所有 cap 都装不下 → 清空以避免下一次刷新继续炸
+  console.warn(`[VideoTaskList] persist ${storageKey} all caps failed, clearing. lastError:`, lastError);
+  try { localStorage.removeItem(storageKey); } catch { /* ignore */ }
+}
+
 interface VideoTaskListProps {
   apiKey: string;
   onError: (msg: string) => void;
   onSuccess: (msg: string) => void;
   maxTasks?: number;
   workflowId?: string;  // 默认工作流 ID，可被外部覆盖
+  onTaskComplete?: (result: VideoTaskCompleteResult) => void; // 任务完成时回调，暴露完整结果
 }
 
 export interface VideoTaskListHandle {
   submitTask: (prompt: string, imagePath: string, imagePreview: string, nodeInfoList: NodeInfo[], workflowId?: string) => void;
+}
+
+interface VideoTaskCompleteResult {
+  task: VideoTask;
+  results: {
+    url: string;
+    nodeId: string;
+    outputType: string;
+    text: string | null;
+  }[];
 }
 
 /** 检查 data URL 或普通 URL 是否是视频 */
@@ -319,25 +385,30 @@ function VideoTaskCard({ task, onCancel, onRegenerate, onSelectForRegenerate }: 
   );
 }
 
-export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>(({ apiKey, onError, onSuccess, maxTasks = 10, workflowId: defaultWorkflowId }, ref) => {
+export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>(({ apiKey, onError, onSuccess, maxTasks = 10, workflowId: defaultWorkflowId, onTaskComplete }, ref) => {
   // Restore ALL tasks from localStorage, including completed ones (within 24h).
   // Previously only QUEUEING/RUNNING tasks were restored, causing completed tasks
   // submitted from other pages (e.g. smart storyboard) to disappear on return.
+  // 兼容两种持久化格式：
+  //   - v2: { v: 2, tasks: VideoTask[] }
+  //   - v1 (旧): 直接是 VideoTask[]
   const [tasks, setTasks] = useState<VideoTask[]>(() => {
     try {
       const saved = localStorage.getItem('nsfwxo_video_tasks');
-      if (saved) {
-        const parsed = JSON.parse(saved) as VideoTask[];
-        const ONE_DAY_MS = 24 * 60 * 60 * 1000;
-        const filtered = parsed.filter((t) => {
-          if (t.status === 'FINISHED' || t.status === 'FAILED') {
-            return t.startTime > Date.now() - ONE_DAY_MS;
-          }
-          return true;
-        });
-        console.log(`[VideoTaskList] Restored ${filtered.length}/${parsed.length} tasks from localStorage:`, filtered.map((t) => ({ id: t.id, status: t.status, taskId: t.taskId })));
-        return filtered;
-      }
+      if (!saved) return [];
+      const raw = JSON.parse(saved);
+      const parsed: VideoTask[] = Array.isArray(raw)
+        ? (raw as VideoTask[])
+        : (raw && Array.isArray(raw.tasks) ? (raw.tasks as VideoTask[]) : []);
+      const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+      const filtered = parsed.filter((t) => {
+        if (t.status === 'FINISHED' || t.status === 'FAILED') {
+          return t.startTime > Date.now() - ONE_DAY_MS;
+        }
+        return true;
+      });
+      console.log(`[VideoTaskList] Restored ${filtered.length}/${parsed.length} tasks from localStorage:`, filtered.map((t) => ({ id: t.id, status: t.status, taskId: t.taskId })));
+      return filtered;
     } catch {
       // ignore
     }
@@ -352,14 +423,31 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
   const saveToHistoryRef = useRef<(task: VideoTask) => void>(() => {});
 
   useEffect(() => {
-    // Persist all tasks to localStorage so they survive navigation and page refresh.
-    // VideoTaskList restores from here on mount, so we keep all tasks (active + completed).
-    try {
-      localStorage.setItem('nsfwxo_video_tasks', JSON.stringify(tasks));
-      console.debug(`[VideoTaskList] Persisted ${tasks.length} tasks to localStorage:`, tasks.map((t) => ({ id: t.id, status: t.status })));
-    } catch (e) {
-      console.warn('[VideoTaskList] Failed to persist tasks to localStorage:', e);
-    }
+    // 持久化任务到 localStorage。
+    //
+    // localStorage 默认配额只有 ~5MB；不收敛的话：
+    //   - images[] 里的 data: URL（ZIP 解压产物）单帧可达几 MB；
+    //   - 多条已完成任务叠加后 setItem 直接 QuotaExceeded，
+    //     React useEffect 会把组件抛进 commit error，把整个页面卡住。
+    //
+    // 因此这里做了三层收紧：
+    //   1. 序列化前用 stripHeavyMedia 剥掉 data URL；
+    //   2. 用 tryPersistWithFallback 按 cap 阶梯 (30 → 10 → 5) 尝试；
+    //   3. 全部失败就清掉这个 key，下一轮重新累积，避免持续抛 quota 阻塞 commit。
+    tryPersistWithFallback(
+      'nsfwxo_video_tasks',
+      (cap) => ({
+        v: 2, // schema 版本号，跟读取端配套
+        tasks: tasks.slice(0, cap).map(stripHeavyMedia),
+      }),
+      [30, 10, 5],
+      (label) => {
+        console.debug(
+          `[VideoTaskList] Persisted ${Math.min(tasks.length, 30)} tasks (${label}) to localStorage`,
+          tasks.slice(0, Math.min(tasks.length, 30)).map((t) => ({ id: t.id, status: t.status })),
+        );
+      },
+    );
   }, [tasks]);
 
   useEffect(() => { onErrorRef.current = onError; }, [onError]);
@@ -372,7 +460,8 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
       const record = {
         id: `${task.id}-${Date.now()}`,
         prompt: task.prompt,
-        images: task.images,
+        // 同样剥掉 data URL，避免历史记录持续放大触发 QuotaExceededError
+        images: task.images.filter((u) => !!u && !u.startsWith('data:')),
         coins: task.coins,
         taskId: task.taskId,
         nodeInfoList: task.nodeInfoList,
@@ -380,7 +469,15 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
       };
       records.unshift(record);
       if (records.length > 50) records.splice(50);
-      localStorage.setItem('nsfwxo_video_history', JSON.stringify(records));
+      // 按 50 → 20 → 5 阶梯写入，仍失败则清掉历史记录
+      tryPersistWithFallback(
+        'nsfwxo_video_history',
+        (cap) => records.slice(0, cap),
+        [50, 20, 5],
+        (label) => {
+          console.debug(`[VideoTaskList] saveToHistory: kept ${Math.min(records.length, 50)} records (${label})`);
+        },
+      );
     } catch (e) {
       console.warn('Failed to save video to history:', e);
     }
@@ -552,6 +649,8 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
           if (images.length > 0) {
             onSuccessRef.current?.(`生成完成！${coins ? `消耗 ${coins} 币` : ''}`);
           }
+          // Fire onTaskComplete callback with full results (for enhanced prompt, etc.)
+          onTaskComplete?.({ task: updatedTask, results: outputs.results ?? [] });
         } else if (newStatus === 'FAILED') {
           // Pull the actual failure detail (failedReason) from getTaskResults so
           // the user can see *why* the workflow failed (e.g. node 551 / SaveStringKJ

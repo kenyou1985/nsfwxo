@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Video, Image as ImageIcon, Loader2, X, Upload, Sparkles } from 'lucide-react';
+import { Video, Image as ImageIcon, Loader2, X, Upload, Sparkles, Copy, Check } from 'lucide-react';
 import { uploadImage } from '../services/runninghub';
 import { ImageUploader } from '../components/ImageUploader';
 import { GenerateButton } from '../components/GenerateButton';
@@ -29,6 +29,8 @@ const NODE = {
   prompt:         '205',         // value, 提示词
   // node 465: 官方 curl 存在，文档未说明用途（待确认）
   node465:        '465',
+  // 二采放大目标分辨率 (node 483)
+  upscaleTarget:  '483',
   refImage1:      '368',        // image, 参考图1
   refImage2:      '361',        // image, 参考图2
   refImage3:      '362',        // image, 参考图3
@@ -38,6 +40,9 @@ const NODE = {
   refImage7:      '366',        // image, 参考图7
   refImage8:      '367',        // image, 参考图8
   refImage9:      '356',        // image, 参考图9
+  // node 168 是工作流图内的 easy convertAnything 节点 (ComfyUI-Easy-Use)；
+  // 官方 V1.1 curl 请求体里不包含它 —— 不要通过 nodeInfoList 强行注入。
+  easyConvertAnything: '168',
 } as const;
 
 // ── 参数选项 ──────────────────────────────────────────────────────────────────
@@ -51,18 +56,22 @@ const DURATION_PRESETS = [
 ];
 
 const UNET_MODEL_OPTIONS = [
-  { value: '0', label: '0 - 默认 UNet 模型' },
+  { value: '0', label: '608x352 (0.2M)' },
+  { value: '1', label: '864x480 (0.4M)' },
+  { value: '2', label: '960x544 (0.5M)' },
+  { value: '3', label: '1152x640 (0.7M)' },
+  { value: '4', label: '1280x736 (0.9M)' },
+  { value: '5', label: '1504x832 (1.2M)' },
+  { value: '6', label: '1824x1024 (1.8M)' },
 ];
 
 const ASPECT_RATIO_OPTIONS = [
-  { value: '0', label: '16:9 (横版)' },
-  { value: '1', label: '1:1 (方形)' },
-  { value: '2', label: '2:3 (竖向照片)' },
-  { value: '3', label: '3:4 (竖向标准)' },
-  { value: '4', label: '4:3 (横向标准)' },
-  { value: '5', label: '9:16 (竖屏)' },
-  { value: '6', label: '21:9 (超宽)' },
-  { value: '7', label: '原生比例' },
+  { value: '2', label: '2:3 竖向照片 (640×960)' },
+  { value: '3', label: '3:2 横向照片 (960×640)' },
+  { value: '4', label: '3:4 竖向标准 (704×960)' },
+  { value: '5', label: '4:3 横向标准 (960×704)' },
+  { value: '6', label: '9:16 竖屏 (448×832)' },
+  { value: '7', label: '16:9 横版 (832×480)' },
 ];
 
 const MODE_OPTIONS = [
@@ -76,6 +85,16 @@ const REF_RES_OPTIONS = [
   { value: '2', label: '736P' },
   { value: '3', label: '1024P' },
   { value: '4', label: '2048P' },
+];
+
+// 放大目标 (node 483) — 二采放大目标分辨率
+const UPSCALE_TARGET_OPTIONS = [
+  { value: '0', label: '544×320 (0.5m)' },
+  { value: '1', label: '800×448 (0.9m)' },
+  { value: '2', label: '1152×640 (1.5m)' },
+  { value: '3', label: '1504×832 (2.0m)' },
+  { value: '4', label: '1920×1088 (2.8m)' },
+  { value: '5', label: '2560×1440 (3.5m)' },
 ];
 
 const REFERENCE_IMAGE_NODE_IDS = [
@@ -95,40 +114,58 @@ interface NinfiniteLongVideoPageProps {
   onSuccess: (msg: string) => void;
   /** 初始参考图 (用于历史记录 → 长视频 v1.1 的场景，会被写入 slot 0) */
   initialImage?: { path: string; preview: string } | null;
+  /** 初始提示词 (用于 H3 提示词引擎 → 长视频 v1.1 的场景) */
+  initialPrompt?: string | null;
 }
 
-export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImage }: NinfiniteLongVideoPageProps) {
+export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImage, initialPrompt }: NinfiniteLongVideoPageProps) {
   // ── 表单状态 (默认值全部对齐官方 curl 示例) ────────────────────────────────
   const [images, setImages] = useState<ReferenceImage[]>(
     Array.from({ length: 9 }, () => ({ path: 'None', preview: '' }))
   );
 
   // ── 一次性注入初始参考图 (从历史记录跳转过来时) ────────────────────────────────
-  // 用 ref 防止后续 initialImage 变化再次覆盖用户已上传的图片
-  const appliedInitialRef = useRef(false);
+  // 使用 ref 来跟踪已应用的 initialPrompt 值，确保只应用一次
+  const appliedPromptRef = useRef<string | null>(null);
+  const appliedImageRef = useRef<string | null>(null);
   useEffect(() => {
-    if (appliedInitialRef.current) return;
-    if (!initialImage?.path) return;
-    appliedInitialRef.current = true;
-    setImages((prev) => {
-      const next = [...prev];
-      next[0] = { path: initialImage.path, preview: initialImage.preview };
-      return next;
-    });
-    onSuccess('已从历史记录导入图片到长视频 v1.1（参考图 1）');
-  }, [initialImage, onSuccess]);
+    // 注入初始提示词（来自 H3 提示词引擎）
+    // 只有当 initialPrompt 存在且与已应用的值不同时才应用
+    if (initialPrompt && initialPrompt !== appliedPromptRef.current) {
+      setPrompt(initialPrompt);
+      appliedPromptRef.current = initialPrompt;
+      onSuccess('已填入 H3 视频提示词');
+    }
+
+    // 注入初始参考图
+    // 只有当 initialImage.path 存在且与已应用的值不同时才应用
+    if (initialImage?.path && initialImage.path !== appliedImageRef.current) {
+      setImages((prev) => {
+        const next = [...prev];
+        next[0] = { path: initialImage.path, preview: initialImage.preview };
+        return next;
+      });
+      appliedImageRef.current = initialImage.path;
+      if (!initialPrompt) {
+        onSuccess('已从历史记录导入图片到长视频 v1.1（参考图 1）');
+      }
+    }
+  }, [initialImage, initialPrompt, onSuccess]);
   const [prompt, setPrompt] = useState<string>('图片1为男主，图片2为女主，生成两人约会的视频提示词');
   const [duration, setDuration] = useState<number>(60);
   const [customDuration, setCustomDuration] = useState<string>('');
   const [unetModelIndex, setUnetModelIndex] = useState<string>('0');
-  const [aspectRatioIndex, setAspectRatioIndex] = useState<string>('5');
+  const [aspectRatioIndex, setAspectRatioIndex] = useState<string>('6');
   const [mode, setMode] = useState<string>('1');
   const [refResolution, setRefResolution] = useState<string>('3');
   const [seed, setSeed] = useState<string>('111');
   const [randomizeSeed, setRandomizeSeed] = useState<boolean>(true);
   const [enableUpscale, setEnableUpscale] = useState<boolean>(false);
+  const [upscaleTarget, setUpscaleTarget] = useState<string>('1');
   const [promptEnhance, setPromptEnhance] = useState<boolean>(true);
   const [node465, setNode465] = useState<boolean>(false); // 官方 curl 中存在，文档未说明用途
+  const [enhancedPrompt, setEnhancedPrompt] = useState<string>(''); // 返回的优化提示词
+  const [enhancedPromptCopied, setEnhancedPromptCopied] = useState<boolean>(false); // 复制状态反馈
 
   const [uploading, setUploading] = useState<boolean>(false);
   const [submitting, setSubmitting] = useState<boolean>(false);
@@ -191,9 +228,6 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
   }, [apiKey, onSuccess, onError]);
 
   // ── 构建节点列表 — 100% 对齐官方 curl 示例 (description: null) ─────────────
-  // 注意：node 483 (upscaleLoraIndex) 所有选项均为 16:9 分辨率，
-  // 上传后处理 upscale 会强制将输出转为 16:9，覆盖 node 435 的画幅设置，
-  // 故不提交 node 483，保持原始生成画幅。
   const buildNodeList = useCallback((): NodeInfo[] => {
     const finalDuration = customDuration ? parseInt(customDuration, 10) || duration : duration;
     const finalSeed = randomizeSeed ? Math.floor(Math.random() * 1_000_000_000).toString() : seed;
@@ -204,6 +238,7 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
       { nodeId: NODE.aspectRatioIndex,   fieldName: 'index',  fieldValue: aspectRatioIndex,      description: null },
       { nodeId: NODE.modeSelect,        fieldName: 'select', fieldValue: mode,                  description: null },
       { nodeId: NODE.refImageResolution,fieldName: 'select', fieldValue: refResolution,         description: null },
+      { nodeId: NODE.upscaleTarget,    fieldName: 'index',  fieldValue: upscaleTarget,        description: null },
       { nodeId: NODE.randomSeed,        fieldName: 'value',  fieldValue: finalSeed,             description: null },
       { nodeId: NODE.enableUpscale,     fieldName: 'value',  fieldValue: String(enableUpscale), description: null },
       { nodeId: NODE.promptEnhance,     fieldName: 'value',  fieldValue: String(promptEnhance), description: null },
@@ -211,6 +246,11 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
       { nodeId: NODE.prompt,            fieldName: 'value',  fieldValue: prompt,                description: null },
     ];
 
+    // 注意：promptEnhance=true 成功的官方 curl 请求体里没有 node 168
+    // (也没出现 "could not convert string to float" 这个错)。之前在这里为 node 168
+    // 注入 `value` / `anything` 字段全部触发 NODE_INFO_MISMATCH。
+    // 既然工作流自己已经处理好了这个分支，就不要再提交 node 168。
+    //
     // 9 个图片节点, 未上传的填 'None' (与官方文档一致)
     REFERENCE_IMAGE_NODE_IDS.forEach((nodeId, idx) => {
       nodeInfoList.push({
@@ -223,8 +263,54 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
 
     return nodeInfoList;
   }, [customDuration, duration, unetModelIndex, aspectRatioIndex,
-      mode, refResolution, randomizeSeed, seed, enableUpscale, promptEnhance,
+      mode, refResolution, upscaleTarget, randomizeSeed, seed, enableUpscale, promptEnhance,
       node465, prompt, images]);
+
+  // ── 任务完成回调：提取返回的优化提示词 txt ────────────────────────────────
+  const handleTaskComplete = useCallback(async (result: {
+    results: { url: string; nodeId: string; outputType: string; text: string | null }[];
+  }) => {
+    // 找到 nodeId 为 497 的 txt 文件
+    const txtResult = result.results.find(
+      (r) => r.outputType === 'txt' || r.url?.endsWith('.txt')
+    );
+    if (!txtResult?.url) return;
+
+    try {
+      const resp = await fetch(txtResult.url);
+      if (!resp.ok) return;
+      const text = await resp.text();
+      setEnhancedPrompt(text);
+      onSuccess('已返回优化提示词，可在下方查看和编辑');
+    } catch (err) {
+      console.warn('[NinfiniteLongVideo] Failed to fetch enhanced prompt:', err);
+    }
+  }, [onSuccess]);
+
+  // ── 复制优化提示词到剪贴板 ──────────────────────────────────────────────
+  const handleCopyEnhancedPrompt = useCallback(async () => {
+    if (!enhancedPrompt.trim()) return;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(enhancedPrompt);
+      } else {
+        // Fallback: 使用传统 document.execCommand 方式
+        const ta = document.createElement('textarea');
+        ta.value = enhancedPrompt;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      setEnhancedPromptCopied(true);
+      setTimeout(() => setEnhancedPromptCopied(false), 1500);
+    } catch (err) {
+      console.warn('[NinfiniteLongVideo] Failed to copy prompt:', err);
+      onError('复制失败，请手动复制');
+    }
+  }, [enhancedPrompt, onError]);
 
   // ── 提交 ────────────────────────────────────────────────────────────────────
   const handleSubmit = useCallback(() => {
@@ -386,6 +472,42 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
             已锚定数字人: {selectedGirlfriend.nameZh || selectedGirlfriend.name}
           </div>
         )}
+        {/* 返回的优化提示词 */}
+        {enhancedPrompt && (
+          <div className="mt-3 p-3 rounded-lg bg-green-50 border border-green-200">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-green-700 flex items-center gap-1">
+                ✨ 优化提示词（可编辑）
+              </span>
+              <button
+                type="button"
+                onClick={handleCopyEnhancedPrompt}
+                disabled={!enhancedPrompt.trim()}
+                className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-green-600 hover:bg-green-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="一键复制优化提示词到剪贴板"
+              >
+                {enhancedPromptCopied ? (
+                  <>
+                    <Check size={12} />
+                    已复制
+                  </>
+                ) : (
+                  <>
+                    <Copy size={12} />
+                    一键复制
+                  </>
+                )}
+              </button>
+            </div>
+            <textarea
+              value={enhancedPrompt}
+              onChange={(e) => setEnhancedPrompt(e.target.value)}
+              rows={6}
+              className="w-full px-3 py-2 rounded-lg bg-white border border-green-200 text-sm text-green-800 focus:outline-none focus:border-green-400 resize-none font-mono"
+              placeholder="返回的优化提示词将在此显示..."
+            />
+          </div>
+        )}
       </div>
 
       {/* 时长 (核心参数) */}
@@ -447,9 +569,9 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
               </select>
             </div>
 
-            {/* UNet 模型 (node 417) */}
+            {/* 视频分辨率 (node 417) */}
             <div>
-              <label className="text-xs text-text-secondary block mb-1.5">UNet 模型 (node 417)</label>
+              <label className="text-xs text-text-secondary block mb-1.5">视频分辨率（推荐先用最低分辨率抽卡，再同种子放大）(node 417)</label>
               <select
                 value={unetModelIndex}
                 onChange={(e) => setUnetModelIndex(e.target.value)}
@@ -483,6 +605,19 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
                 className="w-full h-9 px-3 rounded-lg text-xs border border-border bg-bg-elevated text-text-primary focus:outline-none focus:border-primary appearance-none cursor-pointer"
               >
                 {REF_RES_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+              </select>
+            </div>
+
+            {/* 二采放大目标分辨率 (node 483) */}
+            <div>
+              <label className="text-xs text-text-secondary block mb-1.5">二采放大目标分辨率 (node 483)</label>
+              <select
+                value={upscaleTarget}
+                onChange={(e) => setUpscaleTarget(e.target.value)}
+                disabled={submitting}
+                className="w-full h-9 px-3 rounded-lg text-xs border border-border bg-bg-elevated text-text-primary focus:outline-none focus:border-primary appearance-none cursor-pointer"
+              >
+                {UPSCALE_TARGET_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
               </select>
             </div>
 
@@ -569,6 +704,7 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
         workflowId={WORKFLOW_ID}
         onError={onError}
         onSuccess={onSuccess}
+        onTaskComplete={handleTaskComplete}
       />
     </div>
   );

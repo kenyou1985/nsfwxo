@@ -179,6 +179,10 @@ export interface RandomHistoryItem {
     prompt: string;
     tags_used: Record<string, string[]>;
     theme_label: string;
+    /** H3 视频提示词（如果有） */
+    h3Prompt?: string;
+    /** 生成的图片 URL 列表 */
+    images?: string[];
   }[];
   timestamp: number;
 }
@@ -759,6 +763,12 @@ export interface RandomSession {
     prompt: string;
   }[];
   expandedIdx: number | null;
+  // Bug fix: h3Prompts is persisted so H3 video prompts survive page switches.
+  // genStates is NOT persisted here — its images field contains base64 data URLs
+  // (3-8 MB per session) that would exceed the ~5 MB sessionStorage quota.
+  // Images are recovered from taskManager.tasks via the relatedTasks fallback
+  // in PromptResultCard on mount.
+  h3Prompts: Record<number, string>;
 }
 
 export interface GeneratedCard {

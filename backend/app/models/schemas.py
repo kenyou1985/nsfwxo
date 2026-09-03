@@ -15,6 +15,7 @@ class ExpandRequest(BaseModel):
     reference_image_url: Optional[str] = Field(default=None, description="图生图参考图 URL，用于锚定参考图人物")
     img2img_mode: bool = Field(default=False, description="是否为图生图模式扩写")
     character_prompt: Optional[str] = Field(default=None, description="AI 数字人角色锚定提示词，启用数字人时传入")
+    model_order: Optional[List[str]] = Field(default=None, description="模型顺序，优先用第一个，失败则尝试后续模型")
 
 
 class ExpandResult(BaseModel):
@@ -39,6 +40,7 @@ class ExpandVideoFromImageRequest(BaseModel):
     scene_description: Optional[str] = Field(default=None, max_length=1000, description="用户希望的视频动作/镜头/表情描述")
     r18: bool = Field(default=False, description="是否启用 R18 模式")
     count: int = Field(default=1, ge=1, le=5, description="生成候选数量 1-5，默认 1")
+    model_order: Optional[List[str]] = Field(default=None, description="模型顺序，优先用第一个，失败则尝试后续模型")
 
 
 # ─── Random ───────────────────────────────────────────────────────────────────

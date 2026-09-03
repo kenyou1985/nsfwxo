@@ -187,6 +187,7 @@ export async function expandPrompt(
   referenceImageUrl?: string,
   img2imgMode: boolean = false,
   characterPrompt?: string,
+  modelOrder?: string[],
 ): Promise<ExpandResponse> {
   const base = getBackendUrl();
   const url = `${base}/api/prompt/expand`;
@@ -199,13 +200,16 @@ export async function expandPrompt(
     reference_image_url: referenceImageUrl || undefined,
     img2img_mode: img2imgMode || undefined,
     character_prompt: characterPrompt || undefined,
+    // model_order: 前端指定模型尝试顺序，后端 call_grok() 会在失败时自动切换
+    model_order: modelOrder,
   };
 
   console.log(`[expandPrompt] ➤ POST ${url}`);
   console.log(`[expandPrompt] body:`, JSON.stringify(body, null, 2));
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 300000); // 5 min
+  // 代理层超时上限约 120s，客户端超时设 90s 留余量
+  const timeout = setTimeout(() => controller.abort(), 90000);
   try {
     const response = await apiRequest<ExpandResponse>(
       url,
@@ -219,7 +223,7 @@ export async function expandPrompt(
     return response;
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
-      throw new Error('提示词扩写超时（5分钟），请重试');
+      throw new Error('提示词扩写超时（90秒），请重试');
     }
     throw err;
   } finally {
@@ -232,16 +236,21 @@ export async function expandPrompt(
  * 强制只输出人物动作 / 镜头 / 表情，不输出场景、背景、外观。
  * image_prompt 是"画面锚"（不要在输出中复述），scene_description 是
  * 用户希望看到的动作/镜头描述（要被扩写）。
+ * 
+ * @param timeoutMs 客户端超时（毫秒），默认 90000ms(90s)，retry 时可传入更长超时
  */
 export async function expandVideoFromImage(
   imagePrompt: string,
   sceneDescription: string,
   r18: boolean = false,
   count: number = 1,
+  modelOrder?: string[],
+  timeoutMs: number = 90000,
 ): Promise<ExpandResponse> {
   const base = getBackendUrl();
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 300000); // 5 min
+  // 代理层超时上限约 120s，默认客户端超时设 90s 留余量；retry 时可延长到 150s
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await apiRequest<ExpandResponse>(
       `${base}/api/prompt/expand/video-from-image`,
@@ -253,13 +262,14 @@ export async function expandVideoFromImage(
           scene_description: sceneDescription || undefined,
           r18,
           count,
+          model_order: modelOrder,
         }),
       },
     );
     return response;
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
-      throw new Error('动画提示词扩写超时（5分钟），请重试');
+      throw new Error(`视频提示词扩写超时（${Math.round(timeoutMs / 1000)}秒），请重试`);
     }
     throw err;
   } finally {
@@ -433,7 +443,8 @@ export async function generateStoryboardThemes(
   r18: boolean = false,
   count: number = 10,
   customDescription?: string,
-  asyncMode: boolean = false
+  asyncMode: boolean = false,
+  modelOrder?: string[],
 ): Promise<StoryboardThemesResponse> {
   const base = getBackendUrl();
   const controller = new AbortController();
@@ -449,6 +460,8 @@ export async function generateStoryboardThemes(
           count,
           ...(customDescription ? { custom_description: customDescription } : {}),
           async_mode: asyncMode,
+          // 优化：主模型 grok-4.6（更强），备用 grok-4.3
+          model_order: modelOrder || ['grok-4.6', 'grok-4.3'],
         }),
       },
     );
@@ -478,6 +491,7 @@ export async function generateStoryboardOutline(
   panelCount: number,
   r18: boolean = false,
   asyncMode: boolean = false,
+  modelOrder?: string[],
 ): Promise<StoryboardOutlineResponse> {
   const base = getBackendUrl();
   const controller = new AbortController();
@@ -488,7 +502,15 @@ export async function generateStoryboardOutline(
       {
         method: 'POST',
         signal: controller.signal as RequestInit['signal'],
-        body: JSON.stringify({ theme_id: themeId, theme_title: themeTitle, panel_count: panelCount, r18, async_mode: asyncMode }),
+        body: JSON.stringify({ 
+          theme_id: themeId, 
+          theme_title: themeTitle, 
+          panel_count: panelCount, 
+          r18, 
+          async_mode: asyncMode,
+          // 优化：主模型 grok-4.6（更强），备用 grok-4.3
+          model_order: modelOrder || ['grok-4.6', 'grok-4.3'],
+        }),
       },
     );
     return response;

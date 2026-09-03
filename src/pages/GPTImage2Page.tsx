@@ -946,7 +946,7 @@ export function GPTImage2Page({ yunwuKey, onError, onSuccess, historyRefreshKey,
             <button
               onClick={handleExpand}
               disabled={isExpanding || !prompt.trim()}
-              title="智能扩写：先用 grok-4.3，失败自动用 grok-4-1-fast"
+              title="智能扩写：先用 grok-4.6，失败自动用 grok-4.3"
               className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
                 isExpanding || !prompt.trim()
                   ? 'bg-bg-elevated text-text-secondary cursor-not-allowed'

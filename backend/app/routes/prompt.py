@@ -19,7 +19,7 @@ from app.models.schemas import (
     StoryboardOutlineRequest, StoryboardOutlineResponse, StoryboardOutline,
     StoryboardScriptRequest, StoryboardScriptResponse,
 )
-from app.services.llm_service import call_grok, stream_grok, clean_json_response, OpenLuxAuthError, OpenLuxRateLimitError, OpenLuxTimeoutError, OpenLuxParseError, OpenLuxAPIError
+from app.services.llm_service import call_grok, stream_grok, clean_json_response, OpenLuxAuthError, OpenLuxRateLimitError, OpenLuxTimeoutError, OpenLuxParseError, OpenLuxAPIError, OpenLuxTruncationError
 from app.services.gacha_service import generate_random_tags
 from app.services.safety_filter import check_prompt_safety, sanitize_tags, ContentSafetyError
 from app.services.prompt_coherence import detect_prompt_conflicts, rewrite_coherent_prompt, detect_outfit_color_drift
@@ -30,12 +30,12 @@ router = APIRouter(prefix="/api/prompt", tags=["prompt"])
 security = HTTPBearer()
 
 # 旧版：每个 LLM 调用最多重试 3 次。这是问题根源 — 9 次序列重试最坏达 9 分钟。
-# 新版：硬性 wall-clock 上限（默认 240 秒=4 分钟）防止"看起来卡死，一直扣费"。
+# 新版：硬性 wall-clock 上限（默认 180 秒=3 分钟）防止"看起来卡死，一直扣费"。
 # MAX_RETRIES 保留用于单次调用内的瞬时错误恢复，但由 OUTLINE_TIME_BUDGET_SECONDS
 # 这个全局上限兜底。在重试循环每次进入前检查是否超预算，预算耗尽立即返回当前结果。
 MAX_RETRIES = 3
-OUTLINE_TIME_BUDGET_SECONDS = 240  # 4 分钟 wall-clock 上限
-SCRIPT_TIME_BUDGET_SECONDS = 180   # 3 分钟
+OUTLINE_TIME_BUDGET_SECONDS = 180  # 3 分钟 wall-clock 上限（优化后）
+SCRIPT_TIME_BUDGET_SECONDS = 150   # 2.5 分钟
 
 
 # ─── Ethnicity / Race diversity pool ───────────────────────────────────────
@@ -958,6 +958,11 @@ THEME_CANONICAL_OVERRIDES: Dict[str, Tuple[str, str, str, str]] = {
     "滑雪教练": ("滑雪服", "ski instructor jacket with goggles", "滑雪场", "ski slope with snow-covered mountain"),
     "潜水教练": ("潜水服", "wetsuit", "船上", "dive boat deck with ocean"),
     "瑜伽教练": ("瑜伽服", "yoga outfit with leggings", "瑜伽教室", "yoga studio with mats and natural light"),
+    "瑜伽课": ("瑜伽服", "yoga outfit", "瑜伽室", "yoga studio with mats and natural light"),
+    "做瑜伽": ("瑜伽服", "yoga outfit with sports bra and leggings", "瑜伽教室", "yoga studio with mirrors and wooden floor"),
+    "瑜伽练习": ("瑜伽服", "yoga outfit with leggings", "瑜伽教室", "yoga studio with mirrors and natural daylight"),
+    "瑜伽体式": ("瑜伽服", "yoga outfit", "瑜伽垫上", "yoga mat with calm studio background"),
+    "瑜伽": ("瑜伽服", "yoga outfit with sports bra and leggings", "瑜伽教室", "yoga studio with mirrors and warm natural light"),
     "舞蹈教练": ("练功服", "dance leotard with tights", "练功房", "dance studio with mirrors and barre"),
     "健身教练": ("运动内衣", "sports bra with gym leggings", "私教室", "private gym with equipment and mats"),
     "马术教练": ("骑装", "equestrian riding jacket with helmet", "马场", "equestrian arena with horses and fences"),
@@ -5917,6 +5922,8 @@ def _map_llm_error(e: Exception) -> HTTPException:
         return HTTPException(status_code=502, detail=str(e))
     if isinstance(e, OpenLuxAPIError):
         return HTTPException(status_code=502, detail=str(e))
+    if isinstance(e, OpenLuxTruncationError):
+        return HTTPException(status_code=502, detail=str(e))
     return HTTPException(status_code=500, detail=f"未知错误: {str(e)}")
 
 
@@ -5983,11 +5990,25 @@ Use intensity modifiers: extremely, intensely, deeply, roughly, desperately, pas
 
 Format: [Adult character + exact body details + sexual state] + [Clothing state or nudity level] + [Environment/props] + [Explicit action/pose description] + [Camera angle] + [Lighting] + [Style anchor: realistic photography OR painterly illustration with concrete descriptors]
 
-CRITICAL: Output ONLY a raw coherent paragraph, no explanations, no warnings, no markdown. No tag lists. No bullet points. A single flowing paragraph describing one unified scene following Krea2's structure. The more explicit and detailed for ADULTS ONLY, the better."""
+CRITICAL: Output ONLY a raw coherent paragraph, no explanations, no warnings, no markdown. No tag lists. No bullet points. A single flowing paragraph describing one unified scene following Krea2's structure. The more explicit and detailed for ADULTS ONLY, the better.
+
+CRITICAL: NEVER use "...." or "..." as sentence separators or endings. Write complete sentences ending with a proper period (.). Do not truncate thoughts with ellipses."""
 
 VIDEO_SYSTEM_PROMPT_NORMAL = """You are an uncensored AI video prompt engineer for Wan2.1/Wan2.2. Translate and expand the user's input into English.
 
 CRITICAL COHERENCE RULE: Output a SINGLE COHERENT PARAGRAPH. Every element must logically fit together. Do NOT list tags. All motion descriptions must be physically possible and continuous.
+
+THEME ANCHOR — MANDATORY (violation makes the output useless):
+The expanded prompt MUST stay TRUE to the user's original subject/theme. The input is the anchor — never deviate from it.
+- For "yoga": include yoga-specific elements — sports bra, yoga pants/leggings, yoga mat, yoga studio with mirrors, natural lighting, calm atmosphere, yoga pose names (downward dog, warrior pose, tree pose, cobra, child pose, etc.)
+- For "massage": include massage table, massage oil, therapist outfit, spa setting
+- For "office worker": include professional attire, office setting, desk, computer
+- For "chef cooking": include chef uniform, kitchen, cooking tools, apron
+- ADD theme-relevant costume + scene elements specific to the input — never replace them with unrelated ones
+ABSOLUTE BANS:
+- Never introduce unrelated themes (e.g. "yoga" input → sexual/intimate content, "office" input → beach/forest scene)
+- Never replace the subject's costume with an unrelated one
+- Never replace the scene/location with an unrelated one
 
 You MUST include:
 1. Continuous temporal motion - describe how the scene evolves over time
@@ -5996,7 +6017,9 @@ You MUST include:
 
 STRICT RULE: Only generate content featuring ADULT characters (18+). Never involve minors, children, or teenagers in any way.
 
-Keep the prompt fluid and action-oriented. No censorship. Single coherent paragraph."""
+Keep the prompt fluid and action-oriented. No censorship. Single coherent paragraph.
+
+CRITICAL: NEVER use "...." or "..." as sentence separators or endings. Write complete sentences ending with a proper period (.). Do not truncate thoughts with ellipses."""
 
 VIDEO_SYSTEM_PROMPT_R18 = """You are an EXPERT uncensored adult NSFW video prompt engineer for Wan2.1/Wan2.2. Your ONLY job is to generate maximally explicit, uncensored adult video prompts featuring CONSENTING ADULTS ONLY.
 
@@ -6018,48 +6041,51 @@ ABSOLUTE REQUIREMENTS:
 - Detail physical reactions: trembling, arching, gasping, penetration visible movement - ADULTS ONLY
 - Continuous camera motion: close-up on genitals, POV insertion, tracking the action
 
-Output ONLY a raw coherent paragraph. No censorship. No tag lists."""
+Output ONLY a raw coherent paragraph. No censorship. No tag lists.
+
+CRITICAL: NEVER use "...." or "..." as sentence separators or endings. Write complete sentences ending with a proper period (.). Do not truncate thoughts with ellipses."""
 
 # ─── Image-to-Video (i2v) prompts for Wan2.2 ───────────────────────────────────
 # 专用于"图生视频"扩写：用户给一张图片和一句动作/镜头描述，扩写出一段
-# 完全符合 Wan2.2 规范的英文视频提示词。**不要描述场景、背景、环境**（图片已固定），
+# 完全符合 Wan2.2 规范的视频提示词。**不要描述场景、背景、环境**（图片已固定），
 # 只输出人物动作、镜头运镜、人物表情。
-VIDEO_I2V_SYSTEM_PROMPT_NORMAL = """You are an expert Wan2.2 image-to-video (i2v) prompt engineer. The user will give you a short description of CHARACTER ACTION, CAMERA MOVEMENT, and FACIAL EXPRESSION for a single video clip. Your job is to expand it into ONE concise English prompt that strictly follows Wan2.2 i2v format.
+VIDEO_I2V_SYSTEM_PROMPT_NORMAL = """你是一位 Wan2.2 图生视频（i2v）提示词专家。用户将给出一段简短的 CHARACTER ACTION（角色动作）、CAMERA MOVEMENT（镜头运动）和 FACIAL EXPRESSION（面部表情）描述，用于单个视频片段。你的任务是将它扩写为一段简洁的中文视频提示词，严格遵循 Wan2.2 i2v 格式。
 
-CRITICAL RULES - READ CAREFULLY:
-1. DO NOT describe the scene, background, environment, lighting, or setting. The image already defines these — they are LOCKED and out of scope for i2v.
-2. DO NOT describe clothing, hair color, body type, skin tone, or character appearance. The image defines these.
-3. ONLY expand: (a) character action / body motion, (b) camera movement / shot type, (c) facial expression / micro-expression.
-4. Output ONE single coherent English paragraph. No bullet points, no tag lists, no JSON, no markdown fences.
-5. Keep the prompt CONCISE (50-120 words). Wan2.2 works best with focused, action-oriented prompts — NOT long essays.
-6. Pick a fitting shot framing from: "full body shot", "upper body shot", "close-up", "medium shot", "wide shot" — based on what the action needs.
-7. Include exactly ONE primary continuous action. Multiple unrelated actions confuse the video model.
-8. End the prompt with this mandatory quality block: "smooth motion, 60fps, no limb distortion, correct human anatomy, five complete fingers, two complete legs, consistent facial features, no jitter, no frame jump, fluid continuous motion"
-9. STRICT: All characters must be ADULTS (18+). Never involve minors, children, or teenagers in any way.
+核心规则 - 请仔细阅读：
+1. 不要描述场景、背景、环境、光线或设定。图片已定义这些——它们是"锁定"的，不在 i2v 范围内。
+2. 不要描述服装、发型发色、体型、肤色或角色外观。图片已定义这些。
+3. 只需扩写：（a）角色动作/身体运动，（b）镜头运动/景别，（c）面部表情/微表情。
+4. 主题一致性——必须遵守：扩写的动作必须与 ANCHOR（图片/锁定内容）保持一致。如果锚定是瑜伽 → 扩写瑜伽姿势、呼吸、拉伸动作、瑜伽垫互动。如果锚定是厨房 → 扩写烹饪/切菜/搅拌动作。如果锚定是办公室 → 扩写打字/办公桌工作/移动动作。禁止扩写与锚定主题矛盾的动作。
+5. 输出一段连贯的中文段落。不要项目符号、不要标签列表、不要 JSON、不要 markdown 代码块。
+6. 保持简洁（80-150字）。Wan2.2 更适合聚焦的、动作导向的提示词——而非长篇论述。
+7. 根据动作需要选择合适的景别："全身镜头"、"上半身镜头"、"特写"、"中景"、"全景"。
+8. 只包含一个主要连续动作。多个不相关的动作会干扰视频模型。
+9. 必须以质量说明结尾："动作流畅，60fps，无肢体畸形，正确人体解剖，五指完整，双腿完整，面部特征一致，无抖动，无跳帧，流畅连续动作"
+10. 严格：所有角色必须为成年人（18+）。绝不涉及未成年人、儿童或青少年。
 
-OUTPUT TEMPLATE (fill in the brackets, do not include brackets in output):
-[shot framing], [character description anchor: "1 person" or "1 young woman" or "1 young man"], [primary action verb phrase with body part + direction + speed], [secondary motion: head tilt / hand gesture / facial micro-expression / eye movement], [camera movement: pan / tilt / track / dolly / zoom / static], smooth motion, 60fps, no limb distortion, correct human anatomy, five complete fingers, two complete legs, consistent facial features, no jitter, no frame jump, fluid continuous motion
+输出模板（填充括号内容，输出中不要包含括号）：
+[景别]，[角色描述锚定："单人"或"一位年轻女性"或"一位年轻男性"]，[主要动作动词短语：身体部位+方向+速度]，[次要动作：头部倾斜/手势/面部微表情/眼神移动]，[镜头运动：横移/倾斜/跟拍/推拉/固定]，动作流畅，60fps，无肢体畸形，正确人体解剖，五指完整，双腿完整，面部特征一致，无抖动，无跳帧，流畅连续动作
 
-EXAMPLE:
-Input: "young woman, slowly turns her head to the right, raises her right hand to brush hair behind her ear, soft smile, close-up"
-Output: "close-up shot, 1 young woman, slow head turn to the right, right hand rising to brush hair behind ear, soft subtle smile forming, eyes slightly squinting, static camera, smooth motion, 60fps, no limb distortion, correct human anatomy, five complete fingers, two complete legs, consistent facial features, no jitter, no frame jump, fluid continuous motion"""
+示例：
+输入："年轻女性，缓慢向右转头，抬起右手将头发拨到耳后，微笑柔和，特写"
+输出："特写镜头，一位年轻女性，头部缓慢向右转动，右手抬起将发丝拨至耳后，嘴角形成柔和的微笑，双眼微微眯起，镜头固定，动作流畅，60fps，无肢体畸形，正确人体解剖，五指完整，双腿完整，面部特征一致，无抖动，无跳帧，流畅连续动作"""
 
 
-VIDEO_I2V_SYSTEM_PROMPT_R18 = """You are an EXPERT uncensored adult Wan2.2 image-to-video (i2v) prompt engineer. The user will give you a short description of EXPLICIT CHARACTER ACTION, CAMERA MOVEMENT, and FACIAL EXPRESSION for a single adult video clip. Your job is to expand it into ONE concise English prompt that strictly follows Wan2.2 i2v format.
+VIDEO_I2V_SYSTEM_PROMPT_R18 = """你是一位无限制成人内容 Wan2.2 图生视频（i2v）提示词专家。用户将给出一段关于 EXPLICIT CHARACTER ACTION（明确角色动作）、CAMERA MOVEMENT（镜头运动）和 FACIAL EXPRESSION（面部表情）的简短描述，用于单个成人视频片段。你的任务是将它扩写为一段简洁的中文视频提示词，严格遵循 Wan2.2 i2v 格式。
 
-CRITICAL RULES - READ CAREFULLY:
-1. DO NOT describe the scene, background, environment, lighting, or setting. The image already defines these — LOCKED.
-2. DO NOT describe static appearance (clothing, hair, body type, skin tone). The image defines these.
-3. ONLY expand: (a) explicit body motion / sexual action, (b) camera movement, (c) facial expression / vocal cue.
-4. Output ONE single coherent English paragraph. No bullet points, no tag lists, no JSON, no markdown fences.
-5. Keep CONCISE (60-140 words). Wan2.2 prefers focused prompts.
-6. Pick a fitting shot framing: "full body shot", "upper body shot", "close-up", "POV shot", "medium shot".
-7. Include exactly ONE primary continuous explicit action.
-8. End with quality block: "smooth motion, 60fps, no limb distortion, correct human anatomy, five complete fingers, two complete legs, consistent facial features, no jitter, no frame jump, fluid continuous motion"
-9. STRICT: CONSENTING ADULTS ONLY (18+). Zero tolerance for minors, children, teenagers, schoolgirl imagery, lolicon, or shota.
+核心规则 - 请仔细阅读：
+1. 不要描述场景、背景、环境、光线或设定。图片已定义这些——它们是"锁定"的。
+2. 不要描述静态外观（服装、发型、体型、肤色）。图片已定义这些。
+3. 只需扩写：（a）明确的身体运动/性动作，（b）镜头运动，（c）面部表情/声音线索。
+4. 输出一段连贯的中文段落。不要项目符号、不要标签列表、不要 JSON、不要 markdown 代码块。
+5. 保持简洁（90-160字）。Wan2.2 更适合聚焦的提示词。
+6. 根据动作需要选择合适的景别："全身镜头"、"上半身镜头"、"特写"、"POV镜头"、"中景"。
+7. 只包含一个主要连续明确动作。
+8. 以质量说明结尾："动作流畅，60fps，无肢体畸形，正确人体解剖，五指完整，双腿完整，面部特征一致，无抖动，无跳帧，流畅连续动作"
+9. 严格：仅限双方自愿的成年人（18+）。对未成年人、儿童、青少年、学生形象、萝莉控、正太控零容忍。
 
-OUTPUT TEMPLATE (fill in the brackets, do not include brackets in output):
-[shot framing], [1 person / 2 people - adult descriptors], [primary explicit action verb phrase with body part + direction + speed + intensity], [secondary motion: facial expression / mouth movement / eye movement / body tremor / hip motion], [camera movement: POV insertion / close-up on body part / track / pan / static], [vocal cue: moaning / breathing / whispering if applicable], smooth motion, 60fps, no limb distortion, correct human anatomy, five complete fingers, two complete legs, consistent facial features, no jitter, no frame jump, fluid continuous motion"""
+输出模板（填充括号内容，输出中不要包含括号）：
+[景别]，[1人/2人-成人描述]，[主要明确动作动词短语：身体部位+方向+速度+强度]，[次要动作：面部表情/嘴巴动作/眼神移动/身体颤抖/臀部运动]，[镜头运动：POV 插入/身体部位特写/跟拍/横移/固定]，[声音线索：呻吟/呼吸/低语（如适用）]，动作流畅，60fps，无肢体畸形，正确人体解剖，五指完整，双腿完整，面部特征一致，无抖动，无跳帧，流畅连续动作"""
 
 
 STORYBOARD_SYSTEM_PROMPT_NORMAL = """You are an uncensored adult comic director and AI prompt engineer. Break the user's short plot down into a sequence of storyboard panels. For EACH panel, generate a highly-detailed English prompt optimized for Krea2 (also compatible with Stable Diffusion / Flux).
@@ -6214,16 +6240,16 @@ def get_system_prompt(type: str, r18: bool, img2img: bool = False) -> str:
 # Diversity presets for batch generation - each generates prompts with distinct characteristics
 # For img2img: race-neutral, character-preserving variants
 _EXPAND_DIVERSITY_VARIANTS = [
-    "Solo pose, front-facing camera angle.",
-    "Standing pose, side camera angle.",
-    "Sitting or lying pose, overhead or low-angle camera.",
-    "Solo intimate pose, close-up camera framing.",
-    "Dynamic or action-oriented pose, wide-angle camera.",
-    "Portrait-style framing, soft lighting.",
-    "Full-body shot, dramatic cinematic lighting.",
-    "Casual indoor scene, natural lighting.",
-    "Outdoor or exotic location scene.",
-    "Close-up portrait, intimate mood, romantic atmosphere.",
+    "单人姿势，正面镜头角度",
+    "站立姿势，侧边镜头角度",
+    "坐姿或躺姿，俯拍或低角度镜头",
+    "单人亲密姿势，特写镜头构图",
+    "动态或动作导向姿势，广角镜头",
+    "肖像式构图，柔和光影",
+    "全身镜头，电影感戏剧光效",
+    "休闲室内场景，自然光",
+    "户外或异域场景",
+    "特写肖像，亲密氛围，浪漫情调",
 ]
 
 
@@ -6236,6 +6262,7 @@ async def _generate_single_expand(
     img2img: bool = False,
     reference_image_url: Optional[str] = None,
     character_prompt: Optional[str] = None,
+    model_order: Optional[List[str]] = None,
 ) -> dict:
     """Generate a single expanded prompt result with diversity injection."""
     system_prompt = get_system_prompt(prompt_type, r18, img2img)
@@ -6281,7 +6308,7 @@ async def _generate_single_expand(
 
     for attempt in range(MAX_RETRIES):
         try:
-            result = await call_grok(api_key, system_for_this, user_prompt)
+            result = await call_grok(api_key, system_for_this, user_prompt, model_order=model_order)
             result_clean = result.strip()
 
             check_prompt_safety(result_clean)
@@ -6307,7 +6334,7 @@ async def _generate_single_expand(
                 system_for_this += "\n\nSAFETY OVERRIDE: Your previous response was rejected. REJECT any content mentioning minors, children, teenagers, or anyone under 18. STRICTLY ADULTS ONLY."
                 continue
             raise HTTPException(status_code=400, detail=str(e))
-        except (OpenLuxTimeoutError, OpenLuxRateLimitError, OpenLuxParseError, OpenLuxAPIError) as e:
+        except (OpenLuxTimeoutError, OpenLuxRateLimitError, OpenLuxParseError, OpenLuxAPIError, OpenLuxTruncationError) as e:
             if attempt < MAX_RETRIES - 1:
                 continue
             raise _map_llm_error(e)
@@ -6334,6 +6361,7 @@ async def expand_prompt(req: ExpandRequest, api_key: str = Depends(get_api_key))
             img2img=img2img,
             reference_image_url=reference_image_url,
             character_prompt=character_prompt,
+            model_order=req.model_order,
         )
         for i in range(count)
     ]
@@ -6438,7 +6466,7 @@ async def _stream_single_expand(
                     continue
                 yield _ndjson_event({"event": "error", "index": index, "message": str(e), "fatal": True})
                 return
-            except (OpenLuxTimeoutError, OpenLuxRateLimitError, OpenLuxParseError, OpenLuxAPIError) as e:
+            except (OpenLuxTimeoutError, OpenLuxRateLimitError, OpenLuxParseError, OpenLuxAPIError, OpenLuxTruncationError) as e:
                 if attempt < MAX_RETRIES - 1:
                     continue
                 yield _ndjson_event({"event": "error", "index": index, "message": str(e), "fatal": True})
@@ -6514,6 +6542,7 @@ async def _generate_single_i2v(
     scene_description: str,
     r18: bool,
     variant_index: int = 0,
+    model_order: Optional[List[str]] = None,
 ) -> dict:
     system_prompt = VIDEO_I2V_SYSTEM_PROMPT_R18 if r18 else VIDEO_I2V_SYSTEM_PROMPT_NORMAL
     diversity_note = _EXPAND_DIVERSITY_VARIANTS[variant_index % len(_EXPAND_DIVERSITY_VARIANTS)]
@@ -6521,19 +6550,19 @@ async def _generate_single_i2v(
     # i2v 场景下 image_prompt 是"已经定死的画面"，scene_description 是"用户想看的动作"，
     # 两者分开传入，让 LLM 知道哪个是锚（不要动）、哪个是变量（要扩写）。
     user_prompt = (
-        f"ANCHOR (image-locked, do NOT describe or expand):\n"
+        f"ANCHOR（图生视频锁定，不要描述或扩写）：\n"
         f"{image_prompt.strip()}\n\n"
-        f"ACTION (expand this into the video motion):\n"
-        f"{scene_description.strip() or 'subtle natural micro-movement'}\n\n"
-        f"Style hint (camera feel): {diversity_note}\n\n"
-        f"Generate ONE concise English Wan2.2 i2v prompt (50-120 words) that follows the OUTPUT TEMPLATE in the system prompt. "
-        f"Do NOT describe the anchor image. Do NOT mention scene, background, environment, lighting, clothing, hair, body type, or character appearance. "
-        f"Output ONLY the prompt paragraph, nothing else."
+        f"ACTION（需要扩写成视频动作的内容）：\n"
+        f"{scene_description.strip() or '自然微妙的动作'}\n\n"
+        f"镜头风格提示：{diversity_note}\n\n"
+        f"请严格按照系统提示词中的输出模板，生成一段简洁的中文 Wan2.2 i2v 视频提示词（80-150字）。"
+        f"不要描述锚定图片。不要提及场景、背景、环境、光线、服装、发型、体型或角色外貌。"
+        f"只输出提示词段落，不要其他内容。"
     )
 
     for attempt in range(MAX_RETRIES):
         try:
-            result = await call_grok(api_key, system_prompt, user_prompt)
+            result = await call_grok(api_key, system_prompt, user_prompt, model_order=model_order)
             result_clean = result.strip()
 
             check_prompt_safety(result_clean)
@@ -6579,6 +6608,7 @@ async def expand_video_from_image(req: ExpandVideoFromImageRequest, api_key: str
             req.scene_description or "",
             req.r18,
             variant_index=i,
+            model_order=req.model_order,
         )
         for i in range(count)
     ]
@@ -6792,7 +6822,7 @@ async def _generate_single_prompt(
                 )
                 continue
             raise HTTPException(status_code=400, detail=str(e))
-        except (OpenLuxTimeoutError, OpenLuxRateLimitError, OpenLuxParseError, OpenLuxAPIError) as e:
+        except (OpenLuxTimeoutError, OpenLuxRateLimitError, OpenLuxParseError, OpenLuxAPIError, OpenLuxTruncationError) as e:
             if attempt < MAX_RETRIES - 1:
                 continue
             raise _map_llm_error(e)
@@ -7771,7 +7801,7 @@ async def storyboard(req: StoryboardRequest, api_key: str = Depends(get_api_key)
                 system_prompt += "\n\nSAFETY OVERRIDE: Your response was rejected. ALL characters must be ADULTS 18+. REJECT any panel mentioning minors."
                 continue
             raise HTTPException(status_code=400, detail=str(e))
-        except (OpenLuxTimeoutError, OpenLuxRateLimitError, OpenLuxParseError, OpenLuxAPIError) as e:
+        except (OpenLuxTimeoutError, OpenLuxRateLimitError, OpenLuxParseError, OpenLuxAPIError, OpenLuxTruncationError) as e:
             if attempt < MAX_RETRIES - 1:
                 continue
             raise _map_llm_error(e)
@@ -7879,7 +7909,7 @@ async def _storyboard_stream_ndjson(
             yield _ndjson_event({"event": "error", "message": str(e), "fatal": True})
             yield _ndjson_event({"event": "done", "count": 0})
             return
-        except (OpenLuxTimeoutError, OpenLuxRateLimitError, OpenLuxParseError, OpenLuxAPIError) as e:
+        except (OpenLuxTimeoutError, OpenLuxRateLimitError, OpenLuxParseError, OpenLuxAPIError, OpenLuxTruncationError) as e:
             if attempt < MAX_RETRIES - 1:
                 continue
             yield _ndjson_event({"event": "error", "message": str(e), "fatal": True})
@@ -8144,7 +8174,7 @@ ALL 9 panels must share the IDENTICAL [ANCHOR: ...] prefix verbatim.
                 safety_override_added = True
                 continue
             raise HTTPException(status_code=400, detail=str(e))
-        except (OpenLuxTimeoutError, OpenLuxRateLimitError, OpenLuxParseError, OpenLuxAPIError) as e:
+        except (OpenLuxTimeoutError, OpenLuxRateLimitError, OpenLuxParseError, OpenLuxAPIError, OpenLuxTruncationError) as e:
             if attempt < MAX_RETRIES - 1:
                 continue
             raise _map_llm_error(e)
@@ -8292,7 +8322,7 @@ async def _storyboard_grid_stream_ndjson(
             yield _ndjson_event({"event": "error", "message": str(e), "fatal": True})
             yield _ndjson_event({"event": "done", "count": 0})
             return
-        except (OpenLuxTimeoutError, OpenLuxRateLimitError, OpenLuxParseError, OpenLuxAPIError) as e:
+        except (OpenLuxTimeoutError, OpenLuxRateLimitError, OpenLuxParseError, OpenLuxAPIError, OpenLuxTruncationError) as e:
             if attempt < MAX_RETRIES - 1:
                 continue
             yield _ndjson_event({"event": "error", "message": str(e), "fatal": True})
@@ -9654,7 +9684,7 @@ async def generate_video_script(
             if attempt < MAX_RETRIES - 1:
                 continue
             raise HTTPException(status_code=400, detail=str(e))
-        except (OpenLuxTimeoutError, OpenLuxRateLimitError, OpenLuxParseError, OpenLuxAPIError) as e:
+        except (OpenLuxTimeoutError, OpenLuxRateLimitError, OpenLuxParseError, OpenLuxAPIError, OpenLuxTruncationError) as e:
             if attempt < MAX_RETRIES - 1:
                 continue
             raise _map_llm_error(e)

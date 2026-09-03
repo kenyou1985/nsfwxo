@@ -315,14 +315,12 @@
       <div>
         <label>画幅比例（node 435）</label>
         <select id="aspectRatio">
-          <option value="0">0 — 16:9 横版</option>
-          <option value="1">1 — 1:1 方形</option>
           <option value="2">2 — 2:3 竖向照片</option>
-          <option value="3">3 — 3:4 竖向标准</option>
-          <option value="4">4 — 4:3 横向标准</option>
-          <option value="5">5 — 9:16 竖屏</option>
-          <option value="6">6 — 21:9 超宽</option>
-          <option value="7" selected>7 — 原生比例（推荐）</option>
+          <option value="3">3 — 3:2 横向照片</option>
+          <option value="4">4 — 3:4 竖向标准</option>
+          <option value="5">5 — 4:3 横向标准</option>
+          <option value="6" selected>6 — 9:16 竖屏</option>
+          <option value="7">7 — 16:9 横版</option>
         </select>
       </div>
     </div>
@@ -332,7 +330,13 @@
       <div>
         <label>UNet 模型（node 417）</label>
         <select id="unetIndex">
-          <option value="0" selected>0 — 默认</option>
+          <option value="0" selected>0 — 608x352 (0.2M)</option>
+          <option value="1">1 — 864x480 (0.4M)</option>
+          <option value="2">2 — 960x544 (0.5M)</option>
+          <option value="3">3 — 1152x640 (0.7M)</option>
+          <option value="4">4 — 1280x736 (0.9M)</option>
+          <option value="5">5 — 1504x832 (1.2M)</option>
+          <option value="6" selected>6 — 1824x1024 (1.8M)</option>
         </select>
       </div>
       <!-- LoRA index (node 483) -->

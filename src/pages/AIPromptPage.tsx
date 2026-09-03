@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { extractVideoPromptFromImagePrompt } from '../utils/videoPromptExtractor';
 import { makeThumbnailForStorage } from '../utils/imageThumbnail';
 import { AspectAwareImage } from '../components/AspectAwareImage';
+import { generateH3Prompt, generateH3PromptsForPanels } from '../services/h3PromptService';
 import {
   Wand2, Shuffle, LayoutList, Copy, Check, Loader2,
   ChevronDown, ChevronUp, Sparkles, RotateCcw, Send,
@@ -29,40 +30,82 @@ import {
  * without theme) we return empty so the caller falls back to
  * `主题 N` rather than showing English text in a Chinese badge.
  */
-function deriveThemeLabel(prompt: string): string {
+function deriveThemeLabel(prompt: string, fallbackLabel?: string): string {
   const text = (prompt || '').trim();
-  if (!text) return '';
-  // If the prompt has no CJK characters at all, refuse to summarize —
-  // the badge is for the user to quickly see the scene in Chinese, and
-  // showing English here would defeat that purpose.
-  if (!containsCJK(text)) return '';
-  // The English prefix ("20-year-old East Asian woman, smiling, ...") is
-  // always at the start and can be arbitrarily long. Scan the full prompt
-  // for the first CJK character and extract from there, so we capture the
-  // actual scene/clothing/setting clause regardless of how long the
-  // English prefix is. This is the fix for "主题 1/2" fallback when the
-  // Chinese theme label is buried after a long English descriptor list.
-  let cjkStart = -1;
-  for (let i = 0; i < text.length; i++) {
-    const code = text.charCodeAt(i);
-    if (code >= 0x4e00 && code <= 0x9fff) { cjkStart = i; break; }
+  if (!text) return fallbackLabel || '';
+  // If the prompt has CJK characters, extract a meaningful Chinese summary
+  if (containsCJK(text)) {
+    // Scan the full prompt for the first CJK character and extract from there
+    let cjkStart = -1;
+    for (let i = 0; i < text.length; i++) {
+      const code = text.charCodeAt(i);
+      if (code >= 0x4e00 && code <= 0x9fff) { cjkStart = i; break; }
+    }
+    if (cjkStart === -1) return fallbackLabel || '';
+    // Strip trailing English after the last CJK block to avoid garbled suffix
+    let cjkEnd = text.length;
+    for (let i = text.length - 1; i >= cjkStart; i--) {
+      const code = text.charCodeAt(i);
+      if (code >= 0x4e00 && code <= 0x9fff) { cjkEnd = i + 1; break; }
+    }
+    let cleaned = text.slice(cjkStart, cjkEnd).trim();
+    if (!cleaned) return fallbackLabel || '';
+    // Cap to a visually-reasonable width in the badge
+    const MAX = 24;
+    if (cleaned.length <= MAX) return cleaned;
+    // Try to cut at a word-ish boundary
+    const sliced = cleaned.slice(0, MAX);
+    const lastSpace = sliced.lastIndexOf(' ');
+    return (lastSpace > MAX * 0.6 ? sliced.slice(0, lastSpace) : sliced) + '…';
   }
-  if (cjkStart === -1) return '';
-  // Strip trailing English after the last CJK block to avoid garbled suffix.
-  let cjkEnd = text.length;
-  for (let i = text.length - 1; i >= cjkStart; i--) {
-    const code = text.charCodeAt(i);
-    if (code >= 0x4e00 && code <= 0x9fff) { cjkEnd = i + 1; break; }
+  // For English-only prompts, try to extract meaningful keywords
+  // Look for scene/setting/pose keywords in the prompt
+  const sceneKeywords = [
+    'bedroom', 'bathroom', 'kitchen', 'outdoor', 'beach', 'pool', 'office',
+    'hospital', 'school', 'hotel', 'studio', 'forest', 'garden', 'car', 'street',
+    'night', 'day', 'sunset', 'dawn', 'morning', 'evening',
+    'indoor', 'outdoor', 'public', 'private', 'romantic', 'sensual', 'intimate'
+  ];
+  const poseKeywords = [
+    'lying', 'standing', 'sitting', 'kneeling', 'on', 'with', 'holding',
+    'embracing', 'kissing', 'touching', 'looking', 'smiling', 'laughing',
+    'dancing', 'sleeping', 'bathing', 'dressing', 'undressing', 'working'
+  ];
+  
+  const words = text.split(/\s+/).slice(0, 30); // First 30 words to analyze
+  const found = new Set<string>();
+  
+  for (const word of words) {
+    const lower = word.toLowerCase().replace(/[^a-z]/g, '');
+    for (const kw of sceneKeywords) {
+      if (lower.includes(kw) && !found.has(kw)) {
+        found.add(kw.charAt(0).toUpperCase() + kw.slice(1));
+        break;
+      }
+    }
+    for (const kw of poseKeywords) {
+      if (lower.includes(kw) && !found.has(kw)) {
+        found.add(kw.charAt(0).toUpperCase() + kw.slice(1));
+        break;
+      }
+    }
+    if (found.size >= 2) break;
   }
-  let cleaned = text.slice(cjkStart, cjkEnd).trim();
-  if (!cleaned) return '';
-  // Cap to a visually-reasonable width in the badge.
-  const MAX = 24;
-  if (cleaned.length <= MAX) return cleaned;
-  // Try to cut at a word-ish boundary.
-  const sliced = cleaned.slice(0, MAX);
-  const lastSpace = sliced.lastIndexOf(' ');
-  return (lastSpace > MAX * 0.6 ? sliced.slice(0, lastSpace) : sliced) + '…';
+  
+  if (found.size > 0) {
+    const summary = Array.from(found).slice(0, 2).join(' ');
+    if (summary.length <= 24) return summary;
+    return summary.slice(0, 22) + '…';
+  }
+  
+  // Last resort: use first meaningful words from prompt
+  const firstWords = text.split(/[,\.]/).filter(s => s.trim().length > 3).slice(0, 2);
+  if (firstWords.length > 0) {
+    const summary = firstWords[0].trim().split(/\s+/).slice(0, 4).join(' ');
+    if (summary.length <= 24) return summary.charAt(0).toUpperCase() + summary.slice(1);
+  }
+  
+  return fallbackLabel || '';
 }
 
 /** True if the string contains at least one CJK Unified Ideograph. */
@@ -89,6 +132,98 @@ function formatElapsed(ms: number): string {
   const hours = Math.floor(minutes / 60);
   const remMin = minutes % 60;
   return `${hours} 时${remMin.toString().padStart(2, '0')} 分`;
+}
+
+/**
+ * 生成 H3 视频提示词的中文总结。
+ * 从 H3 六段式提示词中提取关键信息，用中文简洁描述。
+ */
+function generateH3Summary(h3Prompt: string): string {
+  if (!h3Prompt) return '';
+  const text = h3Prompt.trim();
+
+  // 尝试提取各段信息
+  const segments = text.split(/\n|\r|(?:<\/s>)|(?:<[^>]+>)/i).filter(s => s.trim());
+
+  // 中英关键词映射表
+  const keywordMap: Record<string, string> = {
+    // 动作
+    'turning': '转身', 'looking': '凝视', 'walking': '行走', 'breathing': '呼吸', 'blinking': '眨眼',
+    'smiling': '微笑', 'laughing': '大笑', 'swaying': '摇摆', 'stretching': '伸展', 'moving': '移动',
+    'shifting': '变换', 'gentle': '轻柔', 'slow': '缓慢', 'subtle': '微妙', 'leaning': '倾斜',
+    'dancing': '舞动', 'embracing': '拥抱', 'caressing': '抚摸', 'whispering': '低语', 'gazing': '注视',
+    'rotating': '旋转', 'panning': '摇镜', 'tracking': '追踪',
+    'wide': '全景', 'medium': '中景', 'shot': '镜头',
+    // 镜头
+    'close-up': '特写', 'close up': '特写', 'half-body': '半身', 'full-body': '全身',
+    'wide shot': '全景', 'medium shot': '中景', 'extreme close-up': '大特写',
+    'cinematic': '电影感', 'portrait': '人像', 'dolly': '推拉', 'steady cam': '稳定器',
+    'POV': '主观视角', 'over-the-shoulder': '过肩', "bird's-eye": '鸟瞰', 'birds-eye': '鸟瞰',
+    // 光影
+    'soft': '柔和', 'warm': '暖色', 'cool': '冷色', 'dramatic': '戏剧', 'volumetric': '体积光',
+    'neon': '霓虹', 'natural': '自然', 'backlight': '逆光', 'rim light': '轮廓光',
+    'side light': '侧光', 'golden hour': '黄金时刻', 'blue hour': '蓝调时刻', 'dim': '昏暗',
+    // 质量
+    'photorealistic': '写实', 'anime': '动漫', '8k': '高清', 'hyperrealistic': '超写实',
+    // 场景/动作
+    'indoor': '室内', 'outdoor': '户外', 'bedroom': '卧室', 'bathroom': '浴室',
+    'beach': '海滩', 'forest': '森林', 'studio': '影棚', 'garden': '花园', 'pool': '泳池',
+    'sunlight': '阳光', 'moonlight': '月光', 'night': '夜景', 'sunset': '日落', 'dawn': '黎明',
+    'intimate': '亲密', 'sensual': '感性', 'romantic': '浪漫', 'elegant': '优雅',
+  };
+
+  const parts: string[] = [];
+  const addedPhrases = new Set<string>();
+
+  const addPart = (phrase: string) => {
+    if (phrase && !addedPhrases.has(phrase) && phrase.length < 30) {
+      parts.push(phrase);
+      addedPhrases.add(phrase);
+    }
+  };
+
+  // 提取动作描述
+  for (const seg of segments) {
+    const lower = seg.toLowerCase();
+    for (const [eng, chn] of Object.entries(keywordMap)) {
+      if (lower.includes(eng.toLowerCase())) {
+        if (['turning', 'looking', 'walking', 'breathing', 'blinking', 'smiling', 'laughing',
+             'swaying', 'stretching', 'moving', 'shifting', 'gentle', 'slow', 'subtle',
+             'leaning', 'dancing', 'embracing', 'caressing', 'whispering', 'gazing', 'rotating'].includes(eng.toLowerCase())) {
+          addPart(chn + '动作');
+          break;
+        }
+        if (['close-up', 'close up', 'half-body', 'full-body', 'wide shot', 'medium shot',
+             'extreme close-up', 'portrait', 'dolly', 'POV', 'over-the-shoulder', "bird's-eye", 'birds-eye'].includes(eng.toLowerCase())) {
+          addPart(chn + '镜头');
+          break;
+        }
+        if (['soft', 'warm', 'cool', 'dramatic', 'backlight', 'rim light', 'side light',
+             'golden hour', 'blue hour', 'dim'].includes(eng.toLowerCase())) {
+          addPart('光影' + chn);
+          break;
+        }
+        if (['bedroom', 'bathroom', 'beach', 'forest', 'studio', 'garden', 'pool', 'indoor', 'outdoor'].includes(eng.toLowerCase())) {
+          addPart('场景' + chn);
+          break;
+        }
+      }
+    }
+  }
+
+  // 如果提取不到，返回简单描述
+  if (parts.length === 0) {
+    // 尝试截取前80个字符作为描述
+    const preview = text.slice(0, 80).replace(/[.,;:!?]/g, '').trim();
+    if (preview.length > 20) {
+      return preview.slice(0, 40) + '...';
+    }
+    return preview || '视频生成中';
+  }
+
+  // 去重并限制长度
+  const uniqueParts = [...new Set(parts)].slice(0, 3);
+  return uniqueParts.join(' · ');
 }
 import {
   expandPrompt,
@@ -426,6 +561,141 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   // ── handleGenerate: streaming NDJSON — slots appear instantly, update in real time ──
   const handleGenerate = async () => {
     if (!input.trim()) { onError('请输入描述内容'); return; }
+
+    // ── "生视频" 路径：本地生成 H3 视频提示词（不走后端） ──
+    // 用户在「智能扩写」选「生视频」时，需要两步模型调用：
+    //   Step 1: expandPrompt → 把用户描述扩写成详细的图片提示词
+    //   Step 2: expandVideoFromImage → 把图片提示词转化为视频提示词
+    //   Step 3: generateH3Prompt → 格式化成 H3 Ref2VA 六段式
+    if (type === 'video') {
+      setLoading(true);
+      try {
+        const baseId = `h3-${Date.now()}`;
+        const ids = Array.from({ length: count }, (_, i) => `${baseId}-${i}`);
+        // 先用 N 个空槽位让 UI 立即可见
+        const seeded: { id: string; original: string; prompt: string; r18: boolean }[] = ids.map((id) => ({
+          id, original: input.trim(), prompt: '', r18: r18Mode,
+        }));
+        setResults(seeded);
+        setOutputPrompts(Array(count).fill(''));
+        setOutputText('');
+        setSelectedOutputIdx(0);
+
+        const themeTitle = r18Mode ? 'R18' : '默认主题';
+
+        // ── 并行生成所有 H3 视频提示词 ──
+        // 每个 slot 独立执行：Step1 扩写 → Step2 视频化 → Step3 H3 格式化
+        // 完成时渐进式更新 UI（不等待全部完成）
+        const total = count;
+        let completedCount = 0;
+        let firstError: string | null = null;
+
+        const tasks = Array.from({ length: count }, async (_, i) => {
+          try {
+            // Step 1: 扩写成图片提示词（超时则自动切换 fast 模型兜底）
+            let expandRes;
+            try {
+              expandRes = await expandPrompt(input.trim(), 'image', r18Mode, 1);
+            } catch (firstErr) {
+              const isTimeout = firstErr instanceof Error &&
+                (firstErr.message.includes('超时') || firstErr.message.includes('timeout'));
+              if (isTimeout) {
+                console.warn(`[智能扩写] expandPrompt 超时，尝试 fast 模型重试`);
+                expandRes = await expandPrompt(input.trim(), 'image', r18Mode, 1, 0, undefined, false, undefined, ['grok-4.6', 'grok-4.3']);
+              } else {
+                throw firstErr;
+              }
+            }
+            const expandedImgPrompt = expandRes.results?.[0]?.prompt?.trim();
+            if (!expandedImgPrompt) {
+              throw new Error(`第 ${i + 1} 个图片提示词扩写返回为空`);
+            }
+
+            // Step 2: 图片提示词 → 视频提示词（超时则自动切换 fast 模型兜底）
+            let videoRes;
+            try {
+              videoRes = await expandVideoFromImage(expandedImgPrompt, themeTitle, r18Mode, 1);
+            } catch (secondErr) {
+              const isTimeout = secondErr instanceof Error &&
+                (secondErr.message.includes('超时') || secondErr.message.includes('timeout'));
+              if (isTimeout) {
+                console.warn(`[智能扩写] expandVideoFromImage 超时，尝试 fast 模型重试（150s）`);
+                videoRes = await expandVideoFromImage(expandedImgPrompt, themeTitle, r18Mode, 1, ['grok-4.6', 'grok-4.3'], 150000);
+              } else {
+                throw secondErr;
+              }
+            }
+            const videoPrompt = videoRes.results?.[0]?.prompt?.trim();
+            if (!videoPrompt) {
+              throw new Error(`第 ${i + 1} 个视频提示词扩写返回为空`);
+            }
+
+            // Step 3: 格式化成 H3 六段式
+            const h3 = generateH3Prompt({
+              imagePrompt: expandedImgPrompt,
+              sceneDescription: videoPrompt,
+              duration: 15,
+              r18: r18Mode,
+            });
+
+            return { index: i, id: ids[i], prompt: h3, error: null };
+          } catch (err) {
+            return {
+              index: i,
+              id: ids[i],
+              prompt: `[错误] ${err instanceof Error ? err.message : '未知错误'}`,
+              error: err instanceof Error ? err.message : '未知错误',
+            };
+          }
+        });
+
+        // 并行执行，实时更新 UI
+        const settled = await Promise.all(tasks);
+
+        // 排序并更新 UI
+        const sorted = settled.sort((a, b) => a.index - b.index);
+        const allPrompts = sorted.map((s) => s.prompt);
+        const failedCount = sorted.filter((s) => s.error).length;
+        const successCount = sorted.filter((s) => !s.error).length;
+
+        // 全量更新（此时所有并行请求均已完成）
+        const finalResults = sorted.map((s) => ({
+          id: s.id,
+          original: input.trim(),
+          prompt: s.prompt,
+          r18: r18Mode,
+        }));
+        setResults(finalResults);
+        setOutputPrompts(allPrompts);
+        if (allPrompts[0] && !allPrompts[0].startsWith('[错误]')) {
+          setSelectedOutputIdx(0);
+          setOutputText(allPrompts[0]);
+        }
+
+        // 持久化到历史记录（只存成功的）
+        const successfulPrompts = sorted.filter((s) => !s.error).map((s) => s.prompt);
+        if (successfulPrompts.length > 0) {
+          addExpandHistory({
+            original: input.trim(),
+            type,
+            r18: r18Mode,
+            prompts: successfulPrompts,
+          });
+          setHistory(getExpandHistory());
+        }
+
+        const msg = failedCount > 0
+          ? `已生成 ${successCount} 个 H3 视频提示词（${failedCount} 个失败）`
+          : `已生成 ${successCount} 个 H3 视频提示词`;
+        onSuccess(msg);
+      } catch (err) {
+        onError(err instanceof Error ? err.message : 'H3 提示词生成失败');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     setLoading(true);
     setPendingExpandCount(count);
     setPendingExpandFailed(0);
@@ -1420,9 +1690,26 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<RandomHistoryItem[]>(() => getRandomHistory());
+  // Bug fix: h3Prompts is restored from sessionStorage on mount. genStates is NOT
+  // persisted (see RandomSession interface), so it starts as {}. Images are recovered
+  // from taskManager.tasks via the relatedTasks fallback in PromptResultCard — this
+  // is more reliable than trying to persist megabytes of base64 image data.
+  const [h3Prompts, setH3Prompts] = useState<Record<number, string>>(() => savedRandom?.h3Prompts || {});
   const [genStates, setGenStates] = useState<Record<number, { loading: boolean; images: string[] }>>({});
   const [batchLoading, setBatchLoading] = useState(false);
+  const [h3Loading, setH3Loading] = useState(false);
+  const [h3Progress, setH3Progress] = useState<{ current: number; total: number } | null>(null);
+  // Track which indices are currently being processed (for parallel loading indicators)
+  const [h3ProcessingIndices, setH3ProcessingIndices] = useState<Set<number>>(new Set());
   const [favorites, setFavorites] = useState<FavoriteItem[]>(() => getFavorites());
+  // Track selected image index per card (for 长视频 1.1 selection)
+  const [selectedImageIndices, setSelectedImageIndices] = useState<Record<number, number>>({});
+
+  // Refs for async callbacks to access latest state
+  const h3PromptsRef = useRef<Record<number, string>>(h3Prompts);
+  const genStatesRef = useRef<Record<number, { loading: boolean; images: string[] }>>(genStates);
+  useEffect(() => { h3PromptsRef.current = h3Prompts; }, [h3Prompts]);
+  useEffect(() => { genStatesRef.current = genStates; }, [genStates]);
 
   // Latest results mirror for use inside async callbacks (the `results` state
   // closure value would be stale by the time the stream finishes).
@@ -1449,28 +1736,67 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     }
   };
 
+  // 选中图片用于长视频 1.1
+  const handleSelectRandomImage = (cardIdx: number, imageIdx: number, _imageUrl: string) => {
+    setSelectedImageIndices((prev) => ({
+      ...prev,
+      [cardIdx]: imageIdx,
+    }));
+  };
+
   // Persist random state to sessionStorage
+  // Bug fix: h3Prompts must also be persisted — otherwise generating H3
+  // prompts in a session and then switching pages causes H3 prompts to vanish
+  // on remount, making "生视频" fall back to extractVideoPromptFromImagePrompt.
+  // NOTE: genStates is NOT persisted here because its images field contains
+  // base64 data URLs (3-8 MB per session) that would exceed the ~5 MB
+  // sessionStorage quota. Images are recovered from taskManager.tasks
+  // via the relatedTasks fallback in PromptResultCard on mount, so no data
+  // is lost even without persistence.
   useEffect(() => {
     if (results.length > 0 || theme) {
-      saveRandomSession({ type, count, theme, results, expandedIdx });
+      saveRandomSession({ type, count, theme, results, expandedIdx, h3Prompts });
     } else {
       clearRandomSession();
     }
-  }, [type, count, theme, results, expandedIdx]);
+  }, [type, count, theme, results, expandedIdx, h3Prompts]);
 
   // Sync restored tasks from taskManager to UI state (survives page refresh)
+  // Also sync images from FINISHED tasks so the UI reflects completed results immediately.
+  // Bug fix:
+  // 1. Prompt comparison now uses .trim() on both sides — the LLM can return prompts
+  //    with trailing newlines/whitespace that don't match the stripped prompt stored in
+  //    the task object, causing matchedTask to be null and genStates[idx] to stay
+  //    permanently stuck at loading:true even after the backend has finished.
+  // 2. Added FINISHED case: previously this effect only handled RUNNING/QUEUEING to set
+  //    loading:true, but never cleared loading:false when a task finished — so even if
+  //    the prompt match were to succeed, the card would stay stuck at "生成中" forever.
   useEffect(() => {
     setGenStates((prev) => {
       let changed = false;
       const next = { ...prev };
       for (let i = 0; i < results.length; i++) {
         const result = results[i];
+        // Normalize both sides so trailing whitespace / newlines in LLM output don't break the match
+        const resultPromptNorm = (result.prompt || '').trim();
         const matchedTask = taskManager.tasks.find(
-          (t) => t.prompt === result.prompt && (t.status === 'RUNNING' || t.status === 'QUEUEING')
+          (t) => (t.prompt || '').trim() === resultPromptNorm
         );
-        if (matchedTask && !prev[i]) {
-          next[i] = { loading: true, images: [] };
-          changed = true;
+        if (matchedTask) {
+          if (matchedTask.status === 'RUNNING' || matchedTask.status === 'QUEUEING') {
+            // Task is still running — show loading state if not already set
+            if (!prev[i] || !prev[i].loading) {
+              next[i] = { loading: true, images: [] };
+              changed = true;
+            }
+          } else if (matchedTask.status === 'FINISHED' && matchedTask.images && matchedTask.images.length > 0) {
+            // Task finished with images — update genState to show the result and clear loading
+            const existing = prev[i];
+            if (!existing || existing.images.length === 0 || JSON.stringify(existing.images) !== JSON.stringify(matchedTask.images)) {
+              next[i] = { loading: false, images: matchedTask.images };
+              changed = true;
+            }
+          }
         }
       }
       return changed ? next : prev;
@@ -1526,6 +1852,10 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     // `loading` from `onDone` (or the global-error path) instead.
     const completeBatch = () => {
       setLoading(false);
+      // 获取最新的视频提示词和图片
+      const currentH3Prompts = h3PromptsRef.current;
+      const currentGenStates = genStatesRef.current;
+      
       addRandomHistory({
         type,
         r18: r18Mode,
@@ -1533,10 +1863,14 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         // Snapshot only fully-completed slots (have non-empty prompt).
         results: resultsRef.current
           .filter((r) => r.prompt && !r.prompt.startsWith('[错误]'))
-          .map((r) => ({
+          .map((r, idx) => ({
             prompt: r.prompt,
             tags_used: r.tags_used,
             theme_label: r.theme_label,
+            // 保存 H3 视频提示词
+            h3Prompt: currentH3Prompts[idx] || undefined,
+            // 保存生成的图片
+            images: currentGenStates[idx]?.images || undefined,
           })),
       });
       setHistory(getRandomHistory());
@@ -1571,9 +1905,16 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               while (next.length <= index) {
                 next.push({ theme_label: '', theme: '', tags_used: {}, prompt: '' });
               }
+              const currentPrompt = (next[index].prompt || '') + text;
+              // 实时提取主题名字：当提示词超过50个字符且还没有主题名字时，尝试从提示词中提取
+              let newThemeLabel = next[index].theme_label;
+              if (!newThemeLabel && currentPrompt.length >= 50) {
+                newThemeLabel = deriveThemeLabel(currentPrompt) || '';
+              }
               next[index] = {
                 ...next[index],
-                prompt: (next[index].prompt || '') + text,
+                prompt: currentPrompt,
+                theme_label: newThemeLabel || next[index].theme_label,
               };
               return next;
             });
@@ -1635,7 +1976,16 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         },
       );
     } catch (err) {
-      onErrorRef.current(err instanceof Error ? err.message : '抽卡失败');
+      // 当发生错误时，将所有还在"生成中"的 slot 标记为失败
+      const errorMsg = err instanceof Error ? err.message : '抽卡失败';
+      setResults((prev) => prev.map((r) => {
+        // 只更新还没有完成或失败的 slot
+        if (!r.prompt) {
+          return { ...r, theme_label: '生成失败', prompt: `[错误] ${errorMsg}` };
+        }
+        return r;
+      }));
+      onErrorRef.current(`随机抽卡出错: ${errorMsg}`);
       setLoading(false);
     }
   };
@@ -1651,6 +2001,22 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       tags_used: r.tags_used,
       prompt: r.prompt,
     })));
+    // 加载历史记录中的视频提示词
+    const loadedH3Prompts: Record<number, string> = {};
+    const loadedGenStates: Record<number, { loading: boolean; images: string[] }> = {};
+    item.results.forEach((r, idx) => {
+      if (r.h3Prompt) {
+        loadedH3Prompts[idx] = r.h3Prompt;
+      }
+      if (r.images && r.images.length > 0) {
+        loadedGenStates[idx] = { loading: false, images: r.images };
+      }
+    });
+    // 立即更新 ref，确保点击"生视频"时能获取到最新的 H3 提示词
+    h3PromptsRef.current = loadedH3Prompts;
+    genStatesRef.current = loadedGenStates;
+    setH3Prompts(loadedH3Prompts);
+    setGenStates(loadedGenStates);
     setShowHistory(false);
   };
 
@@ -1854,6 +2220,13 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     // is what the user reported. result.theme_label is populated by the
     // API on fresh抽卡 and re-populated when results are loaded from
     // history.
+    // Set loading state for submitted results so the UI shows progress
+    toSubmit.forEach((result, i) => {
+      const idx = results.indexOf(result);
+      if (idx >= 0) {
+        setGenStates((prev) => ({ ...prev, [idx]: { loading: true, images: [] } }));
+      }
+    });
     const tasks = toSubmit.map(async (result) => {
       const perTaskTheme = result.theme_label || '';
       if (digitalHumanMode && selectedGirlfriend) {
@@ -1877,14 +2250,223 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     });
     setBatchLoading(false);
     if (submitted > 0) {
-      onSuccess(`已提交 ${submitted} 个生图任务`);
-      if (digitalHumanMode && selectedGirlfriend) {
-        if (onNavigate) onNavigate('img2img');
-      } else {
-        if (onNavigate) onNavigate('txt2img');
-      }
+      onSuccess(`已提交 ${submitted} 个生图任务，任务已在后台运行中`);
+      // 不自动跳转页面，保留在当前页面
     }
-  }, [results, taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, onNavigate, theme]);
+  }, [results, taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, theme]);
+
+  // ── 一键批量生成 H3 视频提示词 ──
+  // 每个抽卡结果对应一条 H3 Ref2VA 视频提示词，确保视频画面与生成的图片一一对应。
+  // 流程：图片提示词 → expandVideoFromImage（模型扩写） → generateH3Prompt（格式化）
+  // 超时重试策略：首次 90s 超时后，retry 时跳过慢模型直接用 fast 模型 + 延长到 150s
+  // 并行处理：每次最多 3 个并发，加快生成速度
+  const CONCURRENT_H3 = 3;
+
+  const handleBatchGenerateH3 = useCallback(async () => {
+    if (results.length === 0) { onError('请先生成图片提示词'); return; }
+    const validResults = results.filter((r) => r.prompt);
+    if (validResults.length === 0) { onError('没有可用的图片提示词'); return; }
+
+    // Mark all valid indices as processing
+    const validIndices = results.map((r, i) => r.prompt ? i : -1).filter(i => i >= 0);
+    setH3ProcessingIndices(new Set(validIndices));
+    setH3Loading(true);
+    setH3Progress({ current: 0, total: validResults.length });
+
+    const themeLabel = THEMES.find((t) => t.key === theme)?.label || theme || (r18Mode ? 'R18' : '默认主题');
+    const completed: Record<number, string> = {};
+
+    try {
+      // 并行处理函数
+      // Bug fix:
+      // 1. finally 块确保每个任务完成后立即从 h3ProcessingIndices 中移除其索引，
+      //    避免失败任务导致卡片永远卡在 processing 状态。
+      // 2. 超时判断改用大小写不敏感的正则，避免 "Timeout" / "REQUEST TIMEOUT" 漏判。
+      // 3. 除了超时外的瞬态错误（500/网络断开）也触发一次兜底重试（fast 模型 + 更长超时）。
+      const processOne = async (i: number, result: PromptResult): Promise<void> => {
+        // try-finally 确保 cleanup 同步执行（Promise settle 之前），正确驱动 setH3ProcessingIndices 更新
+        try {
+          const perTaskLabel = result.theme_label || themeLabel;
+
+          const isTimeoutErr = (err: unknown): boolean =>
+            err instanceof Error && /timeout/i.test(err.message);
+
+          // Step 1: 把图片提示词扩写成视频提示词
+          let videoRes;
+          let lastErr: unknown;
+          try {
+            videoRes = await expandVideoFromImage(result.prompt, perTaskLabel, r18Mode, 1);
+          } catch (h3Err) {
+            lastErr = h3Err;
+            if (isTimeoutErr(h3Err)) {
+              // 超时 → 用 fast 模型重试（更长超时）
+              console.warn(`[handleBatchGenerateH3] 第 ${i + 1} 个超时，fast 模型重试（150s）`);
+              try {
+                videoRes = await expandVideoFromImage(result.prompt, perTaskLabel, r18Mode, 1, ['grok-4.6', 'grok-4.3'], 150000);
+                lastErr = null; // 重试成功
+              } catch (retryErr) {
+                lastErr = retryErr;
+                // 重试仍超时或失败 → 兜底一次（允许慢模型）
+                if (isTimeoutErr(retryErr) || (retryErr instanceof Error && /50\d|network|fetch/i.test(retryErr.message))) {
+                  console.warn(`[handleBatchGenerateH3] 第 ${i + 1} 个重试仍失败，最后兜底（180s）`);
+                  try {
+                    videoRes = await expandVideoFromImage(result.prompt, perTaskLabel, r18Mode, 1, undefined, 180000);
+                    lastErr = null;
+                  } catch (fallbackErr) {
+                    lastErr = fallbackErr;
+                  }
+                }
+              }
+            } else if (h3Err instanceof Error && /50\d|network|fetch/i.test(h3Err.message)) {
+              // 非超时但可能是瞬态错误（500/网络） → 直接兜底重试
+              console.warn(`[handleBatchGenerateH3] 第 ${i + 1} 个瞬态错误，兜底重试（180s）`);
+              try {
+                videoRes = await expandVideoFromImage(result.prompt, perTaskLabel, r18Mode, 1, undefined, 180000);
+                lastErr = null;
+              } catch (fallbackErr) {
+                lastErr = fallbackErr;
+              }
+            }
+            // else: 已知业务错误（如参数错误），不重试，直接抛
+            if (lastErr) throw lastErr;
+          }
+
+          const videoPrompt = videoRes.results?.[0]?.prompt?.trim();
+          if (!videoPrompt) {
+            console.warn(`[handleBatchGenerateH3] 第 ${i + 1} 个视频提示词扩写返回为空，跳过`);
+            return;
+          }
+
+          // Step 2: 格式化成 H3 六段式
+          completed[i] = generateH3Prompt({
+            imagePrompt: result.prompt,
+            sceneDescription: videoPrompt,
+            duration: 15,
+            r18: r18Mode,
+          });
+        } finally {
+          // 无论成功/失败/空结果，都立即从 processing 集合中移除该索引，
+          // 避免失败任务导致对应卡片永远卡在 loading 状态。
+          setH3ProcessingIndices(prev => {
+            const next = new Set(prev);
+            next.delete(i);
+            return next;
+          });
+        }
+      };
+
+      // 分批并行处理，每批最多 CONCURRENT_H3 个
+      for (let batchStart = 0; batchStart < validResults.length; batchStart += CONCURRENT_H3) {
+        const batch = validResults.slice(batchStart, batchStart + CONCURRENT_H3);
+        await Promise.all(batch.map((result, i) => processOne(batchStart + i, result)));
+        // 更新进度
+        setH3Progress({ current: Math.min(batchStart + CONCURRENT_H3, validResults.length), total: validResults.length });
+      }
+
+      const count = Object.keys(completed).length;
+      setH3Progress(null);
+      if (count === 0) { onError('所有视频提示词扩写均失败，请重试'); return; }
+      setH3Prompts(completed);
+      onSuccess(`已生成 ${count} 个 H3 视频提示词，可点击每张卡查看`);
+    } catch (err) {
+      setH3ProcessingIndices(new Set());
+      setH3Progress(null);
+      onError(err instanceof Error ? err.message : 'H3 提示词生成失败');
+    } finally {
+      setH3Loading(false);
+    }
+  }, [results, theme, r18Mode, onError, onSuccess]);
+
+  // ── 单个生成 H3 视频提示词 ──
+  // 用于每个抽卡结果卡片的独立"生成视频提示词"按钮
+  const handleGenerateSingleH3 = useCallback(async (idx: number) => {
+    const result = results[idx];
+    if (!result?.prompt) { onError('该提示词尚未生成'); return; }
+    
+    // 标记该卡片为处理中
+    setH3ProcessingIndices(prev => new Set([...prev, idx]));
+    
+    const perTaskLabel = result.theme_label || THEMES.find(t => t.key === theme)?.label || theme || (r18Mode ? 'R18' : '默认主题');
+    
+    try {
+      // Step 1: 把图片提示词扩写成视频提示词（超时则自动切换 fast 模型兜底）
+      let videoRes;
+      try {
+        videoRes = await expandVideoFromImage(result.prompt, perTaskLabel, r18Mode, 1);
+      } catch (h3Err) {
+        const isTimeout = h3Err instanceof Error &&
+          (h3Err.message.includes('超时') || h3Err.message.includes('timeout'));
+        if (isTimeout) {
+          console.warn(`[handleGenerateSingleH3] expandVideoFromImage 第 ${idx + 1} 个超时，尝试 fast 模型重试（150s）`);
+          videoRes = await expandVideoFromImage(result.prompt, perTaskLabel, r18Mode, 1, ['grok-4.6', 'grok-4.3'], 150000);
+        } else {
+          throw h3Err;
+        }
+      }
+      
+      const videoPrompt = videoRes.results?.[0]?.prompt?.trim();
+      if (!videoPrompt) {
+        onError(`第 ${idx + 1} 个视频提示词扩写返回为空`);
+        return;
+      }
+      
+      // Step 2: 格式化成 H3 六段式
+      const h3Prompt = generateH3Prompt({
+        imagePrompt: result.prompt,
+        sceneDescription: videoPrompt,
+        duration: 15,
+        r18: r18Mode,
+      });
+      
+      // 更新该卡片的 H3 提示词
+      setH3Prompts(prev => ({ ...prev, [idx]: h3Prompt }));
+      onSuccess(`第 ${idx + 1} 个 H3 视频提示词已生成`);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : `第 ${idx + 1} 个 H3 提示词生成失败`);
+    } finally {
+      setH3ProcessingIndices(prev => {
+        const next = new Set(prev);
+        next.delete(idx);
+        return next;
+      });
+    }
+  }, [results, theme, r18Mode, onError, onSuccess]);
+
+  /**
+   * 跳转长视频 1.1：把视频提示词和参考图暂存到 sessionStorage，
+   * 切换到 img2vid 页后由 ImageToVideoPage 读取并填入。
+   * 如果未提供 videoPrompt，则自动从当前卡的提示词生成视频提示词。
+   * @param imageUrl 图片 URL
+   * @param idx 当前卡片索引（用于获取对应的 H3 提示词）
+   * @param videoPrompt 可选的视频提示词
+   */
+  const handleGotoLongVideoWithH3 = useCallback(async (imageUrl: string, idx: number, videoPrompt?: string) => {
+    if (!imageUrl) { onError('需要先生成图片'); return; }
+    const result = results[idx];
+    if (!result) { onError('未找到对应结果'); return; }
+    
+    // 优先使用传入的 videoPrompt 或 h3PromptsRef 中的提示词（确保获取最新的值）
+    // 备用方案：从当前卡的提示词生成视频提示词
+    let finalPrompt = videoPrompt || h3PromptsRef.current[idx];
+    if (!finalPrompt) {
+      // 没有 H3 提示词时，自动从当前卡的提示词生成视频提示词
+      finalPrompt = extractVideoPromptFromImagePrompt({
+        imagePrompt: result.prompt,
+        sceneDescription: result.prompt,
+        r18Mode,
+      });
+    }
+    
+    sessionStorage.setItem('random_longvideo_v1_1', JSON.stringify({
+      imageUrl,
+      h3Prompt: finalPrompt,
+      // 如果有 H3 提示词则填入，否则留空
+      prompt: finalPrompt || '',
+      processed: false,
+    }));
+    if (onNavigate) onNavigate('img2vid');
+    onSuccess('已切换到长视频 1.1，提示词与参考图已填入');
+  }, [results, r18Mode, onNavigate, onSuccess, onError]);
 
   return (
     <div className="space-y-4">
@@ -1908,12 +2490,6 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         </div>
 
         <div className="flex items-center gap-3 mb-3">
-          <div className="flex gap-1">
-            {(['image', 'video'] as const).map((t) => (
-              <button key={t} onClick={() => setType(t)} className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${type === t ? 'bg-primary text-white' : 'bg-bg-elevated text-text-tertiary hover:bg-bg-hover'}`}>{t === 'image' ? '生图' : '生视频'}</button>
-            ))}
-          </div>
-          <div className="h-4 w-px bg-border" />
           <div className="flex items-center gap-1.5">
             <span className="text-xs text-text-tertiary">生成数量:</span>
             <div className="flex gap-1">
@@ -1975,17 +2551,39 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           {/* Batch Generate Header */}
           <div className="flex items-center justify-between px-1">
             <span className="text-xs text-text-tertiary font-medium">提示词列表 · {results.length} 个</span>
-            <button
-              onClick={handleBatchGenerate}
-              disabled={batchLoading || taskManager.isFull || (digitalHumanMode && !selectedGirlfriend)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                batchLoading || taskManager.isFull || (digitalHumanMode && !selectedGirlfriend)
-                  ? 'bg-bg-elevated text-text-secondary cursor-not-allowed'
-                  : 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:opacity-90 active:scale-[0.98]'
-              }`}
-            >
-              {batchLoading ? <><Loader2 size={12} className="animate-spin" /> 提交中...</> : <><Zap size={12} />一键批量生图</>}
-            </button>
+            <div className="flex items-center gap-2">
+              {/* 一键批量视频提示词（H3）—— 在生图按钮左侧 */}
+              <button
+                onClick={handleBatchGenerateH3}
+                disabled={h3Loading || results.length === 0}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  h3Loading || results.length === 0
+                    ? 'bg-bg-elevated text-text-secondary cursor-not-allowed'
+                    : 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90 active:scale-[0.98]'
+                }`}
+                title="为所有已生成的图片提示词批量生成 H3 视频提示词"
+              >
+                {h3Loading ? (
+                  <>
+                    <Loader2 size={12} className="animate-spin" />
+                    {h3Progress ? `第 ${h3Progress.current}/${h3Progress.total} 个...` : '生成中...'}
+                  </>
+                ) : (
+                  <><Sparkles size={12} />一键批量视频提示词</>
+                )}
+              </button>
+              <button
+                onClick={handleBatchGenerate}
+                disabled={batchLoading || taskManager.isFull || (digitalHumanMode && !selectedGirlfriend)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  batchLoading || taskManager.isFull || (digitalHumanMode && !selectedGirlfriend)
+                    ? 'bg-bg-elevated text-text-secondary cursor-not-allowed'
+                    : 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:opacity-90 active:scale-[0.98]'
+                }`}
+              >
+                {batchLoading ? <><Loader2 size={12} className="animate-spin" /> 提交中...</> : <><Zap size={12} />一键批量生图</>}
+              </button>
+            </div>
           </div>
           {results.map((result, idx) => (
             <RandomResultCard
@@ -2000,11 +2598,18 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               onCopy={() => handleCopy(idx, result.prompt)}
               genState={genStates[idx]}
               onGenerateImage={() => handleRandomGenerateImage(idx, result.prompt)}
+              onGenerateSingleH3={() => handleGenerateSingleH3(idx)}
               onFavorited={(url) => handleToggleFavorite(url, result.prompt)}
               onRetryStuck={() => handleRetryStuckSlot(idx)}
               taskManager={taskManager}
               digitalHumanMode={digitalHumanMode}
               selectedGirlfriend={selectedGirlfriend}
+              h3Prompt={h3Prompts[idx]}
+              h3Generating={h3ProcessingIndices.has(idx)}
+              sceneLabel={result.theme_label || result.theme || (THEMES.find((t) => t.key === theme)?.label || theme || (r18Mode ? 'R18' : '默认主题'))}
+              onGotoLongVideoWithH3={handleGotoLongVideoWithH3}
+              selectedImageIndex={selectedImageIndices[idx]}
+              onSelectImage={(imageIdx, imageUrl) => handleSelectRandomImage(idx, imageIdx, imageUrl)}
             />
           ))}
         </div>
@@ -2074,13 +2679,38 @@ function RandomHistoryPanel({ history, r18Mode, onLoad, onDelete, onClear, onCop
                         <div className="flex items-center gap-2">
                           <span className="text-[10px] font-medium text-text-tertiary">{ri + 1}</span>
                           <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${r18Mode ? 'bg-red-200 text-red-700' : 'bg-primary/10 text-primary'}`}>{containsCJK(r.theme_label || '') ? r.theme_label : ''}</span>
+                          {r.h3Prompt && (
+                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-indigo-100 text-indigo-600">有视频提示词</span>
+                          )}
                         </div>
                         <button onClick={() => copy(`${h.id}-${ri}`, r.prompt)}
                           className={`flex items-center gap-1 text-[10px] transition-colors ${copiedId === `${h.id}-${ri}` ? 'text-green-500' : 'text-text-tertiary hover:text-primary'}`}>
                           {copiedId === `${h.id}-${ri}` ? <><Check size={10} />已复制</> : <><Copy size={10} />复制</>}
                         </button>
                       </div>
-                      <p className="whitespace-pre-wrap">{r.prompt}</p>
+                      {/* 显示历史图片 */}
+                      {r.images && r.images.length > 0 && (
+                        <div className="mb-2 flex flex-wrap gap-1">
+                          {r.images.slice(0, 3).map((img, imgIdx) => (
+                            <div key={imgIdx} className="w-12 h-12 rounded overflow-hidden bg-bg-base border border-border">
+                              <img src={img} alt="" className="w-full h-full object-cover" />
+                            </div>
+                          ))}
+                          {r.images.length > 3 && (
+                            <div className="w-12 h-12 rounded bg-bg-base border border-border flex items-center justify-center text-[10px] text-text-tertiary">
+                              +{r.images.length - 3}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      <p className="whitespace-pre-wrap line-clamp-3">{r.prompt}</p>
+                      {/* 显示 H3 视频提示词摘要 */}
+                      {r.h3Prompt && (
+                        <div className="mt-2 px-2 py-1.5 rounded bg-indigo-50 border border-indigo-100">
+                          <div className="text-[10px] text-indigo-500 mb-0.5">H3 视频提示词摘要</div>
+                          <p className="text-[10px] text-indigo-700 line-clamp-2">{generateH3Summary(r.h3Prompt)}</p>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -2093,17 +2723,35 @@ function RandomHistoryPanel({ history, r18Mode, onLoad, onDelete, onClear, onCop
   );
 }
 
-function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r18Mode, onToggle, onCopy, genState, onGenerateImage, onFavorited, onRetryStuck, taskManager, digitalHumanMode, selectedGirlfriend }: {
+function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r18Mode, onToggle, onCopy, genState, onGenerateImage, onGenerateSingleH3, onFavorited, onRetryStuck, taskManager, digitalHumanMode, selectedGirlfriend, h3Prompt, h3Generating, sceneLabel, onGotoLongVideoWithH3, selectedImageIndex, onSelectImage, onPreviewImage }: {
   index: number; result: PromptResult; isExpanded: boolean; isCopied: boolean; tagsVisible: boolean; r18Mode: boolean; onToggle: () => void; onCopy: () => void;
   genState?: { loading: boolean; images: string[] };
   onGenerateImage: () => void;
+  /** 单个生成 H3 视频提示词回调 */
+  onGenerateSingleH3: () => void;
   onFavorited?: (url: string) => void;
   /** Called when a card has been "loading" for >90s with no stream events.
    *  Lets the user manually retry the slow slot without a full refresh. */
   onRetryStuck?: () => void;
   taskManager: TaskManagerReturn;
   digitalHumanMode?: boolean; selectedGirlfriend?: GirlfriendPreset | null;
+  /** 已生成的 H3 视频提示词（来自一键批量视频提示词按钮） */
+  h3Prompt?: string;
+  /** 当前卡片是否正在生成 H3 视频提示词 */
+  h3Generating?: boolean;
+  /** 当前场景/主题标签（用于显示在 H3 提示词上方） */
+  sceneLabel?: string;
+  /** 点击后用 H3 提示词 + 第一张生成图跳转到长视频 1.1 */
+  onGotoLongVideoWithH3?: (imageUrl: string, idx: number, videoPrompt?: string) => void;
+  /** 当前选中的图片索引（用于长视频 1.1） */
+  selectedImageIndex?: number;
+  /** 选中图片回调 */
+  onSelectImage?: (imageIndex: number, imageUrl: string) => void;
+  /** 预览图片回调（打开灯箱） */
+  onPreviewImage?: (imageUrl: string, imageIndex: number) => void;
 }) {
+  // 灯箱状态：预览大图
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   // A card is "generating" until the LLM has produced at least one chunk
   // for it. With the streaming backend, prompt stays "" for ~0.5-2s after
   // the user clicks "抽卡", so we render an explicit loading affordance
@@ -2116,18 +2764,13 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
   // from the prompt itself so the user always sees a meaningful summary
   // ("主题 1..5" placeholders are useless in the UI).
   const serverLabelRaw = result.theme_label?.trim() ?? '';
-  // Defence in depth: if the backend ever returns an English label
-  // (e.g. the user is running a build before the backend fix lands, or
-  // a model outputs mixed-language for a niche topic), DON'T silently
-  // throw it away — show the raw label so the user can still see what
-  // the model produced. Otherwise we fall through to "主题 N" which is
-  // useless (the user's bug report was exactly this: "只显示主题1、
-  // 主题2" with no actual scene).
   const serverLabel = serverLabelRaw;
-  const autoLabel = serverLabel ? '' : deriveThemeLabel(result.prompt);
-  // Final fallback: numbered placeholder. Only reached if BOTH the
-  // backend label and the local prompt-derived label are empty.
-  const themeLabel = serverLabel || autoLabel || `主题 ${index + 1}`;
+  // Use result.theme (preset name like "暗示优雅") as fallback when theme_label is empty
+  const presetLabel = result.theme?.trim() ?? '';
+  // For English-only prompts or when theme_label is empty, derive theme from prompt
+  const autoLabel = serverLabel ? '' : deriveThemeLabel(result.prompt, presetLabel);
+  // Priority: server theme_label > preset theme name > prompt-derived > "主题 N"
+  const themeLabel = serverLabel || presetLabel || autoLabel || `主题 ${index + 1}`;
   // ── Soft-timeout for mobile users stuck on "生成中" ──
   // The user reported that on mobile the card stayed in "生成中" forever
   // even though the backend had already charged the request. Track how
@@ -2143,7 +2786,8 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
     const id = window.setInterval(() => setLoadingSeconds(Math.floor((Date.now() - t0) / 1000)), 1000);
     return () => window.clearInterval(id);
   }, [isPromptLoading, result.theme_label]);
-  const STUCK_TIMEOUT_S = 90;
+  // 降低超时时间到 45 秒，让用户更快看到重试按钮
+  const STUCK_TIMEOUT_S = 45;
   const isStuck = isPromptLoading && loadingSeconds > STUCK_TIMEOUT_S;
   const totalTags = Object.values(result.tags_used || {}).flat().length;
   const accentColor = r18Mode ? 'border-red-200' : 'border-border';
@@ -2156,10 +2800,12 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
   const isGenLoading = genState?.loading;
   const displayImages = genState?.images ?? [];
 
-  // Find related running tasks
+  // Find related running tasks — normalize prompts so trailing whitespace/newlines in
+  // LLM output don't prevent the fallback from finding finished task images.
+  const resultPromptNorm = (result.prompt || '').trim();
   const relatedTasks = taskManager.tasks.filter(
     (t: QueuedTask) => t.status === 'RUNNING' || t.status === 'QUEUEING' || t.status === 'FINISHED'
-  ).filter((t: QueuedTask) => t.prompt === result.prompt);
+  ).filter((t: QueuedTask) => (t.prompt || '').trim() === resultPromptNorm);
 
   const allDisplayImages = displayImages.length > 0 ? displayImages : relatedTasks.flatMap((t: QueuedTask) => t.images);
 
@@ -2170,6 +2816,11 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
         <div className={`flex-shrink-0 px-3 py-1 rounded-full text-white text-xs font-bold shadow-sm flex items-center gap-1.5 ${badgeBg}`}>
           {isPromptLoading && <Loader2 size={11} className="animate-spin" />}
           {themeLabel}
+          {h3Generating && (
+            <span className="ml-1 flex items-center gap-0.5 text-[9px] bg-white/30 px-1.5 py-0.5 rounded-full">
+              <Loader2 size={8} className="animate-spin" />视频
+            </span>
+          )}
         </div>
         <div className="flex-1 min-w-0 text-left">
           {isPromptLoading ? (
@@ -2198,6 +2849,14 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
           ) : (
             <>
               <p className={`text-sm line-clamp-1 ${r18Mode ? 'text-red-700/80' : 'text-text-secondary'}`}>{result.prompt.slice(0, 80)}{result.prompt.length > 80 ? '...' : ''}</p>
+              {h3Generating && (
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="flex items-center gap-1 text-[10px] text-indigo-500">
+                    <Loader2 size={9} className="animate-spin" />
+                    生成视频提示词中
+                  </span>
+                </div>
+              )}
               {tagsVisible && totalTags > 0 && <p className="text-[10px] text-text-tertiary flex items-center gap-0.5 mt-0.5"><Tag size={10} />{totalTags} 标签</p>}
             </>
           )}
@@ -2228,17 +2887,32 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
                 {isPromptLoading && <Loader2 size={11} className="animate-spin" />}
                 提示词 {isPromptLoading && <span className="text-text-tertiary/70">· 生成中...</span>}
               </span>
-              <button
-                onClick={onGenerateImage}
-                disabled={isGenLoading || isPromptLoading || (digitalHumanMode && !selectedGirlfriend)}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
-                  isGenLoading || isPromptLoading || (digitalHumanMode && !selectedGirlfriend)
-                    ? 'bg-blue-100 text-blue-400 cursor-not-allowed'
-                    : 'bg-blue-500 text-white hover:bg-blue-600'
-                }`}
-              >
-                {isGenLoading ? <><Loader2 size={11} className="animate-spin" /> 生成中</> : <><Image size={11} />{digitalHumanMode && selectedGirlfriend ? '图生图' : '生图'}</>}
-              </button>
+              <div className="flex items-center gap-1.5">
+                {/* 单个生成视频提示词按钮 */}
+                <button
+                  onClick={onGenerateSingleH3}
+                  disabled={h3Generating || isPromptLoading}
+                  className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-all ${
+                    h3Generating || isPromptLoading
+                      ? 'bg-indigo-100 text-indigo-400 cursor-not-allowed'
+                      : 'bg-indigo-500 text-white hover:bg-indigo-600'
+                  }`}
+                  title="基于此图片提示词生成 H3 视频提示词"
+                >
+                  {h3Generating ? <><Loader2 size={11} className="animate-spin" /> 生成中</> : <><Sparkles size={11} />生成视频提示词</>}
+                </button>
+                <button
+                  onClick={onGenerateImage}
+                  disabled={isGenLoading || isPromptLoading || (digitalHumanMode && !selectedGirlfriend)}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                    isGenLoading || isPromptLoading || (digitalHumanMode && !selectedGirlfriend)
+                      ? 'bg-blue-100 text-blue-400 cursor-not-allowed'
+                      : 'bg-blue-500 text-white hover:bg-blue-600'
+                  }`}
+                >
+                  {isGenLoading ? <><Loader2 size={11} className="animate-spin" /> 生成中</> : <><Image size={11} />{digitalHumanMode && selectedGirlfriend ? '图生图' : '生图'}</>}
+                </button>
+              </div>
             </div>
             <div className={`rounded-xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap min-h-[3.5rem] ${r18Mode ? 'bg-red-50/70 text-red-800 border border-red-100' : 'bg-bg-elevated text-text-secondary'} ${isPromptLoading ? 'animate-pulse' : ''}`}>
               {isPromptLoading ? (
@@ -2253,22 +2927,203 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
             </div>
           </div>
 
+          {/* H3 视频提示词（来自一键批量视频提示词按钮） */}
+          {(h3Prompt || h3Generating) && (
+            <div className="mb-3">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-medium flex items-center gap-1.5 text-indigo-500">
+                  <Sparkles size={11} />
+                  H3 视频提示词
+                  {h3Generating && <span className="ml-1 flex items-center gap-1"><Loader2 size={10} className="animate-spin" />生成中...</span>}
+                  {sceneLabel && <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-indigo-500/10 text-indigo-500">{sceneLabel}</span>}
+                </span>
+                {h3Prompt && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(h3Prompt).catch(() => {}); }}
+                      className="p-1 rounded-md text-text-tertiary hover:bg-bg-hover transition-colors"
+                      title="复制 H3 提示词"
+                    >
+                      <Copy size={12} />
+                    </button>
+                    {allDisplayImages.length > 0 && onGotoLongVideoWithH3 && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const imageToUse = selectedImageIndex !== undefined && allDisplayImages[selectedImageIndex]
+                            ? allDisplayImages[selectedImageIndex]
+                            : allDisplayImages[0];
+                          onGotoLongVideoWithH3(imageToUse, index, h3Prompt);
+                        }}
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90 transition-all"
+                        title={selectedImageIndex !== undefined ? '用已选中的图片生成视频' : '点击图片选中后再生成视频（默认使用第一张）'}
+                      >
+                        <Video size={11} />长视频 1.1
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+              {h3Generating ? (
+                <div className="rounded-xl px-4 py-3 text-xs leading-relaxed animate-pulse">
+                  <div className="space-y-2">
+                    <div className="h-2.5 rounded w-[90%] bg-indigo-200/60" />
+                    <div className="h-2.5 rounded w-[75%] bg-indigo-200/60" />
+                    <div className="h-2.5 rounded w-[85%] bg-indigo-200/60" />
+                    <div className="h-2.5 rounded w-[60%] bg-indigo-200/60" />
+                  </div>
+                </div>
+              ) : h3Prompt ? (
+                <div>
+                  <div className={`rounded-xl px-4 py-3 text-xs leading-relaxed whitespace-pre-wrap max-h-48 overflow-y-auto font-mono ${r18Mode ? 'bg-indigo-50/40 text-indigo-900 border border-indigo-100' : 'bg-indigo-50/40 text-text-secondary border border-indigo-100'}`}>
+                    {h3Prompt}
+                  </div>
+                  {/* 中文总结 */}
+                  <div className="mt-2 px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-500/5 to-purple-500/5 border border-indigo-100/50">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="text-[10px] font-medium text-indigo-500">视频概要</span>
+                    </div>
+                    <p className="text-xs text-text-secondary leading-relaxed">
+                      {generateH3Summary(h3Prompt)}
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          )}
+
           {/* Generated images preview */}
           {allDisplayImages.length > 0 && (
             <div className="mb-3">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs text-text-tertiary font-medium">生成结果</span>
+                <span className="text-xs text-text-tertiary font-medium">生成结果（点击选中/预览）</span>
                 <span className="text-[10px] text-text-tertiary">{allDisplayImages.length} 张</span>
               </div>
               <div className="grid grid-cols-3 gap-2">
                 {allDisplayImages.slice(0, 6).map((img, idx) => (
-                  <AIGeneratedImagePreview key={idx} src={img} prompt={result.prompt} onFavorited={onFavorited} />
+                  <div
+                    key={idx}
+                    className={`relative group cursor-pointer rounded-lg overflow-hidden transition-all ${
+                      selectedImageIndex === idx ? 'ring-2 ring-purple-500 ring-offset-2' : ''
+                    }`}
+                    onClick={() => {
+                      onSelectImage?.(idx, img);
+                      setLightboxUrl(img);
+                    }}
+                  >
+                    <AspectAwareImage
+                      src={img}
+                      alt=""
+                      maxHeight={120}
+                      objectFit="cover"
+                    />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors pointer-events-none" />
+                    {onFavorited && (
+                      <div className="absolute top-1 right-1 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); onFavorited(img); }}
+                          title={isFavorited(img) ? '取消收藏' : '收藏'}
+                          className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                            isFavorited(img) ? 'bg-red-500 text-white' : 'bg-black/55 text-white hover:bg-red-500'
+                          }`}
+                        >
+                          <Heart size={11} className={isFavorited(img) ? 'fill-white' : ''} />
+                        </button>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                      <div className="w-7 h-7 rounded-full bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-auto flex items-center justify-center">
+                        <ZoomIn size={14} className="text-white" />
+                      </div>
+                    </div>
+                    {selectedImageIndex === idx && (
+                      <div className="absolute top-1 left-1 bg-purple-500 text-white text-[9px] px-1.5 py-0.5 rounded font-medium flex items-center gap-0.5">
+                        <Check size={9} /> 已选
+                      </div>
+                    )}
+                  </div>
                 ))}
                 {allDisplayImages.length > 6 && (
                   <div className="aspect-square rounded-lg bg-bg-elevated flex items-center justify-center text-xs text-text-tertiary">
                     +{allDisplayImages.length - 6}
                   </div>
                 )}
+              </div>
+              {allDisplayImages.length > 0 && onGotoLongVideoWithH3 && (
+                <div className="flex justify-end mt-2">
+                  <button
+                    onClick={() => {
+                      const img = selectedImageIndex !== undefined ? allDisplayImages[selectedImageIndex] : allDisplayImages[0];
+                      onGotoLongVideoWithH3(img, index, h3Prompt);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90 transition-all"
+                  >
+                    <Video size={12} />生视频
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 灯箱预览 */}
+          {lightboxUrl && (
+            <div
+              className="fixed inset-0 z-50 bg-black/95 flex flex-col"
+              onClick={() => setLightboxUrl(null)}
+            >
+              {/* Top bar */}
+              <div
+                className="flex-shrink-0 flex items-center justify-between px-4 py-3 z-10"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <span className="text-sm text-white/70">图片预览</span>
+                <div className="flex items-center gap-2">
+                  {onFavorited && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onFavorited(lightboxUrl); }}
+                      className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
+                      title="收藏"
+                    >
+                      <Heart
+                        size={18}
+                        className={isFavorited(lightboxUrl) ? 'fill-red-500 text-red-500' : 'text-white'}
+                      />
+                    </button>
+                  )}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const a = document.createElement('a');
+                      a.href = lightboxUrl;
+                      a.download = `抽卡_${index + 1}_${Date.now()}.jpg`;
+                      a.click();
+                    }}
+                    className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
+                    title="下载"
+                  >
+                    <Download size={18} className="text-white" />
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setLightboxUrl(null); }}
+                    className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
+                    title="关闭"
+                  >
+                    <X size={18} className="text-white" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Image */}
+              <div
+                className="flex-1 flex items-center justify-center overflow-hidden p-4 pb-16"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <img
+                  src={lightboxUrl}
+                  alt="预览大图"
+                  className="max-w-full max-h-full object-contain"
+                />
               </div>
             </div>
           )}
@@ -3075,6 +3930,11 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
    */
   const [panelVideoPrompts, setPanelVideoPrompts] = useState<Record<number, string>>({});
 
+  // H3 提示词引擎状态
+  const [panelH3Prompts, setPanelH3Prompts] = useState<Record<number, string>>({});
+  const [panelH3Duration, setPanelH3Duration] = useState<15 | 30 | 60>(15); // 默认 15 秒
+  const [panelH3Loading, setPanelH3Loading] = useState<Record<number, boolean>>({});
+
   // Image selection and video generation state
   const [selectedPanelImages, setSelectedPanelImages] = useState<Record<string, { index: number; url: string }>>({});
   const [videoGenLoading, setVideoGenLoading] = useState<Record<string, boolean>>({});
@@ -3398,11 +4258,10 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     if (panels.length === 0) { onError('先生成分镜'); return; }
     setGeneratingScript(true);
     try {
-      // Explicit model order: try grok-4.3 first; if it fails (timeout,
+      // Explicit model order: try grok-4.6 first; if it fails (timeout,
       // 5xx, content filter, etc.) backend's call_grok() automatically
-      // falls back to grok-4-1-fast-non-reasoning. Same chain used for
-      // per-panel regen below.
-      const modelOrder = ['grok-4.3', 'grok-4-1-fast-non-reasoning'];
+      // falls back to grok-4.3. Same chain used for per-panel regen below.
+      const modelOrder = ['grok-4.6', 'grok-4.3'];
       const res = await generateVideoScript(selectedTheme?.title || '默认主题', r18Mode, panels, true, modelOrder);
 
       // Async mode: track for polling
@@ -3472,7 +4331,20 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     });
     setPromptEditLoading((prev) => ({ ...prev, [panelIdx]: true }));
     try {
-      const res = await expandVideoFromImage(imageAnchor, actionToExpand, r18Mode, 1);
+      let res;
+      try {
+        res = await expandVideoFromImage(imageAnchor, actionToExpand, r18Mode, 1);
+      } catch (firstErr) {
+        const isTimeout = firstErr instanceof Error &&
+          (firstErr.message.includes('超时') || firstErr.message.includes('timeout'));
+        if (isTimeout) {
+          console.warn(`[handleRegenerateVideoPrompt] 超时，尝试 fast 模型重试（150s）`);
+          // retry：跳过默认慢模型，直接用 fast 模型，并延长超时到 150s
+          res = await expandVideoFromImage(imageAnchor, actionToExpand, r18Mode, 1, ['grok-4.6', 'grok-4.3'], 150000);
+        } else {
+          throw firstErr;
+        }
+      }
       const elapsedMs = Date.now() - requestStartTime;
       console.log('[智能扩写] i2v 返回', {
         panelIdx,
@@ -3791,6 +4663,116 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       setVideoGenLoading(prev => { const next = { ...prev }; delete next[panelKey]; return next; });
     }
   }, [apiKey, taskManager, onError, onSuccess, r18Mode]);
+
+  // ── H3 提示词引擎 ─────────────────────────────────────────────────────────
+  /** 单个分镜：生成 H3 视频提示词（调用模型） */
+  const handleGeneratePanelH3 = useCallback(async (idx: number, panel: { panel_number: number; image_prompt: string }) => {
+    setPanelH3Loading(prev => ({ ...prev, [idx]: true }));
+    try {
+      // Step 1: 调用模型将图片提示词转换为视频提示词
+      const themeLabel = activeThemeInfo?.title || plot || (r18Mode ? 'R18' : '默认主题');
+      let videoRes;
+      try {
+        videoRes = await expandVideoFromImage(panel.image_prompt, themeLabel, r18Mode, 1);
+      } catch (err) {
+        // 超时或失败时使用更长的超时重试
+        console.warn(`[handleGeneratePanelH3] expandVideoFromImage 失败，重试（150s）`);
+        videoRes = await expandVideoFromImage(panel.image_prompt, themeLabel, r18Mode, 1, ['grok-4.6', 'grok-4.3'], 150000);
+      }
+      
+      const videoPrompt = videoRes.results?.[0]?.prompt?.trim();
+      
+      // Step 2: 使用视频提示词生成 H3 格式
+      const h3Prompt = generateH3Prompt({
+        imagePrompt: panel.image_prompt,
+        sceneDescription: videoPrompt || undefined,
+        duration: panelH3Duration,
+        r18: r18Mode,
+      });
+      setPanelH3Prompts(prev => ({ ...prev, [idx]: h3Prompt }));
+      onSuccess(`分镜 ${panel.panel_number} 的 H3 提示词已生成`);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'H3 提示词生成失败');
+    } finally {
+      setPanelH3Loading(prev => { const next = { ...prev }; delete next[idx]; return next; });
+    }
+  }, [activeThemeInfo, plot, panelH3Duration, r18Mode, onSuccess, onError]);
+
+  /** 一键批量生成所有分镜的 H3 视频提示词（调用模型） */
+  const handleBatchGenerateH3 = useCallback(async () => {
+    if (activePanels.length === 0) { onError('没有可用的分镜'); return; }
+    setPanelH3Loading(prev => Object.fromEntries(activePanels.map((_, i) => [i, true])));
+    const themeLabel = activeThemeInfo?.title || plot || (r18Mode ? 'R18' : '默认主题');
+    try {
+      const newPrompts: Record<number, string> = {};
+      for (let i = 0; i < activePanels.length; i++) {
+        const panel = activePanels[i];
+        
+        // Step 1: 调用模型将图片提示词转换为视频提示词
+        let videoRes;
+        try {
+          videoRes = await expandVideoFromImage(panel.image_prompt, themeLabel, r18Mode, 1);
+        } catch (err) {
+          console.warn(`[handleBatchGenerateH3] 第 ${i + 1} 个 expandVideoFromImage 失败，重试（150s）`);
+          videoRes = await expandVideoFromImage(panel.image_prompt, themeLabel, r18Mode, 1, ['grok-4.6', 'grok-4.3'], 150000);
+        }
+        
+        const videoPrompt = videoRes.results?.[0]?.prompt?.trim();
+        
+        // Step 2: 使用视频提示词生成 H3 格式
+        const h3Prompt = generateH3Prompt({
+          imagePrompt: panel.image_prompt,
+          sceneDescription: videoPrompt || undefined,
+          duration: panelH3Duration,
+          r18: r18Mode,
+        });
+        newPrompts[i] = h3Prompt;
+      }
+      setPanelH3Prompts(newPrompts);
+      onSuccess(`已为 ${activePanels.length} 个分镜生成 H3 视频提示词`);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'H3 提示词批量生成失败');
+    } finally {
+      setPanelH3Loading({});
+    }
+  }, [activePanels, activeThemeInfo, plot, panelH3Duration, r18Mode, onSuccess, onError]);
+
+  /** 单个分镜：跳转到长视频 1.1 并填入 H3 提示词 */
+  const handleGotoLongVideoWithH3 = useCallback(async (
+    idx: number,
+    panel: { image_prompt: string },
+    imageUrl: string,
+    panelH3Prompt: string,
+  ) => {
+    // 先上传图片获取 path
+    let imagePath = imageUrl;
+    if (imageUrl.startsWith('data:') || imageUrl.startsWith('blob:')) {
+      try {
+        const res = await fetch(imageUrl);
+        const blob = await res.blob();
+        const file = new File([blob], `storyboard_h3_${Date.now()}.jpg`, { type: 'image/jpeg' });
+        const { imagePath: uploadedPath } = await uploadImage(apiKey, file);
+        imagePath = uploadedPath;
+      } catch {
+        onError('图片上传失败，请重试');
+        return;
+      }
+    }
+
+    // 存储到 sessionStorage，由 ImageToVideoPage 消费
+    const h3Prompt = panelH3Prompt || generateH3Prompt({
+      imagePrompt: panel.image_prompt,
+      duration: panelH3Duration,
+      r18: r18Mode,
+    });
+    sessionStorage.setItem('storyboard_h3_longvideo', JSON.stringify({
+      imagePath,
+      imagePreview: imageUrl,
+      h3Prompt,
+      processed: false,
+    }));
+    onNavigate?.('img2vid');
+  }, [apiKey, panelH3Duration, r18Mode, onError, onNavigate, onSuccess]);
 
   // Handle batch video generation from storyboard panels
   const handleBatchGenerateVideo = useCallback(async () => {
@@ -4885,6 +5867,30 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
               >
                 {batchLoading ? <><Loader2 size={12} className="animate-spin" /> 提交中...</> : <><Zap size={12} />一键批量生图</>}
               </button>
+              {/* H3 提示词引擎 */}
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] text-indigo-500">H3:</span>
+                {([15, 30, 60] as const).map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setPanelH3Duration(d)}
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                      panelH3Duration === d ? 'bg-indigo-500 text-white' : 'bg-indigo-100 text-indigo-600'
+                    }`}
+                  >
+                    {d}秒
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={handleBatchGenerateH3}
+                  disabled={activePanels.length === 0 || Object.values(panelH3Loading).some(Boolean)}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-indigo-500 text-white hover:bg-indigo-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {Object.values(panelH3Loading).some(Boolean) ? <><Loader2 size={10} className="animate-spin" /> 生成中...</> : <><Sparkles size={10} />一键生成H3视频提示词</>}
+                </button>
+              </div>
             </div>
           </div>
           {activePanels.map((panel, idx) => {
@@ -4942,6 +5948,12 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                 promptEditLoading={!!promptEditLoading[idx]}
                 onVideoPromptChange={(newPrompt) => setPanelVideoPrompts((prev) => ({ ...prev, [idx]: newPrompt }))}
                 historyId={sbHistoryId || ''}
+                // H3 提示词引擎相关
+                panelH3Prompt={panelH3Prompts[idx]}
+                panelH3Duration={panelH3Duration}
+                panelH3Loading={!!panelH3Loading[idx]}
+                onGeneratePanelH3={() => handleGeneratePanelH3(idx, panel)}
+                onGotoLongVideoWithH3={(imageUrl) => handleGotoLongVideoWithH3(idx, panel, imageUrl, panelH3Prompts[idx])}
               />
             );
           })}
@@ -5207,7 +6219,7 @@ function FavoritesList({ favorites, r18Mode, onRemove, onClear }: {
   );
 }
 
-function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onToggle, onCopyPanel, genState, onGenerateImage, onFavorited, onDownload, taskManager, digitalHumanMode, selectedGirlfriend, selectedImageIndex, onSelectImage, onGenerateVideo, videoPrompt, hasGeneratedImages, onPreviewImage, videoGenLoading, onDirectGenerateVideo, themeTitle, onRegenerateVideoPrompt, promptEditLoading, onVideoPromptChange, historyId }: {
+function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onToggle, onCopyPanel, genState, onGenerateImage, onFavorited, onDownload, taskManager, digitalHumanMode, selectedGirlfriend, selectedImageIndex, onSelectImage, onGenerateVideo, videoPrompt, hasGeneratedImages, onPreviewImage, videoGenLoading, onDirectGenerateVideo, themeTitle, onRegenerateVideoPrompt, promptEditLoading, onVideoPromptChange, historyId, panelH3Prompt, panelH3Duration, panelH3Loading, onGeneratePanelH3, onGotoLongVideoWithH3 }: {
   panel: { panel_number: number; scene_description: string; image_prompt: string };
   idx: number; isExpanded: boolean; r18Mode: boolean; copiedPanel: number | null;
   onToggle: () => void; onCopyPanel: () => void;
@@ -5226,13 +6238,19 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
   videoGenLoading?: boolean;
   onDirectGenerateVideo?: (imageUrl: string, prompt: string) => void;
   themeTitle?: string;
-  /** Trigger a single-panel video-prompt "智能扩写" via backend grok-4.3 → grok-4-1-fast-non-reasoning */
+  /** Trigger a single-panel video-prompt "智能扩写" via backend grok-4.6 → grok-4.3 */
   onRegenerateVideoPrompt?: () => void;
   /** Spinner state for the smart-expand button */
   promptEditLoading?: boolean;
   /** Edits to the prompt (writes back into parent state so 图生视频 uses the latest text) */
   onVideoPromptChange?: (newPrompt: string) => void;
   historyId?: string;
+  // H3 提示词引擎
+  panelH3Prompt?: string;
+  panelH3Duration?: 15 | 30 | 60;
+  panelH3Loading?: boolean;
+  onGeneratePanelH3?: () => void;
+  onGotoLongVideoWithH3?: (imageUrl: string) => void;
 }) {
   const isGenLoading = genState?.loading;
   const displayImages = genState?.images ?? [];
@@ -5428,7 +6446,7 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
                     <button
                       onClick={onRegenerateVideoPrompt}
                       disabled={promptEditLoading}
-                      title="智能扩写：先用 grok-4.3，失败自动用 grok-4-1-fast-non-reasoning"
+                      title="智能扩写：先用 grok-4.6，失败自动用 grok-4.3"
                       className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
                         promptEditLoading
                           ? 'bg-bg-elevated text-text-secondary cursor-not-allowed'
@@ -5469,6 +6487,44 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
                       {videoGenLoading ? <><Loader2 size={11} className="animate-spin" /> 生成中</> : <><Video size={11} />图生视频</>}
                     </button>
                   )}
+                  {/* H3 提示词引擎按钮 */}
+                  <button
+                    type="button"
+                    onClick={onGeneratePanelH3}
+                    disabled={panelH3Loading || !hasImages}
+                    title="生成 MiniMax H3 六段式视频提示词"
+                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      panelH3Loading || !hasImages
+                        ? 'bg-indigo-100 text-indigo-400 cursor-not-allowed'
+                        : 'bg-indigo-500 text-white hover:bg-indigo-600'
+                    }`}
+                  >
+                    {panelH3Loading ? (
+                      <><Loader2 size={11} className="animate-spin" /> 生成中...</>
+                    ) : (
+                      <><Sparkles size={11} />生成H3提示词</>
+                    )}
+                  </button>
+                  {panelH3Prompt && hasImages && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const img = selectedImageIndex !== undefined && allDisplayImages[selectedImageIndex]
+                          ? allDisplayImages[selectedImageIndex]
+                          : allDisplayImages[0];
+                        onGotoLongVideoWithH3?.(img);
+                      }}
+                      disabled={videoGenLoading}
+                      title="用 H3 提示词在长视频 1.1 中生成视频"
+                      className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                        videoGenLoading
+                          ? 'bg-indigo-100 text-indigo-400 cursor-not-allowed'
+                          : 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90'
+                      }`}
+                    >
+                      <Video size={11} />图生视频 → 长视频1.1
+                    </button>
+                  )}
                 </div>
               </div>
               {promptEditLoading ? (
@@ -5490,6 +6546,31 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
                 )
               ) : (
                 <div className="text-xs text-text-tertiary">生成图片后将自动生成动画提示词，或点击「智能扩写」生成</div>
+              )}
+              {/* H3 提示词预览 */}
+              {panelH3Prompt && (
+                <div className="mt-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] text-indigo-600 font-medium flex items-center gap-0.5">
+                      <Sparkles size={10} />
+                      H3 视频提示词（{panelH3Duration}秒，可编辑）
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => { navigator.clipboard?.writeText(panelH3Prompt); }}
+                      className="text-[10px] text-indigo-500 hover:text-indigo-700 flex items-center gap-0.5"
+                    >
+                      <Copy size={10} /> 复制
+                    </button>
+                  </div>
+                  <textarea
+                    value={panelH3Prompt}
+                    rows={6}
+                    readOnly
+                    className="w-full px-2 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 text-[10px] text-indigo-800 font-mono focus:outline-none resize-none"
+                    placeholder="H3 Ref2VA 六段式提示词..."
+                  />
+                </div>
               )}
             </div>
 

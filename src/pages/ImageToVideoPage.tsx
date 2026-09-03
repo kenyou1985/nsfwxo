@@ -18,6 +18,7 @@ import { PosePresetSelector } from '../components/PosePresetSelector';
 import { RunningHubModelPicker } from '../components/RunningHubModelPicker';
 import type { RunningHubModelEntry } from '../services/runninghubModelsService';
 import { NinfiniteLongVideoPage } from './NinfiniteLongVideoPage';
+import { generateH3Prompt } from '../services/h3PromptService';
 
 const DURATION_OPTIONS = [
   { value: '5', label: '5秒' },
@@ -1341,6 +1342,13 @@ interface MiniMaxLongVideoPanelProps {
   setSelectedGirlfriend: (gf: GirlfriendPreset | null) => void;
   girlfriendUploading: boolean;
   setGirlfriendUploading: (v: boolean) => void;
+  /** H3 提示词引擎相关 */
+  mlH3Prompt?: string;
+  setMlH3Prompt?: (v: string) => void;
+  mlH3Duration?: 15 | 30 | 60;
+  setMlH3Duration?: (v: 15 | 30 | 60) => void;
+  handleGenerateH3Prompt?: (duration?: 15 | 30 | 60) => void;
+  handleGotoLongVideoWithH3?: () => void;
 }
 
 function MiniMaxLongVideoPanel({
@@ -1349,7 +1357,9 @@ function MiniMaxLongVideoPanel({
   mlVideoModel, setMlVideoModel, mlLora, setMlLora, mlLoraWeight, setMlLoraWeight,
   mlUploading, setMlUploading, isSubmitting, setIsSubmitting,
   onError, onSuccess, taskListRef,
-  selectedGirlfriend, setSelectedGirlfriend, girlfriendUploading, setGirlfriendUploading
+  selectedGirlfriend, setSelectedGirlfriend, girlfriendUploading, setGirlfriendUploading,
+  mlH3Prompt, setMlH3Prompt, mlH3Duration, setMlH3Duration,
+  handleGenerateH3Prompt, handleGotoLongVideoWithH3,
 }: MiniMaxLongVideoPanelProps) {
 
   // Handle image upload
@@ -1720,6 +1730,77 @@ function MiniMaxLongVideoPanel({
             已锚定数字人：{selectedGirlfriend.nameZh || selectedGirlfriend.name}
           </div>
         )}
+
+        {/* MiniMax H3 提示词引擎 */}
+        <div className="mt-3 pt-3 border-t border-border">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-medium text-indigo-600 flex items-center gap-1">
+              <Sparkles size={12} />
+              MiniMax H3 提示词引擎
+            </span>
+          </div>
+          {/* 时长选择 */}
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[11px] text-text-tertiary">视频时长：</span>
+            {([15, 30, 60] as const).map((d) => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => setMlH3Duration?.(d)}
+                className={`px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${
+                  mlH3Duration === d ? 'bg-indigo-500 text-white' : 'bg-bg-elevated text-text-secondary hover:bg-indigo-100'
+                }`}
+              >
+                {d}秒
+              </button>
+            ))}
+          </div>
+          {/* 操作按钮行 */}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => handleGenerateH3Prompt?.()}
+              disabled={isSubmitting || !mlPrompts.some((p) => p.trim())}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-500 text-white hover:bg-indigo-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Sparkles size={12} />
+              生成H3视频提示词
+            </button>
+            {mlH3Prompt && (
+              <button
+                type="button"
+                onClick={handleGotoLongVideoWithH3}
+                disabled={isSubmitting}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90 transition-colors disabled:opacity-50"
+              >
+                <Video size={12} />
+                图生视频 → 长视频1.1
+              </button>
+            )}
+          </div>
+          {/* H3 提示词预览 */}
+          {mlH3Prompt && (
+            <div className="mt-2">
+              <textarea
+                value={mlH3Prompt}
+                onChange={(e) => setMlH3Prompt?.(e.target.value)}
+                rows={6}
+                className="w-full px-3 py-2 rounded-lg bg-indigo-50 border border-indigo-200 text-[11px] text-indigo-800 font-mono focus:outline-none focus:border-indigo-400 resize-none"
+                placeholder="生成的 H3 视频提示词..."
+              />
+              <div className="flex items-center justify-between mt-1">
+                <span className="text-[10px] text-indigo-400">H3 Ref2VA 六段式提示词（可编辑）</span>
+                <button
+                  type="button"
+                  onClick={() => { navigator.clipboard?.writeText(mlH3Prompt); onSuccess('已复制到剪贴板'); }}
+                  className="text-[10px] text-indigo-500 hover:text-indigo-700 flex items-center gap-0.5"
+                >
+                  <Copy size={10} /> 复制
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 视频模型配置 */}
@@ -2150,6 +2231,8 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
 
   // 长视频 v1.1 初始参考图（从历史记录跳转时设置，由 NinfiniteLongVideoPage 一次性消费）
   const [nlInitialImage, setNlInitialImage] = useState<{ path: string; preview: string } | null>(null);
+  // 长视频 v1.1 初始提示词（来自 H3 提示词引擎）
+  const [nlInitialPrompt, setNlInitialPrompt] = useState<string | null>(null);
 
   // Wan 2.2 state
   const [imagePath, setImagePath] = useState('');
@@ -2214,6 +2297,39 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
   const [mlSelectedGirlfriend, setMlSelectedGirlfriend] = useState<GirlfriendPreset | null>(null);
   const [mlGirlfriendUploading, setMlGirlfriendUploading] = useState(false);
 
+  // MiniMax H3 提示词引擎状态（截图2 图生视频区域）
+  const [mlH3Prompt, setMlH3Prompt] = useState('');        // 生成的 H3 提示词
+  const [mlH3Duration, setMlH3Duration] = useState<15 | 30 | 60>(15); // H3 视频时长选项
+
+  // ── MiniMax H3 提示词引擎 ─────────────────────────────────────────────────
+  const handleGenerateH3Prompt = useCallback((duration: 15 | 30 | 60 = mlH3Duration) => {
+    const basePrompt = mlPrompts.filter(Boolean).join(' ');
+    if (!basePrompt.trim()) return;
+    const h3Prompt = generateH3Prompt({
+      imagePrompt: basePrompt,
+      duration,
+      r18: true,
+    });
+    setMlH3Prompt(h3Prompt);
+    setMlH3Duration(duration);
+  }, [mlPrompts, mlH3Duration]);
+
+  // ── 跳转到长视频 1.1 并填入 H3 提示词 ────────────────────────────────────
+  const handleGotoLongVideoWithH3 = useCallback(async () => {
+    const h3Prompt = mlH3Prompt || generateH3Prompt({
+      imagePrompt: mlPrompts.filter(Boolean).join(' '),
+      duration: mlH3Duration,
+      r18: true,
+    });
+    const firstImage = mlImages.find((img) => img.path && img.path !== 'None') ?? mlImages[0];
+    if (firstImage?.path && firstImage.path !== 'None') {
+      setNlInitialImage({ path: firstImage.path, preview: firstImage.preview });
+    }
+    setNlInitialPrompt(h3Prompt);
+    setVideoModel('longvideov2');
+    onSuccess('已切换到长视频 1.1，H3 提示词已填入');
+  }, [mlH3Prompt, mlH3Duration, mlPrompts, mlImages, onSuccess]);
+
   // MiniMax H3 T2V state
   const [mh3Prompt, setMh3Prompt] = useState('');
   const [mh3AutoPrompt, setMh3AutoPrompt] = useState(true); // true = 开启自动优化提示词
@@ -2233,125 +2349,197 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
 
   // Check for storyboard image2video data on mount
   useEffect(() => {
-    // Try new direct format first (auto-generate)
-    const directData = sessionStorage.getItem('storyboard_img2vid_direct');
-    // Try old format (navigate only)
-    const oldData = sessionStorage.getItem('storyboard_img2vid');
-    // 历史记录 → 图生视频：只预填图片，不自动生成
-    const historyData = sessionStorage.getItem('history_img2vid');
+    // 定义异步处理函数
+    const processStoryboardData = async () => {
+      // Try new direct format first (auto-generate)
+      const directData = sessionStorage.getItem('storyboard_img2vid_direct');
+      // Try old format (navigate only)
+      const oldData = sessionStorage.getItem('storyboard_img2vid');
+      // 历史记录 → 图生视频：只预填图片，不自动生成
+      const historyData = sessionStorage.getItem('history_img2vid');
+      // H3 提示词引擎 → 长视频 1.1：预填图片和 H3 提示词
+      const h3LongVideoData = sessionStorage.getItem('storyboard_h3_longvideo');
+      // 随机抽卡 → 长视频 1.1：预填图片和提示词（如果有的话）
+      const randomLongVideoData = sessionStorage.getItem('random_longvideo_v1_1');
 
-    // Clear storage BEFORE processing to prevent duplicate submissions
-    if (directData) {
-      sessionStorage.removeItem('storyboard_img2vid_direct');
-    }
-    if (oldData) {
-      sessionStorage.removeItem('storyboard_img2vid');
-    }
-    if (historyData) {
-      sessionStorage.removeItem('history_img2vid');
-    }
-
-    const processData = async (data: string, autoGenerate: boolean) => {
-      try {
-        const { imageUrl, imagePath: uploadedPath, prompt: videoPrompt, targetModel } = JSON.parse(data);
-        let finalImagePath = uploadedPath || '';
-        let finalImagePreview = imageUrl;
-
-        // Upload image if it's a data URL or blob
-        if (imageUrl && (imageUrl.startsWith('data:') || imageUrl.startsWith('blob:'))) {
-          try {
-            const res = await fetch(imageUrl);
-            const blob = await res.blob();
-            const file = new File([blob], `storyboard_${Date.now()}.jpg`, { type: 'image/jpeg' });
-            const uploadResult = await uploadImage(apiKey, file);
-            finalImagePath = uploadResult.imagePath;
-            finalImagePreview = imageUrl;
-          } catch {
-            // If upload fails, we'll show error below
-          }
-        } else if (imageUrl) {
-          finalImagePath = imageUrl;
-          finalImagePreview = imageUrl;
-        }
-
-        if (!finalImagePath) {
-          onError?.('图片上传失败，请重试');
-          return;
-        }
-
-        // 根据 targetModel 自动切换到对应的视频模型
-        if (targetModel === 'longvideov2') {
-          // 切换到 长视频 v1.1 模型，并写入 slot 0
+      // Clear storage BEFORE processing to prevent duplicate submissions
+      if (directData) {
+        sessionStorage.removeItem('storyboard_img2vid_direct');
+      }
+      if (oldData) {
+        sessionStorage.removeItem('storyboard_img2vid');
+      }
+      if (historyData) {
+        sessionStorage.removeItem('history_img2vid');
+      }
+      if (h3LongVideoData) {
+        sessionStorage.removeItem('storyboard_h3_longvideo');
+        try {
+          const { imagePath: h3ImgPath, imagePreview: h3ImgPreview, h3Prompt: h3PromptText } = JSON.parse(h3LongVideoData);
+          // 切换到长视频 1.1 模型
           setVideoModel('longvideov2');
-          setNlInitialImage({ path: finalImagePath, preview: finalImagePreview });
-        } else if (targetModel === 'minimaxh3') {
-          // 切换到 MiniMax H3 模型
-          setVideoModel('minimaxh3');
-          // 设置图片到 MiniMax H3 面板
-          setMmImages([{ path: finalImagePath, preview: finalImagePreview }, { path: '', preview: '' }, { path: '', preview: '' }]);
-        } else {
-          // 默认使用 Wan 2.2 模型
-          setImagePreview(finalImagePreview);
-          setImagePath(finalImagePath);
+          // 设置参考图
+          if (h3ImgPath) {
+            setNlInitialImage({ path: h3ImgPath, preview: h3ImgPreview || h3ImgPath });
+          }
+          // 设置 H3 提示词
+          if (h3PromptText) {
+            setMlH3Prompt(h3PromptText);
+          }
+          onSuccess?.('已从剧情分镜导入图片和 H3 提示词到长视频 1.1');
+        } catch (err) {
+          console.warn('[ImageToVideoPage] Failed to process storyboard_h3_longvideo:', err);
         }
-
-        if (videoPrompt) {
-          setPrompt(videoPrompt);
-        }
-
-        if (autoGenerate) {
-          // Auto-generate video after a short delay to let the UI update
-          setTimeout(() => {
-            if (finalImagePath && videoPrompt) {
-              // Use ref to get current function
-              const nodeList = buildNodeListWithParamsRef.current(
-                finalImagePath,
-                videoPrompt,
-                resolution,
-                duration,
-                interpolation,
-                loraHigh,
-                loraHighWeight,
-                loraLow,
-                loraLowWeight
-              );
-              taskListRef.current?.submitTask(videoPrompt, finalImagePath, finalImagePreview, nodeList);
+      }
+      // 处理随机抽卡 → 长视频 1.1 数据
+      if (randomLongVideoData) {
+        sessionStorage.removeItem('random_longvideo_v1_1');
+        try {
+          const { imageUrl, h3Prompt: randomH3Prompt, prompt: randomPrompt } = JSON.parse(randomLongVideoData);
+          // 切换到长视频 1.1 模型
+          setVideoModel('longvideov2');
+          
+          // 处理图片
+          let finalImagePath = imageUrl || '';
+          let finalImagePreview = imageUrl || '';
+          
+          // Upload image if it's a data URL or blob
+          if (imageUrl && (imageUrl.startsWith('data:') || imageUrl.startsWith('blob:'))) {
+            try {
+              const res = await fetch(imageUrl);
+              const blob = await res.blob();
+              const file = new File([blob], `random_${Date.now()}.jpg`, { type: 'image/jpeg' });
+              const uploadResult = await uploadImage(apiKey, file);
+              finalImagePath = uploadResult.imagePath;
+              finalImagePreview = imageUrl;
+            } catch (uploadErr) {
+              console.warn('[ImageToVideoPage] Failed to upload random image:', uploadErr);
             }
-          }, 500);
+          }
+          
+          // 设置参考图
+          if (finalImagePath) {
+            setNlInitialImage({ path: finalImagePath, preview: finalImagePreview });
+          }
+          
+          // 设置提示词：如果有 H3 提示词则用 nlInitialPrompt，否则用普通提示词
+          if (randomH3Prompt) {
+            setNlInitialPrompt(randomH3Prompt);
+          } else if (randomPrompt) {
+            setNlInitialPrompt(randomPrompt);
+          }
+          
+          onSuccess?.('已从随机抽卡导入图片和提示词到长视频 1.1');
+        } catch (err) {
+          console.warn('[ImageToVideoPage] Failed to process random_longvideo_v1_1:', err);
         }
-        
-        if (autoGenerate) {
-          onSuccess?.('正在从分镜生成视频...');
-        } else {
-          onSuccess?.('已从分镜导入图片和提示词');
+      }
+
+      const processData = async (data: string, autoGenerate: boolean) => {
+        try {
+          const { imageUrl, imagePath: uploadedPath, prompt: videoPrompt, targetModel } = JSON.parse(data);
+          let finalImagePath = uploadedPath || '';
+          let finalImagePreview = imageUrl;
+
+          // Upload image if it's a data URL or blob
+          if (imageUrl && (imageUrl.startsWith('data:') || imageUrl.startsWith('blob:'))) {
+            try {
+              const res = await fetch(imageUrl);
+              const blob = await res.blob();
+              const file = new File([blob], `storyboard_${Date.now()}.jpg`, { type: 'image/jpeg' });
+              const uploadResult = await uploadImage(apiKey, file);
+              finalImagePath = uploadResult.imagePath;
+              finalImagePreview = imageUrl;
+            } catch {
+              // If upload fails, we'll show error below
+            }
+          } else if (imageUrl) {
+            finalImagePath = imageUrl;
+            finalImagePreview = imageUrl;
+          }
+
+          if (!finalImagePath) {
+            onError?.('图片上传失败，请重试');
+            return;
+          }
+
+          // 根据 targetModel 自动切换到对应的视频模型
+          if (targetModel === 'longvideov2') {
+            // 切换到 长视频 v1.1 模型，并写入 slot 0
+            setVideoModel('longvideov2');
+            setNlInitialImage({ path: finalImagePath, preview: finalImagePreview });
+          } else if (targetModel === 'minimaxh3') {
+            // 切换到 MiniMax H3 模型
+            setVideoModel('minimaxh3');
+            // 设置图片到 MiniMax H3 面板
+            setMmImages([{ path: finalImagePath, preview: finalImagePreview }, { path: '', preview: '' }, { path: '', preview: '' }]);
+          } else {
+            // 默认使用 Wan 2.2 模型
+            setImagePreview(finalImagePreview);
+            setImagePath(finalImagePath);
+          }
+
+          if (videoPrompt) {
+            setPrompt(videoPrompt);
+          }
+
+          if (autoGenerate) {
+            // Auto-generate video after a short delay to let the UI update
+            setTimeout(() => {
+              if (finalImagePath && videoPrompt) {
+                // Use ref to get current function
+                const nodeList = buildNodeListWithParamsRef.current(
+                  finalImagePath,
+                  videoPrompt,
+                  resolution,
+                  duration,
+                  interpolation,
+                  loraHigh,
+                  loraHighWeight,
+                  loraLow,
+                  loraLowWeight
+                );
+                taskListRef.current?.submitTask(videoPrompt, finalImagePath, finalImagePreview, nodeList);
+              }
+            }, 500);
+          }
+          
+          if (autoGenerate) {
+            onSuccess?.('正在从分镜生成视频...');
+          } else {
+            onSuccess?.('已从分镜导入图片和提示词');
+          }
+        } catch {
+          // Ignore parse errors
         }
-      } catch {
-        // Ignore parse errors
+      };
+
+      if (directData) {
+        await processData(directData, true);
+      } else if (oldData) {
+        await processData(oldData, false);
+      } else if (historyData) {
+        // 历史记录只导入图片，不带 prompt，不自动生成。
+        // 复用 processData 但用空 prompt + autoGenerate=false 走完整的上传/预览路径。
+        await processData(historyData, false);
+        // 根据 targetModel 显示不同的提示信息
+        try {
+          const { targetModel } = JSON.parse(historyData);
+          if (targetModel === 'minimaxh3') {
+            onSuccess?.('已从历史记录导入图片到 MiniMax H3，请输入提示词后点击生成');
+          } else if (targetModel === 'longvideov2') {
+            onSuccess?.('已从历史记录导入图片到长视频 v1.1，请输入提示词后点击生成');
+          } else {
+            onSuccess?.('已从历史记录导入图片，请输入提示词后点击生成');
+          }
+        } catch {
+          onSuccess?.('已从历史记录导入图片，请输入提示词后点击生成');
+        }
       }
     };
 
-    if (directData) {
-      processData(directData, true);
-    } else if (oldData) {
-      processData(oldData, false);
-    } else if (historyData) {
-      // 历史记录只导入图片，不带 prompt，不自动生成。
-      // 复用 processData 但用空 prompt + autoGenerate=false 走完整的上传/预览路径。
-      processData(historyData, false);
-      // 根据 targetModel 显示不同的提示信息
-      try {
-        const { targetModel } = JSON.parse(historyData);
-        if (targetModel === 'minimaxh3') {
-          onSuccess?.('已从历史记录导入图片到 MiniMax H3，请输入提示词后点击生成');
-        } else if (targetModel === 'longvideov2') {
-          onSuccess?.('已从历史记录导入图片到长视频 v1.1，请输入提示词后点击生成');
-        } else {
-          onSuccess?.('已从历史记录导入图片，请输入提示词后点击生成');
-        }
-      } catch {
-        onSuccess?.('已从历史记录导入图片，请输入提示词后点击生成');
-      }
-    }
+    // 执行异步处理
+    processStoryboardData();
   }, [apiKey, onError, onSuccess, resolution, duration, interpolation, loraHigh, loraHighWeight, loraLow, loraLowWeight]);
 
   const taskListRef = useRef<{ submitTask: (prompt: string, imagePath: string, imagePreview: string, nodeInfoList: NodeInfo[]) => void } | null>(null);
@@ -2523,7 +2711,20 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
     });
     setIsExpandingPrompt(true);
     try {
-      const res = await expandVideoFromImage(imageAnchor, actionTarget, false, 1);
+      let res;
+      try {
+        res = await expandVideoFromImage(imageAnchor, actionTarget, false, 1);
+      } catch (firstErr) {
+        const isTimeout = firstErr instanceof Error &&
+          (firstErr.message.includes('超时') || firstErr.message.includes('timeout'));
+        if (isTimeout) {
+          console.warn('[视频参数·智能扩写] 超时，尝试 fast 模型重试（150s）');
+          // retry：跳过默认慢模型，直接用 fast 模型，并延长超时到 150s
+          res = await expandVideoFromImage(imageAnchor, actionTarget, false, 1, ['grok-4.6', 'grok-4.3'], 150000);
+        } else {
+          throw firstErr;
+        }
+      }
       console.log('[视频参数·智能扩写] 返回', res);
       const first = res.results?.[0];
       if (!first?.prompt) {
@@ -2721,6 +2922,12 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
           setSelectedGirlfriend={setMlSelectedGirlfriend}
           girlfriendUploading={mlGirlfriendUploading}
           setGirlfriendUploading={setMlGirlfriendUploading}
+          mlH3Prompt={mlH3Prompt}
+          setMlH3Prompt={setMlH3Prompt}
+          mlH3Duration={mlH3Duration}
+          setMlH3Duration={setMlH3Duration}
+          handleGenerateH3Prompt={handleGenerateH3Prompt}
+          handleGotoLongVideoWithH3={handleGotoLongVideoWithH3}
         />
       )}
 
@@ -2731,6 +2938,7 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
           onError={onError}
           onSuccess={onSuccess}
           initialImage={nlInitialImage}
+          initialPrompt={nlInitialPrompt}
         />
       )}
 
