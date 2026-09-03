@@ -794,6 +794,41 @@ export interface StoryboardSession {
   outlineArc?: string;
   outlineScenes?: string[];
   historyId?: string; // reference to storyboard history entry for image cache lookup
+  // ── 持久化的多主题隔离提示词状态（Bug 修复：从其他页面返回后不再丢失） ──
+  // key 格式：`${sbHistoryId}_${idx}`（多主题）或 `solo_${idx}`（单主题）
+  panelVideoPrompts?: Record<string, string>;
+  panelH3Prompts?: Record<string, string>;
+  // H3 共享部分按 historyId 隔离，序列化为 plain object（不存 Map/Set）
+  panelH3CommonParts?: Record<string, {
+    subjectDefinitions: string;
+    summary: string;
+    retentionAnalysis: string;
+    detailedDescriptionIntro: string;
+    overallSoundscape: string;
+    nonDiegeticMusic: string;
+  }>;
+  // H3 Shot Map 按 historyId 隔离，每个 historyId 对应一组 [panelIndex, shot] 数组
+  panelH3ShotMap?: Record<string, Array<[number, {
+    panelIndex: number;
+    pictureNumber: number;
+    timestamp?: string;
+    shotPrompt: string;
+  }]>>;
+  // 当前激活的主题 tab（多主题切换用）
+  activeThemeTab?: number | null;
+  // 多主题并行生成时的每个主题生成状态
+  themeOutlineStates?: Record<string, {
+    generating?: boolean;
+    outlineArc?: string;
+    outlineScenes?: string[];
+    panels?: { panel_number: number; scene_description: string; image_prompt: string }[];
+    historyId?: string;
+    error?: string;
+    startedAt?: number;
+    progress?: string;
+  }>;
+  // 已选主题列表（用于多主题 tab 显示）
+  selectedThemes?: Array<{ id: number; title: string; description?: string; tags?: string[]; r18_level?: string; category?: string }>;
 }
 
 function loadSession<T>(key: string): T | null {

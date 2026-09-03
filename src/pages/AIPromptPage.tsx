@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { extractVideoPromptFromImagePrompt } from '../utils/videoPromptExtractor';
 import { makeThumbnailForStorage } from '../utils/imageThumbnail';
 import { AspectAwareImage } from '../components/AspectAwareImage';
-import { generateH3Prompt, generateH3PromptsForPanels, generateH3ShotPrompt, generateH3ShotPromptsForPanels, generateH3CommonParts, assembleH3Prompt, type H3PanelShot, type H3CommonParts } from '../services/h3PromptService';
+import { generateH3Prompt, generateH3PromptsForPanels, generateH3ShotPrompt, generateH3ShotPromptsForPanels, generateH3CommonParts, assembleH3Prompt, extractShotFromLLMOutput, type H3PanelShot, type H3CommonParts } from '../services/h3PromptService';
 import {
   Wand2, Shuffle, LayoutList, Copy, Check, Loader2,
   ChevronDown, ChevronUp, Sparkles, RotateCcw, Send,
@@ -265,7 +265,7 @@ import { StoryboardSection } from '../components/StoryboardSection';
 import { GridStoryboardMode } from '../components/GridStoryboardMode';
 import { buildTxt2ImgNodeList } from '../utils/txt2imgNodeBuilder';
 import type { QueuedTask, TabType, NodeInfo } from '../types';
-import { withQualityBoost } from '../constants';
+import { withQualityBoost, sanitizePromptForClip } from '../constants';
 import { WORKFLOW, getWorkflowFormat, uploadImage, ensureDataUrl } from '../services/runninghub';
 import { buildUnifiedTxt2ImgOptions } from '../utils/txt2imgDefaults';
 
@@ -2975,7 +2975,7 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
                 </div>
               ) : h3Prompt ? (
                 <div>
-                  <div className={`rounded-xl px-4 py-3 text-xs leading-relaxed whitespace-pre-wrap max-h-48 overflow-y-auto font-mono ${r18Mode ? 'bg-indigo-50/40 text-indigo-900 border border-indigo-100' : 'bg-indigo-50/40 text-text-secondary border border-indigo-100'}`}>
+                  <div className={`rounded-xl px-4 py-3 text-xs leading-relaxed whitespace-pre-wrap max-h-[28rem] overflow-y-auto font-mono ${r18Mode ? 'bg-indigo-50/40 text-indigo-900 border border-indigo-100' : 'bg-indigo-50/40 text-text-secondary border border-indigo-100'}`}>
                     {h3Prompt}
                   </div>
                   {/* 中文总结 */}
@@ -3196,21 +3196,46 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   // ============================================================
   /**
    * 【动画提示词回填】生成视频脚本（handleGenerateScript）后，按 panel 索引回填到每个分镜。
-   * key 是 panel 在 panels 数组中的 idx（不是 panel_number，避免和后端 panel 编号错位）。
+   * key 格式：`${sbHistoryId}_${idx}` —— 多主题隔离，避免切换主题后另一个主题的提示词被覆盖。
+   * 单主题模式（无 activeThemeTab）时 historyId 可能为 null，使用 `'solo'` 作 fallback。
    * 渲染时 StoryboardPanelCard 的 videoPrompt prop 优先从这里取。
    * 切换主题 / 重新生成分镜 / 主动 reset 时会清空。
    *
    * 此外，本状态也是"图片生成成功后自动调用 LLM 生成的 H3 Shot 提示词"的回填目标。
    */
-  const [panelVideoPrompts, setPanelVideoPrompts] = useState<Record<number, string>>({});
+  const [panelVideoPrompts, setPanelVideoPrompts] = useState<Record<string, string>>(() => {
+    const s = getStoryboardSession();
+    return s?.panelVideoPrompts || {};
+  });
 
   // H3 提示词引擎状态
-  const [panelH3Prompts, setPanelH3Prompts] = useState<Record<number, string>>({});
+  // key 与 panelVideoPrompts 一致：`${sbHistoryId}_${idx}`
+  const [panelH3Prompts, setPanelH3Prompts] = useState<Record<string, string>>(() => {
+    const s = getStoryboardSession();
+    return s?.panelH3Prompts || {};
+  });
   const [panelH3Duration, setPanelH3Duration] = useState<15 | 30 | 60>(15); // 默认 15 秒
-  const [panelH3Loading, setPanelH3Loading] = useState<Record<number, boolean>>({});
-  // H3 共享部分缓存（仅生成一次，最终批量上传到长视频 v1.1 时使用）
-  const [panelH3CommonParts, setPanelH3CommonParts] = useState<H3CommonParts | null>(null);
-  const [panelH3ShotMap, setPanelH3ShotMap] = useState<Map<number, H3PanelShot>>(new Map());
+  const [panelH3Loading, setPanelH3Loading] = useState<Record<string, boolean>>({});
+  // H3 共享部分缓存：按 historyId 隔离，每个主题独立一份（多主题并行生成时不会互相覆盖）
+  const [panelH3CommonParts, setPanelH3CommonParts] = useState<Record<string, H3CommonParts>>(() => {
+    const s = getStoryboardSession();
+    return s?.panelH3CommonParts || {};
+  });
+  // H3 Shot Map：按 historyId 隔离。从 sessionStorage 还原时把 entries 数组恢复成 Map
+  const [panelH3ShotMap, setPanelH3ShotMap] = useState<Record<string, Map<number, H3PanelShot>>>(() => {
+    const s = getStoryboardSession();
+    const out: Record<string, Map<number, H3PanelShot>> = {};
+    if (s?.panelH3ShotMap) {
+      for (const [historyId, entries] of Object.entries(s.panelH3ShotMap)) {
+        out[historyId] = new Map(entries as Array<[number, H3PanelShot]>);
+      }
+    }
+    return out;
+  });
+
+  // Helper: 计算 panel 提示词在 prompt state 中的 key
+  // 多主题模式下用 `${sbHistoryId}_${idx}`，单主题模式下用 `solo_${idx}`。
+  const promptKey = (idx: number, historyId?: string | null) => `${historyId || 'solo'}_${idx}`;
 
   // 2-step storyboard state
   const [storyStep, setStoryStep] = useState<'themes' | 'outline' | 'panels'>(
@@ -3221,7 +3246,21 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   }[]>([]);
   const [selectedThemes, setSelectedThemes] = useState<{
     id: number; title: string; description: string; tags: string[]; r18_level: string; category?: string; scenario_count?: number; costume_count?: number;
-  }[]>([]);
+  }[]>(() => {
+    const s = getStoryboardSession();
+    if (!s?.selectedThemes) return [];
+    // sessionStorage 版本字段是简化版（无 scenario_count / costume_count），需要补齐
+    return s.selectedThemes.map((t: any) => ({
+      id: t.id,
+      title: t.title,
+      description: t.description || '',
+      tags: t.tags || [],
+      r18_level: t.r18_level || '',
+      category: t.category,
+      scenario_count: undefined,
+      costume_count: undefined,
+    }));
+  });
   const [selectedTheme, setSelectedTheme] = useState<{
     id: number; title: string; description: string; tags: string[]; r18_level: string; category?: string; scenario_count?: number; costume_count?: number;
   } | null>(null);
@@ -3429,8 +3468,10 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
 
         // 【修复】异步完成路径也要把脚本回填到每个分镜的"动画提示词"位置
         // 用 res.panels（后端生成的 VideoScriptPanel）按 panel 编号映射回 panels 数组 idx
-        const nextPrompts: Record<number, string> = {};
+        // 注意：使用 promptKey(idx, sbHistoryId) 作 key，避免多主题时互相覆盖。
+        const nextPrompts: Record<string, string> = {};
         const livePanels = panelsRefForPrompt.current;
+        const liveHistoryId = currentHistoryId || 'solo';
         for (let i = 0; i < livePanels.length; i++) {
           const panel = livePanels[i];
           const scriptPanel = scriptRes.panels.find((sp) => sp.panel === panel.panel_number) || scriptRes.panels[i];
@@ -3442,13 +3483,13 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
             scriptPanel.sound_cue ? `音效：${scriptPanel.sound_cue}` : '',
             scriptPanel.camera ? `镜头：${scriptPanel.camera}` : '',
           ].filter(Boolean).join('；');
-          nextPrompts[i] = extractVideoPromptFromImagePrompt({
+          nextPrompts[promptKey(i, liveHistoryId)] = extractVideoPromptFromImagePrompt({
             imagePrompt: panel.image_prompt,
             sceneDescription: sceneForPrompt,
             r18Mode,
           });
         }
-        setPanelVideoPrompts(nextPrompts);
+        setPanelVideoPrompts(prev => ({ ...prev, ...nextPrompts }));
         onSuccessRef.current(`视频脚本生成完成，已回填到 ${Object.keys(nextPrompts).length} 个分镜的动画提示词`);
       }
       setPendingPromptTasks((prev) => { const n = { ...prev }; delete n[taskId]; return n; });
@@ -3566,7 +3607,16 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     error?: string; // error message when generation failed
     startedAt?: number; // Date.now() when generating flipped to true
     progress?: string; // live progress string from the backend (e.g. "正在校验第 3/5 个分镜...")
-  }>>({});
+  }>>(() => {
+    const s = getStoryboardSession();
+    if (!s?.themeOutlineStates) return {};
+    // sessionStorage 中 key 是字符串，需转回 number
+    const out: Record<number, any> = {};
+    for (const [k, v] of Object.entries(s.themeOutlineStates)) {
+      out[Number(k)] = v;
+    }
+    return out;
+  });
 
   // Tick once per second so the "已等待 X 秒" label and the soft-timeout
   // check can re-render. Re-rendering 1 Hz is fine — these labels only
@@ -3607,7 +3657,10 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   }, [themeOutlineStates]);
 
   // Active theme tab (for tab switching between themes) — MUST be declared before sbHistoryId
-  const [activeThemeTab, setActiveThemeTab] = useState<number | null>(null);
+  const [activeThemeTab, setActiveThemeTab] = useState<number | null>(() => {
+    const s = getStoryboardSession();
+    return s?.activeThemeTab ?? null;
+  });
 
   // Helper: get the effective historyId for multi-theme mode
   const sbHistoryId = activeThemeTab !== null
@@ -3700,6 +3753,15 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   const activeOutlineScenes = activeThemeTab !== null ? (themeOutlineStates[activeThemeTab]?.outlineScenes || []) : outlineScenes;
   const activePanels = activeThemeTab !== null ? (themeOutlineStates[activeThemeTab]?.panels || []) : panels;
   const activeThemeInfo = activeThemeTab !== null ? selectedThemes.find((t) => t.id === activeThemeTab) : (selectedTheme || (selectedThemes[0] ?? null));
+  // True when the user has selected a theme tab that has no panels yet
+  // but is still generating or has failed. Used to keep the panels
+  // section mounted (showing a generating placeholder) instead of
+  // collapsing it, so the user can seamlessly flip between an
+  // in-flight theme and a completed peer.
+  const activeThemeTabInFlight = activeThemeTab !== null && activePanels.length === 0 && (
+    !!themeOutlineStates[activeThemeTab]?.generating ||
+    !!themeOutlineStates[activeThemeTab]?.error
+  );
 
   // ── Mirror HistoryPage's image-loading pattern for the storyboard view ──
   // HistoryPage's `loadImagesForRecord` runs whenever the user lands on a
@@ -3770,10 +3832,10 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   /** 自动触发的 H3 提示词生成（图片生成成功后自动调用）
    *
    * 流程：
-   *   1. panelVideoPrompts[idx] 已经存在（非空）→ 跳过（H3 已经生成过或用户编辑过）
+   *   1. panelVideoPrompts[`${sbHistoryId}_${idx}`] 已经存在（非空）→ 跳过（H3 已经生成过或用户编辑过）
    *   2. 空 → 调 expandVideoFromImage 生成场景描述
    *   3. 调用 generateH3ShotPrompt 格式化单个分镜的 Shot 提示词
-   *   4. 写入 panelVideoPrompts[idx]（动画提示词区域）
+   *   4. 写入 panelVideoPrompts（动画提示词区域，theme-scoped key）
    *   5. 同时缓存到 panelH3ShotMap / panelH3Prompts 供长视频 1.1 上传使用
    *
    * 错误处理：
@@ -3782,8 +3844,10 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
    */
   const triggerAutoH3ForPanel = useCallback(async (idx: number, panel: { panel_number: number; image_prompt: string; scene_description?: string }, opts?: { silent?: boolean }) => {
     const silent = opts?.silent ?? false;
+    const curHistoryId = sbHistoryId || 'solo';
+    const pK = promptKey(idx, curHistoryId);
     // 已存在 → 不覆盖（避免破坏用户编辑）
-    if (panelVideoPrompts[idx] && panelVideoPrompts[idx].trim().length > 0) {
+    if (panelVideoPrompts[pK] && panelVideoPrompts[pK].trim().length > 0) {
       return;
     }
     // 防御性：image_prompt 不能为空
@@ -3792,12 +3856,20 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       return;
     }
 
-    setPanelH3Loading(prev => ({ ...prev, [idx]: true }));
+    setPanelH3Loading(prev => ({ ...prev, [pK]: true }));
     try {
+      // 优先使用 panel.scene_description（来自分镜生成时的场景描述），而不是 themeLabel。
+      // 原因：themeLabel（如"公园幽会"）太宽泛，LLM 会扩写成通用的"2人-成人"性描写，
+      // 但 image_prompt 描述的可能是单个女人独自坐在公园长椅——文字和图片内容矛盾，
+      // 导致最终视频画面与图片不一致。
+      // panel.scene_description 是分镜生成时由后端 LLM 基于完整上下文输出的场景描述，
+      // 与图片内容最匹配，应该优先用作视频提示词的扩写基础。
+      const panelSceneDesc = (panel.scene_description || '').trim();
       const themeLabel = activeThemeInfo?.title || plot || (r18Mode ? 'R18' : '默认主题');
+      const sceneDescriptionForLLM = panelSceneDesc || themeLabel;
       let videoRes;
       try {
-        videoRes = await expandVideoFromImage(panel.image_prompt, themeLabel, r18Mode, 1);
+        videoRes = await expandVideoFromImage(panel.image_prompt, sceneDescriptionForLLM, r18Mode, 1);
       } catch (err) {
         const status = (err && typeof err === 'object' && 'status' in err) ? (err as { status?: number }).status : 0;
         const msg = err instanceof Error ? err.message : String(err);
@@ -3808,7 +3880,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         }
         // 其它错误：重试一次（用 fast 模型 + 150s 超时）
         try {
-          videoRes = await expandVideoFromImage(panel.image_prompt, themeLabel, r18Mode, 1, ['grok-4.6', 'grok-4.3'], 150000);
+          videoRes = await expandVideoFromImage(panel.image_prompt, sceneDescriptionForLLM, r18Mode, 1, ['grok-4.6', 'grok-4.3'], 150000);
         } catch (retryErr) {
           console.warn(`[triggerAutoH3ForPanel] 分镜 ${idx + 1} 重试仍失败`);
           return;
@@ -3829,26 +3901,28 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         r18Mode,
       );
 
-      // 缓存到 shotMap
+      // 缓存到 shotMap（per-historyId 隔离，多主题互不冲突）
       setPanelH3ShotMap(prev => {
-        const next = new Map(prev);
-        next.set(shot.panelIndex, shot);
+        const next = { ...prev };
+        const curMap = new Map(next[curHistoryId] || new Map<number, H3PanelShot>());
+        curMap.set(shot.panelIndex, shot);
+        next[curHistoryId] = curMap;
         return next;
       });
 
       // 写入动画提示词区域（核心目标：让动画提示词显示 H3 Shot 提示词）
-      setPanelVideoPrompts(prev => ({ ...prev, [idx]: shot.shotPrompt }));
+      setPanelVideoPrompts(prev => ({ ...prev, [pK]: shot.shotPrompt }));
 
       // 把 Shot 提示词存到 panelH3Prompts（用于卡片预览）
-      setPanelH3Prompts(prev => ({ ...prev, [idx]: shot.shotPrompt }));
+      setPanelH3Prompts(prev => ({ ...prev, [pK]: shot.shotPrompt }));
 
       if (!silent) onSuccess(`分镜 ${panel.panel_number} 的 H3 提示词已自动生成（图片生成成功触发）`);
     } catch (err) {
       console.warn(`[triggerAutoH3ForPanel] 分镜 ${idx + 1} 异常:`, err);
     } finally {
-      setPanelH3Loading(prev => { const next = { ...prev }; delete next[idx]; return next; });
+      setPanelH3Loading(prev => { const next = { ...prev }; delete next[pK]; return next; });
     }
-  }, [panelVideoPrompts, activeThemeInfo, plot, panelH3Duration, r18Mode, onSuccess, onError, activePanels.length]);
+  }, [panelVideoPrompts, activeThemeInfo, plot, panelH3Duration, r18Mode, onSuccess, onError, activePanels.length, sbHistoryId]);
 
   // ── Subscribe to finished task images and cache them for the storyboard ──
   // This is the primary path: when any task completes, its data URL images are
@@ -4074,14 +4148,25 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   const [videoGenLoading, setVideoGenLoading] = useState<Record<string, boolean>>({});
   // Per-panel "智能扩写" spinner state for the video prompt editor.
   const [promptEditLoading, setPromptEditLoading] = useState<Record<number, boolean>>({});
+  // Per-panel "重新生成图片提示词" spinner state for the image prompt editor.
+  // 用 theme-scoped key `${sbHistoryId}_${idx}`，避免多主题切换时串扰。
+  const [imagePromptRegenLoading, setImagePromptRegenLoading] = useState<Record<string, boolean>>({});
   const [previewImages, setPreviewImages] = useState<string[]>([]);
   const [previewIndex, setPreviewIndex] = useState(0);
   const [previewPrompt, setPreviewPrompt] = useState<string>('');
   const [showPreview, setShowPreview] = useState(false);
 
   // Persist storyboard state
+  // Bug fix: 现在持久化 panelVideoPrompts / panelH3Prompts / panelH3CommonParts / panelH3ShotMap，
+  // 这些字段之前未持久化，导致用户从「长视频 1.1」/「文生图」/「图生图」返回后动画提示词和 H3 提示词都消失。
+  // panelH3CommonParts / panelH3ShotMap 用 plain object 序列化（Map → entries 数组）
   useEffect(() => {
     if (plot || panels.length > 0 || selectedThemes.length > 0) {
+      // 把 Map 序列化为 [panelIndex, shot][] 以便 JSON.stringify
+      const panelH3ShotMapSerial: Record<string, Array<[number, any]>> = {};
+      for (const [historyId, shotMap] of Object.entries(panelH3ShotMap)) {
+        panelH3ShotMapSerial[historyId] = Array.from(shotMap.entries());
+      }
       saveStoryboardSession({
         plot, panelCount, panels, expandedPanel,
         themeId: selectedThemes[0]?.id,
@@ -4089,11 +4174,19 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         outlineArc,
         outlineScenes,
         historyId: currentHistoryId || undefined,
+        // 持久化多主题隔离提示词状态（Bug 修复：返回页面后不再丢失）
+        panelVideoPrompts: Object.keys(panelVideoPrompts).length > 0 ? panelVideoPrompts : undefined,
+        panelH3Prompts: Object.keys(panelH3Prompts).length > 0 ? panelH3Prompts : undefined,
+        panelH3CommonParts: Object.keys(panelH3CommonParts).length > 0 ? panelH3CommonParts : undefined,
+        panelH3ShotMap: Object.keys(panelH3ShotMapSerial).length > 0 ? panelH3ShotMapSerial : undefined,
+        activeThemeTab,
+        themeOutlineStates,
+        selectedThemes: selectedThemes.map((t) => ({ id: t.id, title: t.title, description: t.description, tags: t.tags, r18_level: t.r18_level, category: t.category })),
       });
     } else {
       clearStoryboardSession();
     }
-  }, [plot, panelCount, panels, expandedPanel, selectedTheme, outlineArc, outlineScenes, currentHistoryId]);
+  }, [plot, panelCount, panels, expandedPanel, selectedTheme, outlineArc, outlineScenes, currentHistoryId, panelVideoPrompts, panelH3Prompts, panelH3CommonParts, panelH3ShotMap, activeThemeTab, themeOutlineStates, selectedThemes]);
 
   // Step 1: Generate theme options (supports custom description)
   const handleGenerateThemes = async (customDesc?: string, customCnt?: number) => {
@@ -4321,26 +4414,66 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   };
 
   // View panels for a specific theme in multi-select mode
+  //
+  // Bug fix (q3+): previous version early-returned when the state didn't
+  // exist, and wiped `genStates` to `{}` when the theme was still
+  // generating. The cascade was:
+  //   1. User clicked the in-flight theme's tab → setGenStates({})
+  //      wiped every other completed theme's genStates, throwing
+  //      away their cached images.
+  //   2. activePanels.length === 0 (because the generating theme has
+  //      no panels yet) → entire panels UI hidden, looking like the
+  //      app "exited back to the linear page".
+  //   3. Clicking back to the completed theme → its genStates were
+  //      empty, so the panels rendered blank.
+  //
+  // The fix: always update activeThemeTab/storyStep, never overwrite
+  // genStates wholesale (only fill in the keys that belong to this
+  // theme), and let the render path show a "generating" UI for in-flight
+  // themes instead of hiding the panel area.
   const handleViewThemePanels = (themeId: number) => {
     const state = themeOutlineStates[themeId];
-    if (!state) return;
     setActiveThemeTab(themeId);
     setStoryStep('panels');
-    if (state.historyId) {
+
+    // Only fill in the genStates entries for THIS theme; never touch
+    // other themes' entries. We use a partial update (merge), so a
+    // completed theme's cached images remain intact while the user
+    // browses a peer theme that's still generating.
+    if (state?.historyId) {
       setCurrentHistoryId(state.historyId);
       const cachedImages = getAllCachedPanelImages(state.historyId, state.panels.length);
-      const initial: Record<string, { loading: boolean; images: string[] }> = {};
-      for (const [idx, imgs] of Object.entries(cachedImages)) {
-        initial[`${state.historyId}_${idx}`] = { loading: false, images: imgs };
+      if (Object.keys(cachedImages).length > 0) {
+        setGenStates((prev) => {
+          const next = { ...prev };
+          for (const [idx, imgs] of Object.entries(cachedImages)) {
+            next[`${state.historyId}_${idx}`] = { loading: false, images: imgs };
+          }
+          return next;
+        });
       }
-      setGenStates(initial);
-    } else {
-      setGenStates({});
     }
-    onSuccess(`已加载「${themeOptions.find((t) => t.id === themeId)?.title}」的分镜`);
+
+    // Don't announce "loaded" for in-flight themes — that message
+    // implies the panels are ready, which they aren't. The render
+    // path will show the generating UI instead.
+    if (state?.panels && state.panels.length > 0) {
+      const themeTitle = themeOptions.find((t) => t.id === themeId)?.title;
+      onSuccess(`已加载「${themeTitle}」的分镜`);
+    } else if (state?.error) {
+      onSuccess(`「${themeOptions.find((t) => t.id === themeId)?.title}」生成失败`);
+    } else if (state?.generating) {
+      const themeTitle = themeOptions.find((t) => t.id === themeId)?.title;
+      onSuccess(`「${themeTitle}」正在生成大纲…`);
+    }
   };
 
   // Load a specific theme's panels to the main panel area
+  //
+  // Bug fix (q3+): previous version overwrote `genStates` wholesale
+  // with only the new theme's keys, wiping peer themes' cached images.
+  // Now we merge instead of replace, so peer themes' genStates survive
+  // a tab switch.
   const handleLoadThemeToPanels = (themeId: number) => {
     const state = themeOutlineStates[themeId];
     if (!state) return;
@@ -4352,13 +4485,19 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       // Reuse existing history entry instead of creating a duplicate
       const historyId = state.historyId;
       setCurrentHistoryId(historyId);
-      // Restore cached images for this history entry
+      // Restore cached images for this history entry; merge into
+      // existing genStates instead of replacing, so peer themes keep
+      // their cached images intact.
       const cachedImages = getAllCachedPanelImages(historyId, state.panels.length);
-      const initial: Record<string, { loading: boolean; images: string[] }> = {};
-      for (const [idx, imgs] of Object.entries(cachedImages)) {
-        initial[`${historyId}_${idx}`] = { loading: false, images: imgs };
+      if (Object.keys(cachedImages).length > 0) {
+        setGenStates((prev) => {
+          const next = { ...prev };
+          for (const [idx, imgs] of Object.entries(cachedImages)) {
+            next[`${historyId}_${idx}`] = { loading: false, images: imgs };
+          }
+          return next;
+        });
       }
-      setGenStates(initial);
       saveStoryboardSession({
         plot: theme.title, panelCount, panels: state.panels, expandedPanel: null,
         themeId: theme.id, themeTitle: theme.title, outlineArc: state.outlineArc,
@@ -4382,8 +4521,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     setVideoScript(null);
     setPanelVideoPrompts({});
     setPanelH3Prompts({});
-    setPanelH3CommonParts(null);
-    setPanelH3ShotMap(new Map());
+    setPanelH3CommonParts({});
+    setPanelH3ShotMap({});
     autoH3TriggeredRef.current.clear();
     setStoryStep('themes');
     setGenStates({});
@@ -4417,7 +4556,9 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       // 把后端返回的 VideoScriptPanel 按 panel 编号映射回 panels 数组的 idx，
       // 然后用 extractVideoPromptFromImagePrompt 以"后端 action（剧情）" + "图片 prompt" 双重输入，
       // 生成"以剧情为核心、围绕首帧画面"的 Wan2.2 中文视频提示词。
-      const nextPrompts: Record<number, string> = {};
+      // 注意：使用 promptKey(idx, sbHistoryId) 作 key，避免多主题时互相覆盖。
+      const scriptHistoryId = sbHistoryId || 'solo';
+      const nextPrompts: Record<string, string> = {};
       for (let i = 0; i < panels.length; i++) {
         const panel = panels[i];
         const scriptPanel = res.panels.find((sp) => sp.panel === panel.panel_number) || res.panels[i];
@@ -4431,13 +4572,13 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
           scriptPanel.camera ? `镜头：${scriptPanel.camera}` : '',
         ].filter(Boolean).join('；');
         // 重新以"剧情为优先"生成视频提示词（覆盖"按图片 prompt 推测"的结果）
-        nextPrompts[i] = extractVideoPromptFromImagePrompt({
+        nextPrompts[promptKey(i, scriptHistoryId)] = extractVideoPromptFromImagePrompt({
           imagePrompt: panel.image_prompt,
           sceneDescription: sceneForPrompt,
           r18Mode,
         });
       }
-      setPanelVideoPrompts(nextPrompts);
+      setPanelVideoPrompts(prev => ({ ...prev, ...nextPrompts }));
       onSuccess(`视频脚本已生成，已回填到 ${Object.keys(nextPrompts).length} 个分镜的动画提示词`);
     } catch (err) {
       onError(err instanceof Error ? err.message : '脚本生成失败');
@@ -4504,7 +4645,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         newPromptLength: newPrompt.length,
         newPrompt,
       });
-      setPanelVideoPrompts((prev) => ({ ...prev, [panelIdx]: newPrompt }));
+      // 主题-scoped key：避免切换主题后另一主题的提示词被覆盖
+      setPanelVideoPrompts((prev) => ({ ...prev, [promptKey(panelIdx, sbHistoryId)]: newPrompt }));
       onSuccess(`分镜 ${panel.panel_number} 的动画提示词已智能扩写（Wan2.2 格式）`);
     } catch (err) {
       const elapsedMs = Date.now() - requestStartTime;
@@ -4524,7 +4666,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         return next;
       });
     }
-  }, [panels, selectedTheme, activeThemeInfo, r18Mode, onError, onSuccess]);
+  }, [panels, selectedTheme, activeThemeInfo, r18Mode, onError, onSuccess, sbHistoryId]);
 
   const handleCopyPanel = (panel: { image_prompt: string }, idx: number) => { navigator.clipboard.writeText(panel.image_prompt).then(() => { setCopiedPanel(idx); setTimeout(() => setCopiedPanel(null), 2000); }); };
   const handleCopyAll = () => { navigator.clipboard.writeText(panels.map((p) => `[Panel ${p.panel_number}]\n${p.image_prompt}`).join('\n\n')).then(() => { setCopiedPanel(-1); setTimeout(() => setCopiedPanel(null), 2000); }); };
@@ -4684,6 +4826,144 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     }
   }, [taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, sbHistoryId, activeThemeInfo, plot]);
 
+  /** 重新生成分镜的图片提示词（panel.image_prompt）。
+   *
+   * 使用 expandPrompt(type='image') 走图片扩写链路，结果覆盖到 panels[idx]
+   * 或 themeOutlineStates[activeThemeTab].panels[idx]，取决于当前是单主题
+   * 还是多主题模式。覆盖后会同步刷新缓存的 panelPrompt 派生值，并清掉
+   * 该分镜的"动画提示词 / H3 提示词"，因为旧提示词是基于过期的 image_prompt
+   * 生成的，留着会让用户看到与新图片提示词不一致的视频提示词。
+   *
+   * 错误处理：
+   *   - 422 验证错误：跳过，不写入（用户可手动点击重试）
+   *   - 其它错误（超时/500/网络）：用 fast 模型重试一次（150s 超时）
+   */
+  const handleRegenerateImagePrompt = useCallback(async (panelIdx: number, panel: { panel_number: number; scene_description: string; image_prompt: string }) => {
+    const curHistoryId = sbHistoryId || 'solo';
+    const regenKey = `${curHistoryId}_${panelIdx}`;
+    const sceneDesc = panel.scene_description?.trim();
+    if (!sceneDesc) {
+      onError(`分镜 ${panel.panel_number} 的场景描述为空，无法重新生成图片提示词`);
+      return;
+    }
+    const themeLabel = activeThemeInfo?.title || plot || (r18Mode ? 'R18' : '默认主题');
+    console.log('[重新生成图片提示词] 开始', {
+      panelIdx,
+      panelNumber: panel.panel_number,
+      sceneDescLength: sceneDesc.length,
+      currentImagePromptLength: panel.image_prompt?.length || 0,
+    });
+    setImagePromptRegenLoading((prev) => ({ ...prev, [regenKey]: true }));
+    try {
+      let res;
+      try {
+        res = await expandPrompt(sceneDesc, 'image', r18Mode, 1);
+      } catch (firstErr) {
+        const msg = firstErr instanceof Error ? firstErr.message : String(firstErr);
+        const isTimeout = firstErr instanceof Error &&
+          (firstErr.message.includes('超时') || firstErr.message.includes('timeout'));
+        // 422 验证错误：直接抛出去，不重试
+        if (/422/i.test(msg)) {
+          console.warn('[重新生成图片提示词] 422 错误，跳过重试');
+          throw firstErr;
+        }
+        if (isTimeout) {
+          console.warn('[重新生成图片提示词] 超时，尝试 fast 模型重试（150s）');
+          res = await expandPrompt(sceneDesc, 'image', r18Mode, 1, 0, undefined, false, undefined, ['grok-4.6', 'grok-4.3']);
+        } else {
+          throw firstErr;
+        }
+      }
+      const first = res.results?.[0];
+      if (!first?.prompt) {
+        throw new Error('扩写返回为空，请重试');
+      }
+      const newPrompt = first.prompt.trim();
+      console.log('[重新生成图片提示词] 新提示词长度=', newPrompt.length);
+
+      // 写入到 panels 或 themeOutlineStates（取决于模式）
+      if (activeThemeTab !== null) {
+        setThemeOutlineStates((prev) => {
+          const cur = prev[activeThemeTab];
+          if (!cur) return prev;
+          const nextPanels = (cur.panels || []).map((p, i) =>
+            i === panelIdx ? { ...p, image_prompt: newPrompt } : p
+          );
+          return { ...prev, [activeThemeTab]: { ...cur, panels: nextPanels } };
+        });
+      } else {
+        setPanels((prev) => prev.map((p, i) =>
+          i === panelIdx ? { ...p, image_prompt: newPrompt } : p
+        ));
+      }
+
+      // 同步清掉旧 prompt 派生出来的"动画提示词 / H3 提示词"缓存
+      // （这些 prompt 是基于过期的 image_prompt 生成的，留着会让 UI 显示与新
+      //  image_prompt 不一致的视频提示词）。
+      const pK = promptKey(panelIdx, curHistoryId);
+      setPanelVideoPrompts((prev) => {
+        if (!(pK in prev)) return prev;
+        const next = { ...prev };
+        delete next[pK];
+        return next;
+      });
+      setPanelH3Prompts((prev) => {
+        if (!(pK in prev)) return prev;
+        const next = { ...prev };
+        delete next[pK];
+        return next;
+      });
+      setPanelH3ShotMap((prev) => {
+        const cur = prev[curHistoryId];
+        if (!cur || !cur.has(panelIdx + 1)) return prev;
+        const nextMap = new Map(cur);
+        nextMap.delete(panelIdx + 1);
+        return { ...prev, [curHistoryId]: nextMap };
+      });
+      // 允许自动 H3 重新触发
+      autoH3TriggeredRef.current?.delete(`${curHistoryId}_${panelIdx}`);
+
+      onSuccess(`分镜 ${panel.panel_number} 的图片提示词已重新生成`);
+    } catch (err) {
+      console.error('[重新生成图片提示词] 失败', err);
+      onError(err instanceof Error ? err.message : '图片提示词重新生成失败');
+    } finally {
+      setImagePromptRegenLoading((prev) => {
+        const next = { ...prev };
+        delete next[regenKey];
+        return next;
+      });
+    }
+  }, [sbHistoryId, activeThemeInfo, plot, r18Mode, onSuccess, onError, activeThemeTab]);
+
+  /** 允许用户在分镜卡片里直接编辑图片提示词（持久化到 panels / themeOutlineStates）。
+   * 注意：image_prompt 是 LLM 扩写结果，用户编辑后会影响后续 image 生成时的提示词，
+   * 所以改完要同步刷新 genStates 派生键（如果已生过图，缓存的图片保持不变，但新点击
+   * "生图"会用新 prompt）。 */
+  const handleImagePromptChange = useCallback((panelIdx: number, newPrompt: string) => {
+    if (activeThemeTab !== null) {
+      setThemeOutlineStates((prev) => {
+        const cur = prev[activeThemeTab];
+        if (!cur) return prev;
+        const nextPanels = (cur.panels || []).map((p, i) =>
+          i === panelIdx ? { ...p, image_prompt: newPrompt } : p
+        );
+        return { ...prev, [activeThemeTab]: { ...cur, panels: nextPanels } };
+      });
+    } else {
+      setPanels((prev) => prev.map((p, i) =>
+        i === panelIdx ? { ...p, image_prompt: newPrompt } : p
+      ));
+    }
+  }, [activeThemeTab]);
+
+  /** 允许用户在分镜卡片里直接编辑 H3 提示词（持久化到 panelH3Prompts）。 */
+  const handlePanelH3PromptChange = useCallback((panelIdx: number, newPrompt: string) => {
+    const curHistoryId = sbHistoryId || 'solo';
+    const pK = promptKey(panelIdx, curHistoryId);
+    setPanelH3Prompts((prev) => ({ ...prev, [pK]: newPrompt }));
+  }, [sbHistoryId]);
+
   // Handle image selection for a panel
   const handleSelectPanelImage = useCallback((panelKey: string, imageIndex: number, imageUrl: string) => {
     setSelectedPanelImages(prev => ({
@@ -4807,14 +5087,18 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
    * - 每个分镜独立生成 [Shot N] 对应<Picture N> 提示词
    * - 共享部分 (subject_definitions, summary, etc.) 由 handleBatchGenerateH3 一次性生成
    *
-   * 优先使用"动画提示词"（panelVideoPrompts[idx]），没有时才调用 expandVideoFromImage 扩写。
+   * 优先使用"动画提示词"（panelVideoPrompts[`${sbHistoryId}_${idx}`]），没有时才调用 expandVideoFromImage 扩写。
    * 这样避免重复 LLM 调用，且 422 错误时仍能稳定工作。
+   *
+   * 多主题模式：所有提示词都按 `${sbHistoryId}_${idx}` 隔离存储，互不覆盖。
    */
   const handleGeneratePanelH3 = useCallback(async (idx: number, panel: { panel_number: number; image_prompt: string; scene_description?: string }) => {
-    setPanelH3Loading(prev => ({ ...prev, [idx]: true }));
+    const curHistoryId = sbHistoryId || 'solo';
+    const pK = promptKey(idx, curHistoryId);
+    setPanelH3Loading(prev => ({ ...prev, [pK]: true }));
     try {
       // Step 1: 选择场景描述来源（直接使用现有的"动画提示词"，避免再次调用 LLM）
-      let sceneDesc: string | undefined = panelVideoPrompts[idx]?.trim() || panel.scene_description?.trim();
+      let sceneDesc: string | undefined = panelVideoPrompts[pK]?.trim() || panel.scene_description?.trim();
 
       // 如果动画提示词为空，再回退到调用 expandVideoFromImage 扩写（仍可能 422 失败）
       if (!sceneDesc || sceneDesc.length === 0) {
@@ -4860,52 +5144,52 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         r18Mode,
       );
 
-      // 缓存 shot 到 state，供批量上传使用
+      // 缓存 shot 到 state（per-historyId 隔离），供批量上传使用
       setPanelH3ShotMap(prev => {
-        const next = new Map(prev);
-        next.set(idx + 1, shot);
+        const next = { ...prev };
+        const curMap = new Map(next[curHistoryId] || new Map<number, H3PanelShot>());
+        curMap.set(idx + 1, shot);
+        next[curHistoryId] = curMap;
         return next;
       });
 
-      // 同时把完整的 H3 提示词（用于单个卡片预览）也存一下
-      // 单个卡片预览时共享部分临时生成，仅用于显示
-      const tempCommonParts = generateH3CommonParts(
-        [{ image_prompt: panel.image_prompt, scene_description: sceneDesc }],
-        { duration: panelH3Duration, r18: r18Mode },
-      );
-      const fullPrompt = assembleH3Prompt(tempCommonParts, [shot], panelH3Duration);
-      setPanelH3Prompts(prev => ({ ...prev, [idx]: fullPrompt }));
+      // 只在 panelH3Prompts[`${sbHistoryId}_${idx}`] 存当前分镜的 [Shot N] 提示词，
+      // 不要拼装完整 H3 六段式（包含 subject_definitions / summary / 其它 Shot 等），
+      // 那样会让单分镜卡片显示"所有分镜的内容"，破坏 1:1 对应关系。
+      setPanelH3Prompts(prev => ({ ...prev, [pK]: shot.shotPrompt }));
       onSuccess(`分镜 ${panel.panel_number} 的 [Shot ${shot.pictureNumber}] 提示词已生成${sceneDesc ? '（使用动画提示词）' : '（使用图片提示词兜底）'}`);
     } catch (err) {
       onError(err instanceof Error ? err.message : 'H3 提示词生成失败');
     } finally {
-      setPanelH3Loading(prev => { const next = { ...prev }; delete next[idx]; return next; });
+      setPanelH3Loading(prev => { const next = { ...prev }; delete next[pK]; return next; });
     }
-  }, [activeThemeInfo, plot, panelH3Duration, r18Mode, onSuccess, onError, activePanels.length, panelVideoPrompts]);
+  }, [activeThemeInfo, plot, panelH3Duration, r18Mode, onSuccess, onError, activePanels.length, panelVideoPrompts, sbHistoryId]);
 
   /** 一键批量生成所有分镜的 H3 Shot 提示词
    *
    * 工作流：
-   *   1. 优先使用 panelVideoPrompts[idx]（动画提示词）作为场景描述，避免重复 LLM 调用
+   *   1. 优先使用 panelVideoPrompts[`${sbHistoryId}_${idx}`]（动画提示词）作为场景描述，避免重复 LLM 调用
    *   2. 仅当动画提示词为空时才回退调用 expandVideoFromImage
    *   3. 422 错误时跳过重试，直接用 image_prompt 兜底
    *   4. 调用 generateH3ShotPromptsForPanels 生成所有分镜的 [Shot N] 提示词
-   *   5. 调用 generateH3CommonParts 一次性生成共享部分
+   *   5. 调用 generateH3CommonParts 一次性生成共享部分（per-historyId 隔离）
+   *
+   * 多主题模式：所有提示词都按 `${sbHistoryId}_${idx}` 隔离存储，互不覆盖。
    */
   const handleBatchGenerateH3 = useCallback(async () => {
     if (activePanels.length === 0) { onError('没有可用的分镜'); return; }
-    setPanelH3Loading(prev => Object.fromEntries(activePanels.map((_, i) => [i, true])));
+    const curHistoryId = sbHistoryId || 'solo';
+    setPanelH3Loading(prev => Object.fromEntries(activePanels.map((_, i) => [promptKey(i, curHistoryId), true])));
     const themeLabel = activeThemeInfo?.title || plot || (r18Mode ? 'R18' : '默认主题');
     try {
-      const CONCURRENT = 3;
       // Step 1: 为每个分镜确定场景描述来源
-      // 优先：panelVideoPrompts[idx]（动画提示词，没有重 LLM 调用）
+      // 优先：panelVideoPrompts[`${sbHistoryId}_${idx}`]（动画提示词，避免重 LLM 调用）
       // 回退：调用 expandVideoFromImage（422 时跳过重试，用 image_prompt 兜底）
       const sceneDescs: Array<string | undefined> = new Array(activePanels.length);
       const needLLMCall: number[] = [];  // 需要 LLM 扩写的 panel idx
 
       activePanels.forEach((panel, i) => {
-        const existing = panelVideoPrompts[i]?.trim();
+        const existing = panelVideoPrompts[promptKey(i, curHistoryId)]?.trim();
         if (existing && existing.length > 0) {
           sceneDescs[i] = existing;
         } else {
@@ -4919,8 +5203,11 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
 
       const processOne = async (i: number) => {
         const panel = activePanels[i];
+        // 优先使用 panel.scene_description 而不是 themeLabel，与 triggerAutoH3ForPanel 保持一致。
+        // 原因同上：themeLabel 太宽泛，会让 LLM 扩写出与图片不符的内容。
+        const sceneDescForPanel = (panel.scene_description || '').trim() || themeLabel;
         try {
-          const videoRes = await expandVideoFromImage(panel.image_prompt, themeLabel, r18Mode, 1);
+          const videoRes = await expandVideoFromImage(panel.image_prompt, sceneDescForPanel, r18Mode, 1);
           sceneDescs[i] = videoRes.results?.[0]?.prompt?.trim();
         } catch (err) {
           // 422 是请求验证错误，重试无用，直接跳过
@@ -4932,7 +5219,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
           }
           // 其它错误（超时/500/网络） → 重试一次，仍失败兜底
           try {
-            const videoRes = await expandVideoFromImage(panel.image_prompt, themeLabel, r18Mode, 1, ['grok-4.6', 'grok-4.3'], 150000);
+            const videoRes = await expandVideoFromImage(panel.image_prompt, sceneDescForPanel, r18Mode, 1, ['grok-4.6', 'grok-4.3'], 150000);
             sceneDescs[i] = videoRes.results?.[0]?.prompt?.trim();
           } catch {
             console.warn(`[handleBatchGenerateH3] 第 ${i + 1} 个重试仍失败`);
@@ -4940,10 +5227,11 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         }
       };
 
-      // 并行处理（每次最多 CONCURRENT 个并发）
-      for (let i = 0; i < needLLMCall.length; i += CONCURRENT) {
-        const chunk = needLLMCall.slice(i, i + CONCURRENT).map((idx) => processOne(idx));
-        await Promise.all(chunk);
+      // 【修复】真正并行：所有 LLM 调用同时发出，不再分批串行。
+      // 之前 CONCURRENT=3 分批处理，6 个分镜实际变成 3+3 串行，
+      // 用户看到第一批完成后第二批才"排队"，感知上不是并行。
+      if (needLLMCall.length > 0) {
+        await Promise.all(needLLMCall.map((idx) => processOne(idx)));
       }
 
       // Step 2: 用确定的 scene_description 生成每个分镜的 [Shot N] 提示词
@@ -4960,18 +5248,20 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         r18: r18Mode,
       });
 
-      // Step 4: 缓存到 state
-      setPanelH3ShotMap(new Map(shotMap));
-      setPanelH3CommonParts(commonParts);
+      // Step 4: 缓存到 state（per-historyId 隔离，多主题互不冲突）
+      setPanelH3ShotMap(prev => ({ ...prev, [curHistoryId]: new Map(shotMap) }));
+      setPanelH3CommonParts(prev => ({ ...prev, [curHistoryId]: commonParts }));
 
-      // Step 5: 同时把每个分镜的完整 H3 提示词也存到 panelH3Prompts（用于卡片预览）
-      const newPrompts: Record<number, string> = {};
+      // Step 5: 每个分镜只存自己的 [Shot N] 提示词到 panelH3Prompts（per-historyId 隔离）
+      // 不要把"全部 6 个 Shot 拼成的完整 H3"塞进每个分镜卡，
+      // 否则每个分镜会显示同样的、包含其它分镜内容的完整 H3 提示词。
+      // 完整 H3 提示词只在 handleBatchGotoLongVideoWithH3 中按需拼装给上传用。
+      const newPrompts: Record<string, string> = {};
       const sortedShots = Array.from(shotMap.values()).sort((a, b) => a.panelIndex - b.panelIndex);
-      const fullPrompt = assembleH3Prompt(commonParts, sortedShots, panelH3Duration);
       sortedShots.forEach((shot, idx) => {
-        newPrompts[idx] = fullPrompt;  // 每个分镜卡显示完整 H3 提示词（含全部 shots）
+        newPrompts[promptKey(idx, curHistoryId)] = shot.shotPrompt;  // 每个分镜卡只显示自己的 Shot N 提示词
       });
-      setPanelH3Prompts(newPrompts);
+      setPanelH3Prompts(prev => ({ ...prev, ...newPrompts }));
       const usedLLM = needLLMCall.length > 0;
       const fromAnims = activePanels.length - needLLMCall.length;
       const sourceDesc = !usedLLM
@@ -4983,7 +5273,61 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     } finally {
       setPanelH3Loading({});
     }
-  }, [activePanels, activeThemeInfo, plot, panelH3Duration, r18Mode, onSuccess, onError, panelVideoPrompts]);
+  }, [activePanels, activeThemeInfo, plot, panelH3Duration, r18Mode, onSuccess, onError, panelVideoPrompts, sbHistoryId]);
+
+  /** 仅补全缺失的 H3 提示词（用于"截图2部分主题的分镜提示词缺失"场景）
+   *
+   * 与 handleBatchGenerateH3 的区别：
+   *   - 不覆盖已生成的 shot，只补 panelH3ShotMap 中缺失的 panel
+   *   - 缺失判断：activePanels[idx] 存在 && panelH3ShotMap[historyId] 没有 idx+1 的条目
+   *
+   * 使用流程：用户在面板顶部看到 "N 个分镜的提示词缺失" 的提示，点击按钮自动
+   * 重新生成缺失的那几个，避免重新跑全部分镜（也避免覆盖已有提示词）。
+   */
+  const handleRetryMissingH3Prompts = useCallback(async () => {
+    if (activePanels.length === 0) { onError('没有可用的分镜'); return; }
+    const curHistoryId = sbHistoryId || 'solo';
+    const curShotMap = panelH3ShotMap[curHistoryId] || new Map<number, H3PanelShot>();
+    const missingIdxs: number[] = [];
+    activePanels.forEach((panel, i) => {
+      // 1-based panelNumber 存进 shotMap
+      if (!curShotMap.has(i + 1)) {
+        missingIdxs.push(i);
+      }
+    });
+    if (missingIdxs.length === 0) {
+      onSuccess('所有分镜的 H3 提示词已存在，无需补全');
+      return;
+    }
+
+    setPanelH3Loading(prev => Object.fromEntries(missingIdxs.map((i) => [promptKey(i, curHistoryId), true])));
+    const themeLabel = activeThemeInfo?.title || plot || (r18Mode ? 'R18' : '默认主题');
+    try {
+      // 复用 handleGeneratePanelH3 的逻辑（已经处理了"动画提示词优先 / 422 跳过 / 重试 150s"）
+      // 每个缺失分镜并行补全
+      await Promise.all(missingIdxs.map(async (i) => {
+        try {
+          await handleGeneratePanelH3(i, activePanels[i]);
+        } catch (err) {
+          console.warn(`[handleRetryMissingH3Prompts] 分镜 ${i + 1} 补全失败:`, err);
+        }
+      }));
+      const stillMissing = missingIdxs.filter((i) => {
+        // 通过 setPanelH3Prompts 已经写入的视为已成功
+        const pK = promptKey(i, curHistoryId);
+        return !panelH3Prompts[pK];
+      });
+      if (stillMissing.length === 0) {
+        onSuccess(`已补全 ${missingIdxs.length} 个分镜的 H3 提示词`);
+      } else {
+        onSuccess(`已尝试补全 ${missingIdxs.length} 个分镜，仍有 ${stillMissing.length} 个失败（可重试）`);
+      }
+    } catch (err) {
+      onError(err instanceof Error ? err.message : '补全缺失提示词失败');
+    } finally {
+      setPanelH3Loading({});
+    }
+  }, [activePanels, activeThemeInfo, plot, panelH3Duration, r18Mode, onSuccess, onError, panelVideoPrompts, sbHistoryId, panelH3ShotMap, panelH3Prompts, handleGeneratePanelH3]);
 
   /** 单个分镜：跳转到长视频 1.1 并填入 H3 提示词 */
   const handleGotoLongVideoWithH3 = useCallback(async (
@@ -5008,11 +5352,33 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     }
 
     // 存储到 sessionStorage，由 ImageToVideoPage 消费
-    const h3Prompt = panelH3Prompt || generateH3Prompt({
-      imagePrompt: panel.image_prompt,
-      duration: panelH3Duration,
-      r18: r18Mode,
-    });
+    //
+    // panelH3Prompts[`${sbHistoryId}_${idx}`] 现在只存当前分镜的 [Shot N] 提示词（不是完整 H3 六段式）。
+    // 单分镜长视频上传仍需要一份合法的 H3 提示词给 longvideov2 模型，这里按以下
+    // 优先级拼装：
+    //   1. 优先用 panelH3ShotMap[`${sbHistoryId}`].get(idx+1) + 单分镜的 generateH3CommonParts 拼一份
+    //      "单 Shot" H3 提示词（Subject 1 + Shot 1，结构完整）。
+    //   2. 否则 fallback 到 panelH3Prompt（即当前 [Shot N] 纯字符串）。
+    //   3. 都没有则 generateH3Prompt 从 image_prompt 现生成。
+    const curHistoryId = sbHistoryId || 'solo';
+    const curShotMap = panelH3ShotMap[curHistoryId] || new Map<number, H3PanelShot>();
+    let h3Prompt: string;
+    const shot = curShotMap.get(idx + 1);
+    if (shot) {
+      const singlePanelCommonParts = generateH3CommonParts(
+        [{ image_prompt: panel.image_prompt }],
+        { duration: panelH3Duration, r18: r18Mode },
+      );
+      h3Prompt = assembleH3Prompt(singlePanelCommonParts, [shot], panelH3Duration);
+    } else if (panelH3Prompt) {
+      h3Prompt = panelH3Prompt;
+    } else {
+      h3Prompt = generateH3Prompt({
+        imagePrompt: panel.image_prompt,
+        duration: panelH3Duration,
+        r18: r18Mode,
+      });
+    }
     sessionStorage.setItem('storyboard_h3_longvideo', JSON.stringify({
       imagePath,
       imagePreview: imageUrl,
@@ -5020,19 +5386,23 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       processed: false,
     }));
     onNavigate?.('img2vid');
-  }, [apiKey, panelH3Duration, r18Mode, onError, onNavigate, onSuccess]);
+  }, [apiKey, panelH3Duration, r18Mode, onError, onNavigate, onSuccess, panelH3ShotMap, sbHistoryId]);
 
   /** 一键批量上传所有分镜到长视频 v1.1 并填入完整 H3 提示词
    *
    * 工作流：
    *   1. 收集所有分镜的图片（从 selectedPanelImages / genStates / taskManager 中按优先级取）
    *   2. 上传所有图片到 ImageToVideoPage 的 sessionStorage
-   *   3. 用 panelH3ShotMap + panelH3CommonParts 拼装完整 H3 提示词
+   *   3. 用 panelH3ShotMap[`${sbHistoryId}`] + panelH3CommonParts[`${sbHistoryId}`] 拼装完整 H3 提示词
+   *      （per-historyId 隔离，多主题互不冲突）
    *   4. 跳转到 img2vid 页面（自动切换到 longvideov2 模型）
    */
   const handleBatchGotoLongVideoWithH3 = useCallback(async () => {
     if (activePanels.length === 0) { onError('没有可用的分镜'); return; }
-    if (!panelH3CommonParts || panelH3ShotMap.size === 0) {
+    const curHistoryId = sbHistoryId || 'solo';
+    const curShotMap = panelH3ShotMap[curHistoryId];
+    const curCommonParts = panelH3CommonParts[curHistoryId];
+    if (!curCommonParts || !curShotMap || curShotMap.size === 0) {
       onError('请先生成 H3 提示词（点击"一键批量生成 H3 提示词"）');
       return;
     }
@@ -5044,13 +5414,19 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
 
       for (let i = 0; i < activePanels.length; i++) {
         const panel = activePanels[i];
-        const panelKey = `panel-${i}`;
+        // 【修复】selectedPanelImages 在多主题模式下用 `theme-${activeThemeTab}-panel-${idx}`
+        // 作为 key，但单主题模式下用 `panel-${idx}`。两个入口必须用同一个 key 才能正确读出
+        // 用户选中的图片——否则用户选了图片 #2，但这里查不到 manualSelection，掉到下面的
+        // Priority 2/3 取回图片 #1，表现为"选了第二张但总是调用第一张"。
+        const selKey = activeThemeTab !== null
+          ? `theme-${activeThemeTab}-panel-${i}`
+          : `panel-${i}`;
         const panelGenState = genStates[`${sbHistoryId}_${i}`];
         const panelTasks = taskManager.tasks.filter((t) => t.prompt === panel.image_prompt && t.images.length > 0);
         let imageUrl = '';
 
         // Priority 1: User manually selected an image
-        const manualSelection = selectedPanelImages[panelKey];
+        const manualSelection = selectedPanelImages[selKey];
         if (manualSelection) {
           imageUrl = manualSelection.url;
         }
@@ -5100,8 +5476,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       }
 
       // Step 3: 拼装完整 H3 提示词（按 panelIndex 排序）
-      const sortedShots = Array.from(panelH3ShotMap.values()).sort((a, b) => a.panelIndex - b.panelIndex);
-      const fullH3Prompt = assembleH3Prompt(panelH3CommonParts, sortedShots, panelH3Duration);
+      const sortedShots = Array.from(curShotMap.values()).sort((a, b) => a.panelIndex - b.panelIndex);
+      const fullH3Prompt = assembleH3Prompt(curCommonParts, sortedShots, panelH3Duration);
 
       // Step 4: 存储到 sessionStorage，由 ImageToVideoPage 消费
       // 注意：使用新的 key storyboard_h3_longvideo_batch，与单分镜的 storyboard_h3_longvideo 区分
@@ -5134,7 +5510,11 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     try {
       for (let i = 0; i < activePanels.length; i++) {
         const panel = activePanels[i];
-        const panelKey = `panel-${i}`;
+        // 【修复】多主题模式下 selectedPanelImages 用 `theme-${activeThemeTab}-panel-${idx}` 作 key，
+        // 单主题模式下用 `panel-${idx}`，必须用同一个 key 才能读到用户选中的图片（见 handleBatchGotoLongVideoWithH3 同注释）。
+        const panelKey = activeThemeTab !== null
+          ? `theme-${activeThemeTab}-panel-${i}`
+          : `panel-${i}`;
         const panelGenState = genStates[`${sbHistoryId}_${i}`];
         const panelTasks = taskManager.tasks.filter((t) => t.prompt === panel.image_prompt && t.images.length > 0);
         let imageUrl = '';
@@ -5291,7 +5671,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
           });
           await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, panelStoryboardInfo, 'storyboard', themeForTask, panelNum);
         } else {
-          const finalPrompt = withQualityBoost(panel.image_prompt);
+          const finalPrompt = withQualityBoost(sanitizePromptForClip(panel.image_prompt));
           const nodes = buildTxt2ImgNodeList(buildUnifiedTxt2ImgOptions(finalPrompt));
           await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, panelStoryboardInfo, 'storyboard', themeForTask, panelNum);
         }
@@ -6073,7 +6453,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
               >
                 {generatingScript ? <><Loader2 size={14} className="animate-spin" /> 生成脚本...</> : <><Clapperboard size={14} />生成视频脚本</>}
               </button>
-              <button onClick={() => { setStoryStep('themes'); setSelectedTheme(null); setOutlineArc(''); setOutlineScenes([]); setPanels([]); setVideoScript(null); setPanelVideoPrompts({}); setPanelH3Prompts({}); setPanelH3CommonParts(null); setPanelH3ShotMap(new Map()); autoH3TriggeredRef.current.clear(); }} className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl font-medium text-sm bg-bg-elevated text-text-tertiary hover:bg-bg-hover transition-colors">
+              <button onClick={() => { setStoryStep('themes'); setSelectedTheme(null); setOutlineArc(''); setOutlineScenes([]); setPanels([]); setVideoScript(null); setPanelVideoPrompts({}); setPanelH3Prompts({}); setPanelH3CommonParts({}); setPanelH3ShotMap({}); autoH3TriggeredRef.current.clear(); }} className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl font-medium text-sm bg-bg-elevated text-text-tertiary hover:bg-bg-hover transition-colors">
                 <RotateCcw size={14} />换主题
               </button>
             </div>
@@ -6161,108 +6541,181 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       )}
 
       {/* Panels */}
-      {storyStep === 'panels' && activePanels.length > 0 && (
+      {storyStep === 'panels' && (activePanels.length > 0 || activeThemeTabInFlight) && (
         <div className="space-y-3">
-          {/* Theme tabs - show when multiple themes have generated outlines */}
-          {selectedThemes.length > 0 && selectedThemes.some((t) => themeOutlineStates[t.id]?.outlineArc) && (
+          {/* Theme tabs - show ALL selected themes (including those still generating).
+              只显示有 outlineArc / generating / error 的主题，未开始生成的主题不显示 tab。 */}
+          {selectedThemes.length > 0 && selectedThemes.some((t) => {
+            const s = themeOutlineStates[t.id];
+            return s?.outlineArc || s?.generating || s?.error;
+          }) && (
             <div className="flex flex-wrap gap-2 px-1">
-              {selectedThemes.filter((t) => themeOutlineStates[t.id]?.outlineArc).map((theme) => {
+              {selectedThemes.filter((t) => {
+                const s = themeOutlineStates[t.id];
+                return s?.outlineArc || s?.generating || s?.error;
+              }).map((theme) => {
                 const isActive = activeThemeTab === theme.id;
+                const state = themeOutlineStates[theme.id];
+                const isGenerating = !!state?.generating;
+                const hasError = !!state?.error;
+                const isDone = !!state?.outlineArc;
                 return (
                   <button
                     key={theme.id}
                     onClick={() => handleViewThemePanels(theme.id)}
+                    title={
+                      isGenerating ? '生成中…' :
+                      hasError ? `生成失败：${state.error}` :
+                      isDone ? `已生成 ${state.panels.length} 个分镜` :
+                      '等待生成'
+                    }
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                       isActive
                         ? 'bg-primary text-white shadow-sm'
-                        : 'bg-bg-elevated text-text-secondary hover:bg-bg-hover hover:text-text-primary'
+                        : isGenerating
+                          ? 'bg-yellow-50 text-yellow-700 border border-yellow-300 hover:bg-yellow-100'
+                          : hasError
+                            ? 'bg-red-50 text-red-600 border border-red-300 hover:bg-red-100'
+                            : 'bg-bg-elevated text-text-secondary hover:bg-bg-hover hover:text-text-primary'
                     }`}
                   >
-                    <LayoutList size={12} />
+                    {isGenerating ? <Loader2 size={11} className="animate-spin" /> :
+                     hasError ? <AlertCircle size={11} /> :
+                     <LayoutList size={11} />}
                     {theme.title}
-                    {themeOutlineStates[theme.id]?.generating && (
-                      <Loader2 size={10} className="animate-spin" />
-                    )}
+                    {isDone && !isActive && <Check size={10} className="text-green-500" />}
                   </button>
                 );
               })}
             </div>
           )}
 
-          {/* Active theme label */}
-          <div className="flex items-center justify-between px-1">
-            <span className="text-xs text-text-tertiary font-medium">
-              {activeThemeInfo && <span className="mr-1">{activeThemeInfo.title} · </span>}
-              {activePanels.length} 个分镜
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleBatchGenerateVideo}
-                disabled={batchVideoLoading || activePanels.length === 0}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  batchVideoLoading || activePanels.length === 0
-                    ? 'bg-purple-100 text-purple-400 cursor-not-allowed'
-                    : 'bg-purple-500 text-white hover:bg-purple-600'
-                }`}
-              >
-                {batchVideoLoading ? <><Loader2 size={12} className="animate-spin" /> 提交中...</> : <><Video size={12} />一键批量视频</>}
-              </button>
-              <button
-                onClick={handleBatchGenerate}
-                disabled={batchLoading || taskManager.isFull || (digitalHumanMode && !selectedGirlfriend)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  batchLoading || taskManager.isFull || (digitalHumanMode && !selectedGirlfriend)
-                    ? 'bg-bg-elevated text-text-secondary cursor-not-allowed'
-                    : 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:opacity-90 active:scale-[0.98]'
-                }`}
-              >
-                {batchLoading ? <><Loader2 size={12} className="animate-spin" /> 提交中...</> : <><Zap size={12} />一键批量生图</>}
-              </button>
-              {/* H3 提示词引擎 */}
-              <div className="flex items-center gap-1">
-                <span className="text-[10px] text-indigo-500">H3:</span>
-                {([15, 30, 60] as const).map((d) => (
+          {/* Active theme label + batch action bar — hidden when the active
+              theme tab is still in flight (no panels yet) because there's
+              nothing to operate on. The "generating" placeholder below
+              replaces this section's purpose for in-flight tabs. */}
+          {!activeThemeTabInFlight && (
+            <div className="flex items-center justify-between px-1">
+              <span className="text-xs text-text-tertiary font-medium">
+                {activeThemeInfo && <span className="mr-1">{activeThemeInfo.title} · </span>}
+                {activePanels.length} 个分镜
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleBatchGenerate}
+                  disabled={batchLoading || taskManager.isFull || (digitalHumanMode && !selectedGirlfriend)}
+                  title="为当前主题的所有分镜批量生成图片"
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
+                    batchLoading || taskManager.isFull || (digitalHumanMode && !selectedGirlfriend)
+                      ? 'bg-blue-100 text-blue-500 cursor-not-allowed border border-blue-200'
+                      : 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:opacity-90 active:scale-[0.98]'
+                  }`}
+                >
+                  {batchLoading
+                    ? <><Loader2 size={12} className="animate-spin" />图片生成中…</>
+                    : <><Zap size={12} />一键批量生图</>}
+                </button>
+                {/* H3 提示词引擎 */}
+                <div className="flex items-center gap-1 flex-wrap">
+                  <span className="text-[10px] text-indigo-500">H3:</span>
+                  {([15, 30, 60] as const).map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setPanelH3Duration(d)}
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                        panelH3Duration === d ? 'bg-indigo-500 text-white' : 'bg-indigo-100 text-indigo-600'
+                      }`}
+                    >
+                      {d}秒
+                    </button>
+                  ))}
                   <button
-                    key={d}
                     type="button"
-                    onClick={() => setPanelH3Duration(d)}
-                    className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${
-                      panelH3Duration === d ? 'bg-indigo-500 text-white' : 'bg-indigo-100 text-indigo-600'
-                    }`}
+                    onClick={handleBatchGenerateH3}
+                    disabled={activePanels.length === 0 || Object.values(panelH3Loading).some(Boolean)}
+                    title="为当前主题的所有分镜生成/重新生成 H3 视频提示词（已有提示词会被覆盖）"
+                    className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium whitespace-nowrap transition-colors ${
+                      Object.values(panelH3Loading).some(Boolean)
+                        ? 'bg-indigo-100 text-indigo-500 border border-indigo-200 cursor-not-allowed'
+                        : (panelH3ShotMap[sbHistoryId || 'solo']?.size ?? 0) > 0
+                          ? 'bg-white text-indigo-600 border border-indigo-300 hover:bg-indigo-50'
+                          : 'bg-indigo-500 text-white hover:bg-indigo-600'
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
-                    {d}秒
+                    {Object.values(panelH3Loading).some(Boolean)
+                      ? <><Loader2 size={10} className="animate-spin" />视频提示词生成中…</>
+                      : (panelH3ShotMap[sbHistoryId || 'solo']?.size ?? 0) > 0
+                        ? <><RefreshCw size={10} />重新生成H3提示词</>
+                        : <><Sparkles size={10} />一键生成H3视频提示词</>}
                   </button>
-                ))}
-                <button
-                  type="button"
-                  onClick={handleBatchGenerateH3}
-                  disabled={activePanels.length === 0 || Object.values(panelH3Loading).some(Boolean)}
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-indigo-500 text-white hover:bg-indigo-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {Object.values(panelH3Loading).some(Boolean) ? <><Loader2 size={10} className="animate-spin" /> 生成中...</> : <><Sparkles size={10} />一键生成H3视频提示词</>}
-                </button>
-                {/* 一键批量上传到长视频 v1.1（多图 + 完整 H3 提示词） */}
-                <button
-                  type="button"
-                  onClick={handleBatchGotoLongVideoWithH3}
-                  disabled={batchVideoLoading || activePanels.length === 0 || !panelH3CommonParts || panelH3ShotMap.size === 0}
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="将所有分镜的图片批量上传到长视频 v1.1 的多个 slot，拼接完整 H3 提示词（一键多图生视频）"
-                >
-                  {batchVideoLoading ? <><Loader2 size={10} className="animate-spin" /> 上传中...</> : <><Clapperboard size={10} />一键长视频v1.1</>}
-                </button>
+                  {/* 一键批量上传到长视频 v1.1（多图 + 完整 H3 提示词） */}
+                  <button
+                    type="button"
+                    onClick={handleBatchGotoLongVideoWithH3}
+                    disabled={
+                      batchVideoLoading ||
+                      activePanels.length === 0 ||
+                      !panelH3CommonParts[sbHistoryId || 'solo'] ||
+                      !panelH3ShotMap[sbHistoryId || 'solo'] ||
+                      (panelH3ShotMap[sbHistoryId || 'solo']?.size ?? 0) === 0
+                    }
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="将所有分镜的图片批量上传到长视频 v1.1 的多个 slot，拼接完整 H3 提示词（一键多图生视频）"
+                  >
+                    {batchVideoLoading ? <><Loader2 size={10} className="animate-spin" /> 上传中...</> : <><Clapperboard size={10} />一键长视频v1.1</>}
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
+          )}
+
+          {/* Missing H3 prompts banner — shown when panelH3ShotMap is
+              partially populated (e.g. user reported screenshots showing
+              "部分主题的分镜提示词缺失"). Surface the count and offer
+              a one-click补全 (does NOT overwrite existing shots). */}
+          {!activeThemeTabInFlight && activePanels.length > 0 && (() => {
+            const curShotMap = panelH3ShotMap[sbHistoryId || 'solo'];
+            const missingCount = curShotMap
+              ? activePanels.filter((_, i) => !curShotMap.has(i + 1)).length
+              : activePanels.length;
+            if (missingCount === 0) return null;
+            const isLoadingAny = Object.values(panelH3Loading).some(Boolean);
+            return (
+              <div className="rounded-xl bg-amber-50/70 border border-amber-200 px-3 py-2 flex flex-wrap items-center gap-2 text-xs text-amber-800">
+                <AlertCircle size={13} className="text-amber-500 flex-shrink-0" />
+                <span className="flex-1 min-w-0">
+                  有 <strong>{missingCount}</strong> / {activePanels.length} 个分镜的 H3 视频提示词缺失，可一键补全（不会覆盖已有提示词）。
+                </span>
+                <button
+                  type="button"
+                  onClick={handleRetryMissingH3Prompts}
+                  disabled={isLoadingAny}
+                  className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors ${
+                    isLoadingAny
+                      ? 'bg-amber-100 text-amber-500 cursor-not-allowed'
+                      : 'bg-amber-500 text-white hover:bg-amber-600'
+                  }`}
+                >
+                  {isLoadingAny
+                    ? <><Loader2 size={10} className="animate-spin" />补全中…</>
+                    : <><RefreshCw size={10} />补全缺失提示词</>}
+                </button>
+              </div>
+            );
+          })()}
+
           {activePanels.map((panel, idx) => {
             // Use theme-specific panel key to avoid conflicts when switching tabs
-            const panelKey = activeThemeTab !== null ? `theme-${activeThemeTab}-panel-${idx}` : `panel-${idx}`;
-            const selectedImage = selectedPanelImages[panelKey];
-            // 【修复】动画提示词直接读取 panelVideoPrompts[idx]：
+            const selKey = activeThemeTab !== null ? `theme-${activeThemeTab}-panel-${idx}` : `panel-${idx}`;
+            // 主题-scoped key：所有提示词都按 `${sbHistoryId}_${idx}` 隔离存储
+            const pK = promptKey(idx, sbHistoryId);
+            const selectedImage = selectedPanelImages[selKey];
+            // 【修复】动画提示词直接读取 panelVideoPrompts[pK]（主题-scoped key）：
             //   - 图片生成成功后，自动调用 LLM 生成的 H3 Shot 提示词会写入这里
             //   - 用户也可以手动编辑该区域
             //   - 不再自动兜底（之前用 extractVideoPromptFromImagePrompt 自动填充的设计取消）
-            const videoPrompt = panelVideoPrompts[idx];
+            const videoPrompt = panelVideoPrompts[pK];
             const normalizedPanelPrompt = panel.image_prompt.trim().replace(/\s+/g, ' ');
             const panelRelatedTasks = taskManager.tasks.filter(
               (t: QueuedTask) => (t.status === 'RUNNING' || t.status === 'QUEUEING' || t.status === 'FINISHED') && t.images.length > 0
@@ -6277,7 +6730,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
             const hasGenerated = (genStates[genStateKey]?.images?.length ?? 0) > 0;
             return (
               <StoryboardPanelCard
-                key={panelKey}
+                key={selKey}
                 panel={panel}
                 idx={idx}
                 isExpanded={expandedPanel === idx}
@@ -6292,27 +6745,83 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                 digitalHumanMode={digitalHumanMode}
                 selectedGirlfriend={selectedGirlfriend}
                 selectedImageIndex={selectedImage?.index}
-                onSelectImage={(imageIdx, imageUrl) => handleSelectPanelImage(panelKey, imageIdx, imageUrl)}
+                onSelectImage={(imageIdx, imageUrl) => handleSelectPanelImage(selKey, imageIdx, imageUrl)}
                 onDownload={handleDownloadImage}
                 videoPrompt={videoPrompt}
                 hasGeneratedImages={hasGenerated}
                 onPreviewImage={handlePreviewImage}
-                videoGenLoading={videoGenLoading[panelKey]}
-                onDirectGenerateVideo={(imageUrl, prompt) => handleDirectGenerateVideo(panelKey, imageUrl, prompt)}
+                videoGenLoading={videoGenLoading[selKey]}
+                onDirectGenerateVideo={(imageUrl, prompt) => handleDirectGenerateVideo(selKey, imageUrl, prompt)}
                 themeTitle={activeThemeInfo?.title || plot}
                 onRegenerateVideoPrompt={() => handleRegenerateVideoPrompt(idx)}
                 promptEditLoading={!!promptEditLoading[idx]}
-                onVideoPromptChange={(newPrompt) => setPanelVideoPrompts((prev) => ({ ...prev, [idx]: newPrompt }))}
+                onVideoPromptChange={(newPrompt) => setPanelVideoPrompts((prev) => ({ ...prev, [pK]: newPrompt }))}
                 historyId={sbHistoryId || ''}
+                // 图片提示词编辑 + 重新生成
+                onImagePromptChange={(newPrompt) => handleImagePromptChange(idx, newPrompt)}
+                onRegenerateImagePrompt={() => handleRegenerateImagePrompt(idx, panel)}
+                imagePromptRegenLoading={!!imagePromptRegenLoading[`${sbHistoryId || 'solo'}_${idx}`]}
+                onPanelH3PromptChange={(newPrompt) => handlePanelH3PromptChange(idx, newPrompt)}
                 // H3 提示词引擎相关
-                panelH3Prompt={panelH3Prompts[idx]}
+                panelH3Prompt={panelH3Prompts[pK]}
                 panelH3Duration={panelH3Duration}
-                panelH3Loading={!!panelH3Loading[idx]}
+                panelH3Loading={!!panelH3Loading[pK]}
                 onGeneratePanelH3={() => handleGeneratePanelH3(idx, panel)}
-                onGotoLongVideoWithH3={(imageUrl) => handleGotoLongVideoWithH3(idx, panel, imageUrl, panelH3Prompts[idx])}
+                onGotoLongVideoWithH3={(imageUrl) => handleGotoLongVideoWithH3(idx, panel, imageUrl, panelH3Prompts[pK])}
               />
             );
           })}
+
+          {/* Generating / error placeholder for the currently-active theme tab.
+              Shown when the user picked a theme tab that's still in flight
+              (activePanels.length === 0 but state.generating or state.error
+              is set). Without this the panels section would hide entirely,
+              looking like the user got bounced back to the linear flow. */}
+          {activeThemeTabInFlight && activeThemeTab !== null && (() => {
+            const inFlightState = themeOutlineStates[activeThemeTab];
+            const inFlightTheme = selectedThemes.find((t) => t.id === activeThemeTab);
+            if (!inFlightTheme) return null;
+            if (inFlightState?.error) {
+              return (
+                <div className="rounded-2xl bg-red-50 border border-red-200 p-5 flex flex-col gap-3">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle size={16} className="text-red-500" />
+                    <span className="text-sm font-semibold text-red-700">
+                      「{inFlightTheme.title}」大纲生成失败
+                    </span>
+                  </div>
+                  <p className="text-xs text-red-600/80 leading-relaxed">{inFlightState.error}</p>
+                  <button
+                    onClick={() => handleGenerateOutlineForTheme(inFlightTheme)}
+                    className="self-start flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500 text-white hover:bg-red-600 transition-colors"
+                  >
+                    <RotateCcw size={12} />重新生成
+                  </button>
+                </div>
+              );
+            }
+            if (inFlightState?.generating) {
+              const liveProgress = inFlightState.progress || `正在为「${inFlightTheme.title}」生成 ${panelCount} 个分镜...`;
+              return (
+                <div className="rounded-2xl bg-yellow-50/60 border border-yellow-200 p-5 flex flex-col gap-3">
+                  <div className="flex items-center gap-2">
+                    <Loader2 size={16} className="animate-spin text-yellow-600" />
+                    <span className="text-sm font-semibold text-yellow-800">
+                      「{inFlightTheme.title}」大纲生成中
+                    </span>
+                  </div>
+                  <p className="text-xs text-yellow-700/80 leading-relaxed">{liveProgress}</p>
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] text-yellow-700/70">
+                    <Clock size={11} />
+                    <span>已等待 {formatElapsed(Date.now() - (inFlightState.startedAt || Date.now()))}</span>
+                    <span className="mx-1">·</span>
+                    <span>最长约 3 分钟（后台运行，可切换到其他主题继续工作）</span>
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })()}
         </div>
       )}
 
@@ -6575,7 +7084,7 @@ function FavoritesList({ favorites, r18Mode, onRemove, onClear }: {
   );
 }
 
-function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onToggle, onCopyPanel, genState, onGenerateImage, onFavorited, onDownload, taskManager, digitalHumanMode, selectedGirlfriend, selectedImageIndex, onSelectImage, onGenerateVideo, videoPrompt, hasGeneratedImages, onPreviewImage, videoGenLoading, onDirectGenerateVideo, themeTitle, onRegenerateVideoPrompt, promptEditLoading, onVideoPromptChange, historyId, panelH3Prompt, panelH3Duration, panelH3Loading, onGeneratePanelH3, onGotoLongVideoWithH3 }: {
+function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onToggle, onCopyPanel, genState, onGenerateImage, onFavorited, onDownload, taskManager, digitalHumanMode, selectedGirlfriend, selectedImageIndex, onSelectImage, onGenerateVideo, videoPrompt, hasGeneratedImages, onPreviewImage, videoGenLoading, onDirectGenerateVideo, themeTitle, onRegenerateVideoPrompt, promptEditLoading, onVideoPromptChange, historyId, panelH3Prompt, panelH3Duration, panelH3Loading, onGeneratePanelH3, onGotoLongVideoWithH3, onImagePromptChange, onRegenerateImagePrompt, imagePromptRegenLoading, onPanelH3PromptChange }: {
   panel: { panel_number: number; scene_description: string; image_prompt: string };
   idx: number; isExpanded: boolean; r18Mode: boolean; copiedPanel: number | null;
   onToggle: () => void; onCopyPanel: () => void;
@@ -6607,6 +7116,14 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
   panelH3Loading?: boolean;
   onGeneratePanelH3?: () => void;
   onGotoLongVideoWithH3?: (imageUrl: string) => void;
+  /** 图片提示词编辑回调（用户在卡片内直接改 image_prompt） */
+  onImagePromptChange?: (newPrompt: string) => void;
+  /** 触发该分镜的图片提示词 LLM 重新生成 */
+  onRegenerateImagePrompt?: () => void;
+  /** 重新生成图片提示词时的 spinner state */
+  imagePromptRegenLoading?: boolean;
+  /** H3 提示词编辑回调（用户在卡片内直接改 H3 提示词） */
+  onPanelH3PromptChange?: (newPrompt: string) => void;
 }) {
   const isGenLoading = genState?.loading;
   const displayImages = genState?.images ?? [];
@@ -6617,8 +7134,9 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
   // prompt was modified (e.g. img2img adds 【严格锁定】 prefix, txt2img adds
   // quality boost). Without this, mixed batches of txt2img+img2img panels for
   // different themes would display the wrong images.
+  // Include FAILED too so the panel can show a "重新生成图片" affordance.
   const panelRelatedTasks = taskManager.tasks.filter((t: QueuedTask) => {
-    if (t.status !== 'RUNNING' && t.status !== 'QUEUEING' && t.status !== 'FINISHED') return false;
+    if (t.status !== 'RUNNING' && t.status !== 'QUEUEING' && t.status !== 'FINISHED' && t.status !== 'FAILED') return false;
     if (t.storyboardInfo && t.storyboardInfo.historyId === historyId && t.storyboardInfo.panelIdx === idx) return true;
     const taskPromptNorm = t.prompt.trim().replace(/\s+/g, ' ');
     return taskPromptNorm === normalizedPanelPrompt;
@@ -6633,6 +7151,8 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
   // takes over.
   const isQueued = panelRelatedTasks.some((t: QueuedTask) => t.status === 'QUEUEING');
   const isGenerating = panelRelatedTasks.some((t: QueuedTask) => t.status === 'RUNNING');
+  const hasFailedImageTask = !hasImages && panelRelatedTasks.some((t: QueuedTask) => t.status === 'FAILED');
+  const failedTaskError = panelRelatedTasks.find((t: QueuedTask) => t.status === 'FAILED')?.error || '';
   const showLoadingState = !hasImages && (isGenLoading || isQueued || isGenerating);
 
   return (
@@ -6643,6 +7163,15 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
           <span className={`w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0 ${r18Mode ? 'bg-gradient-to-br from-red-500 to-red-700 text-white' : 'bg-gradient-to-br from-primary to-primary/60 text-white'}`}>{panel.panel_number}</span>
           <span className="text-sm text-text-primary font-medium whitespace-pre-wrap break-words line-clamp-2">{panel.scene_description}</span>
           {hasImages && <span className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center flex-shrink-0 bg-green-500 text-white`}>{allDisplayImages.length}</span>}
+          {hasFailedImageTask && !hasImages && (
+            <span
+              className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium flex-shrink-0 bg-red-50 text-red-600 border border-red-200"
+              title={failedTaskError || '图片生成失败，点击下方重试按钮重新生成'}
+            >
+              <AlertCircle size={10} />
+              生成失败
+            </span>
+          )}
           {showLoadingState && (
             <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium flex-shrink-0 ${
               isGenerating
@@ -6685,8 +7214,27 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
         <div className={`px-4 pb-4 border-t ${r18Mode ? 'border-red-100' : 'border-border/50'}`}>
           <div className="pt-3">
             <div className="flex items-center justify-between mb-2">
-              <span className={`text-xs font-medium ${r18Mode ? 'text-red-500' : 'text-text-tertiary'}`}>Image Prompt</span>
               <div className="flex items-center gap-2">
+                <span className={`text-xs font-medium ${r18Mode ? 'text-red-500' : 'text-text-tertiary'}`}>Image Prompt</span>
+                <span className="text-[10px] text-text-tertiary">(可编辑)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                {onRegenerateImagePrompt && (
+                  <button
+                    onClick={onRegenerateImagePrompt}
+                    disabled={!!imagePromptRegenLoading}
+                    title="用 LLM 重新生成本分镜的图片提示词（覆盖现有内容）"
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                      imagePromptRegenLoading
+                        ? 'bg-bg-elevated text-text-secondary cursor-not-allowed'
+                        : 'bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:opacity-90'
+                    }`}
+                  >
+                    {imagePromptRegenLoading
+                      ? <><Loader2 size={11} className="animate-spin" /> 重新生成中</>
+                      : <><RefreshCw size={11} />重新生成图片提示词</>}
+                  </button>
+                )}
                 <button
                   onClick={onGenerateImage}
                   disabled={isGenLoading || (digitalHumanMode && !selectedGirlfriend)}
@@ -6703,7 +7251,21 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
                 </button>
               </div>
             </div>
-            <div className={`rounded-xl px-4 py-3 text-xs leading-relaxed whitespace-pre-wrap font-mono ${r18Mode ? 'bg-red-50 text-red-700' : 'bg-bg-elevated text-text-secondary'}`}>{panel.image_prompt}</div>
+            {onImagePromptChange ? (
+              <textarea
+                value={panel.image_prompt || ''}
+                onChange={(e) => onImagePromptChange(e.target.value)}
+                rows={4}
+                placeholder={imagePromptRegenLoading ? '正在用 LLM 重新生成分镜图片提示词…' : '分镜图片提示词（点击「重新生成图片提示词」可让 LLM 重新扩写）'}
+                className={`w-full rounded-xl px-4 py-3 text-xs leading-relaxed font-mono resize-y focus:outline-none focus:ring-1 ${
+                  r18Mode
+                    ? 'bg-red-50 text-red-700 border border-red-200 focus:border-red-400 focus:ring-red-300'
+                    : 'bg-bg-elevated text-text-secondary border border-border focus:border-primary focus:ring-primary/30'
+                }`}
+              />
+            ) : (
+              <div className={`rounded-xl px-4 py-3 text-xs leading-relaxed whitespace-pre-wrap font-mono ${r18Mode ? 'bg-red-50 text-red-700' : 'bg-bg-elevated text-text-secondary'}`}>{panel.image_prompt}</div>
+            )}
 
             {/* Loading/queued placeholder — shown while a task is in flight for
                 this panel but no images have arrived yet. Without this, the
@@ -6717,6 +7279,43 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
               }`}>
                 <Loader2 size={14} className="animate-spin" />
                 <span>{isQueued && !isGenerating ? '排队中，等待生成…' : '生成中，图片即将出现…'}</span>
+              </div>
+            )}
+
+            {/* Failed-task affordance — when a panel has no images but has
+                at least one FAILED task, surface a one-click "重新生成图片"
+                so the user can recover without going back to the batch
+                submit. This is the common case the user reported: one
+                panel's image failed (CLIPTextEncode / KSamplerAdvanced
+                RuntimeError) while siblings succeeded. */}
+            {hasFailedImageTask && !hasImages && !showLoadingState && (
+              <div className="mt-3 rounded-xl border border-red-200 bg-red-50/40 p-3 flex flex-col gap-2">
+                <div className="flex items-start gap-2">
+                  <AlertCircle size={14} className="text-red-500 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-red-700">分镜图片生成失败</p>
+                    {failedTaskError && (
+                      <p className="text-[11px] text-red-600/80 mt-0.5 line-clamp-2" title={failedTaskError}>
+                        {failedTaskError}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={onGenerateImage}
+                  disabled={isGenLoading}
+                  className={`self-start flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                    isGenLoading
+                      ? 'bg-red-100 text-red-400 cursor-not-allowed'
+                      : 'bg-red-500 text-white hover:bg-red-600'
+                  }`}
+                  title="重试该分镜的图片生成"
+                >
+                  {isGenLoading
+                    ? <><Loader2 size={11} className="animate-spin" />图片生成中…</>
+                    : <><RefreshCw size={11} />重新生成图片</>}
+                </button>
               </div>
             )}
 
@@ -6847,18 +7446,20 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
                     type="button"
                     onClick={onGeneratePanelH3}
                     disabled={panelH3Loading || !hasImages}
-                    title="生成 MiniMax H3 六段式视频提示词"
-                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    title={panelH3Prompt ? '重新生成该分镜的 H3 视频提示词（已有提示词会被覆盖）' : '生成 MiniMax H3 六段式视频提示词'}
+                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
                       panelH3Loading || !hasImages
-                        ? 'bg-indigo-100 text-indigo-400 cursor-not-allowed'
-                        : 'bg-indigo-500 text-white hover:bg-indigo-600'
+                        ? 'bg-indigo-100 text-indigo-400 cursor-not-allowed border border-indigo-200'
+                        : panelH3Prompt
+                          ? 'bg-white text-indigo-600 border border-indigo-300 hover:bg-indigo-50'
+                          : 'bg-indigo-500 text-white hover:bg-indigo-600'
                     }`}
                   >
-                    {panelH3Loading ? (
-                      <><Loader2 size={11} className="animate-spin" /> 生成中...</>
-                    ) : (
-                      <><Sparkles size={11} />生成H3提示词</>
-                    )}
+                    {panelH3Loading
+                      ? <><Loader2 size={11} className="animate-spin" />视频提示词生成中…</>
+                      : panelH3Prompt
+                        ? <><RefreshCw size={11} />重新生成H3</>
+                        : <><Sparkles size={11} />生成H3提示词</>}
                   </button>
                   {panelH3Prompt && hasImages && (
                     <button
@@ -6902,7 +7503,7 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
               ) : (
                 <div className="text-xs text-text-tertiary">生成图片后将自动生成动画提示词，或点击「智能扩写」生成</div>
               )}
-              {/* H3 提示词预览 */}
+              {/* H3 提示词预览（可编辑） */}
               {panelH3Prompt && (
                 <div className="mt-2">
                   <div className="flex items-center justify-between mb-1">
@@ -6910,21 +7511,33 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
                       <Sparkles size={10} />
                       H3 视频提示词（{panelH3Duration}秒，可编辑）
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => { navigator.clipboard?.writeText(panelH3Prompt); }}
-                      className="text-[10px] text-indigo-500 hover:text-indigo-700 flex items-center gap-0.5"
-                    >
-                      <Copy size={10} /> 复制
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => { navigator.clipboard?.writeText(panelH3Prompt); }}
+                        className="text-[10px] text-indigo-500 hover:text-indigo-700 flex items-center gap-0.5"
+                      >
+                        <Copy size={10} /> 复制
+                      </button>
+                    </div>
                   </div>
-                  <textarea
-                    value={panelH3Prompt}
-                    rows={6}
-                    readOnly
-                    className="w-full px-2 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 text-[10px] text-indigo-800 font-mono focus:outline-none resize-none"
-                    placeholder="H3 Ref2VA 六段式提示词..."
-                  />
+                  {onPanelH3PromptChange ? (
+                    <textarea
+                      value={panelH3Prompt}
+                      onChange={(e) => onPanelH3PromptChange(e.target.value)}
+                      rows={2}
+                      placeholder={"H3 Ref2VA 六段式提示词...\n\n提示：\n- 可用 <Picture 1> 引用第一张参考图\n- 可用 <Picture 2> 引用第二张参考图\n- 格式：Subject + Detailed Description + Camera + Lighting + Style + Music"}
+                      className="w-full px-2 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 text-[10px] text-indigo-800 font-mono focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-300 resize-y"
+                    />
+                  ) : (
+                    <textarea
+                      value={panelH3Prompt}
+                      rows={2}
+                      readOnly
+                      className="w-full px-2 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 text-[10px] text-indigo-800 font-mono focus:outline-none resize-none"
+                      placeholder={"H3 Ref2VA 六段式提示词...\n\n提示：\n- 可用 <Picture 1> 引用第一张参考图\n- 可用 <Picture 2> 引用第二张参考图\n- 格式：Subject + Detailed Description + Camera + Lighting + Style + Music"}
+                    />
+                  )}
                 </div>
               )}
             </div>

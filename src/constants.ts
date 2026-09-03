@@ -889,6 +889,71 @@ export function withQualityBoost(prompt: string, options?: { force?: boolean }):
   return alreadyIncludes ? text : `${QUALITY_BOOST_PROMPT}, ${text}`;
 }
 
+/**
+ * Sanitize an image prompt before sending it to CLIPTextEncode. Mitigates
+ * two failure modes observed in production:
+ *
+ *   1. CLIPTextEncode RuntimeError — caused by prompts whose token count
+ *      exceeds the model's token limit (~77 for SDXL, ~77*2 for some
+ *      stacks). Trims to a safe length (≈ 900 chars / ≈ 220 tokens) while
+ *      preferring the **head** of the prompt (subject + scene descriptors)
+ *      and dropping trailing filler.
+ *   2. KSamplerAdvanced RuntimeError — caused by extremely repetitive
+ *      modifiers (e.g. "缠绵地…，缠绵地…，缠绵地…" with the same adverb
+ *      three times) that can derail conditioning. Collapses consecutive
+ *      identical-prefix phrases into one.
+ *
+ * Conservative: never modifies the leading subject line (first clause).
+ */
+export function sanitizePromptForClip(prompt: string, maxChars = 900): string {
+  if (!prompt) return '';
+  let text = String(prompt).trim().replace(/\s+/g, ' ');
+
+  // 1) Collapse repetitive adverb-prefixed actions. We split on the
+  //    common Chinese enumerator "，" and look for runs of 2+ adjacent
+  //    segments that start with the same 2–6 char prefix (adverbs such
+  //    as 缠绵地 / 激情地 / 暧昧地 / 温柔地 …). Keep only the first.
+  const parts = text.split(/[，,]/);
+  if (parts.length >= 3) {
+    const dedup: string[] = [];
+    for (let i = 0; i < parts.length; i++) {
+      const seg = parts[i].trim();
+      if (!seg) continue;
+      const prefix = seg.slice(0, 2);
+      let isDup = false;
+      if (dedup.length > 0) {
+        const lastSeg = dedup[dedup.length - 1];
+        // Same 2-char prefix as the immediately-preceding kept segment
+        // AND length is "adverb + action" shape (≤ 14 chars to avoid
+        // eating legitimate longer sentences).
+        if (lastSeg.slice(0, 2) === prefix && seg.length <= 14 && lastSeg.length <= 14) {
+          isDup = true;
+        }
+      }
+      if (!isDup) dedup.push(seg);
+    }
+    if (dedup.length < parts.length) {
+      text = dedup.join('，');
+    }
+  }
+
+  // 2) Trim to maxChars. Prefer keeping the head (subject + scene)
+  //    and drop trailing filler (the quality boost suffix already covers
+  //    the visual-quality tags that typically sit at the tail).
+  if (text.length > maxChars) {
+    const head = text.slice(0, maxChars);
+    // Try to cut on a comma so we don't end mid-phrase
+    const lastComma = Math.max(head.lastIndexOf('，'), head.lastIndexOf(','));
+    if (lastComma > maxChars * 0.7) {
+      text = head.slice(0, lastComma);
+    } else {
+      text = head;
+    }
+  }
+
+  return text;
+}
+
 export const DEFAULT_TXT2IMG_PARAMS = {
   width: 1024,
   height: 1536,

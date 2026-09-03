@@ -2386,9 +2386,11 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
           if (h3ImgPath) {
             setNlInitialImage({ path: h3ImgPath, preview: h3ImgPreview || h3ImgPath });
           }
-          // 设置 H3 提示词
+          // 设置 H3 提示词 —— 同时写入 MiniMax H3 面板和 NinfiniteLongVideoPage
+          // （Bug 修复：原来只 setMlH3Prompt，longvideov2 页面看不到完整 H3 提示词）
           if (h3PromptText) {
             setMlH3Prompt(h3PromptText);
+            setNlInitialPrompt(h3PromptText);
           }
           onSuccess?.('已从剧情分镜导入图片和 H3 提示词到长视频 1.1');
         } catch (err) {
@@ -2408,9 +2410,12 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
             // 同时设置 slot 0 的图片（向后兼容）
             setNlInitialImage({ path: batchImages[0].path, preview: batchImages[0].preview || batchImages[0].path });
           }
-          // 设置完整 H3 提示词
+          // 设置完整 H3 提示词 —— 同时写入 MiniMax H3 面板和 NinfiniteLongVideoPage
+          // （Bug 修复：原来只 setMlH3Prompt，longvideov2 页面（NinfiniteLongVideoPage）看不到完整 H3 提示词。
+          //  setNlInitialPrompt 把提示词传到 NinfiniteLongVideoPage，页面加载时通过 initialPrompt 自动填入）
           if (batchH3Prompt) {
             setMlH3Prompt(batchH3Prompt);
+            setNlInitialPrompt(batchH3Prompt);
           }
           onSuccess?.(`已从剧情分镜批量导入 ${batchImages?.length || 0}/${totalPanels || '?'} 张图片 + 完整 H3 提示词到长视频 1.1`);
         } catch (err) {

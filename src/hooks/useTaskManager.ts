@@ -491,8 +491,16 @@ export function useTaskManager({
         drainPendingQueueRef.current();
         setTasks((prev) =>
           prev.map((t) =>
-            t.id === task.id ? { ...t, error: errorMsg } : t
+            t.id === task.id ? { ...t, status: 'FAILED' as TaskStatus, error: errorMsg } : t
           )
+        );
+        // Mirror to the synchronous ref so the polling interval effect
+        // (which filters by status === 'QUEUEING' || 'RUNNING') stops
+        // picking this task up. Without this, the task kept showing up
+        // as RUNNING and was polled indefinitely — wasting API quota on
+        // a known-failed task.
+        tasksRef.current = tasksRef.current.map((t) =>
+          t.id === task.id ? { ...t, status: 'FAILED' as TaskStatus, error: errorMsg } : t
         );
         onErrorRef.current?.(task.id, errorMsg);
         delete pollingRef.current[task.id];

@@ -226,32 +226,44 @@ function extractSubjectFromPrompt(imagePrompt: string): string {
   return cleaned || '主角';
 }
 
-/** 生成 subject_definitions 段落 */
+/** 生成 subject_definitions 段落（精简版，避免与分镜描述重复）
+ *
+ * 设计目标：参考图本身就是角色/构图锚点，分镜（detailed_description 里的 [Shot N]）
+ * 已经包含每个 Picture 对应的具体动作和外观，所以这里只需要简短锚定角色身份即可。
+ *
+ * 旧版本（过长、重复）：
+ *   <Subject 1> 是 A beautiful East Asian woman in her 20s ...。全程完整保留其
+ *   外貌特征、发型、妆容、身材比例、肤色和服装细节。
+ *   <Picture 1> 是参考图，作为目标视频的角色和构图锚点。
+ *
+ * 精简后（仅保留锚点信息）：
+ *   <Subject 1> = <Picture 1> 中锚定的角色。
+ */
 function buildSubjectDefinitions(
   imageUrls: string[],
-  subjectDescriptions: string[],
-  r18: boolean
+  _subjectDescriptions: string[],
+  _r18: boolean
 ): string {
   if (imageUrls.length === 0) {
-    return 'subject_definitions:\n<Subject 1> 是参考图中的主角，全程完整保留其外貌、服装和身份特征。';
+    return 'subject_definitions:\n<Subject 1> 是参考图中的主角。';
   }
 
   const lines: string[] = ['subject_definitions:'];
   for (let i = 0; i < imageUrls.length; i++) {
     const n = i + 1;
-    const desc = subjectDescriptions[i] || `<Picture ${n}> 中的角色`;
-    if (r18) {
-      lines.push(`<Subject ${n}> 是 ${desc}。全程完整保留其外貌特征、发型、妆容、身材比例、肤色和服装细节。`);
-    } else {
-      lines.push(`<Subject ${n}> 是 ${desc}。全程完整保留其外貌和特征。`);
-    }
-    lines.push(`<Picture ${n}> 是参考图，作为目标视频的角色和构图锚点。`);
+    // 精简：每个 Subject 直接指向对应的 Picture，不再重复"全程完整保留..."等冗余信息
+    // 详细的特征保留信息已经在 retention_analysis 中给出（更简短）。
+    lines.push(`<Subject ${n}> = <Picture ${n}> 中锚定的角色。`);
   }
 
   return lines.join('\n');
 }
 
-/** 生成 summary 段落 */
+/** 生成 summary 段落（精简版）
+ *
+ * 注意：保留锚点的细节由 subject_definitions / retention_analysis 给出，
+ * 这里不再重复"通过 <Picture 1> 参考图保持角色外观和身份"。
+ */
 function buildSummary(
   imageUrls: string[],
   r18: boolean,
@@ -266,33 +278,34 @@ function buildSummary(
     ? '目标视频以参考角色在自然环境中表演描述动作。'
     : '目标视频呈现描述场景，动作自然流畅，电影质感。';
 
-  const refPart = imageUrls.length > 0
-    ? ` 通过 <Picture ${imageUrls.length > 1 ? '1' : '1'}> 参考图保持角色外观和身份。`
-    : '';
-
-  return `summary:\n${taskType} ${r18Prefix}${scenePart}${refPart}`;
+  return `summary:\n${taskType} ${r18Prefix}${scenePart}`;
 }
 
-/** 生成 retention_analysis 段落 */
+/** 生成 retention_analysis 段落（精简版，避免与 subject_definitions / 锚点说明重复）
+ *
+ * 设计目标：分镜描述（[Shot N] 对应<Picture N>）已经把每个 Picture 的角色锁定下来，
+ * 所以这里只需要简短声明"全程参考图锚点保持一致"，不需要逐项罗列
+ * "面部特征 / 发型 / 妆容 / 身材比例 / 肤色 / 服装细节"——这些冗余字段每行重复 6+ 次。
+ *
+ * 旧版本（每行 ~50 字符、6 个分镜就 600+ 字符）：
+ *   <Subject 1>（全程出现）：完全保留 - 面部特征、发型、妆容、身材比例、肤色和服装细节全程完全保留。
+ *   <Picture 1>（全程参考）：完全保留 - 参考图提供角色锚点。
+ *   <Subject 2>（全程出现）：完全保留 - 面部特征、发型、妆容、身材比例、肤色和服装细节全程完全保留。
+ *   ... (×6)
+ *
+ * 精简后（一行总结所有 Picture）：
+ *   所有 <Picture N> 全程作为角色和构图锚点，外观与身份完全保留。
+ */
 function buildRetentionAnalysis(
   imageUrls: string[],
-  r18: boolean
+  _r18: boolean
 ): string {
   if (imageUrls.length === 0) {
     return 'retention_analysis:\n<Subject 1>: 完全保留 - 主角由文字生成，全程维持一致。';
   }
 
-  const lines: string[] = ['retention_analysis:'];
-  for (let i = 0; i < imageUrls.length; i++) {
-    const n = i + 1;
-    const role = r18
-      ? '面部特征、发型、妆容、身材比例、肤色和服装细节全程完全保留。'
-      : '外貌、身份和特征全程完全保留。';
-    lines.push(`<Subject ${n}>（全程出现）：完全保留 - ${role}`);
-    lines.push(`<Picture ${n}>（全程参考）：完全保留 - 参考图提供角色锚点。`);
-  }
-
-  return lines.join('\n');
+  const refs = imageUrls.map((_, i) => `<Picture ${i + 1}>`).join('、');
+  return `retention_analysis:\n所有 ${refs} 全程作为角色和构图锚点，外观与身份完全保留。`;
 }
 
 /**
@@ -712,14 +725,97 @@ export interface H3CommonParts {
 }
 
 /**
- * 从图片提示词中提取运动/动作描述（用于 Shot 提示词）
- * 优先使用 scene_description (LLM 扩写后的视频提示词)，
- * 否则从 image_prompt 中提取静态描述并轻微调整使其偏向"动作"含义。
+ * 从 LLM 返回中提取 Shot N 的运动描述。
+ *
+ * 处理三种情况：
+ *   A. LLM 返回的是 i2v 单段运动描述（80-150 字）→ 原样返回
+ *   B. LLM 返回的是 H3 Ref2VA 六段式（含 `[Shot N]` 行）→ 抽出对应 Shot 的描述
+ *   C. LLM 返回的是 H3 Ref2VA 但缺 Shot 标记 → 抽出 detailed_description 下第一段
+ *
+ * @param llmOutput 原始 LLM 返回
+ * @param shotNumber 要提取的 Shot 编号（1-based）
+ * @returns Shot N 的纯运动描述（无 H3 头部标记）；若完全无法识别则返回原文本
  */
-function extractMotionFromPanel(panel: { image_prompt: string; scene_description?: string }, r18: boolean): string {
-  if (panel.scene_description && panel.scene_description.trim()) {
-    return panel.scene_description.trim();
+export function extractShotFromLLMOutput(llmOutput: string, shotNumber: number): string {
+  if (!llmOutput) return '';
+  const text = llmOutput.trim();
+  if (!text) return '';
+
+  // A. 匹配 `[Shot N]` / `[镜头 N]` 行
+  const shotPatterns: RegExp[] = [
+    new RegExp(`\\[Shot\\s*${shotNumber}\\b[^\\]]*\\][^\\n]*`, 'i'),
+    new RegExp(`\\[镜头\\s*${shotNumber}\\b[^\\]]*\\][^\\n]*`, 'i'),
+  ];
+
+  for (const pat of shotPatterns) {
+    const m = text.match(pat);
+    if (m) {
+      const line = m[0];
+      // 优先：抽出 `对应<Picture N>，<motion>` 之后的部分
+      const afterPicture = line.match(/对应<Picture\s*\d+>[，,]\s*(.+)$/);
+      if (afterPicture && afterPicture[1].trim()) {
+        return afterPicture[1].trim();
+      }
+      // 次选：去掉 `[Shot N] At 00:00.000，对应<Picture N>，` 头部
+      const cleaned = line
+        .replace(/\[(?:Shot|镜头)\s*\d+\]\s*(?:At\s+[\d:.]+\s*)?/, '')
+        .replace(/对应<Picture\s*\d+>[，,]\s*/, '')
+        .trim();
+      if (cleaned) return cleaned;
+      // 最后兜底：去掉 [Shot N] 前缀后整行
+      const stripped = line.replace(/\[(?:Shot|镜头)\s*\d+\][^，,\n]*[，,]\s*/, '').trim();
+      if (stripped) return stripped;
+    }
   }
+
+  // B. 没有 Shot 标记但含 detailed_description / subject_definitions → 是 H3 格式
+  if (/detailed_description\s*:|subject_definitions\s*:/i.test(text)) {
+    const lines = text.split('\n');
+    let inDetailed = false;
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line) continue;
+      if (/^detailed_description\s*:/i.test(line)) { inDetailed = true; continue; }
+      if (!inDetailed) continue;
+      if (/^(overall_soundscape|non_diegetic_music|retention_analysis|summary|subject_definitions)\s*:/i.test(line)) break;
+      if (/^\[(?:Shot|镜头)\s*\d+\]/i.test(line)) continue;
+      if (/^目标视频采用/.test(line)) continue;
+      return line;
+    }
+    return text;
+  }
+
+  // C. 不是 H3 格式也不是 i2v 单段 → 原样返回
+  return text;
+}
+
+/**
+ * 从图片提示词/LLM 返回中提取运动/动作描述（用于 Shot 提示词）。
+ *
+ * LLM (`expandVideoFromImage`) 偶尔会忽略 i2v system prompt 的限制，把整段
+ * H3 Ref2VA 六段式输出塞进单次响应（包含 subject_definitions / summary /
+ * retention_analysis / detailed_description / [Shot 1..6] 等）。如果不处理，
+ * Shot 1 就会包含全部 6 个 Shots 的内容，破坏单分镜 1:1 对应关系。
+ *
+ * 这里先尝试从 LLM 返回中精确提取当前 Shot N 的描述：
+ *   1. 如果包含 `[Shot N] ... 对应<Picture N>，<motion>` 标记 → 抽出 <motion>
+ *   2. 否则尝试提取 `detailed_description:` 之后的第一段镜头描述
+ *   3. 都没有则退回到 image_prompt 或默认模板
+ */
+function extractMotionFromPanel(
+  panel: { image_prompt: string; scene_description?: string },
+  shotNumber: number,
+  r18: boolean,
+): string {
+  const sceneDesc = (panel.scene_description || '').trim();
+
+  if (sceneDesc) {
+    // 用后处理函数提取 Shot N 的纯运动描述（自动剔除 H3 六段式头部）
+    const extracted = extractShotFromLLMOutput(sceneDesc, shotNumber);
+    if (extracted) return extracted;
+    return sceneDesc;
+  }
+
   // Fallback: 使用 image_prompt 作为描述基线
   const base = (panel.image_prompt || '').trim();
   if (!base) return '角色保持画面构图，动作自然流畅。';
@@ -733,8 +829,7 @@ function extractMotionFromPanel(panel: { image_prompt: string; scene_description
  *   [Shot 1] 对应<Picture 1>，<motion description>
  *   [Shot 2] At 00:01.800，对应<Picture 2>，<motion description>
  *
- * @param panelIndex 分镜序号 (从 1 开始)
- * @param panelIndex 0-based index in panels array
+ * @param panelIndex 分镜序号 (从 0 开始)
  * @param panel { image_prompt, scene_description }
  * @param totalPanels 总分镜数
  * @param duration 总视频时长（秒）
@@ -750,7 +845,7 @@ export function generateH3ShotPrompt(
 ): H3PanelShot {
   const pictureNumber = panelIndex + 1;
   const shotNumber = pictureNumber;
-  const motion = extractMotionFromPanel(panel, r18);
+  const motion = extractMotionFromPanel(panel, shotNumber, r18);
 
   // 计算时间戳：每个 Shot 持续 duration/totalPanels 秒
   let timestamp: string | undefined;
@@ -839,11 +934,13 @@ export function generateH3CommonParts(
 
 /**
  * 将共享部分和每个分镜的 Shot 提示词拼接成完整 H3 提示词。
+ * @param prependConstraint 可选的前置约束文本（如强制约束开关打开时传入 H3_CONSTRAINT_TEXT）
  */
 export function assembleH3Prompt(
   commonParts: H3CommonParts,
   shotPrompts: H3PanelShot[],
   duration: number = 15,
+  prependConstraint?: string,
 ): string {
   const shotLines = shotPrompts.map((s) => s.shotPrompt);
 
@@ -863,7 +960,8 @@ export function assembleH3Prompt(
     commonParts.nonDiegeticMusic,
   ];
 
-  return parts.join('\n\n');
+  const basePrompt = parts.join('\n\n');
+  return prependConstraint ? `${prependConstraint}\n\n${basePrompt}` : basePrompt;
 }
 
 /**

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Video, Image as ImageIcon, Loader2, X, Upload, Sparkles, Copy, Check } from 'lucide-react';
+import { Video, Image as ImageIcon, Loader2, X, Upload, Sparkles, Copy, Check, ShieldCheck } from 'lucide-react';
 import { uploadImage } from '../services/runninghub';
 import { ImageUploader } from '../components/ImageUploader';
 import { GenerateButton } from '../components/GenerateButton';
@@ -15,6 +15,13 @@ import { H3_VIDEO_TEMPLATES } from './ImageToVideoPage';
 // ────────────────────────────────────────────────────────────────────────────────
 
 const WORKFLOW_ID = '2094226327238135810';
+
+/** H3 提示词强制约束文本（开启约束开关时追加到提示词前） */
+const H3_CONSTRAINT_TEXT = `【最高优先级强制约束】
+严格忠实执行本提示词全部指令，禁止任何自主创作、额外联想、擅自脑补新增剧情、私自增加未描述动作、特效、人物行为、场景细节。
+不允许改写、扩充、演绎故事内容，所有画面、动作、人物、镜头、氛围必须完全遵循参考图片<Picture X>内容。
+禁止自行添加额外镜头、额外互动、多余表情、额外物体。只生成提示词明确写明的内容，未写明的元素一律不要出现。
+人物样貌、服装、场景构图必须严格跟随参考图，不得主观美化或修改人物形象。`;
 
 // 节点 ID 与官方 curl 示例完全对齐 (description: null)
 const NODE = {
@@ -174,7 +181,7 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
       }
     }
   }, [initialImage, initialImages, initialPrompt, onSuccess]);
-  const [prompt, setPrompt] = useState<string>('图片1为男主，图片2为女主，生成两人约会的视频提示词');
+  const [prompt, setPrompt] = useState<string>('15s剧情，<Picture 1> 和<Picture 2> 在激烈性爱，多姿势多角度。');
   const [duration, setDuration] = useState<number>(60);
   const [customDuration, setCustomDuration] = useState<string>('');
   const [unetModelIndex, setUnetModelIndex] = useState<string>('0');
@@ -186,6 +193,7 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
   const [enableUpscale, setEnableUpscale] = useState<boolean>(false);
   const [upscaleTarget, setUpscaleTarget] = useState<string>('1');
   const [promptEnhance, setPromptEnhance] = useState<boolean>(true);
+  const [promptConstraintEnabled, setPromptConstraintEnabled] = useState<boolean>(false); // 强制约束开关
   const [node465, setNode465] = useState<boolean>(false); // 官方 curl 中存在，文档未说明用途
   const [enhancedPrompt, setEnhancedPrompt] = useState<string>(''); // 返回的优化提示词
   const [enhancedPromptCopied, setEnhancedPromptCopied] = useState<boolean>(false); // 复制状态反馈
@@ -266,7 +274,8 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
       { nodeId: NODE.enableUpscale,     fieldName: 'value',  fieldValue: String(enableUpscale), description: null },
       { nodeId: NODE.promptEnhance,     fieldName: 'value',  fieldValue: String(promptEnhance), description: null },
       { nodeId: NODE.node465,           fieldName: 'value',  fieldValue: String(node465),        description: null },
-      { nodeId: NODE.prompt,            fieldName: 'value',  fieldValue: prompt,                description: null },
+      // 如果开启了强制约束开关，在提示词前追加约束文本
+      { nodeId: NODE.prompt,            fieldName: 'value',  fieldValue: promptConstraintEnabled ? H3_CONSTRAINT_TEXT + '\n\n' + prompt : prompt, description: null },
     ];
 
     // 注意：promptEnhance=true 成功的官方 curl 请求体里没有 node 168
@@ -287,7 +296,7 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
     return nodeInfoList;
   }, [customDuration, duration, unetModelIndex, aspectRatioIndex,
       mode, refResolution, upscaleTarget, randomizeSeed, seed, enableUpscale, promptEnhance,
-      node465, prompt, images]);
+      node465, promptConstraintEnabled, prompt, images]);
 
   // ── 任务完成回调：提取返回的优化提示词 txt ────────────────────────────────
   const handleTaskComplete = useCallback(async (result: {
@@ -485,11 +494,51 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
         <textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          rows={4}
+          rows={8}
           placeholder="例如: 图片1为男主，图片2为女主，生成两人约会的视频提示词"
           disabled={submitting}
           className="w-full px-3 py-2 rounded-lg bg-bg-elevated border border-border text-sm text-text-primary placeholder-slate-500 focus:outline-none focus:border-primary/50 resize-none"
         />
+        {/* 引用参考图快捷按钮 */}
+        {uploadedCount > 0 && (
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
+            <span className="text-[10px] text-text-tertiary">引用参考图：</span>
+            {images.map((img, idx) => (
+              img.path && img.path !== 'None' && (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setPrompt((p) => p + `<Picture ${idx + 1}>`)}
+                  disabled={submitting}
+                  className="px-2 py-1 rounded-md text-[10px] bg-purple-50 border border-purple-200 text-purple-600 hover:bg-purple-100 transition-colors disabled:opacity-50"
+                  title={`插入 <Picture ${idx + 1}> 引用参考图 ${idx + 1}`}
+                >
+                  图{idx + 1}
+                </button>
+              )
+            ))}
+          </div>
+        )}
+        {/* 强制约束开关 */}
+        <div className="flex items-center gap-2 mt-2">
+          <button
+            type="button"
+            onClick={() => setPromptConstraintEnabled(!promptConstraintEnabled)}
+            disabled={submitting}
+            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              promptConstraintEnabled
+                ? 'bg-indigo-500 text-white border border-indigo-600 hover:bg-indigo-600'
+                : 'bg-indigo-50 border border-indigo-200 text-indigo-600 hover:bg-indigo-100'
+            }`}
+            title="开启后将追加严格约束文本到提示词开头"
+          >
+            <ShieldCheck size={12} />
+            强制约束 {promptConstraintEnabled ? '已开启' : '已关闭'}
+          </button>
+          <span className="text-[10px] text-indigo-400">
+            提示：可用 &lt;Picture 1&gt;, &lt;Picture 2&gt; 等引用参考图
+          </span>
+        </div>
         {selectedGirlfriend && (
           <div className="mt-2 px-2 py-1 rounded bg-red-50 border border-red-200 text-[10px] text-red-600">
             已锚定数字人: {selectedGirlfriend.nameZh || selectedGirlfriend.name}

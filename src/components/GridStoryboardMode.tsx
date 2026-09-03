@@ -27,7 +27,7 @@ import { MAX_TASKS, type TaskManagerReturn } from '../hooks/useTaskManager';
 import type { GirlfriendPreset } from '../data/girlfriendPresets';
 import { buildTxt2ImgNodeList } from '../utils/txt2imgNodeBuilder';
 import { buildUnifiedTxt2ImgOptions } from '../utils/txt2imgDefaults';
-import { withQualityBoost } from '../constants';
+import { withQualityBoost, sanitizePromptForClip } from '../constants';
 import { WORKFLOW, uploadImage } from '../services/runninghub';
 import { composeGridStoryboard } from '../utils/gridComposite';
 import type { TabType } from '../types';
@@ -1819,7 +1819,7 @@ export function GridStoryboardMode({
             continue;
           }
 
-          const finalPrompt = withQualityBoost(panelText);
+          const finalPrompt = withQualityBoost(sanitizePromptForClip(panelText));
           const txt2imgOptions = buildUnifiedTxt2ImgOptions(finalPrompt);
           txt2imgOptions.imageCount = 1; // one panel = one image
           txt2imgOptions.width = 832;
@@ -1855,7 +1855,7 @@ export function GridStoryboardMode({
       } else {
         // ── Default: one composite grid image (existing behaviour) ────────
         const storyboardInfo = { historyId, panelIdx: 0 };
-        const finalPrompt = withQualityBoost(fullPrompt);
+        const finalPrompt = withQualityBoost(sanitizePromptForClip(fullPrompt));
         const txt2imgOptions = buildUnifiedTxt2ImgOptions(finalPrompt);
         txt2imgOptions.imageCount = imageCount;
         const nodes = buildTxt2ImgNodeList(txt2imgOptions);
@@ -1973,7 +1973,7 @@ export function GridStoryboardMode({
       cleanedPrompt = cleanedPrompt.replace(regex, replacement);
     }
 
-    const finalPrompt = withQualityBoost(SINGLE_PANEL_HINT + cleanedPrompt, { force: true });
+    const finalPrompt = withQualityBoost(SINGLE_PANEL_HINT + sanitizePromptForClip(cleanedPrompt), { force: true });
     console.log(`[Redraw] cleaned prompt: ${finalPrompt.slice(0, 200)}`);
 
     if (taskManager.isFull) {
