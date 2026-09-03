@@ -4673,29 +4673,54 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
    * 1 个图片分镜 ↔ 1 个视频提示词 (1:1 对应)
    * - 每个分镜独立生成 [Shot N] 对应<Picture N> 提示词
    * - 共享部分 (subject_definitions, summary, etc.) 由 handleBatchGenerateH3 一次性生成
+   *
+   * 优先使用"动画提示词"（panelVideoPrompts[idx]），没有时才调用 expandVideoFromImage 扩写。
+   * 这样避免重复 LLM 调用，且 422 错误时仍能稳定工作。
    */
   const handleGeneratePanelH3 = useCallback(async (idx: number, panel: { panel_number: number; image_prompt: string; scene_description?: string }) => {
     setPanelH3Loading(prev => ({ ...prev, [idx]: true }));
     try {
-      // Step 1: 调用模型将图片提示词转换为视频提示词（用于 Shot 描述）
-      const themeLabel = activeThemeInfo?.title || plot || (r18Mode ? 'R18' : '默认主题');
-      let videoRes;
-      try {
-        videoRes = await expandVideoFromImage(panel.image_prompt, themeLabel, r18Mode, 1);
-      } catch (err) {
-        // 超时或失败时使用更长的超时重试
-        console.warn(`[handleGeneratePanelH3] expandVideoFromImage 失败，重试（150s）`);
-        videoRes = await expandVideoFromImage(panel.image_prompt, themeLabel, r18Mode, 1, ['grok-4.6', 'grok-4.3'], 150000);
-      }
+      // Step 1: 选择场景描述来源（直接使用现有的"动画提示词"，避免再次调用 LLM）
+      let sceneDesc: string | undefined = panelVideoPrompts[idx]?.trim() || panel.scene_description?.trim();
 
-      const videoPrompt = videoRes.results?.[0]?.prompt?.trim();
+      // 如果动画提示词为空，再回退到调用 expandVideoFromImage 扩写（仍可能 422 失败）
+      if (!sceneDesc || sceneDesc.length === 0) {
+        // 防御性检查：image_prompt 不能为空字符串（否则后端 422）
+        if (!panel.image_prompt || panel.image_prompt.trim().length === 0) {
+          onError(`分镜 ${panel.panel_number} 的图片提示词为空，请先生成分镜图片`);
+          return;
+        }
+
+        const themeLabel = activeThemeInfo?.title || plot || (r18Mode ? 'R18' : '默认主题');
+        try {
+          const videoRes = await expandVideoFromImage(panel.image_prompt, themeLabel, r18Mode, 1);
+          sceneDesc = videoRes.results?.[0]?.prompt?.trim();
+        } catch (err) {
+          // 422 (validation error) / 500 / 网络错误 → 直接跳过，不重试
+          const status = (err && typeof err === 'object' && 'status' in err) ? (err as { status?: number }).status : 0;
+          const msg = err instanceof Error ? err.message : String(err);
+          if (status === 422 || /422/i.test(msg)) {
+            console.warn(`[handleGeneratePanelH3] 第 ${idx + 1} 个 expandVideoFromImage 422，跳过`);
+            sceneDesc = undefined;  // Shot prompt 用 image_prompt 作为兜底
+          } else {
+            // 其它错误（超时/500）→ 重试一次
+            console.warn(`[handleGeneratePanelH3] 第 ${idx + 1} 个 expandVideoFromImage 失败，重试（150s）`);
+            try {
+              const videoRes = await expandVideoFromImage(panel.image_prompt, themeLabel, r18Mode, 1, ['grok-4.6', 'grok-4.3'], 150000);
+              sceneDesc = videoRes.results?.[0]?.prompt?.trim();
+            } catch (retryErr) {
+              sceneDesc = undefined;  // 最终失败，shot prompt 用 image_prompt 兜底
+            }
+          }
+        }
+      }
 
       // Step 2: 生成该分镜的 [Shot N] 提示词
       const shot = generateH3ShotPrompt(
         idx,
         {
           image_prompt: panel.image_prompt,
-          scene_description: videoPrompt || panel.scene_description,
+          scene_description: sceneDesc,
         },
         activePanels.length,
         panelH3Duration,
@@ -4712,26 +4737,27 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       // 同时把完整的 H3 提示词（用于单个卡片预览）也存一下
       // 单个卡片预览时共享部分临时生成，仅用于显示
       const tempCommonParts = generateH3CommonParts(
-        [{ image_prompt: panel.image_prompt, scene_description: videoPrompt || panel.scene_description }],
+        [{ image_prompt: panel.image_prompt, scene_description: sceneDesc }],
         { duration: panelH3Duration, r18: r18Mode },
       );
       const fullPrompt = assembleH3Prompt(tempCommonParts, [shot], panelH3Duration);
       setPanelH3Prompts(prev => ({ ...prev, [idx]: fullPrompt }));
-      onSuccess(`分镜 ${panel.panel_number} 的 [Shot ${shot.pictureNumber}] 提示词已生成`);
+      onSuccess(`分镜 ${panel.panel_number} 的 [Shot ${shot.pictureNumber}] 提示词已生成${sceneDesc ? '（使用动画提示词）' : '（使用图片提示词兜底）'}`);
     } catch (err) {
       onError(err instanceof Error ? err.message : 'H3 提示词生成失败');
     } finally {
       setPanelH3Loading(prev => { const next = { ...prev }; delete next[idx]; return next; });
     }
-  }, [activeThemeInfo, plot, panelH3Duration, r18Mode, onSuccess, onError, activePanels.length]);
+  }, [activeThemeInfo, plot, panelH3Duration, r18Mode, onSuccess, onError, activePanels.length, panelVideoPrompts]);
 
   /** 一键批量生成所有分镜的 H3 Shot 提示词
    *
    * 工作流：
-   *   1. 并行调用 expandVideoFromImage 扩写每个分镜的 image_prompt 为 video_prompt
-   *   2. 调用 generateH3ShotPromptsForPanels 生成所有分镜的 [Shot N] 提示词
-   *   3. 调用 generateH3CommonParts 一次性生成共享部分 (subject_definitions, summary, etc.)
-   *   4. 缓存所有 shot 和 commonParts 到 state，供后续 assembleH3Prompt 使用
+   *   1. 优先使用 panelVideoPrompts[idx]（动画提示词）作为场景描述，避免重复 LLM 调用
+   *   2. 仅当动画提示词为空时才回退调用 expandVideoFromImage
+   *   3. 422 错误时跳过重试，直接用 image_prompt 兜底
+   *   4. 调用 generateH3ShotPromptsForPanels 生成所有分镜的 [Shot N] 提示词
+   *   5. 调用 generateH3CommonParts 一次性生成共享部分
    */
   const handleBatchGenerateH3 = useCallback(async () => {
     if (activePanels.length === 0) { onError('没有可用的分镜'); return; }
@@ -4739,37 +4765,58 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     const themeLabel = activeThemeInfo?.title || plot || (r18Mode ? 'R18' : '默认主题');
     try {
       const CONCURRENT = 3;
-      // Step 1: 并行调用模型扩写每个分镜的 image_prompt
-      const videoPrompts: Array<string | undefined> = new Array(activePanels.length);
+      // Step 1: 为每个分镜确定场景描述来源
+      // 优先：panelVideoPrompts[idx]（动画提示词，没有重 LLM 调用）
+      // 回退：调用 expandVideoFromImage（422 时跳过重试，用 image_prompt 兜底）
+      const sceneDescs: Array<string | undefined> = new Array(activePanels.length);
+      const needLLMCall: number[] = [];  // 需要 LLM 扩写的 panel idx
+
+      activePanels.forEach((panel, i) => {
+        const existing = panelVideoPrompts[i]?.trim();
+        if (existing && existing.length > 0) {
+          sceneDescs[i] = existing;
+        } else {
+          sceneDescs[i] = undefined;
+          // 防御性：空 image_prompt 直接跳过 LLM 调用
+          if (panel.image_prompt && panel.image_prompt.trim().length > 0) {
+            needLLMCall.push(i);
+          }
+        }
+      });
 
       const processOne = async (i: number) => {
         const panel = activePanels[i];
-        let videoRes;
         try {
-          videoRes = await expandVideoFromImage(panel.image_prompt, themeLabel, r18Mode, 1);
+          const videoRes = await expandVideoFromImage(panel.image_prompt, themeLabel, r18Mode, 1);
+          sceneDescs[i] = videoRes.results?.[0]?.prompt?.trim();
         } catch (err) {
-          console.warn(`[handleBatchGenerateH3] 第 ${i + 1} 个 expandVideoFromImage 失败，重试（150s）`);
+          // 422 是请求验证错误，重试无用，直接跳过
+          const status = (err && typeof err === 'object' && 'status' in err) ? (err as { status?: number }).status : 0;
+          const msg = err instanceof Error ? err.message : String(err);
+          if (status === 422 || /422/i.test(msg)) {
+            console.warn(`[handleBatchGenerateH3] 第 ${i + 1} 个 expandVideoFromImage 422，跳过 LLM 扩写`);
+            return;  // sceneDescs[i] 保持 undefined，shot prompt 用 image_prompt 兜底
+          }
+          // 其它错误（超时/500/网络） → 重试一次，仍失败兜底
           try {
-            videoRes = await expandVideoFromImage(panel.image_prompt, themeLabel, r18Mode, 1, ['grok-4.6', 'grok-4.3'], 150000);
-          } catch (retryErr) {
+            const videoRes = await expandVideoFromImage(panel.image_prompt, themeLabel, r18Mode, 1, ['grok-4.6', 'grok-4.3'], 150000);
+            sceneDescs[i] = videoRes.results?.[0]?.prompt?.trim();
+          } catch {
             console.warn(`[handleBatchGenerateH3] 第 ${i + 1} 个重试仍失败`);
-            return;
           }
         }
-        const videoPrompt = videoRes.results?.[0]?.prompt?.trim();
-        videoPrompts[i] = videoPrompt;
       };
 
       // 并行处理（每次最多 CONCURRENT 个并发）
-      for (let i = 0; i < activePanels.length; i += CONCURRENT) {
-        const chunk = activePanels.slice(i, i + CONCURRENT).map((_, j) => processOne(i + j));
+      for (let i = 0; i < needLLMCall.length; i += CONCURRENT) {
+        const chunk = needLLMCall.slice(i, i + CONCURRENT).map((idx) => processOne(idx));
         await Promise.all(chunk);
       }
 
-      // Step 2: 用 video_prompt 生成每个分镜的 [Shot N] 提示词
+      // Step 2: 用确定的 scene_description 生成每个分镜的 [Shot N] 提示词
       const panelsWithVideo = activePanels.map((p, i) => ({
-        image_prompt: p.image_prompt,
-        scene_description: videoPrompts[i] || p.scene_description,
+        image_prompt: p.image_prompt || '',
+        scene_description: sceneDescs[i],
       }));
 
       const shotMap = generateH3ShotPromptsForPanels(panelsWithVideo, panelH3Duration, r18Mode);
@@ -4792,13 +4839,18 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         newPrompts[idx] = fullPrompt;  // 每个分镜卡显示完整 H3 提示词（含全部 shots）
       });
       setPanelH3Prompts(newPrompts);
-      onSuccess(`已为 ${activePanels.length} 个分镜生成 [Shot 1..${activePanels.length}] 视频提示词，共享部分已缓存`);
+      const usedLLM = needLLMCall.length > 0;
+      const fromAnims = activePanels.length - needLLMCall.length;
+      const sourceDesc = !usedLLM
+        ? '（全部使用现有动画提示词，无需 LLM 调用）'
+        : `${fromAnims}/${activePanels.length} 个使用动画提示词，${needLLMCall.length} 个回退到 LLM 扩写`;
+      onSuccess(`已为 ${activePanels.length} 个分镜生成 [Shot 1..${activePanels.length}] 视频提示词 ${sourceDesc}`);
     } catch (err) {
       onError(err instanceof Error ? err.message : 'H3 提示词批量生成失败');
     } finally {
       setPanelH3Loading({});
     }
-  }, [activePanels, activeThemeInfo, plot, panelH3Duration, r18Mode, onSuccess, onError]);
+  }, [activePanels, activeThemeInfo, plot, panelH3Duration, r18Mode, onSuccess, onError, panelVideoPrompts]);
 
   /** 单个分镜：跳转到长视频 1.1 并填入 H3 提示词 */
   const handleGotoLongVideoWithH3 = useCallback(async (
