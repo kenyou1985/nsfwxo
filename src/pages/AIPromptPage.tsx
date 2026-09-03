@@ -3190,6 +3190,28 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     return saved?.historyId || null;
   });
 
+  // ============================================================
+  // 【H3 提示词引擎状态 - 提前声明，因为 triggerAutoH3ForPanel 在 useEffect 中使用】
+  // 这些状态必须在 useFinishedTaskImages useEffect 之前声明，确保 TDZ 安全。
+  // ============================================================
+  /**
+   * 【动画提示词回填】生成视频脚本（handleGenerateScript）后，按 panel 索引回填到每个分镜。
+   * key 是 panel 在 panels 数组中的 idx（不是 panel_number，避免和后端 panel 编号错位）。
+   * 渲染时 StoryboardPanelCard 的 videoPrompt prop 优先从这里取。
+   * 切换主题 / 重新生成分镜 / 主动 reset 时会清空。
+   *
+   * 此外，本状态也是"图片生成成功后自动调用 LLM 生成的 H3 Shot 提示词"的回填目标。
+   */
+  const [panelVideoPrompts, setPanelVideoPrompts] = useState<Record<number, string>>({});
+
+  // H3 提示词引擎状态
+  const [panelH3Prompts, setPanelH3Prompts] = useState<Record<number, string>>({});
+  const [panelH3Duration, setPanelH3Duration] = useState<15 | 30 | 60>(15); // 默认 15 秒
+  const [panelH3Loading, setPanelH3Loading] = useState<Record<number, boolean>>({});
+  // H3 共享部分缓存（仅生成一次，最终批量上传到长视频 v1.1 时使用）
+  const [panelH3CommonParts, setPanelH3CommonParts] = useState<H3CommonParts | null>(null);
+  const [panelH3ShotMap, setPanelH3ShotMap] = useState<Map<number, H3PanelShot>>(new Map());
+
   // 2-step storyboard state
   const [storyStep, setStoryStep] = useState<'themes' | 'outline' | 'panels'>(
     savedStoryboard?.themeId ? 'panels' : 'themes'
@@ -3737,6 +3759,97 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     return () => { cancelled = true; };
   }, [sbHistoryId, activePanels]);
 
+  // ── Auto H3 trigger helper ───────────────────────────────────────────────────
+  // 图片生成成功后，自动调用 LLM 生成的 H3 Shot 提示词会写入 panelVideoPrompts[idx]（动画提示词区域）。
+  // 用 ref 跟踪已触发的分镜，避免重复调用或覆盖用户编辑内容。
+
+  /** 跟踪哪些分镜已经自动触发了 H3 生成（避免用户编辑后再被覆盖或重复调用 LLM）
+   * key 格式：${sbHistoryId}_${idx} */
+  const autoH3TriggeredRef = useRef<Set<string>>(new Set());
+
+  /** 自动触发的 H3 提示词生成（图片生成成功后自动调用）
+   *
+   * 流程：
+   *   1. panelVideoPrompts[idx] 已经存在（非空）→ 跳过（H3 已经生成过或用户编辑过）
+   *   2. 空 → 调 expandVideoFromImage 生成场景描述
+   *   3. 调用 generateH3ShotPrompt 格式化单个分镜的 Shot 提示词
+   *   4. 写入 panelVideoPrompts[idx]（动画提示词区域）
+   *   5. 同时缓存到 panelH3ShotMap / panelH3Prompts 供长视频 1.1 上传使用
+   *
+   * 错误处理：
+   *   - 422 验证错误：跳过，不写入动画提示词区域（用户可手动点击 H3 按钮）
+   *   - 其它错误：重试一次，仍失败兜底
+   */
+  const triggerAutoH3ForPanel = useCallback(async (idx: number, panel: { panel_number: number; image_prompt: string; scene_description?: string }, opts?: { silent?: boolean }) => {
+    const silent = opts?.silent ?? false;
+    // 已存在 → 不覆盖（避免破坏用户编辑）
+    if (panelVideoPrompts[idx] && panelVideoPrompts[idx].trim().length > 0) {
+      return;
+    }
+    // 防御性：image_prompt 不能为空
+    if (!panel.image_prompt || panel.image_prompt.trim().length === 0) {
+      if (!silent) onError(`分镜 ${panel.panel_number} 的图片提示词为空，跳过 H3 自动生成`);
+      return;
+    }
+
+    setPanelH3Loading(prev => ({ ...prev, [idx]: true }));
+    try {
+      const themeLabel = activeThemeInfo?.title || plot || (r18Mode ? 'R18' : '默认主题');
+      let videoRes;
+      try {
+        videoRes = await expandVideoFromImage(panel.image_prompt, themeLabel, r18Mode, 1);
+      } catch (err) {
+        const status = (err && typeof err === 'object' && 'status' in err) ? (err as { status?: number }).status : 0;
+        const msg = err instanceof Error ? err.message : String(err);
+        if (status === 422 || /422/i.test(msg)) {
+          // 422 验证错误：跳过，让用户稍后手动点击 H3 按钮
+          console.warn(`[triggerAutoH3ForPanel] 分镜 ${idx + 1} 422，跳过`);
+          return;
+        }
+        // 其它错误：重试一次（用 fast 模型 + 150s 超时）
+        try {
+          videoRes = await expandVideoFromImage(panel.image_prompt, themeLabel, r18Mode, 1, ['grok-4.6', 'grok-4.3'], 150000);
+        } catch (retryErr) {
+          console.warn(`[triggerAutoH3ForPanel] 分镜 ${idx + 1} 重试仍失败`);
+          return;
+        }
+      }
+
+      const videoPrompt = videoRes.results?.[0]?.prompt?.trim();
+
+      // 生成 H3 Shot 提示词
+      const shot = generateH3ShotPrompt(
+        idx,
+        {
+          image_prompt: panel.image_prompt,
+          scene_description: videoPrompt,
+        },
+        activePanels.length,
+        panelH3Duration,
+        r18Mode,
+      );
+
+      // 缓存到 shotMap
+      setPanelH3ShotMap(prev => {
+        const next = new Map(prev);
+        next.set(shot.panelIndex, shot);
+        return next;
+      });
+
+      // 写入动画提示词区域（核心目标：让动画提示词显示 H3 Shot 提示词）
+      setPanelVideoPrompts(prev => ({ ...prev, [idx]: shot.shotPrompt }));
+
+      // 把 Shot 提示词存到 panelH3Prompts（用于卡片预览）
+      setPanelH3Prompts(prev => ({ ...prev, [idx]: shot.shotPrompt }));
+
+      if (!silent) onSuccess(`分镜 ${panel.panel_number} 的 H3 提示词已自动生成（图片生成成功触发）`);
+    } catch (err) {
+      console.warn(`[triggerAutoH3ForPanel] 分镜 ${idx + 1} 异常:`, err);
+    } finally {
+      setPanelH3Loading(prev => { const next = { ...prev }; delete next[idx]; return next; });
+    }
+  }, [panelVideoPrompts, activeThemeInfo, plot, panelH3Duration, r18Mode, onSuccess, onError, activePanels.length]);
+
   // ── Subscribe to finished task images and cache them for the storyboard ──
   // This is the primary path: when any task completes, its data URL images are
   // immediately cached into the storyboard panel cache so they survive page refresh.
@@ -3767,6 +3880,24 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
           // getCachedStoryboardPanelImages path in the preview list
           // reads from there.
         });
+
+        // 【自动 H3】图片生成成功后，自动调用 LLM 生成 H3 Shot 提示词，
+        // 写入 panelVideoPrompts[idx]（动画提示词区域）。用 ref 防止重复触发。
+        const triggerKey = `${hid}_${panelIdx}`;
+        if (!autoH3TriggeredRef.current.has(triggerKey)) {
+          autoH3TriggeredRef.current.add(triggerKey);
+          const panel = activePanels[panelIdx];
+          if (panel) {
+            // 用 setTimeout 让图像渲染优先，避免和 setState 冲突
+            setTimeout(() => {
+              triggerAutoH3ForPanel(panelIdx, panel, { silent: true }).catch((err) => {
+                console.warn(`[storyboard] auto H3 for panel ${panelIdx + 1} failed:`, err);
+                // 触发失败 → 下次图片更新时可重试
+                autoH3TriggeredRef.current.delete(triggerKey);
+              });
+            }, 0);
+          }
+        }
         continue;
       }
       // Fallback: match by exact prompt (for tasks without explicit
@@ -3790,10 +3921,22 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
           cacheStoryboardPanelImages(hid, i, images);
           // See the comment in the live path above for why we don't
           // call updateStoryboardHistoryImages here.
+
+          // 【自动 H3】图片生成成功后自动调用 LLM（fallback 路径）
+          const triggerKey = `${hid}_${i}`;
+          if (!autoH3TriggeredRef.current.has(triggerKey)) {
+            autoH3TriggeredRef.current.add(triggerKey);
+            setTimeout(() => {
+              triggerAutoH3ForPanel(i, activePanels[i], { silent: true }).catch((err) => {
+                console.warn(`[storyboard] auto H3 (fallback) for panel ${i + 1} failed:`, err);
+                autoH3TriggeredRef.current.delete(triggerKey);
+              });
+            }, 0);
+          }
         }
       }
     }
-  }, [finishedTasks, activePanels, sbHistoryId]);
+  }, [finishedTasks, activePanels, sbHistoryId, triggerAutoH3ForPanel]);
 
   // ── Sync genStates with taskManager.tasks so panel cards reflect live images ──
   // Also converts blob URLs to data URLs immediately so they survive page refresh.
@@ -3922,21 +4065,9 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   } | null>(null);
   const [generatingScript, setGeneratingScript] = useState(false);
 
-  /**
-   * 【动画提示词回填】生成视频脚本（handleGenerateScript）后，按 panel 索引回填到每个分镜。
-   * key 是 panel 在 panels 数组中的 idx（不是 panel_number，避免和后端 panel 编号错位）。
-   * 渲染时 StoryboardPanelCard 的 videoPrompt prop 优先从这里取。
-   * 切换主题 / 重新生成分镜 / 主动 reset 时会清空。
-   */
-  const [panelVideoPrompts, setPanelVideoPrompts] = useState<Record<number, string>>({});
-
-  // H3 提示词引擎状态
-  const [panelH3Prompts, setPanelH3Prompts] = useState<Record<number, string>>({});
-  const [panelH3Duration, setPanelH3Duration] = useState<15 | 30 | 60>(15); // 默认 15 秒
-  const [panelH3Loading, setPanelH3Loading] = useState<Record<number, boolean>>({});
-  // H3 共享部分缓存（仅生成一次，最终批量上传到长视频 v1.1 时使用）
-  const [panelH3CommonParts, setPanelH3CommonParts] = useState<H3CommonParts | null>(null);
-  const [panelH3ShotMap, setPanelH3ShotMap] = useState<Map<number, H3PanelShot>>(new Map());
+  // NOTE: 以下 panel* 状态已经在文件顶部声明（line ~3190），
+  // 因为它们在 useFinishedTaskImages useEffect 中通过 triggerAutoH3ForPanel 引用。
+  // 这里不再重复声明。
 
   // Image selection and video generation state
   const [selectedPanelImages, setSelectedPanelImages] = useState<Record<string, { index: number; url: string }>>({});
@@ -4250,6 +4381,10 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     setOutlineScenes([]);
     setVideoScript(null);
     setPanelVideoPrompts({});
+    setPanelH3Prompts({});
+    setPanelH3CommonParts(null);
+    setPanelH3ShotMap(new Map());
+    autoH3TriggeredRef.current.clear();
     setStoryStep('themes');
     setGenStates({});
     setCurrentHistoryId(null);
@@ -4609,18 +4744,16 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         }
       }
 
-      // videoPrompt was already computed by StoryboardMode render with both
-      // image_prompt and scene_description factored in.
-      // Safety: if the caller didn't supply a prompt, fall back to a
-      // scene+image dual-input computation (covers legacy call sites).
-      let finalVideoPrompt = videoPrompt;
+      // videoPrompt is now sourced from panelVideoPrompts[idx] directly.
+      // It is set either by:
+      //   - User manually editing the animation prompt textarea, or
+      //   - The auto-H3 trigger that runs after image generation succeeds.
+      // No legacy dual-input fallback here (extractVideoPromptFromImagePrompt).
+      const finalVideoPrompt = videoPrompt;
       if (!finalVideoPrompt) {
-        console.warn(`[handleDirectGenerateVideo] empty videoPrompt for panelKey=${panelKey}; falling back to dual-input computation`);
-        finalVideoPrompt = extractVideoPromptFromImagePrompt({
-          imagePrompt: '',
-          sceneDescription: '',
-          r18Mode,
-        });
+        onError('动画提示词为空，请等待 H3 自动生成完成或手动填写');
+        setVideoGenLoading(prev => { const next = { ...prev }; delete next[panelKey]; return next; });
+        return;
       }
 
       // Build node list for video generation (matching ImageToVideoPage format)
@@ -5940,7 +6073,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
               >
                 {generatingScript ? <><Loader2 size={14} className="animate-spin" /> 生成脚本...</> : <><Clapperboard size={14} />生成视频脚本</>}
               </button>
-              <button onClick={() => { setStoryStep('themes'); setSelectedTheme(null); setOutlineArc(''); setOutlineScenes([]); setPanels([]); setVideoScript(null); setPanelVideoPrompts({}); }} className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl font-medium text-sm bg-bg-elevated text-text-tertiary hover:bg-bg-hover transition-colors">
+              <button onClick={() => { setStoryStep('themes'); setSelectedTheme(null); setOutlineArc(''); setOutlineScenes([]); setPanels([]); setVideoScript(null); setPanelVideoPrompts({}); setPanelH3Prompts({}); setPanelH3CommonParts(null); setPanelH3ShotMap(new Map()); autoH3TriggeredRef.current.clear(); }} className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl font-medium text-sm bg-bg-elevated text-text-tertiary hover:bg-bg-hover transition-colors">
                 <RotateCcw size={14} />换主题
               </button>
             </div>
@@ -6125,16 +6258,11 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
             // Use theme-specific panel key to avoid conflicts when switching tabs
             const panelKey = activeThemeTab !== null ? `theme-${activeThemeTab}-panel-${idx}` : `panel-${idx}`;
             const selectedImage = selectedPanelImages[panelKey];
-            // 【修复】动画提示词优先级：
-            //   1) 生成视频脚本后回填的精确提示词（panelVideoPrompts[idx]，剧情/动作/环境/音效齐全）
-            //   2) 否则用"剧情 + 图片"双重输入生成（让动作和剧情强相关）
-            //   3) 最后兜底用纯图片生成（向后兼容老调用）
-            const videoPrompt = panelVideoPrompts[idx]
-              || extractVideoPromptFromImagePrompt({
-                  imagePrompt: panel.image_prompt,
-                  sceneDescription: panel.scene_description,
-                  r18Mode,
-                });
+            // 【修复】动画提示词直接读取 panelVideoPrompts[idx]：
+            //   - 图片生成成功后，自动调用 LLM 生成的 H3 Shot 提示词会写入这里
+            //   - 用户也可以手动编辑该区域
+            //   - 不再自动兜底（之前用 extractVideoPromptFromImagePrompt 自动填充的设计取消）
+            const videoPrompt = panelVideoPrompts[idx];
             const normalizedPanelPrompt = panel.image_prompt.trim().replace(/\s+/g, ' ');
             const panelRelatedTasks = taskManager.tasks.filter(
               (t: QueuedTask) => (t.status === 'RUNNING' || t.status === 'QUEUEING' || t.status === 'FINISHED') && t.images.length > 0
@@ -6694,15 +6822,14 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
                         const imageToUse = selectedImageIndex !== undefined && allDisplayImages[selectedImageIndex]
                           ? allDisplayImages[selectedImageIndex]
                           : allDisplayImages[0];
-                        // Always pass a panel-derived videoPrompt. We never want
-                        // to fall back to a raw panel.image_prompt here because
-                        // that may be the whole-storyboard master prompt (and
-                        // would yield a junk video prompt like "32宫格").
-                        const promptForVideo = videoPrompt || extractVideoPromptFromImagePrompt({
-                          imagePrompt: panel.image_prompt,
-                          sceneDescription: panel.scene_description,
-                          r18Mode,
-                        });
+                        // Always pass a panel-derived videoPrompt. If empty, the button is
+// already disabled (see below) — letting the user click would either
+// submit an empty prompt or fall back to panel.image_prompt which is
+// often the whole-storyboard master prompt and would produce junk.
+                        // videoPrompt 可能为 undefined（动画提示词区域为空时），
+                        // 但此时按钮已被 disabled={!videoPrompt} 禁用，
+                        // 所以这里用空字符串兜底是安全的。
+                        const promptForVideo = videoPrompt ?? '';
                         onDirectGenerateVideo?.(imageToUse, promptForVideo);
                       }}
                       disabled={videoGenLoading || !videoPrompt}
