@@ -262,7 +262,7 @@ import {
   type ExpandHistoryItem, type RandomHistoryItem, type StoryboardHistoryItem, type FavoriteItem,
   resolvePanelImages,
 } from '../services/storage';
-import { loadCachedOrExtractPanelImages, getCachedImages, getCachedStoryboardPanelImages } from '../services/imageCacheService';
+import { loadCachedOrExtractPanelImages, getCachedImages, getCachedStoryboardPanelImages, storeImage } from '../services/imageCacheService';
 import { extractImagesFromZipAsDataUrls } from '../services/runninghub';
 import { useFinishedTaskImages } from '../contexts/FinishedTaskImagesContext';
 import { MAX_TASKS, type TaskManagerReturn } from '../hooks/useTaskManager';
@@ -5490,27 +5490,34 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       const uploadedImages: Array<{ idx: number; path: string; preview: string }> = [];
       for (const pi of panelImages) {
         let imagePath = pi.url;
+        let preview = pi.url;
         if (pi.url.startsWith('data:') || pi.url.startsWith('blob:')) {
           try {
+            // 【修复】在上传前保存原始 data URL。
+            // preview 不能用 server URL（rh-hk-images-switch.xiaoyaoyou.com 无 CORS 头，
+            // 浏览器 <img> 标签直接引用会显示破裂图标）。
+            // 但也不能直接塞回 sessionStorage（~20MB 撑爆 5MB 配额）。
+            // 正确做法：上传后主动把 data URL 写入 unified cache（IndexedDB），
+            // consumer 端 NinfiniteLongVideoPage 的 resolveImageRef 会从 IndexedDB
+            // 读出 data URL（不受 CORS 限制），UI 正常显示。
+            preview = pi.url;
             const res = await fetch(pi.url);
             const blob = await res.blob();
             const file = new File([blob], `storyboard_h3_batch_${Date.now()}_${pi.idx}.jpg`, { type: 'image/jpeg' });
             const uploadResult = await uploadImage(apiKey, file);
             imagePath = uploadResult.imagePath;
+            // 上传完成后，立即将原始 data URL 写入 unified cache，
+            // 这样 consumer 端即使 sessionStorage 里只有纯文本路径，
+            // resolveImageRef 也能从 IndexedDB 找回 data URL 用于 <img> 渲染。
+            await storeImage(pi.url);
           } catch (uploadErr) {
             console.warn(`[handleBatchGotoLongVideoWithH3] 分镜 ${pi.idx + 1} 图片上传失败:`, uploadErr);
             continue;
           }
         }
-        // 【修复】preview 字段绝对不能塞原始 data URL：6 张分镜 × ~3MB ≈ 18MB，
-        // 直接撑爆 5MB 的 sessionStorage 配额 → setItem 抛 QuotaExceededError →
-        // 用户看到 "The quota has been exceeded"，但页面没跳转 → 误以为按钮没生效
-        // → 重复点击 → 再次上传 + 再次写入 → 错上加错。
-        // 这里用 server URL (imagePath) 作为 preview：
-        // 1. consumer 端 NinfiniteLongVideoPage 有 `img.preview || img.path` 回退，
-        //    <img src={serverUrl}> 不受 CORS 限制 (img 标签默认不强制 CORS)。
-        // 2. 不再写大对象进 sessionStorage，写入 6 张图总共 ~1KB 而非 18MB。
-        uploadedImages.push({ idx: pi.idx, path: imagePath, preview: imagePath });
+        // preview 用原始 data URL（已缓存到 IndexedDB），不受 CORS 限制，正常显示。
+        // path 用 server URL（用于 RunningHub API）。
+        uploadedImages.push({ idx: pi.idx, path: imagePath, preview });
       }
 
       if (uploadedImages.length === 0) {
