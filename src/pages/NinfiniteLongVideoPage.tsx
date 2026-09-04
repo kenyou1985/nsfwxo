@@ -1,13 +1,17 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Video, Image as ImageIcon, Loader2, X, Upload, Sparkles, Copy, Check, ShieldCheck } from 'lucide-react';
-import { uploadImage } from '../services/runninghub';
+import { Video, Image as ImageIcon, Loader2, X, Upload, Sparkles, Copy, Check, ShieldCheck, Layers } from 'lucide-react';
+import { uploadImage, WORKFLOW } from '../services/runninghub';
 import { ImageUploader } from '../components/ImageUploader';
 import { GenerateButton } from '../components/GenerateButton';
 import { VideoTaskList } from '../components/VideoTaskList';
 import type { NodeInfo } from '../types';
 import type { GirlfriendPreset } from '../data/girlfriendPresets';
 import { GirlfriendSelector } from '../components/GirlfriendSelector';
+import { PosePresetSelector } from '../components/PosePresetSelector';
 import { H3_VIDEO_TEMPLATES } from './ImageToVideoPage';
+import ThemeLibraryPanel from '../components/ThemeLibraryPanel';
+import { THEME_LIBRARY, 主题转视频提示词 } from '../data/themeLibrary';
+import type { ThemeEntry } from '../data/themeLibrary';
 
 // ────────────────────────────────────────────────────────────────────────────────
 // N无限X一键长视频 v1.1 — workflowId 2094226327238135810 (Minimax H3)
@@ -197,6 +201,8 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
   const [node465, setNode465] = useState<boolean>(false); // 官方 curl 中存在，文档未说明用途
   const [enhancedPrompt, setEnhancedPrompt] = useState<string>(''); // 返回的优化提示词
   const [enhancedPromptCopied, setEnhancedPromptCopied] = useState<boolean>(false); // 复制状态反馈
+  // 主题库批量生成状态
+  const [themeBatchProgress, setThemeBatchProgress] = useState<{ current: number; total: number } | null>(null);
 
   const [uploading, setUploading] = useState<boolean>(false);
   const [submitting, setSubmitting] = useState<boolean>(false);
@@ -207,6 +213,74 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
   const taskListRef = useRef<{
     submitTask: (prompt: string, imagePath: string, imagePreview: string, nodeInfoList: NodeInfo[], workflowId?: string) => void;
   } | null>(null);
+
+  /** 构建带自定义提示词的 node list（用于主题库批量生成） — 100% 对齐官方 curl 示例 */
+  const buildNodeListWithPrompt = useCallback((videoPrompt: string, duration: number): NodeInfo[] => {
+    const finalDuration = customDuration ? parseInt(customDuration, 10) || duration : duration;
+    const finalSeed = randomizeSeed ? Math.floor(Math.random() * 1_000_000_000).toString() : seed;
+
+    const nodeInfoList: NodeInfo[] = [
+      { nodeId: NODE.videoDuration,      fieldName: 'value',  fieldValue: String(finalDuration),      description: null },
+      { nodeId: NODE.unetModelIndex,    fieldName: 'index',  fieldValue: unetModelIndex,             description: null },
+      { nodeId: NODE.aspectRatioIndex,   fieldName: 'index',  fieldValue: aspectRatioIndex,           description: null },
+      { nodeId: NODE.modeSelect,        fieldName: 'select', fieldValue: mode,                       description: null },
+      { nodeId: NODE.refImageResolution,fieldName: 'select', fieldValue: refResolution,              description: null },
+      { nodeId: NODE.upscaleTarget,    fieldName: 'index',  fieldValue: upscaleTarget,               description: null },
+      { nodeId: NODE.randomSeed,        fieldName: 'value',  fieldValue: finalSeed,                   description: null },
+      { nodeId: NODE.enableUpscale,     fieldName: 'value',  fieldValue: String(enableUpscale),      description: null },
+      { nodeId: NODE.promptEnhance,     fieldName: 'value',  fieldValue: String(promptEnhance),      description: null },
+      { nodeId: NODE.node465,           fieldName: 'value',  fieldValue: String(node465),            description: null },
+      // 强制约束开关对齐 buildNodeList：开启时把 H3_CONSTRAINT_TEXT 拼到 prompt 开头
+      { nodeId: NODE.prompt,            fieldName: 'value',  fieldValue: promptConstraintEnabled ? H3_CONSTRAINT_TEXT + '\n\n' + videoPrompt : videoPrompt, description: null },
+    ];
+
+    // 9 个图片节点, 未上传的填 'None' (与官方文档一致)
+    REFERENCE_IMAGE_NODE_IDS.forEach((nodeId, idx) => {
+      nodeInfoList.push({
+        nodeId,
+        fieldName: 'image',
+        fieldValue: images[idx].path || 'None',
+        description: null,
+      });
+    });
+
+    return nodeInfoList;
+  }, [customDuration, duration, unetModelIndex, aspectRatioIndex, mode, refResolution,
+      upscaleTarget, randomizeSeed, seed, enableUpscale, promptEnhance, node465,
+      promptConstraintEnabled, images]);
+
+  /** 视频姿势预设应用：插入到当前提示词末尾 */
+  const handlePoseSelect = useCallback((posePrompt: string, poseName: string) => {
+    setPrompt((prev) => {
+      const trimmed = prev.trim();
+      if (!trimmed) return posePrompt;
+      // 避免重复追加
+      if (trimmed.endsWith(posePrompt.trim())) return trimmed;
+      return `${trimmed}, ${posePrompt}`;
+    });
+    onSuccess(`已应用姿势: ${poseName}`);
+  }, [onSuccess]);
+
+  /** 主题库批量生成 */
+  const handleThemeBatchGenerate = useCallback(async (themes: ThemeEntry[], duration: 15 | 30 | 60) => {
+    const firstImage = images.find((img) => img.path && img.path !== 'None');
+    if (!firstImage?.path || firstImage.path === 'None') {
+      onError('请先上传或选择一张参考图片');
+      return;
+    }
+    if (themes.length === 0) return;
+    setThemeBatchProgress({ current: 0, total: themes.length });
+    for (let i = 0; i < themes.length; i++) {
+      const theme = themes[i];
+      const themePrompt = 主题转视频提示词(theme, duration);
+      const nodeList = buildNodeListWithPrompt(themePrompt, duration);
+      taskListRef.current?.submitTask(themePrompt, firstImage.path, firstImage.preview, nodeList, WORKFLOW_ID);
+      setThemeBatchProgress({ current: i + 1, total: themes.length });
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    setThemeBatchProgress(null);
+    onSuccess(`已提交 ${themes.length} 个主题到长视频 v1.1 生成队列`);
+  }, [images, buildNodeListWithPrompt, onError, onSuccess]);
 
   // ── 图片上传 ────────────────────────────────────────────────────────────────
   const handleImageUpload = useCallback(async (file: File, index: number) => {
@@ -403,6 +477,14 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
         selectedId={selectedGirlfriend ? (selectedGirlfriend.isCustom ? `custom_${selectedGirlfriend.id}` : selectedGirlfriend.id) : null}
         onSelect={handleGirlfriendSelect}
         disabled={girlfriendUploading || submitting}
+      />
+
+      {/* PosePresetSelector - 视频姿势预设 */}
+      <PosePresetSelector
+        type="video"
+        onSelect={handlePoseSelect}
+        disabled={submitting}
+        selectedGirlfriend={selectedGirlfriend}
       />
 
       {/* 参考图 (9 宫格) */}
@@ -612,6 +694,33 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
             max={300}
             disabled={submitting}
             className="w-20 px-2 py-1.5 rounded-lg bg-bg-elevated border border-border text-xs text-text-primary focus:outline-none focus:border-primary"
+          />
+        </div>
+      </div>
+
+      {/* ── 主题库面板（长视频 v1.1）── */}
+      <div className="rounded-xl bg-gradient-to-br from-violet-500/10 via-fuchsia-500/5 to-pink-500/10 border border-violet-200 overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 bg-violet-50/50">
+          <div className="flex items-center gap-2">
+            <Layers size={16} className="text-violet-500" />
+            <span className="text-sm font-semibold text-text-primary">主题库</span>
+            <span className="px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 text-[10px] font-medium">
+              {THEME_LIBRARY.length} 个专业主题
+            </span>
+            {themeBatchProgress && (
+              <span className="px-1.5 py-0.5 rounded-full bg-violet-600 text-white text-[10px] font-medium animate-pulse">
+                生成中 {themeBatchProgress.current}/{themeBatchProgress.total}
+              </span>
+            )}
+            <span className="text-[11px] text-text-tertiary hidden sm:inline">
+              · 长视频 v1.1 · MiniMax H3 模型
+            </span>
+          </div>
+        </div>
+        <div className="px-4 pb-4 pt-2">
+          <ThemeLibraryPanel
+            on应用提示词={(提示词) => { setPrompt(提示词); onSuccess('已应用主题提示词'); }}
+            on批量生成={handleThemeBatchGenerate}
           />
         </div>
       </div>

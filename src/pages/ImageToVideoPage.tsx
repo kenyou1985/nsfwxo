@@ -17,6 +17,8 @@ import type { GirlfriendPreset } from '../data/girlfriendPresets';
 import { PosePresetSelector } from '../components/PosePresetSelector';
 import { RunningHubModelPicker } from '../components/RunningHubModelPicker';
 import ThemeLibraryPanel from '../components/ThemeLibraryPanel';
+import { THEME_LIBRARY, 主题转视频提示词 } from '../data/themeLibrary';
+import type { ThemeEntry } from '../data/themeLibrary';
 import type { RunningHubModelEntry } from '../services/runninghubModelsService';
 import { NinfiniteLongVideoPage } from './NinfiniteLongVideoPage';
 import { generateH3Prompt } from '../services/h3PromptService';
@@ -245,9 +247,10 @@ function transformToWan22Style(rawPrompt: string, isR18: boolean): string {
 
 interface AIPromptPanelProps {
   on应用: (提示词: string) => void;
+  on展开主题库?: () => void;
 }
 
-function AIPromptPanel({ on应用 }: AIPromptPanelProps) {
+function AIPromptPanel({ on应用, on展开主题库 }: AIPromptPanelProps) {
   const [模式, set模式] = useState<'智能视频' | '智能扩写' | '随机抽卡' | '主题库'>('智能视频');
   const [输入, set输入] = useState('');
   const [数量, set数量] = useState(5);
@@ -624,15 +627,21 @@ function AIPromptPanel({ on应用 }: AIPromptPanelProps) {
         </div>
       )}
 
-      {/* 主题库模式 */}
+      {/* 主题库模式 — 内容已移至页面顶部主题库面板 */}
       {模式 === '主题库' && (
-        <ThemeLibraryPanel
-          on应用提示词={(提示词) => {
-            set结果列表([提示词]);
-            set选中索引(0);
-            set输出文本(提示词);
-          }}
-        />
+        <div className="rounded-xl bg-violet-50 border border-violet-200 p-4 text-center">
+          <div className="flex flex-col items-center gap-2">
+            <Layers size={24} className="text-violet-400" />
+            <p className="text-sm text-violet-700 font-medium">主题库已移至页面顶部</p>
+            <p className="text-xs text-violet-500">可在「主题库」面板中搜索主题、随机抽取、批量生成多个视频</p>
+            <button
+              onClick={() => on展开主题库?.()}
+              className="mt-1 px-4 py-1.5 bg-violet-600 text-white rounded-lg text-xs font-medium hover:bg-violet-700 transition-colors"
+            >
+              展开主题库
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -917,6 +926,8 @@ interface MiniMaxH3PanelProps {
   setSelectedGirlfriend: (gf: GirlfriendPreset | null) => void;
   girlfriendUploading: boolean;
   setGirlfriendUploading: (v: boolean) => void;
+  /** 批量生成进度回调（面板内更新父组件状态） */
+  onBatchProgress?: (progress: { current: number; total: number } | null) => void;
 }
 
 function MiniMaxH3Panel({
@@ -927,8 +938,11 @@ function MiniMaxH3Panel({
   mmLora, setMmLora, mmLoraWeight, setMmLoraWeight,
   mmUploading, setMmUploading, isSubmitting, setIsSubmitting,
   onError, onSuccess, taskListRef,
-  selectedGirlfriend, setSelectedGirlfriend, girlfriendUploading, setGirlfriendUploading
+  selectedGirlfriend, setSelectedGirlfriend, girlfriendUploading, setGirlfriendUploading,
+  onBatchProgress,
 }: MiniMaxH3PanelProps) {
+  // 主题库批量生成状态
+  const [themeBatchProgress, setThemeBatchProgress] = useState<{ current: number; total: number } | null>(null);
 
   // Pose preset handler
   const handlePoseSelect = (posePrompt: string, poseName: string) => {
@@ -1061,6 +1075,49 @@ function MiniMaxH3Panel({
     const identityPrefix = selectedGirlfriend?.characterPrompt || '';
     return identityPrefix ? `${identityPrefix} ${mmPrompt}`.trim() : mmPrompt;
   };
+
+  /** 构建带自定义提示词的 MiniMax H3 node list */
+  const buildMiniMaxNodeListWithPrompt = (videoPrompt: string): NodeInfo[] => {
+    const nodeList: NodeInfo[] = [
+      { nodeId: '238', fieldName: 'value',   fieldValue: String(mmStrength),   description: '强度' },
+      { nodeId: '185', fieldName: 'value',   fieldValue: mmDuration,            description: '时长' },
+      { nodeId: '182', fieldName: 'select',  fieldValue: mmStyleMode,           description: '风格模式' },
+      { nodeId: '127', fieldName: 'value',   fieldValue: String(mmAutoPrompt),  description: '自动提示词' },
+      { nodeId: '38',  fieldName: 'prompt',  fieldValue: videoPrompt,           description: '提示词' },
+      { nodeId: '19',  fieldName: 'unet_name', fieldValue: mmVideoModel,        description: '视频模型' },
+      { nodeId: '111', fieldName: 'lora_name', fieldValue: mmLora,              description: 'LoRA模型' },
+      { nodeId: '111', fieldName: 'strength_model', fieldValue: String(mmLoraWeight), description: 'LoRA权重' },
+    ];
+    const imageNodeIds = ['50', '76', '79'];
+    mmImages.forEach((img, idx) => {
+      if (img.path) nodeList.push({ nodeId: imageNodeIds[idx], fieldName: 'image', fieldValue: img.path, description: `参考图${idx + 1}` });
+    });
+    return nodeList;
+  };
+
+  /** 主题库批量生成：循环为每个主题提交 MiniMax H3 任务 */
+  const handleThemeBatchGenerate = useCallback(async (themes: ThemeEntry[], duration: 15 | 30 | 60) => {
+    if (mmImages.length === 0 || !mmImages[0]?.path) {
+      onError('请先上传或选择一张参考图片');
+      return;
+    }
+    if (themes.length === 0) return;
+    setThemeBatchProgress({ current: 0, total: themes.length });
+    onBatchProgress?.({ current: 0, total: themes.length });
+    for (let i = 0; i < themes.length; i++) {
+      const theme = themes[i];
+      const prompt = 主题转视频提示词(theme, duration);
+      const nodeList = buildMiniMaxNodeListWithPrompt(prompt);
+      const preview = mmImages[0]?.preview || '';
+      taskListRef.current?.submitTask(prompt, mmImages[0]?.path, preview, nodeList, WORKFLOW.MINIMAX_H3);
+      setThemeBatchProgress({ current: i + 1, total: themes.length });
+      onBatchProgress?.({ current: i + 1, total: themes.length });
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    setThemeBatchProgress(null);
+    onBatchProgress?.(null);
+    onSuccess?.(`已提交 ${themes.length} 个主题到 MiniMax H3 生成队列`);
+  }, [mmImages, mmStrength, mmDuration, mmStyleMode, mmAutoPrompt, mmVideoModel, mmLora, mmLoraWeight, taskListRef, onError, onSuccess, onBatchProgress]);
 
   return (
     <div className="space-y-4">
@@ -1205,6 +1262,33 @@ function MiniMaxH3Panel({
             已锚定数字人：{selectedGirlfriend.nameZh || selectedGirlfriend.name}
           </div>
         )}
+      </div>
+
+      {/* ── 主题库面板（MiniMax H3 专用）── */}
+      <div className="rounded-xl bg-gradient-to-br from-violet-500/10 via-fuchsia-500/5 to-pink-500/10 border border-violet-200 overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 bg-violet-50/50">
+          <div className="flex items-center gap-2">
+            <Layers size={16} className="text-violet-500" />
+            <span className="text-sm font-semibold text-text-primary">主题库</span>
+            <span className="px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 text-[10px] font-medium">
+              {THEME_LIBRARY.length} 个专业主题
+            </span>
+            {themeBatchProgress && (
+              <span className="px-1.5 py-0.5 rounded-full bg-violet-600 text-white text-[10px] font-medium animate-pulse">
+                生成中 {themeBatchProgress.current}/{themeBatchProgress.total}
+              </span>
+            )}
+            <span className="text-[11px] text-text-tertiary hidden sm:inline">
+              · 10 大分类 · 批量生成视频
+            </span>
+          </div>
+        </div>
+        <div className="px-4 pb-4 pt-2">
+          <ThemeLibraryPanel
+            on应用提示词={(提示词) => { setMmPrompt(提示词); onSuccess?.('已应用主题提示词'); }}
+            on批量生成={handleThemeBatchGenerate}
+          />
+        </div>
       </div>
 
       {/* 风格设置 */}
@@ -1363,6 +1447,8 @@ interface MiniMaxLongVideoPanelProps {
   setMlH3Duration?: (v: 15 | 30 | 60) => void;
   handleGenerateH3Prompt?: (duration?: 15 | 30 | 60) => void;
   handleGotoLongVideoWithH3?: () => void;
+  /** 批量生成进度回调 */
+  onBatchProgress?: (progress: { current: number; total: number } | null) => void;
 }
 
 function MiniMaxLongVideoPanel({
@@ -1374,7 +1460,10 @@ function MiniMaxLongVideoPanel({
   selectedGirlfriend, setSelectedGirlfriend, girlfriendUploading, setGirlfriendUploading,
   mlH3Prompt, setMlH3Prompt, mlH3Duration, setMlH3Duration,
   handleGenerateH3Prompt, handleGotoLongVideoWithH3,
+  onBatchProgress,
 }: MiniMaxLongVideoPanelProps) {
+  // 主题库批量生成状态
+  const [themeBatchProgress, setThemeBatchProgress] = useState<{ current: number; total: number } | null>(null);
 
   // Handle image upload
   const handleImageUpload = async (file: File, index: number) => {
@@ -1468,6 +1557,47 @@ function MiniMaxLongVideoPanel({
     const prompt = mlPrompts[index] || '';
     return identityPrefix ? `${identityPrefix} ${prompt}`.trim() : prompt;
   };
+
+  /** 构建带自定义提示词的 MiniMax H3 node list（用于主题库批量生成） */
+  const buildMiniMaxH3NodeList = (videoPrompt: string): NodeInfo[] => {
+    const nodeList: NodeInfo[] = [
+      { nodeId: '238', fieldName: 'value', fieldValue: '0.4', description: '强度' },
+      { nodeId: '185', fieldName: 'value', fieldValue: '15', description: '时长' },
+      { nodeId: '182', fieldName: 'select', fieldValue: '1', description: '风格模式' },
+      { nodeId: '127', fieldName: 'value', fieldValue: 'true', description: '自动提示词' },
+      { nodeId: '38', fieldName: 'prompt', fieldValue: videoPrompt, description: '提示词' },
+      { nodeId: '19', fieldName: 'unet_name', fieldValue: 'DasiwaMinimaxH3_dasiwaREF2VAHybridV1.safetensors', description: '视频模型' },
+    ];
+    const imageNodeIds = ['50', '76', '79'];
+    mlImages.forEach((img, idx) => {
+      if (img.path && img.path !== 'None') nodeList.push({ nodeId: imageNodeIds[idx], fieldName: 'image', fieldValue: img.path, description: `参考图${idx + 1}` });
+    });
+    return nodeList;
+  };
+
+  /** 主题库批量生成（长视频页使用 H3 模型） */
+  const handleThemeBatchGenerate = useCallback(async (themes: ThemeEntry[], duration: 15 | 30 | 60) => {
+    const firstImage = mlImages.find((img) => img.path && img.path !== 'None') ?? mlImages[0];
+    if (!firstImage?.path || firstImage.path === 'None') {
+      onError('请先上传或选择一张参考图片');
+      return;
+    }
+    if (themes.length === 0) return;
+    setThemeBatchProgress({ current: 0, total: themes.length });
+    onBatchProgress?.({ current: 0, total: themes.length });
+    for (let i = 0; i < themes.length; i++) {
+      const theme = themes[i];
+      const prompt = 主题转视频提示词(theme, duration);
+      const nodeList = buildMiniMaxH3NodeList(prompt);
+      taskListRef.current?.submitTask(prompt, firstImage.path, firstImage.preview, nodeList, WORKFLOW.MINIMAX_H3);
+      setThemeBatchProgress({ current: i + 1, total: themes.length });
+      onBatchProgress?.({ current: i + 1, total: themes.length });
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    setThemeBatchProgress(null);
+    onBatchProgress?.(null);
+    onSuccess?.(`已提交 ${themes.length} 个主题到 MiniMax H3 生成队列`);
+  }, [mlImages, taskListRef, onError, onSuccess, onBatchProgress]);
 
   // Build node list — node IDs match the MiniMax Long Video workflow template (workflowId: 2091369701523136514)
   const buildNodeList = (): NodeInfo[] => {
@@ -1829,6 +1959,36 @@ function MiniMaxLongVideoPanel({
           disabled={isSubmitting}
           baseModelFilter="minimax-h3"
         />
+      </div>
+
+      {/* ── 主题库面板（MiniMax 长视频 专用 H3 模型）── */}
+      <div className="rounded-xl bg-gradient-to-br from-violet-500/10 via-fuchsia-500/5 to-pink-500/10 border border-violet-200 overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 bg-violet-50/50">
+          <div className="flex items-center gap-2">
+            <Layers size={16} className="text-violet-500" />
+            <span className="text-sm font-semibold text-text-primary">主题库</span>
+            <span className="px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 text-[10px] font-medium">
+              {THEME_LIBRARY.length} 个专业主题
+            </span>
+            {themeBatchProgress && (
+              <span className="px-1.5 py-0.5 rounded-full bg-violet-600 text-white text-[10px] font-medium animate-pulse">
+                生成中 {themeBatchProgress.current}/{themeBatchProgress.total}
+              </span>
+            )}
+            <span className="text-[11px] text-text-tertiary hidden sm:inline">
+              · MiniMax H3 模型
+            </span>
+          </div>
+        </div>
+        <div className="px-4 pb-4 pt-2">
+          <ThemeLibraryPanel
+            on应用提示词={(提示词) => {
+              setMlH3Prompt?.(提示词);
+              onSuccess?.('已应用主题提示词');
+            }}
+            on批量生成={handleThemeBatchGenerate}
+          />
+        </div>
       </div>
 
       {/* 单段时长设置 */}
@@ -2261,6 +2421,8 @@ interface MiniMaxH3T2VPanelProps {
   onError: (msg: string) => void;
   onSuccess: (msg: string) => void;
   taskListRef: React.RefObject<{ submitTask: (prompt: string, imagePath: string, imagePreview: string, nodeInfoList: NodeInfo[], workflowId?: string) => void } | null>;
+  /** 批量生成进度回调 */
+  onBatchProgress?: (progress: { current: number; total: number } | null) => void;
 }
 
 function MiniMaxH3T2VPanel({
@@ -2272,7 +2434,10 @@ function MiniMaxH3T2VPanel({
   mh3Submitting, setMh3Submitting,
   isSubmitting, setIsSubmitting,
   onError, onSuccess, taskListRef,
+  onBatchProgress,
 }: MiniMaxH3T2VPanelProps) {
+  // 主题库批量生成状态
+  const [themeBatchProgress, setThemeBatchProgress] = useState<{ current: number; total: number } | null>(null);
 
   const buildNodeList = (): NodeInfo[] => {
     const nodeList: NodeInfo[] = [
@@ -2290,6 +2455,37 @@ function MiniMaxH3T2VPanel({
     });
     return nodeList;
   };
+
+  /** 构建带自定义提示词的 T2V node list */
+  const buildNodeListWithPrompt = (videoPrompt: string): NodeInfo[] => {
+    const nodeList: NodeInfo[] = [
+      { nodeId: '171', fieldName: 'index', fieldValue: '0', description: '序号' },
+      { nodeId: '115', fieldName: 'aspect_ratio', fieldValue: mh3AspectRatio, description: '视频比例' },
+      { nodeId: '133', fieldName: 'value', fieldValue: String(mh3Duration), description: '时长' },
+      { nodeId: '186', fieldName: 'text', fieldValue: videoPrompt, description: '提示词' },
+      { nodeId: '171', fieldName: 'direct_output', fieldValue: String(mh3DirectOutput), description: '直出模式' },
+    ];
+    return nodeList;
+  };
+
+  /** 主题库批量生成（T2V 无需参考图） */
+  const handleThemeBatchGenerate = useCallback(async (themes: ThemeEntry[], duration: 15 | 30 | 60) => {
+    if (themes.length === 0) return;
+    setThemeBatchProgress({ current: 0, total: themes.length });
+    onBatchProgress?.({ current: 0, total: themes.length });
+    for (let i = 0; i < themes.length; i++) {
+      const theme = themes[i];
+      const prompt = 主题转视频提示词(theme, duration);
+      const nodeList = buildNodeListWithPrompt(prompt);
+      taskListRef.current?.submitTask(prompt, '', '', nodeList, WORKFLOW.MINIMAX_H3_T2V);
+      setThemeBatchProgress({ current: i + 1, total: themes.length });
+      onBatchProgress?.({ current: i + 1, total: themes.length });
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    setThemeBatchProgress(null);
+    onBatchProgress?.(null);
+    onSuccess?.(`已提交 ${themes.length} 个主题到 MiniMax H3 文生视频生成队列`);
+  }, [mh3AspectRatio, mh3Duration, mh3DirectOutput, taskListRef, onSuccess, onBatchProgress]);
 
   const handleSubmit = () => {
     if (!mh3Prompt.trim()) {
@@ -2381,6 +2577,33 @@ function MiniMaxH3T2VPanel({
               <X size={12} />
             </button>
           )}
+        </div>
+      </div>
+
+      {/* ── 主题库面板（MiniMax H3 文生视频专用）── */}
+      <div className="rounded-xl bg-gradient-to-br from-violet-500/10 via-fuchsia-500/5 to-pink-500/10 border border-violet-200 overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 bg-violet-50/50">
+          <div className="flex items-center gap-2">
+            <Layers size={16} className="text-violet-500" />
+            <span className="text-sm font-semibold text-text-primary">主题库</span>
+            <span className="px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 text-[10px] font-medium">
+              {THEME_LIBRARY.length} 个专业主题
+            </span>
+            {themeBatchProgress && (
+              <span className="px-1.5 py-0.5 rounded-full bg-violet-600 text-white text-[10px] font-medium animate-pulse">
+                生成中 {themeBatchProgress.current}/{themeBatchProgress.total}
+              </span>
+            )}
+            <span className="text-[11px] text-text-tertiary hidden sm:inline">
+              · 10 大分类 · 无需参考图
+            </span>
+          </div>
+        </div>
+        <div className="px-4 pb-4 pt-2">
+          <ThemeLibraryPanel
+            on应用提示词={(提示词) => { setMh3Prompt(提示词); onSuccess?.('已应用主题提示词'); }}
+            on批量生成={handleThemeBatchGenerate}
+          />
         </div>
       </div>
 
@@ -2970,6 +3193,8 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
     setPrompt(newPrompt);
   };
 
+  const [themeBatchProgress, setThemeBatchProgress] = useState<{ current: number; total: number } | null>(null);
+
   const handlePoseSelect = (posePrompt: string, poseName: string) => {
     setPrompt(posePrompt);
     onSuccess(`已应用姿势: ${poseName}`);
@@ -3131,6 +3356,7 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
           onError={onError}
           onSuccess={onSuccess}
           taskListRef={taskListRef}
+          onBatchProgress={setThemeBatchProgress}
         />
       )}
 
@@ -3169,6 +3395,7 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
           setSelectedGirlfriend={setSelectedGirlfriend}
           girlfriendUploading={girlfriendUploading}
           setGirlfriendUploading={setGirlfriendUploading}
+          onBatchProgress={setThemeBatchProgress}
         />
       )}
 
@@ -3226,7 +3453,7 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
 
       {/* Wan 2.2 UI */}
       {videoModel === 'wan22' && (
-        <>
+        <div key="wan22">
       {/* Girlfriend 选择器 */}
       <GirlfriendSelector
         selectedId={selectedGirlfriend ? (selectedGirlfriend.isCustom ? `custom_${selectedGirlfriend.id}` : selectedGirlfriend.id) : null}
@@ -3463,8 +3690,8 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
           }
         />
       </div>
-        </>
-      )}
+        </div>
+  )}
     </div>
   );
 }
