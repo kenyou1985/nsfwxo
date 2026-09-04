@@ -4680,22 +4680,24 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   const handleCopyAll = () => { navigator.clipboard.writeText(panels.map((p) => `[Panel ${p.panel_number}]\n${p.image_prompt}`).join('\n\n')).then(() => { setCopiedPanel(-1); setTimeout(() => setCopiedPanel(null), 2000); }); };
   const handleDeleteHistory = (id: string) => { removeStoryboardHistory(id); setHistory(getStoryboardHistory()); };
   const handleHistoryLoad = async (item: StoryboardHistoryItem) => {
+    // 防御：旧历史记录可能没有 panels 字段，避免 setPanels(undefined) 导致崩溃
+    if (!item.panels || item.panels.length === 0) {
+      console.warn('[handleHistoryLoad] 历史记录缺少 panels 数据，item=', item);
+      onError?.('该历史记录缺少分镜数据，请重新生成分镜');
+      return;
+    }
+
+    setShowHistory(false);  // 先关闭历史面板，避免 React 批处理时状态混乱
+    setStoryStep('panels');
     setPlot(item.plot);
     setPanels(item.panels);
-    setStoryStep('panels');
     setVideoScript(null);
     setPanelVideoPrompts({});
     setOutlineArc('');
     setOutlineScenes([]);
     setSelectedThemes([]);
     setThemeOutlineStates({});
-    setShowHistory(false);
     setCurrentHistoryId(item.id);
-    // sbHistoryId is derived from currentHistoryId (and activeThemeTab)
-    // so it picks up the new value automatically once currentHistoryId
-    // is set. Updating sessionStorage keeps the layout consistent with
-    // the new sb_latest_history_id path that other parts of the app
-    // (e.g. finishedTasks effect, mount effect) read.
     sessionStorage.setItem('sb_latest_history_id', item.id);
 
     // Restore images for this history entry from three sources (same priority as HistoryPage):
