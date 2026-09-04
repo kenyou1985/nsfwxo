@@ -1546,10 +1546,11 @@ function MiniMaxLongVideoPanel({
       }
 
       const { imagePath } = await uploadImage(apiKey, file);
-      // Add as first reference image (保留已有图片，限制最大 9 张)
+      // 用真实路径替换 slot 0（即时预览只占位用，upload 后务必覆盖掉，避免 slot 0/1 同时显示同一张图）
       setMlImages(prev => {
-        const updated = [{ path: imagePath, preview }, ...prev];
-        return updated.slice(0, 9);
+        const updated = [...prev];
+        updated[0] = { path: imagePath, preview };
+        return updated;
       });
       onSuccess(`已选择女友「${gf.nameZh || gf.name}」并设为参考图`);
     } catch (err) {
