@@ -4076,6 +4076,43 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   // Persist generated panel images: blob URLs are converted to data URLs immediately
   // and cached so they survive page refresh. Also updates genStates so the UI uses
   // data URLs instead of ephemeral blob URLs.
+  // Extracted as component-level function so handleHistoryLoad can call it directly
+  // after setGenStates(initial), bypassing React's async state-update timing issue.
+  const convertAndCache = useCallback(async (hid: string, states: Record<string, { loading: boolean; images: string[] }>) => {
+    const panelImages: Record<number, string[]> = {};
+    let needsGenStatesUpdate = false;
+    const updates: Record<string, { loading: boolean; images: string[] }> = {};
+
+    for (const [key, state] of Object.entries(states)) {
+      const parts = key.split('_');
+      const historyIdFromKey = parts.slice(0, -1).join('_');
+      const panelIdx = parts[parts.length - 1];
+      if (historyIdFromKey !== hid) continue;
+      if (!state.images || state.images.length === 0) continue;
+
+      const dataUrlImages = (await Promise.all(state.images.map((img) => ensureDataUrl(img))))
+        .filter((s): s is string => !!s);
+      if (dataUrlImages.length === 0) continue;
+
+      panelImages[Number(panelIdx)] = dataUrlImages;
+      await cacheStoryboardPanelImages(hid, Number(panelIdx), dataUrlImages);
+      updates[key] = { loading: false, images: dataUrlImages };
+      needsGenStatesUpdate = true;
+    }
+
+    if (needsGenStatesUpdate) {
+      setGenStates((prev) => {
+        const next = { ...prev, ...updates };
+        return Object.keys(next).length > 0 ? next : prev;
+      });
+    }
+
+    // History record persistence intentionally skipped — dataURLs live in the
+    // unified store via cacheStoryboardPanelImages; writing back to history.panelImages
+    // would multiply localStorage usage ~10x and trip QuotaExceededError.
+    console.debug(`[Storyboard] convertAndCache complete: ${Object.keys(panelImages).length} panels cached, ${Object.keys(updates).length} genState keys updated`);
+  }, []);
+
   useEffect(() => {
     const hid = sbHistoryId;
     if (!hid) return;
@@ -4088,7 +4125,6 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       const parts = key.split('_');
       const historyIdFromKey = parts.slice(0, -1).join('_');
       if (historyIdFromKey !== hid) continue;
-      // Only process entries that have actual images
       if (state.images && state.images.length > 0 && state.images.some((img) => img.startsWith('blob:'))) {
         hasNewImages = true;
         break;
@@ -4099,54 +4135,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       return;
     }
 
-    // Convert blob URLs to data URLs and cache them immediately
-    const convertAndCache = async () => {
-      // Read genStates fresh inside async function to avoid closure snapshot bug
-      const states = genStates;
-      const panelImages: Record<number, string[]> = {};
-      let needsGenStatesUpdate = false;
-      const updates: Record<string, { loading: boolean; images: string[] }> = {};
-
-      for (const [key, state] of Object.entries(states)) {
-        const parts = key.split('_');
-        const historyIdFromKey = parts.slice(0, -1).join('_');
-        const panelIdx = parts[parts.length - 1];
-        if (historyIdFromKey !== hid) continue;
-        if (!state.images || state.images.length === 0) continue;
-
-        // Convert every image to a data URL. Filter out anything that
-        // resolves to empty (e.g. bare hash refs after a cache migration)
-        // so genStates never holds invalid <img src> values.
-        const dataUrlImages = (await Promise.all(state.images.map((img) => ensureDataUrl(img))))
-          .filter((s): s is string => !!s);
-        if (dataUrlImages.length === 0) continue;
-
-        panelImages[Number(panelIdx)] = dataUrlImages;
-        await cacheStoryboardPanelImages(hid, Number(panelIdx), dataUrlImages);
-        updates[key] = { loading: false, images: dataUrlImages };
-        needsGenStatesUpdate = true;
-      }
-
-      // Update genStates so UI uses persistent data URLs instead of blob URLs
-      if (needsGenStatesUpdate) {
-        setGenStates((prev) => {
-          const next = { ...prev, ...updates };
-          return Object.keys(next).length > 0 ? next : prev;
-        });
-      }
-
-      // History record persistence is intentionally skipped. The
-      // dataURLs already live in the unified store via
-      // cacheStoryboardPanelImages above, and the preview-list reader
-      // falls back to that store on render. Writing the full base64
-      // back into history.panelImages would multiply localStorage
-      // usage by ~10x and trip QuotaExceededError, which silently
-      // breaks every subsequent history save.
-      console.debug(`[Storyboard] convertAndCache complete: ${Object.keys(panelImages).length} panels cached, ${Object.keys(updates).length} genState keys updated`);
-    };
-
-    convertAndCache();
-  }, [genStates, sbHistoryId]);
+    convertAndCache(hid, genStates);
+  }, [genStates, sbHistoryId, convertAndCache]);
 
   // Video prompt state
   const [videoScript, setVideoScript] = useState<{
@@ -4735,6 +4725,10 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     // still empty. Same "ask the zip" path used by the mount effect and
     // the history list preview — no unified store, no djb2 cache, no
     // shadow djb2 path. The zip is the authoritative source.
+    // 立即调用 convertAndCache：解决 React 异步 state-update 时序问题，
+    // 确保刚加载的图片（initial 中的 data URL）被立即缓存到 unified store，
+    // 避免因 effect 触发时 genStates 仍为旧值而导致图片破裂。
+    convertAndCache(item.id, initial);
     for (let i = 0; i < item.panels.length; i++) {
       const key = `${item.id}_${i}`;
       const current = initial[key];
@@ -5552,12 +5546,14 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
           totalPanels: activePanels.length,
           processed: false,
         }));
+      // 修复：sessionStorage 写完后必须 return，否则 onSuccess/onNavigate 会在失败后仍被调用。
       } catch (storageErr) {
         const isQuota = storageErr instanceof DOMException && storageErr.name === 'QuotaExceededError';
         console.error('[handleBatchGotoLongVideoWithH3] sessionStorage 写入失败:', storageErr);
         onError(isQuota
           ? `跳转数据过大（${uploadedImages.length} 张分镜图），无法写入浏览器临时存储。请先清理浏览器数据后重试。`
           : `写入跳转数据失败：${storageErr instanceof Error ? storageErr.message : String(storageErr)}`);
+        batchVideoUploadingRef.current = false;
         return;
       }
       onSuccess(`已切换到长视频 1.1：${uploadedImages.length} 张分镜图 + 完整 H3 提示词已填入`);
