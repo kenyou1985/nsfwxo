@@ -8,17 +8,28 @@ interface PosePresetSelectorProps {
   onSelect: (prompt: string, name: string) => void;
   disabled?: boolean;
   selectedGirlfriend?: GirlfriendPreset | null;
+  /** 多数字人锚定场景：传入全部已锚定的女友 */
+  selectedGirlfriends?: GirlfriendPreset[];
   forceUnlock?: boolean;
 }
 
-function buildIdentityPrefix(gf: GirlfriendPreset | null): string {
+function buildIdentityPrefix(gf: GirlfriendPreset | null | undefined, gfs?: GirlfriendPreset[]): string {
+  // 多数字人：把每个女友的身份锚点串起来
+  if (gfs && gfs.length > 0) {
+    return gfs
+      .map(
+        (g) =>
+          `Strictly preserve the exact identity, character, and features of ${g.nameZh} (ID:${g.id.toUpperCase()}); do not alter the character at all. `
+      )
+      .join('');
+  }
   // No male character prefix - use pose presets as-is
   // Only add girlfriend identity anchor if one is selected
   if (!gf) return '';
   return `Strictly preserve the exact identity, character, and features of ${gf.nameZh} (ID:${gf.id.toUpperCase()}); do not alter the character at all. `;
 }
 
-export function PosePresetSelector({ type, onSelect, disabled, selectedGirlfriend = null, forceUnlock = false }: PosePresetSelectorProps) {
+export function PosePresetSelector({ type, onSelect, disabled, selectedGirlfriend = null, selectedGirlfriends, forceUnlock = false }: PosePresetSelectorProps) {
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState(false);
 
@@ -41,7 +52,12 @@ export function PosePresetSelector({ type, onSelect, disabled, selectedGirlfrien
   const [showLockedToast, setShowLockedToast] = useState(false);
 
   const isImageMode = type === 'image';
-  const isLocked = isImageMode && !forceUnlock && !selectedGirlfriend && !disabled;
+  const isLocked =
+    isImageMode &&
+    !forceUnlock &&
+    !selectedGirlfriend &&
+    !(selectedGirlfriends && selectedGirlfriends.length > 0) &&
+    !disabled;
 
   const handleToggle = () => {
     if (disabled) return;
@@ -68,7 +84,10 @@ export function PosePresetSelector({ type, onSelect, disabled, selectedGirlfrien
     }
 
     setSelectedId(preset.id);
-    const identityPrefix = buildIdentityPrefix(selectedGirlfriend);
+    const identityPrefix = buildIdentityPrefix(
+      selectedGirlfriend,
+      selectedGirlfriends && selectedGirlfriends.length > 0 ? selectedGirlfriends : undefined
+    );
     const fullPrompt = identityPrefix + preset.prompt;
     onSelect(fullPrompt, preset.nameZh);
   };
@@ -90,7 +109,9 @@ export function PosePresetSelector({ type, onSelect, disabled, selectedGirlfrien
           </span>
           {selectedGirlfriend && (
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
-              {selectedGirlfriend.nameZh}
+              {selectedGirlfriends && selectedGirlfriends.length > 1
+                ? `${selectedGirlfriends.length} 位`
+                : selectedGirlfriend.nameZh}
             </span>
           )}
         </div>
@@ -170,7 +191,10 @@ export function PosePresetSelector({ type, onSelect, disabled, selectedGirlfrien
               共 {displayPresets.length} 个预设
               {selectedGirlfriend && (
                 <span className="ml-2 text-primary/70">
-                  · 已锚定 {selectedGirlfriend.nameZh}
+                  · 已锚定{' '}
+                  {selectedGirlfriends && selectedGirlfriends.length > 1
+                    ? selectedGirlfriends.map((g) => g.nameZh).join('、')
+                    : selectedGirlfriend.nameZh}
                 </span>
               )}
             </span>

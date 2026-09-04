@@ -206,9 +206,31 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
 
   const [uploading, setUploading] = useState<boolean>(false);
   const [submitting, setSubmitting] = useState<boolean>(false);
-  const [selectedGirlfriend, setSelectedGirlfriend] = useState<GirlfriendPreset | null>(null);
+  // 多数字人锚定：每个女友绑定到一个参考图槽位
+  // 数组按顺序排列，第一个元素对应图1，第二个对应图2，依次类推
+  const [selectedGirlfriends, setSelectedGirlfriends] = useState<GirlfriendPreset[]>([]);
   const [girlfriendUploading, setGirlfriendUploading] = useState<boolean>(false);
   const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
+
+  /** 给定一个女友 ID，返回对应的图片槽位索引（如果未锚定则返回 -1） */
+  const findSlotByGirlfriendId = useCallback(
+    (gf: GirlfriendPreset): number => {
+      const targetId = gf.isCustom ? `custom_${gf.id}` : gf.id;
+      return selectedGirlfriends.findIndex(
+        (g) => (g.isCustom ? `custom_${g.id}` : g.id) === targetId
+      );
+    },
+    [selectedGirlfriends]
+  );
+
+  /** 寻找下一个空槽位（无图片的槽） */
+  const findNextEmptySlot = useCallback((): number => {
+    for (let i = 0; i < images.length; i++) {
+      const img = images[i];
+      if (!img.path || img.path === 'None' || !img.preview) return i;
+    }
+    return images.length; // 已满，返回末尾索引（理论上不发生）
+  }, [images]);
 
   const taskListRef = useRef<{
     submitTask: (prompt: string, imagePath: string, imagePreview: string, nodeInfoList: NodeInfo[], workflowId?: string) => void;
@@ -309,9 +331,56 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
     });
   }, []);
 
-  // ── 女友锚定 (自动上传到 slot 0) ────────────────────────────────────────────
-  const handleGirlfriendSelect = useCallback(async (gf: GirlfriendPreset) => {
-    setSelectedGirlfriend(gf);
+  // ── 多数字人锚定 ───────────────────────────────────────────────────────────────
+// 逻辑：点击未锚定的女友 → 自动上传到下一个空槽位（自动跳过被参考图占用的位置）；
+//      点击已锚定的女友 → 取消锚定，并清空对应槽位图片。
+const handleGirlfriendSelect = useCallback(
+  async (gf: GirlfriendPreset) => {
+    const gfKey = gf.isCustom ? `custom_${gf.id}` : gf.id;
+    const existingIdx = findSlotByGirlfriendId(gf);
+
+    // 1) 已锚定 → 取消锚定（移除列表元素 + 清空对应槽位图片）
+    if (existingIdx >= 0) {
+      setSelectedGirlfriends((prev) => prev.filter((_, idx) => idx !== existingIdx));
+      setImages((imgs) => {
+        const updated = [...imgs];
+        updated[existingIdx] = { path: 'None', preview: '' };
+        return updated;
+      });
+      onSuccess(`已取消锚定「${gf.nameZh || gf.name}」（参考图 ${existingIdx + 1} 已清空）`);
+      return;
+    }
+
+    // 2) 未锚定 → 寻找下一个空槽位
+    //    优先级：先填被数字人占着的空槽（slot 索引），再填第一个没有图片的槽位
+    const occupiedSlots = new Set<number>();
+    selectedGirlfriends.forEach((g, idx) => {
+      if (g) occupiedSlots.add(idx);
+    });
+    let emptyIdx = -1;
+    for (let i = 0; i < images.length; i++) {
+      const img = images[i];
+      if (occupiedSlots.has(i)) continue;
+      if (!img.path || img.path === 'None' || !img.preview) {
+        emptyIdx = i;
+        break;
+      }
+    }
+    if (emptyIdx < 0) {
+      onError('参考图已满（9/9），请先移除一张图片后再添加新的数字人');
+      return;
+    }
+
+    // 3) 立刻把女友放到对应槽位（乐观更新，UI 上立刻有选中状态）
+    const slotIdx = emptyIdx;
+    setSelectedGirlfriends((prev) => {
+      const next = [...prev];
+      while (next.length <= slotIdx) next.push(undefined as unknown as GirlfriendPreset);
+      next[slotIdx] = gf;
+      return next;
+    });
+
+    // 4) 异步上传图片到对应槽位
     setGirlfriendUploading(true);
     try {
       const res = await fetch(gf.portraitUrl);
@@ -319,18 +388,22 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
       const file = new File([blob], `${gf.id}.jpg`, { type: blob.type || 'image/jpeg' });
       const objectUrl = URL.createObjectURL(blob);
       const { imagePath } = await uploadImage(apiKey, file);
-      setImages((prev) => {
-        const next = [...prev];
-        next[0] = { path: imagePath, preview: objectUrl };
-        return next;
+      setImages((imgsPrev) => {
+        const updated = [...imgsPrev];
+        updated[slotIdx] = { path: imagePath, preview: objectUrl };
+        return updated;
       });
-      onSuccess(`已选择「${gf.nameZh || gf.name}」并设为参考图 1`);
+      onSuccess(`已锚定「${gf.nameZh || gf.name}」到参考图 ${slotIdx + 1}`);
     } catch (err) {
       onError(err instanceof Error ? err.message : '上传失败');
+      // 上传失败：回滚选中的女友
+      setSelectedGirlfriends((p) => p.filter((_, idx) => idx !== slotIdx));
     } finally {
       setGirlfriendUploading(false);
     }
-  }, [apiKey, onSuccess, onError]);
+  },
+  [apiKey, images, selectedGirlfriends, findSlotByGirlfriendId, onSuccess, onError]
+);
 
   // ── 构建节点列表 — 100% 对齐官方 curl 示例 (description: null) ─────────────
   const buildNodeList = useCallback((): NodeInfo[] => {
@@ -472,9 +545,11 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
         </div>
       </div>
 
-      {/* 数字人锚定 */}
+      {/* 数字人锚定 (支持多数字人：点击头像循环切换锚定/取消) */}
       <GirlfriendSelector
-        selectedId={selectedGirlfriend ? (selectedGirlfriend.isCustom ? `custom_${selectedGirlfriend.id}` : selectedGirlfriend.id) : null}
+        selectedIds={selectedGirlfriends
+          .filter(Boolean)
+          .map((g) => (g.isCustom ? `custom_${g.id}` : g.id))}
         onSelect={handleGirlfriendSelect}
         disabled={girlfriendUploading || submitting}
       />
@@ -484,7 +559,8 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
         type="video"
         onSelect={handlePoseSelect}
         disabled={submitting}
-        selectedGirlfriend={selectedGirlfriend}
+        selectedGirlfriends={selectedGirlfriends.filter(Boolean)}
+        selectedGirlfriend={selectedGirlfriends.find(Boolean) ?? null}
       />
 
       {/* 参考图 (9 宫格) */}
@@ -492,9 +568,9 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
         <h3 className="text-sm font-medium text-text-primary mb-3 flex items-center gap-2">
           <ImageIcon size={15} className="text-purple-500" />
           参考图 (最多 9 张)
-          {selectedGirlfriend && (
+          {selectedGirlfriends.filter(Boolean).length > 0 && (
             <span className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-500 text-[10px] font-medium">
-              AI 女友模式
+              AI 女友模式 · {selectedGirlfriends.filter(Boolean).length} 位
             </span>
           )}
         </h3>
@@ -576,7 +652,7 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
         <textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          rows={8}
+          rows={16}
           placeholder="例如: 图片1为男主，图片2为女主，生成两人约会的视频提示词"
           disabled={submitting}
           className="w-full px-3 py-2 rounded-lg bg-bg-elevated border border-border text-sm text-text-primary placeholder-slate-500 focus:outline-none focus:border-primary/50 resize-none"
@@ -621,9 +697,15 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
             提示：可用 &lt;Picture 1&gt;, &lt;Picture 2&gt; 等引用参考图
           </span>
         </div>
-        {selectedGirlfriend && (
-          <div className="mt-2 px-2 py-1 rounded bg-red-50 border border-red-200 text-[10px] text-red-600">
-            已锚定数字人: {selectedGirlfriend.nameZh || selectedGirlfriend.name}
+        {selectedGirlfriends.filter(Boolean).length > 0 && (
+          <div className="mt-2 px-2 py-1.5 rounded bg-red-50 border border-red-200 text-[10px] text-red-600 flex items-start gap-2">
+            <span className="font-medium flex-shrink-0">已锚定数字人：</span>
+            <span className="flex flex-wrap gap-x-2 gap-y-0.5">
+              {selectedGirlfriends
+                .map((g, idx) => (g ? `图${idx + 1}=${g.nameZh || g.name}` : null))
+                .filter(Boolean)
+                .join('，')}
+            </span>
           </div>
         )}
         {/* 返回的优化提示词 */}

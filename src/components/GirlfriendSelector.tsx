@@ -23,16 +23,24 @@ import {
 import { DEFAULT_GIRLFRIEND_PRESETS } from '../data/girlfriendPresets';
 
 interface GirlfriendSelectorProps {
-  selectedId: string | null;
+  /** 已选 ID 列表（多数字人锚定场景使用） */
+  selectedIds?: string[];
+  /** 已选 ID（单选兼容字段，传入时会被视为 [selectedId]） */
+  selectedId?: string | null;
+  /** 点击女友回调（多数字人场景：父组件根据现有列表决定是新增还是移除） */
   onSelect: (girlfriend: GirlfriendPreset) => void;
   disabled?: boolean;
 }
 
 export function GirlfriendSelector({
+  selectedIds,
   selectedId,
   onSelect,
   disabled,
 }: GirlfriendSelectorProps) {
+  // 兼容旧 API：如果只传 selectedId 则视为单选数组
+  const activeSelectedIds: string[] =
+    selectedIds ?? (selectedId ? [selectedId] : []);
   const [activeTab, setActiveTab] = useState<'presets' | 'custom'>('presets');
   const [customGirlfriends, setCustomGirlfriends] = useState<CustomGirlfriend[]>(() =>
     getCustomGirlfriends()
@@ -220,7 +228,7 @@ export function GirlfriendSelector({
           {activeTab === 'presets' && (
             <CompactAvatarGrid
               girlfriends={presets}
-              selectedId={selectedId}
+              selectedIds={activeSelectedIds}
               onSelect={onSelect}
               onDoubleClick={handleDoubleClick}
               onDelete={undefined}
@@ -238,7 +246,7 @@ export function GirlfriendSelector({
               ) : (
                 <CompactAvatarGrid
                   girlfriends={customPresets}
-                  selectedId={selectedId}
+                  selectedIds={activeSelectedIds}
                   onSelect={onSelect}
                   onDoubleClick={handleDoubleClick}
                   onDelete={(id, e) => handleDeleteCustom(id.replace('custom_', ''), e)}
@@ -444,7 +452,7 @@ export function GirlfriendSelector({
 
 interface CompactAvatarGridProps {
   girlfriends: GirlfriendPreset[];
-  selectedId: string | null;
+  selectedIds: string[];
   onSelect: (gf: GirlfriendPreset) => void;
   onDoubleClick: (gf: GirlfriendPreset) => void;
   onDelete?: (id: string, e: React.MouseEvent) => void;
@@ -453,7 +461,7 @@ interface CompactAvatarGridProps {
 
 function CompactAvatarGrid({
   girlfriends,
-  selectedId,
+  selectedIds,
   onSelect,
   onDoubleClick,
   onDelete,
@@ -465,7 +473,7 @@ function CompactAvatarGrid({
         <AvatarBubble
           key={gf.id}
           girlfriend={gf}
-          isSelected={selectedId === gf.id}
+          isSelected={selectedIds.includes(gf.isCustom ? `custom_${gf.id}` : gf.id)}
           onSelect={onSelect}
           onDoubleClick={onDoubleClick}
           onDelete={onDelete}

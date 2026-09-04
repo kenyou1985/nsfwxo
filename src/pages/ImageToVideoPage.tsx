@@ -1123,7 +1123,7 @@ function MiniMaxH3Panel({
     <div className="space-y-4">
       {/* GirlfriendSelector - 数字人锚定 */}
       <GirlfriendSelector
-        selectedId={selectedGirlfriend ? (selectedGirlfriend.isCustom ? `custom_${selectedGirlfriend.id}` : selectedGirlfriend.id) : null}
+        selectedIds={selectedGirlfriend ? [(selectedGirlfriend.isCustom ? `custom_${selectedGirlfriend.id}` : selectedGirlfriend.id)] : []}
         onSelect={handleGirlfriendSelect}
         disabled={girlfriendUploading || isSubmitting}
       />
@@ -1728,7 +1728,7 @@ function MiniMaxLongVideoPanel({
     <div className="space-y-4">
       {/* GirlfriendSelector - 数字人锚定 */}
       <GirlfriendSelector
-        selectedId={selectedGirlfriend ? (selectedGirlfriend.isCustom ? `custom_${selectedGirlfriend.id}` : selectedGirlfriend.id) : null}
+        selectedIds={selectedGirlfriend ? [(selectedGirlfriend.isCustom ? `custom_${selectedGirlfriend.id}` : selectedGirlfriend.id)] : []}
         onSelect={handleGirlfriendSelect}
         disabled={girlfriendUploading || isSubmitting}
       />
@@ -3456,7 +3456,7 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
         <div key="wan22">
       {/* Girlfriend 选择器 */}
       <GirlfriendSelector
-        selectedId={selectedGirlfriend ? (selectedGirlfriend.isCustom ? `custom_${selectedGirlfriend.id}` : selectedGirlfriend.id) : null}
+        selectedIds={selectedGirlfriend ? [(selectedGirlfriend.isCustom ? `custom_${selectedGirlfriend.id}` : selectedGirlfriend.id)] : []}
         onSelect={handleGirlfriendSelect}
         disabled={girlfriendUploading || isSubmitting}
       />
