@@ -4711,6 +4711,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     setOutlineScenes([]);
     setSelectedThemes([]);
     setThemeOutlineStates({});
+    // 关键：重置 activeThemeTab，退出多主题 tab 模式，使 activePanels 回退到顶层 panels 状态
+    setActiveThemeTab(null);
     console.log('[handleHistoryLoad] 基础状态已全部更新');
     setCurrentHistoryId(item.id);
     console.log('[handleHistoryLoad] setCurrentHistoryId(', item.id, ') 已调用');
