@@ -220,6 +220,8 @@ export function ImageToImagePage({
       setSelectedGirlfriend(gf);
       setUploadError(null);
       setGirlfriendUploading(true);
+      // 立即用 portraitUrl 作为预览（避免 fetch 转 blob 在移动端失败导致预览为空）
+      setPreviewUrl(gf.portraitUrl);
       try {
         let file: File;
         let preview: string;
@@ -230,14 +232,12 @@ export function ImageToImagePage({
           const blob = await res.blob();
           file = new File([blob], `${gf.id}.jpg`, { type: blob.type || 'image/jpeg' });
           preview = gf.portraitUrl;
-          setPreviewUrl(preview);
         } else {
           // 外部 URL: 走原逻辑
           const res = await fetch(gf.portraitUrl);
           const blob = await res.blob();
           file = new File([blob], `${gf.id}.jpg`, { type: blob.type || 'image/jpeg' });
           preview = URL.createObjectURL(file);
-          setPreviewUrl(preview);
         }
 
         const { imagePath, downloadUrl } = await uploadImage(apiKey, file);
@@ -246,9 +246,9 @@ export function ImageToImagePage({
         onSuccess(`已选择女友「${gf.nameZh || gf.name}」作为参考`);
       } catch (err) {
         const msg = err instanceof Error ? err.message : '未知错误';
-        onError(`女友图片上传失败: ${msg}`);
-        setSelectedGirlfriend(null);
-        setPreviewUrl('');
+        onError(`女友图片上传失败: ${msg}，已临时显示参考图`);
+        // 上传失败：保留 previewUrl (portraitUrl)，用户仍能看到图片
+        // 但 params.uploadedImagePath 为空，提交时会提示
       } finally {
         setGirlfriendUploading(false);
       }

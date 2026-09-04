@@ -1521,31 +1521,41 @@ function MiniMaxLongVideoPanel({
   const handleGirlfriendSelect = useCallback(async (gf: GirlfriendPreset) => {
     setSelectedGirlfriend(gf);
     setGirlfriendUploading(true);
+    // 立即用 portraitUrl 作为预览（避免 fetch 转 blob 在移动端失败导致预览为空）
+    const initialPreview = gf.portraitUrl;
+    setMlImages(prev => {
+      const updated = [...prev];
+      updated[0] = { path: '', preview: initialPreview };
+      return updated;
+    });
+
     try {
       let file: File;
-      let objectUrl: string;
+      let preview: string;
 
       if (gf.portraitUrl.startsWith('data:')) {
         const res = await fetch(gf.portraitUrl);
         const blob = await res.blob();
         file = new File([blob], `${gf.id}.jpg`, { type: blob.type || 'image/jpeg' });
-        objectUrl = gf.portraitUrl;
+        preview = gf.portraitUrl;
       } else {
         const res = await fetch(gf.portraitUrl);
         const blob = await res.blob();
         file = new File([blob], `${gf.id}.jpg`, { type: blob.type || 'image/jpeg' });
-        objectUrl = URL.createObjectURL(blob);
+        preview = URL.createObjectURL(blob);
       }
 
       const { imagePath } = await uploadImage(apiKey, file);
-      // Add as first reference image
+      // Add as first reference image (保留已有图片，限制最大 9 张)
       setMlImages(prev => {
-        const updated = [{ path: imagePath, preview: objectUrl }, ...prev.slice(0, 2)];
-        return updated;
+        const updated = [{ path: imagePath, preview }, ...prev];
+        return updated.slice(0, 9);
       });
       onSuccess(`已选择女友「${gf.nameZh || gf.name}」并设为参考图`);
     } catch (err) {
-      onError(err instanceof Error ? err.message : '上传失败');
+      const msg = err instanceof Error ? err.message : '上传失败';
+      onError(`女友图片上传失败: ${msg}，已临时显示参考图`);
+      // 上传失败：保留 portraitUrl 作为临时预览，用户仍能看到图片（仅 path 为空，提交时会提示）
     } finally {
       setGirlfriendUploading(false);
     }
@@ -1874,77 +1884,6 @@ function MiniMaxLongVideoPanel({
             已锚定数字人：{selectedGirlfriend.nameZh || selectedGirlfriend.name}
           </div>
         )}
-
-        {/* MiniMax H3 提示词引擎 */}
-        <div className="mt-3 pt-3 border-t border-border">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-indigo-600 flex items-center gap-1">
-              <Sparkles size={12} />
-              MiniMax H3 提示词引擎
-            </span>
-          </div>
-          {/* 时长选择 */}
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-[11px] text-text-tertiary">视频时长：</span>
-            {([15, 30, 60] as const).map((d) => (
-              <button
-                key={d}
-                type="button"
-                onClick={() => setMlH3Duration?.(d)}
-                className={`px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${
-                  mlH3Duration === d ? 'bg-indigo-500 text-white' : 'bg-bg-elevated text-text-secondary hover:bg-indigo-100'
-                }`}
-              >
-                {d}秒
-              </button>
-            ))}
-          </div>
-          {/* 操作按钮行 */}
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => handleGenerateH3Prompt?.()}
-              disabled={isSubmitting || !mlPrompts.some((p) => p.trim())}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-500 text-white hover:bg-indigo-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Sparkles size={12} />
-              生成H3视频提示词
-            </button>
-            {mlH3Prompt && (
-              <button
-                type="button"
-                onClick={handleGotoLongVideoWithH3}
-                disabled={isSubmitting}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90 transition-colors disabled:opacity-50"
-              >
-                <Video size={12} />
-                图生视频 → 长视频1.1
-              </button>
-            )}
-          </div>
-          {/* H3 提示词预览 */}
-          {mlH3Prompt && (
-            <div className="mt-2">
-              <textarea
-                value={mlH3Prompt}
-                onChange={(e) => setMlH3Prompt?.(e.target.value)}
-                rows={6}
-                className="w-full px-3 py-2 rounded-lg bg-indigo-50 border border-indigo-200 text-[11px] text-indigo-800 font-mono focus:outline-none focus:border-indigo-400 resize-none"
-                placeholder="生成的 H3 视频提示词..."
-              />
-              <div className="flex items-center justify-between mt-1">
-                <span className="text-[10px] text-indigo-400">H3 Ref2VA 六段式提示词（可编辑）</span>
-                <button
-                  type="button"
-                  onClick={() => { navigator.clipboard?.writeText(mlH3Prompt); onSuccess('已复制到剪贴板'); }}
-                  className="text-[10px] text-indigo-500 hover:text-indigo-700 flex items-center gap-0.5"
-                >
-                  <Copy size={10} /> 复制
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
       </div>
 
       {/* 视频模型配置 */}
@@ -1983,7 +1922,7 @@ function MiniMaxLongVideoPanel({
         <div className="px-4 pb-4 pt-2">
           <ThemeLibraryPanel
             on应用提示词={(提示词) => {
-              setMlH3Prompt?.(提示词);
+              updatePrompt(0, 提示词);
               onSuccess?.('已应用主题提示词');
             }}
             on批量生成={handleThemeBatchGenerate}
