@@ -1436,8 +1436,8 @@ interface MiniMaxLongVideoPanelProps {
   onError: (msg: string) => void;
   onSuccess: (msg: string) => void;
   taskListRef: React.RefObject<{ submitTask: (prompt: string, imagePath: string, imagePreview: string, nodeInfoList: NodeInfo[], workflowId?: string) => void } | null>;
-  selectedGirlfriend: GirlfriendPreset | null;
-  setSelectedGirlfriend: (gf: GirlfriendPreset | null) => void;
+  selectedGirlfriends: GirlfriendPreset[];
+  setSelectedGirlfriends: React.Dispatch<React.SetStateAction<GirlfriendPreset[]>>;
   girlfriendUploading: boolean;
   setGirlfriendUploading: (v: boolean) => void;
   /** H3 提示词引擎相关 */
@@ -1457,7 +1457,7 @@ function MiniMaxLongVideoPanel({
   mlVideoModel, setMlVideoModel, mlLora, setMlLora, mlLoraWeight, setMlLoraWeight,
   mlUploading, setMlUploading, isSubmitting, setIsSubmitting,
   onError, onSuccess, taskListRef,
-  selectedGirlfriend, setSelectedGirlfriend, girlfriendUploading, setGirlfriendUploading,
+  selectedGirlfriends, setSelectedGirlfriends, girlfriendUploading, setGirlfriendUploading,
   mlH3Prompt, setMlH3Prompt, mlH3Duration, setMlH3Duration,
   handleGenerateH3Prompt, handleGotoLongVideoWithH3,
   onBatchProgress,
@@ -1517,22 +1517,73 @@ function MiniMaxLongVideoPanel({
     onSuccess(`已应用模板：${template.name}`);
   };
 
-  // Girlfriend selection handler
+  // 寻找指定女友已锚定的槽位索引（未锚定返回 -1）
+  const findSlotByGirlfriendId = useCallback(
+    (gf: GirlfriendPreset): number => {
+      const targetId = gf.isCustom ? `custom_${gf.id}` : gf.id;
+      return selectedGirlfriends.findIndex(
+        (g) => (g.isCustom ? `custom_${g.id}` : g.id) === targetId
+      );
+    },
+    [selectedGirlfriends]
+  );
+
+  // 多数字人锚定：点击未锚定女友 → 自动占下一个空槽位；
+  //               点击已锚定女友 → 取消锚定并清空该槽位图片。
   const handleGirlfriendSelect = useCallback(async (gf: GirlfriendPreset) => {
-    setSelectedGirlfriend(gf);
-    setGirlfriendUploading(true);
-    // 立即用 portraitUrl 作为预览（避免 fetch 转 blob 在移动端失败导致预览为空）
-    const initialPreview = gf.portraitUrl;
-    setMlImages(prev => {
-      const updated = [...prev];
-      updated[0] = { path: '', preview: initialPreview };
+    const existingIdx = findSlotByGirlfriendId(gf);
+
+    // 1) 已锚定 → 取消锚定
+    if (existingIdx >= 0) {
+      setSelectedGirlfriends((prev) => prev.filter((_, idx) => idx !== existingIdx));
+      setMlImages((imgs) => {
+        const updated = [...imgs];
+        updated[existingIdx] = { path: 'None', preview: '' };
+        return updated;
+      });
+      onSuccess(`已取消锚定「${gf.nameZh || gf.name}」（参考图 ${existingIdx + 1} 已清空）`);
+      return;
+    }
+
+    // 2) 未锚定 → 寻找下一个空槽位
+    const occupiedSlots = new Set<number>();
+    selectedGirlfriends.forEach((g, idx) => {
+      if (g) occupiedSlots.add(idx);
+    });
+    let emptyIdx = -1;
+    for (let i = 0; i < mlImages.length; i++) {
+      const img = mlImages[i];
+      if (occupiedSlots.has(i)) continue;
+      if (!img.path || img.path === 'None' || !img.preview) {
+        emptyIdx = i;
+        break;
+      }
+    }
+    if (emptyIdx < 0) {
+      onError('参考图已满（9/9），请先移除一张图片后再添加新的数字人');
+      return;
+    }
+
+    // 3) 立刻把女友放到对应槽位（乐观更新）
+    const slotIdx = emptyIdx;
+    setSelectedGirlfriends((prev) => {
+      const next = [...prev];
+      while (next.length <= slotIdx) next.push(undefined as unknown as GirlfriendPreset);
+      next[slotIdx] = gf;
+      return next;
+    });
+    // 立即用 portraitUrl 作为预览
+    setMlImages((imgs) => {
+      const updated = [...imgs];
+      updated[slotIdx] = { path: '', preview: gf.portraitUrl };
       return updated;
     });
 
+    // 4) 异步上传
+    setGirlfriendUploading(true);
     try {
       let file: File;
       let preview: string;
-
       if (gf.portraitUrl.startsWith('data:')) {
         const res = await fetch(gf.portraitUrl);
         const blob = await res.blob();
@@ -1544,27 +1595,26 @@ function MiniMaxLongVideoPanel({
         file = new File([blob], `${gf.id}.jpg`, { type: blob.type || 'image/jpeg' });
         preview = URL.createObjectURL(blob);
       }
-
       const { imagePath } = await uploadImage(apiKey, file);
-      // 用真实路径替换 slot 0（即时预览只占位用，upload 后务必覆盖掉，避免 slot 0/1 同时显示同一张图）
-      setMlImages(prev => {
-        const updated = [...prev];
-        updated[0] = { path: imagePath, preview };
+      setMlImages((imgsPrev) => {
+        const updated = [...imgsPrev];
+        updated[slotIdx] = { path: imagePath, preview };
         return updated;
       });
-      onSuccess(`已选择女友「${gf.nameZh || gf.name}」并设为参考图`);
+      onSuccess(`已锚定「${gf.nameZh || gf.name}」到参考图 ${slotIdx + 1}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : '上传失败';
       onError(`女友图片上传失败: ${msg}，已临时显示参考图`);
-      // 上传失败：保留 portraitUrl 作为临时预览，用户仍能看到图片（仅 path 为空，提交时会提示）
+      setSelectedGirlfriends((p) => p.filter((_, idx) => idx !== slotIdx));
     } finally {
       setGirlfriendUploading(false);
     }
-  }, [apiKey, setMlImages, onSuccess, onError, setSelectedGirlfriend, setGirlfriendUploading]);
+  }, [apiKey, mlImages, selectedGirlfriends, findSlotByGirlfriendId, onSuccess, onError, setSelectedGirlfriends, setMlImages, setGirlfriendUploading]);
 
-  // Build full prompt with character anchor
+  // Build full prompt with character anchor (从第一个锚定的数字人获取 identity prompt)
   const getFullPrompt = (index: number): string => {
-    const identityPrefix = selectedGirlfriend?.characterPrompt || '';
+    const firstGirlfriend = selectedGirlfriends[0];
+    const identityPrefix = firstGirlfriend?.characterPrompt || '';
     const prompt = mlPrompts[index] || '';
     return identityPrefix ? `${identityPrefix} ${prompt}`.trim() : prompt;
   };
@@ -1739,7 +1789,9 @@ function MiniMaxLongVideoPanel({
     <div className="space-y-4">
       {/* GirlfriendSelector - 数字人锚定 */}
       <GirlfriendSelector
-        selectedIds={selectedGirlfriend ? [(selectedGirlfriend.isCustom ? `custom_${selectedGirlfriend.id}` : selectedGirlfriend.id)] : []}
+        selectedIds={selectedGirlfriends
+          .filter(Boolean)
+          .map((g) => (g.isCustom ? `custom_${g.id}` : g.id))}
         onSelect={handleGirlfriendSelect}
         disabled={girlfriendUploading || isSubmitting}
       />
@@ -1749,7 +1801,7 @@ function MiniMaxLongVideoPanel({
         type="video"
         onSelect={handlePoseSelect}
         disabled={isSubmitting}
-        selectedGirlfriend={selectedGirlfriend}
+        selectedGirlfriend={selectedGirlfriends[0] ?? null}
       />
 
       {/* 参考图上传 - 支持最多9张 */}
@@ -1758,7 +1810,7 @@ function MiniMaxLongVideoPanel({
           <h3 className="text-sm font-medium text-text-primary flex items-center gap-2">
             <ImageIcon size={16} className="text-cyan-500" />
             参考图（最多9张）
-            {selectedGirlfriend && (
+            {selectedGirlfriends[0] && (
               <span className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-500 text-[10px] font-medium">
                 AI 女友模式
               </span>
@@ -1880,9 +1932,9 @@ function MiniMaxLongVideoPanel({
             </div>
           ))}
         </div>
-        {selectedGirlfriend && (
+        {selectedGirlfriends[0] && (
           <div className="mt-2 px-2 py-1 rounded bg-red-50 border border-red-200 text-[10px] text-red-600">
-            已锚定数字人：{selectedGirlfriend.nameZh || selectedGirlfriend.name}
+            已锚定数字人：{selectedGirlfriends[0].nameZh || selectedGirlfriends[0].name}
           </div>
         )}
       </div>
@@ -2678,7 +2730,7 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
   const [mlLora, setMlLora] = useState('');
   const [mlLoraWeight, setMlLoraWeight] = useState(0.4);
   const [mlUploading, setMlUploading] = useState(false);
-  const [mlSelectedGirlfriend, setMlSelectedGirlfriend] = useState<GirlfriendPreset | null>(null);
+  const [mlSelectedGirlfriends, setMlSelectedGirlfriends] = useState<GirlfriendPreset[]>([]);
   const [mlGirlfriendUploading, setMlGirlfriendUploading] = useState(false);
 
   // MiniMax H3 提示词引擎状态（截图2 图生视频区域）
@@ -3366,8 +3418,8 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
           onError={onError}
           onSuccess={onSuccess}
           taskListRef={taskListRef}
-          selectedGirlfriend={mlSelectedGirlfriend}
-          setSelectedGirlfriend={setMlSelectedGirlfriend}
+          selectedGirlfriends={mlSelectedGirlfriends}
+          setSelectedGirlfriends={setMlSelectedGirlfriends}
           girlfriendUploading={mlGirlfriendUploading}
           setGirlfriendUploading={setMlGirlfriendUploading}
           mlH3Prompt={mlH3Prompt}
