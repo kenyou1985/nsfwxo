@@ -2402,16 +2402,36 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
       if (h3BatchLongVideoData) {
         sessionStorage.removeItem('storyboard_h3_longvideo_batch');
         try {
-          const { images: batchImages, h3Prompt: batchH3Prompt, totalPanels } = JSON.parse(h3BatchLongVideoData);
+          const sessionEntry = JSON.parse(h3BatchLongVideoData);
+          // 【深度修复】sessionStorage 里现在只放一个 ~64 字节的 ref（指向
+          // IndexedDB 里的完整 JSON payload），sessionStorage 永远不会被撑爆。
+          // payload 包含 images/h3Prompt/shotPrompts/totalPanels 等全部数据。
+          // 兼容两种老格式：
+          //   { ref: 'xxx' }                    — 新格式（IndexedDB 存大块数据）
+          //   { images: [...], h3Prompt, ... }  — 极旧的内联格式（fallback）
+          let batchImages: Array<{ idx: number; path: string; preview: string }> = [];
+          let batchH3Prompt = '';
+          if (sessionEntry.ref) {
+            const jsonStr = resolveImageRef(sessionEntry.ref);
+            if (!jsonStr) {
+              throw new Error('IndexedDB 中找不到批量跳转数据，可能缓存已被清理。请返回上一页面重新生成。');
+            }
+            const payload = JSON.parse(jsonStr);
+            batchImages = payload.images || [];
+            batchH3Prompt = payload.h3Prompt || '';
+          } else {
+            // 兼容老 inline 格式（用户从旧部署缓存来的 sessionStorage）
+            batchImages = sessionEntry.images || [];
+            batchH3Prompt = sessionEntry.h3Prompt || '';
+          }
           // 切换到长视频 1.1 模型
           setVideoModel('longvideov2');
           // 设置多张参考图（用于 NinfiniteLongVideoPage 的多图 slots）
-          if (Array.isArray(batchImages) && batchImages.length > 0) {
-            // 【修复】sessionStorage 里存的是 cacheKey（~64字节），不是 data URL，
-            // 否则 6 张分镜 × ~3MB 直接撑爆 5MB 配额 → QuotaExceededError。
-            // preview 在写入端是 storeImage() 返回的 cacheKey，消费端必须通过
-            // resolveImageRef(cacheKey) 从 unified cache (IndexedDB) 把 data URL 取回。
-            // path 仍是 server URL，用于 RunningHub API，不需 resolve。
+          if (batchImages.length > 0) {
+            // 【fix】preview 在写入端已是 cacheKey，消费端必须通过 resolveImageRef
+            // 从 unified cache (IndexedDB) 把 data URL 取回，否则 <img> 拿到的是
+            // cacheKey 字符串（破裂图标）。
+            // path 仍是 server URL（用于 RunningHub API），不需 resolve。
             const resolvedImages = batchImages.map((img: { idx: number; path: string; preview: string }) => ({
               idx: img.idx,
               path: img.path,
@@ -2428,9 +2448,10 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
             setMlH3Prompt(batchH3Prompt);
             setNlInitialPrompt(batchH3Prompt);
           }
-          onSuccess?.(`已从剧情分镜批量导入 ${batchImages?.length || 0}/${totalPanels || '?'} 张图片 + 完整 H3 提示词到长视频 1.1`);
+          onSuccess?.(`已从剧情分镜批量导入 ${batchImages.length}/${sessionEntry.totalPanels || '?'} 张图片 + 完整 H3 提示词到长视频 1.1`);
         } catch (err) {
           console.warn('[ImageToVideoPage] Failed to process storyboard_h3_longvideo_batch:', err);
+          onError?.(err instanceof Error ? err.message : `批量跳转数据读取失败：${String(err)}`);
         }
       }
       // 处理随机抽卡 → 长视频 1.1 数据

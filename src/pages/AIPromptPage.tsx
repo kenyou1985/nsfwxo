@@ -5530,16 +5530,25 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       const prependConstraint = panelH3ConstraintEnabled[curHistoryId] ? H3_CONSTRAINT_TEXT : undefined;
       const fullH3Prompt = assembleH3Prompt(curCommonParts, sortedShots, panelH3Duration, prependConstraint);
 
-      // Step 4: 存储到 sessionStorage，由 ImageToVideoPage 消费
-      // 注意：使用新的 key storyboard_h3_longvideo_batch，与单分镜的 storyboard_h3_longvideo 区分
-      // 【修复】包一层 try/catch 防御：万一 shotPrompts 异常大或 fullH3Prompt 巨大，
-      // JSON.stringify + setItem 仍可能撞 quota，给用户一个能看懂的错误而不是
-      // 原始的 "QuotaExceededError: The quota has been exceeded."
+      // Step 4: 构造跳转数据 → 全部入 IndexedDB，sessionStorage 只放一个 ~64字节的 ref。
+      // 【关键】修复 sessionStorage QuotaExceededError：之前是直接把 6 张 data URL
+      // (~3MB/张) + h3Prompt + shotPrompts 一起塞进 5MB sessionStorage，必然溢出。
+      // 改成：把所有"大块数据"（preview data URLs、h3Prompt、shotPrompts）打成一个
+      // JSON 字符串，调用 storeImage() 存进 unified cache (IndexedDB)，只把 ref 写
+      // sessionStorage。sessionStorage 写一个 ~64字节字符串，零 quota 风险。
+      // consumer 端 ImageToVideoPage 通过 resolveImageRef(ref) 从 IndexedDB 读回
+      // 整个 JSON payload，再解析成 images/h3Prompt/shotPrompts。
       try {
-        sessionStorage.setItem('storyboard_h3_longvideo_batch', JSON.stringify({
-          images: uploadedImages,  // 多图上传（已是 server URL，不含 data URL）
+        const payloadJson = JSON.stringify({
+          images: uploadedImages,  // preview 已在上一步替换成 cacheKey
           h3Prompt: fullH3Prompt,
-          shotPrompts: sortedShots,  // 每个分镜的 [Shot N] 单独保存，便于调试
+          shotPrompts: sortedShots,
+          totalPanels: activePanels.length,
+        });
+        const batchRef = await storeImage(payloadJson);  // 复用现有 IndexedDB 通道
+        console.log(`[handleBatchGotoLongVideoWithH3] batch payload=${(payloadJson.length / 1024).toFixed(1)}KB → ref=${batchRef}`);
+        sessionStorage.setItem('storyboard_h3_longvideo_batch', JSON.stringify({
+          ref: batchRef,
           totalPanels: activePanels.length,
           processed: false,
         }));
