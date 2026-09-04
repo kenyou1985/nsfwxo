@@ -3770,8 +3770,6 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   const activeOutlineScenes = activeThemeTab !== null ? (themeOutlineStates[activeThemeTab]?.outlineScenes || []) : outlineScenes;
   const activePanels = activeThemeTab !== null ? (themeOutlineStates[activeThemeTab]?.panels || []) : panels;
   const activeThemeInfo = activeThemeTab !== null ? selectedThemes.find((t) => t.id === activeThemeTab) : (selectedTheme || (selectedThemes[0] ?? null));
-  // Debug: track activePanels changes
-  console.log('[derived] activeThemeTab=', activeThemeTab, 'activePanels.length=', activePanels.length, 'panels.length=', panels.length);
   // True when the user has selected a theme tab that has no panels yet
   // but is still generating or has failed. Used to keep the panels
   // section mounted (showing a generating placeholder) instead of
@@ -3804,9 +3802,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
 
   useEffect(() => {
     const hid = sbHistoryId;
-    console.log('[storyboard cache effect] triggered - hid=', hid, 'activePanels.length=', activePanels.length);
     if (!hid || activePanels.length === 0) {
-      console.log('[storyboard cache effect] 跳过 - hid 或 activePanels 为空');
       return;
     }
 
@@ -4686,25 +4682,16 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   const handleCopyAll = () => { navigator.clipboard.writeText(panels.map((p) => `[Panel ${p.panel_number}]\n${p.image_prompt}`).join('\n\n')).then(() => { setCopiedPanel(-1); setTimeout(() => setCopiedPanel(null), 2000); }); };
   const handleDeleteHistory = (id: string) => { removeStoryboardHistory(id); setHistory(getStoryboardHistory()); };
   const handleHistoryLoad = async (item: StoryboardHistoryItem) => {
-    console.log('[handleHistoryLoad] START - item:', { id: item.id, plot: item.plot, panelCount: item.panel_count, panelsLength: item.panels?.length, hasPanelImages: !!item.panelImages, hasZipUrl: !!item.zipUrl });
-
     // 防御：旧历史记录可能没有 panels 字段，避免 setPanels(undefined) 导致崩溃
     if (!item.panels || item.panels.length === 0) {
-      console.warn('[handleHistoryLoad] 历史记录缺少 panels 数据，item=', JSON.stringify(item));
       onError?.('该历史记录缺少分镜数据，请重新生成分镜');
       return;
     }
 
-    console.log('[handleHistoryLoad] panels 数据正常，开始更新状态');
-
     setShowHistory(false);  // 先关闭历史面板，避免 React 批处理时状态混乱
-    console.log('[handleHistoryLoad] setShowHistory(false) 已调用');
     setStoryStep('panels');
-    console.log('[handleHistoryLoad] setStoryStep(panels) 已调用');
     setPlot(item.plot);
-    console.log('[handleHistoryLoad] setPlot 已调用');
     setPanels(item.panels);
-    console.log('[handleHistoryLoad] setPanels 已调用，panels.length=', item.panels.length);
     setVideoScript(null);
     setPanelVideoPrompts({});
     setOutlineArc('');
@@ -4713,11 +4700,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     setThemeOutlineStates({});
     // 关键：重置 activeThemeTab，退出多主题 tab 模式，使 activePanels 回退到顶层 panels 状态
     setActiveThemeTab(null);
-    console.log('[handleHistoryLoad] 基础状态已全部更新');
     setCurrentHistoryId(item.id);
-    console.log('[handleHistoryLoad] setCurrentHistoryId(', item.id, ') 已调用');
     sessionStorage.setItem('sb_latest_history_id', item.id);
-    console.log('[handleHistoryLoad] sessionStorage sb_latest_history_id 已设置');
 
     // Restore images for this history entry from three sources (same priority as HistoryPage):
     // 1. direct panelImages field in history record (fastest, already in memory)
@@ -4732,19 +4716,15 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       }
     }
 
-    console.log('[handleHistoryLoad] initial genStates 已构建，keys=', Object.keys(initial).join(', '));
     setGenStates(initial);
-    console.log('[handleHistoryLoad] setGenStates(initial) 已调用');
 
     // Save theme title to session so handleBatchGenerate can use it even after selectedThemes is cleared
     saveStoryboardSession({
       plot: item.plot, panelCount: item.panel_count, panels: item.panels, expandedPanel: null,
       themeTitle: item.plot, historyId: item.id,
     });
-    console.log('[handleHistoryLoad] saveStoryboardSession 已调用');
     // Also update selectedTheme so activeThemeInfo is populated for batch generate
     setSelectedTheme({ id: 0, title: item.plot, description: '', tags: [], r18_level: '', category: undefined });
-    console.log('[handleHistoryLoad] setSelectedTheme 已调用');
 
     // Background: pull images from each panel's zip for any panel slot
     // still empty. Same "ask the zip" path used by the mount effect and
@@ -4754,9 +4734,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     // 确保刚加载的图片（initial 中的 data URL）被立即缓存到 unified store，
     // 避免因 effect 触发时 genStates 仍为旧值而导致图片破裂。
     try {
-      console.log('[handleHistoryLoad] 开始 convertAndCache');
       convertAndCache(item.id, initial);
-      console.log('[handleHistoryLoad] convertAndCache 调用完成');
     } catch (e) {
       console.error('[handleHistoryLoad] convertAndCache 异常:', e);
     }
@@ -4768,14 +4746,11 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
 
       const panelZip = item.panelZipUrls?.[i] || item.zipUrl;
       if (!panelZip) {
-        console.log('[handleHistoryLoad] panel', i, '没有 zipUrl，跳过');
         continue;
       }
 
-      console.log('[handleHistoryLoad] 开始解压 panel', i, '的 zip:', panelZip.slice(0, 80));
       extractImagesFromZipAsDataUrls(panelZip)
         .then((images) => {
-          console.log('[handleHistoryLoad] panel', i, 'zip 解压完成，images.length=', images.length);
           const usable = images.filter((img) => img && img.startsWith('data:'));
           if (usable.length === 0) return;
           setGenStates((prev) => {
@@ -4792,7 +4767,6 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
           console.error('[handleHistoryLoad] panel', i, 'zip extraction failed:', err);
         });
     }
-    console.log('[handleHistoryLoad] 所有 zip 解压任务已提交，函数结束');
   };
 
   const handleToggleFavorite = (imageUrl: string, prompt?: string) => {
@@ -6651,7 +6625,6 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       {/* Panels */}
       {(() => {
         const shouldShow = storyStep === 'panels' && (activePanels.length > 0 || activeThemeTabInFlight);
-        console.log('[render] panels section - storyStep=', storyStep, 'activePanels.length=', activePanels.length, 'activeThemeTabInFlight=', activeThemeTabInFlight, 'shouldShow=', shouldShow);
         return shouldShow;
       })() && (
         <div className="space-y-3">
