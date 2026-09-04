@@ -19,6 +19,7 @@ import { RunningHubModelPicker } from '../components/RunningHubModelPicker';
 import type { RunningHubModelEntry } from '../services/runninghubModelsService';
 import { NinfiniteLongVideoPage } from './NinfiniteLongVideoPage';
 import { generateH3Prompt } from '../services/h3PromptService';
+import { resolveImageRef } from '../services/imageCacheService';
 
 const DURATION_OPTIONS = [
   { value: '5', label: '5秒' },
@@ -2406,9 +2407,19 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
           setVideoModel('longvideov2');
           // 设置多张参考图（用于 NinfiniteLongVideoPage 的多图 slots）
           if (Array.isArray(batchImages) && batchImages.length > 0) {
-            setNlInitialImages(batchImages);
+            // 【修复】sessionStorage 里存的是 cacheKey（~64字节），不是 data URL，
+            // 否则 6 张分镜 × ~3MB 直接撑爆 5MB 配额 → QuotaExceededError。
+            // preview 在写入端是 storeImage() 返回的 cacheKey，消费端必须通过
+            // resolveImageRef(cacheKey) 从 unified cache (IndexedDB) 把 data URL 取回。
+            // path 仍是 server URL，用于 RunningHub API，不需 resolve。
+            const resolvedImages = batchImages.map((img: { idx: number; path: string; preview: string }) => ({
+              idx: img.idx,
+              path: img.path,
+              preview: resolveImageRef(img.preview) || img.preview,
+            }));
+            setNlInitialImages(resolvedImages);
             // 同时设置 slot 0 的图片（向后兼容）
-            setNlInitialImage({ path: batchImages[0].path, preview: batchImages[0].preview || batchImages[0].path });
+            setNlInitialImage({ path: resolvedImages[0].path, preview: resolvedImages[0].preview });
           }
           // 设置完整 H3 提示词 —— 同时写入 MiniMax H3 面板和 NinfiniteLongVideoPage
           // （Bug 修复：原来只 setMlH3Prompt，longvideov2 页面（NinfiniteLongVideoPage）看不到完整 H3 提示词。

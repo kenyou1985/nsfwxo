@@ -5493,30 +5493,29 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         let preview = pi.url;
         if (pi.url.startsWith('data:') || pi.url.startsWith('blob:')) {
           try {
-            // 【修复】在上传前保存原始 data URL。
-            // preview 不能用 server URL（rh-hk-images-switch.xiaoyaoyou.com 无 CORS 头，
-            // 浏览器 <img> 标签直接引用会显示破裂图标）。
-            // 但也不能直接塞回 sessionStorage（~20MB 撑爆 5MB 配额）。
-            // 正确做法：上传后主动把 data URL 写入 unified cache（IndexedDB），
-            // consumer 端 NinfiniteLongVideoPage 的 resolveImageRef 会从 IndexedDB
-            // 读出 data URL（不受 CORS 限制），UI 正常显示。
-            preview = pi.url;
+            // 【修复】不能在 sessionStorage 写原始 data URL：
+            // 6 张分镜 × ~3MB ≈ 18MB，直接撑爆 5MB 配额 → QuotaExceededError。
+            // 也不能用 server URL 当 preview（rh-hk-images-switch.xiaoyaoyou.com
+            // 无 CORS 头，浏览器 <img> 标签直接引用 → 破裂图标）。
+            // 正确做法：
+            //   path   = server URL （用于 RunningHub API）
+            //   preview = storeImage() 返回的 cacheKey （~64字节短字符串）
+            // 把 data URL 存到 unified cache (IndexedDB，容量充足)，然后只把
+            // cacheKey 写进 sessionStorage，consumer 端 resolveImageRef(cacheKey)
+            // 会从 IndexedDB 读出 data URL → <img> 正常渲染。
             const res = await fetch(pi.url);
             const blob = await res.blob();
             const file = new File([blob], `storyboard_h3_batch_${Date.now()}_${pi.idx}.jpg`, { type: 'image/jpeg' });
             const uploadResult = await uploadImage(apiKey, file);
             imagePath = uploadResult.imagePath;
-            // 上传完成后，立即将原始 data URL 写入 unified cache，
-            // 这样 consumer 端即使 sessionStorage 里只有纯文本路径，
-            // resolveImageRef 也能从 IndexedDB 找回 data URL 用于 <img> 渲染。
-            await storeImage(pi.url);
+            // storeImage 内部会 await _ensureSync()，确保 IndexedDB 可用。
+            // 返回值是 cacheKey，写到 sessionStorage 几乎不占空间。
+            preview = await storeImage(pi.url);
           } catch (uploadErr) {
             console.warn(`[handleBatchGotoLongVideoWithH3] 分镜 ${pi.idx + 1} 图片上传失败:`, uploadErr);
             continue;
           }
         }
-        // preview 用原始 data URL（已缓存到 IndexedDB），不受 CORS 限制，正常显示。
-        // path 用 server URL（用于 RunningHub API）。
         uploadedImages.push({ idx: pi.idx, path: imagePath, preview });
       }
 
