@@ -16,6 +16,7 @@ import type { NodeInfo } from '../types';
 import type { GirlfriendPreset } from '../data/girlfriendPresets';
 import { PosePresetSelector } from '../components/PosePresetSelector';
 import { RunningHubModelPicker } from '../components/RunningHubModelPicker';
+import ThemeLibraryPanel from '../components/ThemeLibraryPanel';
 import type { RunningHubModelEntry } from '../services/runninghubModelsService';
 import { NinfiniteLongVideoPage } from './NinfiniteLongVideoPage';
 import { generateH3Prompt } from '../services/h3PromptService';
@@ -247,7 +248,7 @@ interface AIPromptPanelProps {
 }
 
 function AIPromptPanel({ on应用 }: AIPromptPanelProps) {
-  const [模式, set模式] = useState<'智能视频' | '智能扩写' | '随机抽卡'>('智能视频');
+  const [模式, set模式] = useState<'智能视频' | '智能扩写' | '随机抽卡' | '主题库'>('智能视频');
   const [输入, set输入] = useState('');
   const [数量, set数量] = useState(5);
   const [R18模式, setR18模式] = useState(false);
@@ -403,7 +404,7 @@ function AIPromptPanel({ on应用 }: AIPromptPanelProps) {
       {/* 模式切换 */}
       <div className="flex items-center gap-2">
         <div className="flex bg-bg-elevated rounded-xl p-1">
-          {(['智能视频', '智能扩写', '随机抽卡'] as const).map((m) => (
+          {(['智能视频', '智能扩写', '随机抽卡', '主题库'] as const).map((m) => (
             <button
               key={m}
               onClick={() => set模式(m)}
@@ -414,6 +415,7 @@ function AIPromptPanel({ on应用 }: AIPromptPanelProps) {
               {m === '智能视频' && <Video size={11} />}
               {m === '智能扩写' && <Wand2 size={11} />}
               {m === '随机抽卡' && <Sparkles size={11} />}
+              {m === '主题库' && <Layers size={11} />}
               {m}
             </button>
           ))}
@@ -620,6 +622,17 @@ function AIPromptPanel({ on应用 }: AIPromptPanelProps) {
             </button>
           </div>
         </div>
+      )}
+
+      {/* 主题库模式 */}
+      {模式 === '主题库' && (
+        <ThemeLibraryPanel
+          on应用提示词={(提示词) => {
+            set结果列表([提示词]);
+            set选中索引(0);
+            set输出文本(提示词);
+          }}
+        />
       )}
     </div>
   );
