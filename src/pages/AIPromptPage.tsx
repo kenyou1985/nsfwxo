@@ -3307,6 +3307,11 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   const onErrorRef = useRef(onError);
   useEffect(() => { onSuccessRef.current = onSuccess; }, [onSuccess]);
   useEffect(() => { onErrorRef.current = onError; }, [onError]);
+  // 【修复】并发防护闸门：useState setBatchVideoLoading 是异步的，
+  // React 把 true 推给 DOM 之前用户可能再次点击按钮（disabled 还没生效），
+  // 导致同一批 6 张图被反复上传 + 重复写 sessionStorage → 撑爆配额
+  // → QuotaExceededError。ref 是同步的，从源头挡住重入。
+  const batchVideoUploadingRef = useRef(false);
 
   /**
    * 用于在异步任务完成（handlePromptTaskResult 'script' 分支）时拿到最新的 panels 列表。
@@ -5420,12 +5425,20 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
    *   4. 跳转到 img2vid 页面（自动切换到 longvideov2 模型）
    */
   const handleBatchGotoLongVideoWithH3 = useCallback(async () => {
-    if (activePanels.length === 0) { onError('没有可用的分镜'); return; }
+    // 【修复】ref 同步闸门，防止 useState 异步更新期间用户重复点击导致
+    // 上传重复 + sessionStorage 配额被撑爆。
+    if (batchVideoUploadingRef.current) {
+      console.warn('[handleBatchGotoLongVideoWithH3] 已有上传任务在执行，跳过重入');
+      return;
+    }
+    batchVideoUploadingRef.current = true;
+    if (activePanels.length === 0) { onError('没有可用的分镜'); batchVideoUploadingRef.current = false; return; }
     const curHistoryId = sbHistoryId || 'solo';
     const curShotMap = panelH3ShotMap[curHistoryId];
     const curCommonParts = panelH3CommonParts[curHistoryId];
     if (!curCommonParts || !curShotMap || curShotMap.size === 0) {
       onError('请先生成 H3 提示词（点击"一键批量生成 H3 提示词"）');
+      batchVideoUploadingRef.current = false;
       return;
     }
 
@@ -5489,7 +5502,15 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
             continue;
           }
         }
-        uploadedImages.push({ idx: pi.idx, path: imagePath, preview: pi.url });
+        // 【修复】preview 字段绝对不能塞原始 data URL：6 张分镜 × ~3MB ≈ 18MB，
+        // 直接撑爆 5MB 的 sessionStorage 配额 → setItem 抛 QuotaExceededError →
+        // 用户看到 "The quota has been exceeded"，但页面没跳转 → 误以为按钮没生效
+        // → 重复点击 → 再次上传 + 再次写入 → 错上加错。
+        // 这里用 server URL (imagePath) 作为 preview：
+        // 1. consumer 端 NinfiniteLongVideoPage 有 `img.preview || img.path` 回退，
+        //    <img src={serverUrl}> 不受 CORS 限制 (img 标签默认不强制 CORS)。
+        // 2. 不再写大对象进 sessionStorage，写入 6 张图总共 ~1KB 而非 18MB。
+        uploadedImages.push({ idx: pi.idx, path: imagePath, preview: imagePath });
       }
 
       if (uploadedImages.length === 0) {
@@ -5505,19 +5526,33 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
 
       // Step 4: 存储到 sessionStorage，由 ImageToVideoPage 消费
       // 注意：使用新的 key storyboard_h3_longvideo_batch，与单分镜的 storyboard_h3_longvideo 区分
-      sessionStorage.setItem('storyboard_h3_longvideo_batch', JSON.stringify({
-        images: uploadedImages,  // 多图上传
-        h3Prompt: fullH3Prompt,
-        shotPrompts: sortedShots,  // 每个分镜的 [Shot N] 单独保存，便于调试
-        totalPanels: activePanels.length,
-        processed: false,
-      }));
+      // 【修复】包一层 try/catch 防御：万一 shotPrompts 异常大或 fullH3Prompt 巨大，
+      // JSON.stringify + setItem 仍可能撞 quota，给用户一个能看懂的错误而不是
+      // 原始的 "QuotaExceededError: The quota has been exceeded."
+      try {
+        sessionStorage.setItem('storyboard_h3_longvideo_batch', JSON.stringify({
+          images: uploadedImages,  // 多图上传（已是 server URL，不含 data URL）
+          h3Prompt: fullH3Prompt,
+          shotPrompts: sortedShots,  // 每个分镜的 [Shot N] 单独保存，便于调试
+          totalPanels: activePanels.length,
+          processed: false,
+        }));
+      } catch (storageErr) {
+        const isQuota = storageErr instanceof DOMException && storageErr.name === 'QuotaExceededError';
+        console.error('[handleBatchGotoLongVideoWithH3] sessionStorage 写入失败:', storageErr);
+        onError(isQuota
+          ? `跳转数据过大（${uploadedImages.length} 张分镜图），无法写入浏览器临时存储。请先清理浏览器数据后重试。`
+          : `写入跳转数据失败：${storageErr instanceof Error ? storageErr.message : String(storageErr)}`);
+        return;
+      }
       onSuccess(`已切换到长视频 1.1：${uploadedImages.length} 张分镜图 + 完整 H3 提示词已填入`);
       onNavigate?.('img2vid');
     } catch (err) {
       onError(err instanceof Error ? err.message : '批量跳转到长视频 1.1 失败');
     } finally {
       setBatchVideoLoading(false);
+      // 【修复】无论成功失败都释放并发闸门，否则后续点击会被永久挡掉。
+      batchVideoUploadingRef.current = false;
     }
   }, [
     activePanels, panelH3CommonParts, panelH3ShotMap, panelH3Duration,
