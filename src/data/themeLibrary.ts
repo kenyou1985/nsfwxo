@@ -45,23 +45,25 @@ export interface ThemeEntry {
   beat15s: ThemeBeat[];      // 15s = 6 个镜头
   beat30s: ThemeBeat[];      // 30s = 9 个镜头
   beat60s: ThemeBeat[];      // 60s = 9 个镜头（节奏更慢更详细）
+  /** 日式关键词标签（如日文搜索词、AV 风格标签等），为空时自动取分类默认标签 */
+  japaneseKeywords?: string[];
 }
 
 // -----------------------------------------------------------------------------
 // 分类标签
 // -----------------------------------------------------------------------------
-export const THEME_CATEGORIES: { key: ThemeCategory; label: string; color: string }[] = [
-  { key: '纯展示露出',   label: '纯展示露出', color: 'from-pink-400 to-rose-500' },
-  { key: '轻情色',       label: '轻情色',     color: 'from-fuchsia-500 to-pink-600' },
-  { key: '纯性爱',       label: '纯性爱',     color: 'from-red-500 to-rose-700' },
-  { key: '运动健身',     label: '运动健身',   color: 'from-emerald-500 to-teal-600' },
-  { key: '角色扮演',     label: '角色扮演',   color: 'from-purple-500 to-indigo-600' },
-  { key: '户外野战',     label: '户外野战',   color: 'from-lime-500 to-green-600' },
-  { key: '多人派对',     label: '多人派对',   color: 'from-orange-500 to-red-600' },
-  { key: '女同情欲',     label: '女同情欲',   color: 'from-rose-500 to-pink-700' },
-  { key: '魔幻奇幻',     label: '魔幻奇幻',   color: 'from-violet-500 to-purple-700' },
-  { key: '奇异猎奇',     label: '奇异猎奇',   color: 'from-slate-600 to-gray-800' },
-  { key: 'SM重口',       label: 'SM 重口',     color: 'from-red-700 to-black' },
+export const THEME_CATEGORIES: { key: ThemeCategory; label: string; color: string; japanese: string[] }[] = [
+  { key: '纯展示露出',   label: '纯展示露出', color: 'from-pink-400 to-rose-500', japanese: ['露出', 'ノーパン', 'パンチラ', '下着姿', '室内着替え'] },
+  { key: '轻情色',       label: '轻情色',     color: 'from-fuchsia-500 to-pink-600', japanese: ['セクシー', '接吻', 'フェラ', '素人', '美容師'] },
+  { key: '纯性爱',       label: '纯性爱',     color: 'from-red-500 to-rose-700', japanese: ['中出し', '騎乗位', '正常位', '後ろ位', '69'] },
+  { key: '运动健身',     label: '运动健身',   color: 'from-emerald-500 to-teal-600', japanese: ['瑜伽', 'ダンス', 'ピラティス', '伸展', '運動女子'] },
+  { key: '角色扮演',     label: '角色扮演',   color: 'from-purple-500 to-indigo-600', japanese: ['コスプレ', 'ナース', '先生', 'メイド', '水着'] },
+  { key: '户外野战',     label: '户外野战',   color: 'from-lime-500 to-green-600', japanese: ['野外', '公園', '車内', '浜辺', 'トイレ'] },
+  { key: '多人派对',     label: '多人派对',   color: 'from-orange-500 to-red-600', japanese: ['乱交', '3P', '4P', 'パイズリ', '連続'] },
+  { key: '女同情欲',     label: '女同情欲',   color: 'from-rose-500 to-pink-700', japanese: ['レズ', 'クンニ', 'リミング', 'バイブ', '互慰'] },
+  { key: '魔幻奇幻',     label: '魔幻奇幻',   color: 'from-violet-500 to-purple-700', japanese: ['魔法', '召喚', '妖精', '剣と魔法', '異世界'] },
+  { key: '奇异猎奇',     label: '奇异猎奇',   color: 'from-slate-600 to-gray-800', japanese: ['触手', '貞子', '蟲', '獣姦', '中毒'] },
+  { key: 'SM重口',       label: 'SM 重口',     color: 'from-red-700 to-black', japanese: ['SM', '拷問', '窒素', 'ボンデージ', '調教'] },
 ];
 
 // -----------------------------------------------------------------------------

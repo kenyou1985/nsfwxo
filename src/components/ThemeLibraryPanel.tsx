@@ -259,12 +259,12 @@ export default function ThemeLibraryPanel({
                   )}
                 </button>
               )}
-              {/* 合并应用 */}
+              {/* 单独填入（每个主题单独填入各自提示词到主题词列表） */}
               <button
                 onClick={应用全部已选}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 text-white rounded-lg text-xs font-medium hover:bg-amber-600 transition-all"
               >
-                合并填入
+                单独填入
               </button>
               {/* 清除 */}
               <button
@@ -276,31 +276,41 @@ export default function ThemeLibraryPanel({
             </div>
           </div>
 
-          {/* 缩略预览条 */}
-          <div className="flex gap-1.5 overflow-x-auto pb-0.5">
-            {已选主题列表.map((theme) => (
-              <div
-                key={theme.id}
-                className="flex-shrink-0 flex items-center gap-1 px-2 py-1 bg-white rounded-lg border border-violet-100"
-              >
-                <span className="text-[10px] font-medium text-violet-700 whitespace-nowrap">{theme.title}</span>
-                <span className={`text-[9px] px-1 rounded-full font-medium ${INTENSITY_LABELS[theme.intensity].color}`}>
-                  {INTENSITY_LABELS[theme.intensity].label}
-                </span>
-                <button
-                  onClick={() => 切换主题选中(theme)}
-                  className="text-violet-400 hover:text-violet-700 ml-0.5"
+          {/* 缩略预览条（增大 + 显示日式词） */}
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {已选主题列表.map((theme) => {
+              const catDef = THEME_CATEGORIES.find((c) => c.key === theme.category);
+              const jpTag = (theme.japaneseKeywords ?? catDef?.japanese ?? [])[0];
+              return (
+                <div
+                  key={theme.id}
+                  className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 bg-white rounded-xl border border-violet-100 shadow-sm"
                 >
-                  <X size={10} />
-                </button>
-              </div>
-            ))}
+                  <span className="text-[11px] font-bold text-violet-700 whitespace-nowrap">{theme.title}</span>
+                  {jpTag && (
+                    <span className="text-[9px] px-1 py-0.5 rounded-full bg-pink-50 border border-pink-200 text-pink-600 font-medium whitespace-nowrap"
+                      style={{ fontFamily: '"Noto Sans JP", "Hiragino Sans", sans-serif' }}>
+                      {jpTag}
+                    </span>
+                  )}
+                  <span className={`text-[9px] px-1 rounded-full font-medium ${INTENSITY_LABELS[theme.intensity].color}`}>
+                    {INTENSITY_LABELS[theme.intensity].label}
+                  </span>
+                  <button
+                    onClick={() => 切换主题选中(theme)}
+                    className="text-violet-400 hover:text-violet-700 ml-0.5"
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
 
-      {/* ── 主题卡片网格 ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[480px] overflow-y-auto pr-1">
+      {/* ── 主题卡片网格（放大版） ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[580px] overflow-y-auto pr-1">
         {筛选后的主题.length === 0 ? (
           <div className="col-span-full text-center py-10 text-text-tertiary text-sm">
             <Layers size={28} className="mx-auto mb-2 opacity-40" />
@@ -312,50 +322,73 @@ export default function ThemeLibraryPanel({
             const beats = 根据时长生成分镜(theme, 时长);
             const intensityColor = INTENSITY_LABELS[theme.intensity];
             const catDef = THEME_CATEGORIES.find((c) => c.key === theme.category);
+            // 该主题的日式关键词：优先用主题自己的，否则用分类默认
+            const japaneseTags = theme.japaneseKeywords ?? catDef?.japanese ?? [];
+            const displayTags = japaneseTags.slice(0, 4); // 最多显示 4 个
             return (
               <div
                 key={theme.id}
-                className={`rounded-xl border transition-all cursor-pointer hover:shadow-sm ${
+                className={`rounded-2xl border-2 transition-all cursor-pointer hover:shadow-md ${
                   已选
-                    ? 'border-violet-400 bg-violet-50 ring-2 ring-violet-200'
+                    ? 'border-violet-400 bg-violet-50 ring-2 ring-violet-300'
                     : theme.multiRef
-                    ? 'border-amber-200 bg-amber-50/50 hover:border-amber-300'
-                    : 'border-border bg-bg-elevated hover:border-primary hover:bg-bg-hover'
+                    ? 'border-amber-300 bg-amber-50/50 hover:border-amber-400 hover:shadow-sm'
+                    : 'border-border bg-bg-elevated hover:border-primary hover:shadow-sm'
                 }`}
                 onClick={() => 切换主题选中(theme)}
               >
-                {/* 卡片主体 */}
-                <div className="p-3">
-                  <div className="flex items-start justify-between gap-2 mb-1">
-                    {/* 选中指示器 */}
-                    <div className={`w-4.5 h-4.5 rounded border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${
-                      已选 ? 'border-violet-500 bg-violet-500' : 'border-gray-300 bg-white'
-                    }`}>
-                      {已选 && <Check size={9} className="text-white" />}
+                {/* 卡片主体（放大内边距） */}
+                <div className="p-4">
+                  {/* 顶部：选中 + 标题 + 强度 */}
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      {/* 选中指示器 */}
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                        已选 ? 'border-violet-500 bg-violet-500' : 'border-gray-300 bg-white'
+                      }`}>
+                        {已选 && <Check size={10} className="text-white" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-sm font-bold text-text-primary leading-snug">{theme.title}</h3>
+                        {theme.multiRef && (
+                          <span className="inline-block mt-0.5 text-[9px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-bold">多参考图</span>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-semibold text-text-primary leading-tight">{theme.title}</h3>
-                      {theme.multiRef && (
-                        <span className="inline-block mt-0.5 text-[9px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">多参考图</span>
-                      )}
-                    </div>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${intensityColor.color}`}>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold flex-shrink-0 ${intensityColor.color}`}>
                       {intensityColor.label}
                     </span>
                   </div>
 
-                  <p className="text-[11px] text-text-secondary leading-relaxed line-clamp-2 ml-6">{theme.description}</p>
+                  {/* 描述文字（放大） */}
+                  <p className="text-xs text-text-secondary leading-relaxed ml-7 mb-2 line-clamp-2">{theme.description}</p>
+
+                  {/* 日式关键词标签（新增） */}
+                  {displayTags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-2 ml-7">
+                      {displayTags.map((tag, i) => (
+                        <span
+                          key={i}
+                          className="text-[10px] px-1.5 py-0.5 rounded-full bg-pink-50 border border-pink-200 text-pink-600 font-medium"
+                          style={{ fontFamily: '"Noto Sans JP", "Hiragino Sans", sans-serif' }}
+                        >
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
 
                   {/* 分类标签 */}
-                  <div className="mt-1.5 ml-6">
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full text-white font-medium bg-gradient-to-r ${catDef?.color ?? 'from-gray-400 to-gray-500'}`}>
+                  <div className="flex items-center gap-2 ml-7">
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full text-white font-bold bg-gradient-to-r ${catDef?.color ?? 'from-gray-400 to-gray-500'}`}>
                       {theme.category}
                     </span>
+                    <span className="text-[10px] text-text-tertiary">{beats.length} 镜头 · {时长}秒</span>
                   </div>
                 </div>
 
                 {/* 分镜预览折叠 */}
-                <div className="px-3 pb-2">
+                <div className="px-4 pb-2">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -366,30 +399,33 @@ export default function ThemeLibraryPanel({
                         return next;
                       });
                     }}
-                    className="w-full flex items-center justify-between text-[11px] text-text-tertiary hover:text-primary py-1 border-t border-border/50"
+                    className="w-full flex items-center justify-between text-[11px] text-text-tertiary hover:text-primary py-1.5 border-t border-border/50"
                   >
-                    <span>{beats.length} 镜头 · {时长}秒</span>
+                    <span className="flex items-center gap-1">
+                      <Layers size={11} />
+                      查看 {beats.length} 镜头分镜
+                    </span>
                     <ChevronDown
                       size={12}
                       className={`transition-transform ${展开预览.has(theme.id) ? 'rotate-180' : ''}`}
                     />
                   </button>
 
-                  {/* 展开预览 (rows=10) */}
+                  {/* 展开预览 rows=10 */}
                   {展开预览.has(theme.id) && (
                     <div
-                      className="mt-2 rounded-lg bg-slate-50 border border-slate-200 overflow-y-auto"
+                      className="mt-2 rounded-xl bg-slate-50 border border-slate-200 overflow-y-auto"
                       style={{ maxHeight: 'calc(1.5em * 10 + 1rem)' }}
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <div className="p-2 space-y-1.5">
+                      <div className="p-3 space-y-2">
                         {beats.map((b) => (
                           <div
                             key={b.shotNumber}
-                            className="text-[10px] leading-relaxed text-slate-700"
+                            className="text-[11px] leading-relaxed text-slate-700"
                           >
-                            <span className="font-semibold text-primary">[{b.scene}]</span>{' '}
-                            <span className="text-slate-500">镜头 {b.shotNumber}</span>
+                            <span className="font-bold text-primary">[{b.scene}]</span>{' '}
+                            <span className="text-slate-400 text-[10px]">镜头 {b.shotNumber}</span>
                             <div className="mt-0.5 text-slate-600">{b.prompt}</div>
                           </div>
                         ))}
@@ -399,10 +435,10 @@ export default function ThemeLibraryPanel({
                 </div>
 
                 {/* 操作按钮 */}
-                <div className="px-3 pb-3 flex gap-1.5">
+                <div className="px-4 pb-4 flex gap-2">
                   <button
                     onClick={(e) => { e.stopPropagation(); 应用单个主题(theme); }}
-                    className="flex-1 py-1.5 rounded-lg bg-gradient-to-r from-primary to-primary/80 text-white text-xs font-medium hover:opacity-90 transition-all"
+                    className="flex-1 py-2 rounded-xl bg-gradient-to-r from-primary to-primary/80 text-white text-xs font-bold hover:opacity-90 transition-all"
                   >
                     应用
                   </button>
@@ -413,7 +449,7 @@ export default function ThemeLibraryPanel({
                         on批量生成([theme], 时长);
                       }}
                       disabled={批量生成中}
-                      className="flex-1 py-1.5 rounded-lg bg-gradient-to-r from-violet-600 to-purple-600 text-white text-xs font-medium hover:opacity-90 transition-all disabled:opacity-60"
+                      className="flex-1 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 text-white text-xs font-bold hover:opacity-90 transition-all disabled:opacity-60"
                     >
                       生成
                     </button>

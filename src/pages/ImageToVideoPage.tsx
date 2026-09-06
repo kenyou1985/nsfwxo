@@ -926,6 +926,8 @@ interface MiniMaxH3PanelProps {
   setSelectedGirlfriend: (gf: GirlfriendPreset | null) => void;
   girlfriendUploading: boolean;
   setGirlfriendUploading: (v: boolean) => void;
+  mmSelectedGirlfriends: GirlfriendPreset[];
+  setMmSelectedGirlfriends: React.Dispatch<React.SetStateAction<GirlfriendPreset[]>>;
   /** 批量生成进度回调（面板内更新父组件状态） */
   onBatchProgress?: (progress: { current: number; total: number } | null) => void;
 }
@@ -939,6 +941,7 @@ function MiniMaxH3Panel({
   mmUploading, setMmUploading, isSubmitting, setIsSubmitting,
   onError, onSuccess, taskListRef,
   selectedGirlfriend, setSelectedGirlfriend, girlfriendUploading, setGirlfriendUploading,
+  mmSelectedGirlfriends, setMmSelectedGirlfriends,
   onBatchProgress,
 }: MiniMaxH3PanelProps) {
   // 主题库批量生成状态
@@ -969,69 +972,99 @@ function MiniMaxH3Panel({
     onSuccess(`已应用模板：${template.name}`);
   };
 
-  // Girlfriend selection handler — 移动端优化：异步抓取+上传期间，槽位立即显示头像，
-  // 不再因为某个女友上传中而禁用整个数字人选择器（导致"第二个数字人无法锚定"）。
-  //
-  // iOS 17.4.1+ 兼容性关键修复：
-  // 1. 去掉 `fetch(url, { signal })` —— iOS 17.4.1 Safari 对带 signal 的 fetch 行为异常，
-  //    偶发立即 reject 或永不 resolve（Apple Developer Forums 已知问题）。
-  //    改用最朴素的 fetch() 让请求自然完成。
-  // 2. 不用 `URL.createObjectURL(blob)` —— iOS 17.4.1 的 Blob URL 已经失效，
-  //    改用 FileReader 转 base64 后用 data URL 作为预览，跨所有浏览器稳定。
-  // 3. 错误处理加强：每个阶段都给用户明确 toast，避免"什么都没发生"的体验。
+  // 寻找指定女友在 mmSelectedGirlfriends 数组中的索引
+  const findSlotByGirlfriendId = useCallback(
+    (gf: GirlfriendPreset): number => {
+      const targetId = gf.isCustom ? `custom_${gf.id}` : gf.id;
+      return mmSelectedGirlfriends.findIndex(
+        (g) => (g.isCustom ? `custom_${g.id}` : g.id) === targetId
+      );
+    },
+    [mmSelectedGirlfriends]
+  );
+
+  // Girlfriend selection handler — 改为支持多数字人锚定：
+  // 点击已锚定女友 → 取消锚定，清空对应槽位
+  // 点击未锚定女友 → 自动占用下一个空槽位（第1张图、第2张图...）
   const handleGirlfriendSelect = useCallback(async (gf: GirlfriendPreset) => {
-    setSelectedGirlfriend(gf);
-    setGirlfriendUploading(true);
-    // 乐观更新：立即显示 portraitUrl，避免等 fetch+upload 期间 UI 无变化
+    const existingIdx = findSlotByGirlfriendId(gf);
+
+    // 1) 已锚定 → 取消锚定
+    if (existingIdx >= 0) {
+      setMmSelectedGirlfriends(prev => prev.filter((_, idx) => idx !== existingIdx));
+      // 清空对应槽位的图片
+      setMmImages(prev => {
+        const updated = [...prev];
+        revokeIfBlob(updated[existingIdx]?.preview);
+        updated[existingIdx] = { path: '', preview: '' };
+        return updated;
+      });
+      // 同步更新父组件的 selectedGirlfriend（用于 PosePresetSelector）
+      setSelectedGirlfriend(null);
+      onSuccess(`已取消锚定「${gf.nameZh || gf.name}」（参考图 ${existingIdx + 1} 已清空）`);
+      return;
+    }
+
+    // 2) 未锚定 → 寻找下一个空槽位
+    const occupiedSlots = new Set<number>();
+    mmSelectedGirlfriends.forEach((_, idx) => occupiedSlots.add(idx));
+    let emptyIdx = -1;
+    for (let i = 0; i < mmImages.length; i++) {
+      if (occupiedSlots.has(i)) continue;
+      if (!mmImages[i].path && !mmImages[i].preview) {
+        emptyIdx = i;
+        break;
+      }
+    }
+    if (emptyIdx < 0) {
+      onError('参考图已满（9/9），请先移除一张图片后再添加新的数字人');
+      return;
+    }
+
+    // 3) 立刻把女友加到数组（乐观更新）
+    const slotIdx = emptyIdx;
+    setMmSelectedGirlfriends(prev => [...prev, gf]);
+    // 同步父组件的 selectedGirlfriend（用于 PosePresetSelector，显示第一个女友的姿势）
+    setSelectedGirlfriend(prev => prev ?? gf);
+    // 立即用 portraitUrl 作为预览
     setMmImages(prev => {
       const updated = [...prev];
-      // 释放旧的头像 blob URL（如果有）
-      revokeIfBlob(updated[0]?.preview);
-      updated[0] = { path: '', preview: gf.portraitUrl };
+      revokeIfBlob(updated[slotIdx]?.preview);
+      updated[slotIdx] = { path: '', preview: gf.portraitUrl };
       return updated;
     });
-    try {
-      let file: File;
-      let objectUrl: string;
 
-      // 关键：不要给 fetch portraitUrl 加 signal！iOS 17.4.1 Safari 不稳定
+    // 4) 异步上传到对应槽位
+    setGirlfriendUploading(true);
+    try {
       const res = await fetch(gf.portraitUrl);
-      if (!res.ok) {
-        throw new Error(`下载头像失败: HTTP ${res.status}`);
-      }
+      if (!res.ok) throw new Error(`下载头像失败: HTTP ${res.status}`);
       const blob = await res.blob();
-      // 关键：不要直接 `URL.createObjectURL(blob)`，iOS 17.4.1 上 Blob URL 已失效
-      // 改用 FileReader 把 blob 转成 data URL（base64），所有浏览器都稳定
       const dataUrl: string = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result as string);
         reader.onerror = () => reject(new Error('图片读取失败'));
         reader.readAsDataURL(blob);
       });
-      // 从 data URL 重建一个干净的 Blob/File，确保 MIME 类型正确（避免 ibb.co 返回的
-      // blob.type 为空字符串导致 RunningHub 拒绝上传）
       const cleanBlob = await (await fetch(dataUrl)).blob();
       const mime = cleanBlob.type || 'image/jpeg';
-      file = new File([cleanBlob], `${gf.id}.jpg`, { type: mime });
-      objectUrl = dataUrl; // 直接用 data URL 当预览，iOS 17.4.1 上稳定
-
+      const file = new File([cleanBlob], `${gf.id}.jpg`, { type: mime });
       const { imagePath } = await uploadImage(apiKey, file);
-      // 上传完成后用真实路径替换
       setMmImages(prev => {
         const updated = [...prev];
-        updated[0] = { path: imagePath, preview: objectUrl };
+        updated[slotIdx] = { path: imagePath, preview: dataUrl };
         return updated;
       });
-      onSuccess(`已选择女友「${gf.nameZh || gf.name}」并设为参考图`);
+      onSuccess(`已锚定「${gf.nameZh || gf.name}」到参考图 ${slotIdx + 1}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : '上传失败';
-      console.error('[handleGirlfriendSelect] failed:', err, { gfId: gf.id, url: gf.portraitUrl });
-      // 上传失败时保留 preview 让用户至少看到头像，path 仍空
+      console.error('[H3 handleGirlfriendSelect] failed:', err, { gfId: gf.id, url: gf.portraitUrl });
+      // 上传失败：保留预览但清空 path，保留已选状态让用户可重试
       onError(`锚定「${gf.nameZh || gf.name}」失败: ${msg}。图片已显示但未上传，请检查网络后重试`);
     } finally {
       setGirlfriendUploading(false);
     }
-  }, [apiKey, setMmImages, onSuccess, onError, setSelectedGirlfriend, setGirlfriendUploading]);
+  }, [apiKey, mmImages, mmSelectedGirlfriends, findSlotByGirlfriendId, setMmImages, setMmSelectedGirlfriends, setSelectedGirlfriend, onSuccess, onError, setGirlfriendUploading]);
 
   const handleImageUpload = async (file: File, index: number) => {
     // iOS 17.4.1+ 兼容性：URL.createObjectURL(file) 在某些情况下会失效导致预览是空白，
@@ -1088,6 +1121,15 @@ function MiniMaxH3Panel({
       updated[index] = { path: '', preview: '' };
       return updated;
     });
+    // 如果该槽位对应数字人，也从已选列表移除
+    if (index < mmSelectedGirlfriends.length) {
+      const removed = mmSelectedGirlfriends[index];
+      setMmSelectedGirlfriends(prev => prev.filter((_, i) => i !== index));
+      // 如果移除的是用于 PosePresetSelector 的第一个女友，同步更新 selectedGirlfriend
+      if (index === 0 && removed) {
+        setSelectedGirlfriend(prev => prev?.id === removed.id ? (mmSelectedGirlfriends[1] ?? null) : prev);
+      }
+    }
   };
 
   const buildMiniMaxNodeList = (): NodeInfo[] => {
@@ -1141,8 +1183,10 @@ function MiniMaxH3Panel({
   const [mmSubmitting, setMmSubmitting] = useState(false);
 
   // Build full prompt with character anchor
+  // Build full prompt with character anchor (从第一个锚定的数字人获取 identity prompt)
   const getFullPrompt = (): string => {
-    const identityPrefix = selectedGirlfriend?.characterPrompt || '';
+    const firstGirlfriend = mmSelectedGirlfriends[0];
+    const identityPrefix = firstGirlfriend?.characterPrompt || '';
     return identityPrefix ? `${identityPrefix} ${mmPrompt}`.trim() : mmPrompt;
   };
 
@@ -1191,9 +1235,9 @@ function MiniMaxH3Panel({
 
   return (
     <div className="space-y-4">
-      {/* GirlfriendSelector - 数字人锚定 */}
+      {/* GirlfriendSelector - 数字人锚定（支持多数字人） */}
       <GirlfriendSelector
-        selectedIds={selectedGirlfriend ? [(selectedGirlfriend.isCustom ? `custom_${selectedGirlfriend.id}` : selectedGirlfriend.id)] : []}
+        selectedIds={mmSelectedGirlfriends.map(g => g.isCustom ? `custom_${g.id}` : g.id)}
         onSelect={handleGirlfriendSelect}
         disabled={isSubmitting}
       />
@@ -1203,7 +1247,7 @@ function MiniMaxH3Panel({
         type="video"
         onSelect={handlePoseSelect}
         disabled={isSubmitting}
-        selectedGirlfriend={selectedGirlfriend}
+        selectedGirlfriend={mmSelectedGirlfriends[0] ?? null}
       />
 
       {/* 参考图上传 - 支持最多9张 */}
@@ -1212,9 +1256,9 @@ function MiniMaxH3Panel({
           <h3 className="text-sm font-medium text-text-primary flex items-center gap-2">
             <ImageIcon size={16} className="text-purple-500" />
             参考图（最多9张）
-            {selectedGirlfriend && (
+            {mmSelectedGirlfriends.length > 0 && (
               <span className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-500 text-[10px] font-medium">
-                AI 女友模式
+                {mmSelectedGirlfriends.length} 位数字人
               </span>
             )}
           </h3>
@@ -1338,9 +1382,9 @@ function MiniMaxH3Panel({
             </button>
           )}
         </div>
-        {selectedGirlfriend && (
+        {mmSelectedGirlfriends.length > 0 && (
           <div className="mt-2 px-2 py-1 rounded bg-red-50 border border-red-200 text-[10px] text-red-600">
-            已锚定数字人：{selectedGirlfriend.nameZh || selectedGirlfriend.name}
+            已锚定数字人：{mmSelectedGirlfriends.map(g => g.nameZh || g.name).join('、')}
           </div>
         )}
       </div>
@@ -2692,7 +2736,7 @@ function MiniMaxH3T2VPanel({
             value={mh3Prompt}
             onChange={(e) => setMh3Prompt(e.target.value)}
             placeholder={mh3AutoPrompt ? '开启自动优化提示词，可不填或填写简单描述' : '描述视频中的人物动作、表情、场景变化...'}
-            rows={4}
+            rows={10}
             className="w-full px-3 py-2 pr-9 rounded-lg bg-bg-elevated border border-border text-sm text-text-primary placeholder-slate-500 focus:outline-none focus:border-blue-400/50 resize-none"
             disabled={isSubmitting}
           />
@@ -2914,6 +2958,8 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
 
   const [selectedGirlfriend, setSelectedGirlfriend] = useState<GirlfriendPreset | null>(null);
   const [girlfriendUploading, setGirlfriendUploading] = useState(false);
+  // 多数字人锚定状态（H3 面板专用）
+  const [mmSelectedGirlfriends, setMmSelectedGirlfriends] = useState<GirlfriendPreset[]>([]);
 
   // Script import state
   const [parsedScriptPanels, setParsedScriptPanels] = useState<ParsedScriptPanel[]>([]);
@@ -3534,6 +3580,8 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
           setSelectedGirlfriend={setSelectedGirlfriend}
           girlfriendUploading={girlfriendUploading}
           setGirlfriendUploading={setGirlfriendUploading}
+          mmSelectedGirlfriends={mmSelectedGirlfriends}
+          setMmSelectedGirlfriends={setMmSelectedGirlfriends}
           onBatchProgress={setThemeBatchProgress}
         />
       )}
