@@ -932,7 +932,7 @@ export async function extractImagesFromZipAsDataUrls(zipUrl: string, retries = 2
 export async function uploadImage(
   apiKey: string,
   file: File,
-  retries = 3
+  retries = 1
 ): Promise<{ imagePath: string; downloadUrl: string }> {
   const formData = new FormData();
   formData.append('file', file);
@@ -941,23 +941,29 @@ export async function uploadImage(
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     if (attempt > 0) {
-      await new Promise((r) => setTimeout(r, 1000 * attempt));
+      await new Promise((r) => setTimeout(r, 800 * attempt));
     }
 
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 30000);
-
-      const response = await fetch(`${BASE_URL}/media/upload/binary`, {
+      // iOS 17.4.1+ Safari 兼容性修复：
+      // 原方案使用 `fetch(..., { signal: AbortController.signal })` 在 iOS 17.4.1 上
+      // 偶发立即 reject 或永不 resolve（Apple Developer Forums 已知 bug）。
+      // 改用 Promise.race + 一个独立的 setTimeout：超时只 reject 当前 race，
+      // fetch 在后台继续但结果被丢弃；用户感知到的是正常超时提示，不会卡死 UI。
+      // 移动端图片通常几 MB，这个 trade-off 可接受。
+      const TIMEOUT_MS = 60_000;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error(`上传超时（${TIMEOUT_MS / 1000}s）请检查网络`)), TIMEOUT_MS);
+      });
+      const fetchPromise = fetch(`${BASE_URL}/media/upload/binary`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
         },
         body: formData,
-        signal: controller.signal,
       });
 
-      clearTimeout(timeout);
+      const response = await Promise.race([fetchPromise, timeoutPromise]);
 
       if (!response.ok) {
         throw new Error(`Upload failed: HTTP ${response.status}`);
@@ -984,18 +990,12 @@ export async function uploadImage(
         throw new Error('Upload response missing fileName');
       }
 
-      // Log the upload response so we can see exactly what fileName the
-      // workflow will receive (matters for tracking down any extension
-      // mismatch — e.g. .zip filename reaching SaveStringKJ).
       console.log(`[uploadImage] file=${file.name} → fileName=${fileName} download_url=${downloadUrl}`);
 
       return { imagePath: fileName, downloadUrl };
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
-
-      if (lastError.name === 'AbortError') {
-        lastError = new Error('图片上传超时，请重试');
-      }
+      console.warn(`[uploadImage] attempt ${attempt + 1}/${retries + 1} failed:`, lastError.message);
     }
   }
 

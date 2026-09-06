@@ -205,6 +205,8 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
   const [themeBatchProgress, setThemeBatchProgress] = useState<{ current: number; total: number } | null>(null);
 
   const [uploading, setUploading] = useState<boolean>(false);
+  // 每个槽位的上传状态（移动端优化：避免一个上传阻塞全部 9 个槽位）
+  const [uploadingSlots, setUploadingSlots] = useState<Set<number>>(new Set());
   const [submitting, setSubmitting] = useState<boolean>(false);
   // 多数字人锚定：每个女友绑定到一个参考图槽位
   // 数组按顺序排列，第一个元素对应图1，第二个对应图2，依次类推
@@ -304,28 +306,65 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
     onSuccess(`已提交 ${themes.length} 个主题到长视频 v1.1 生成队列`);
   }, [images, buildNodeListWithPrompt, onError, onSuccess]);
 
+  // 安全释放 blob URL，避免移动端内存泄漏导致页面崩溃
+  const revokeIfBlob = (url: string) => {
+    if (typeof url === 'string' && url.startsWith('blob:')) {
+      try { URL.revokeObjectURL(url); } catch { /* noop */ }
+    }
+  };
+
   // ── 图片上传 ────────────────────────────────────────────────────────────────
   const handleImageUpload = useCallback(async (file: File, index: number) => {
+    // iOS 17.4.1+ 兼容性：URL.createObjectURL 在 iOS 17.4.1 上失效，改用 FileReader 转 data URL
+    const dataUrl: string = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(new Error('图片读取失败'));
+      reader.readAsDataURL(file);
+    });
+    // 乐观更新：立即用本地预览显示图片，不阻塞其他槽位
+    setImages((prev) => {
+      const next = [...prev];
+      revokeIfBlob(next[index]?.preview);
+      next[index] = { path: '', preview: dataUrl };
+      return next;
+    });
+    setUploadingSlots((prev) => {
+      const next = new Set(prev);
+      next.add(index);
+      return next;
+    });
     setUploading(true);
     try {
-      const objectUrl = URL.createObjectURL(file);
       const { imagePath } = await uploadImage(apiKey, file);
       setImages((prev) => {
         const next = [...prev];
-        next[index] = { path: imagePath, preview: objectUrl };
+        next[index] = { path: imagePath, preview: dataUrl };
         return next;
       });
       onSuccess(`参考图 ${index + 1} 上传成功`);
     } catch (err) {
+      setImages((prev) => {
+        const next = [...prev];
+        revokeIfBlob(next[index]?.preview);
+        next[index] = { path: 'None', preview: '' };
+        return next;
+      });
       onError(err instanceof Error ? err.message : '上传失败');
     } finally {
-      setUploading(false);
+      setUploadingSlots((prev) => {
+        const next = new Set(prev);
+        next.delete(index);
+        if (next.size === 0) setUploading(false);
+        return next;
+      });
     }
   }, [apiKey, onSuccess, onError]);
 
   const handleImageRemove = useCallback((index: number) => {
     setImages((prev) => {
       const next = [...prev];
+      revokeIfBlob(next[index]?.preview);
       next[index] = { path: 'None', preview: '' };
       return next;
     });
@@ -344,6 +383,7 @@ const handleGirlfriendSelect = useCallback(
       setSelectedGirlfriends((prev) => prev.filter((_, idx) => idx !== existingIdx));
       setImages((imgs) => {
         const updated = [...imgs];
+        revokeIfBlob(updated[existingIdx]?.preview);
         updated[existingIdx] = { path: 'None', preview: '' };
         return updated;
       });
@@ -382,34 +422,41 @@ const handleGirlfriendSelect = useCallback(
     // 乐观更新：立即显示 portraitUrl 作为预览，避免等 fetch+upload 期间参考图无变化
     setImages((imgs) => {
       const updated = [...imgs];
+      revokeIfBlob(updated[slotIdx]?.preview);
       updated[slotIdx] = { path: '', preview: gf.portraitUrl };
       return updated;
     });
 
-    // 4) 异步上传图片到对应槽位
+    // 4) 异步上传图片到对应槽位（不阻塞整个数字人选择器）
     setGirlfriendUploading(true);
     try {
+      // iOS 17.4.1+ 兼容性：去掉 fetch 的 signal（iOS Safari 17.4.1 上带 signal 的 fetch 不稳定），
+      // 改用 FileReader 转 base64，避免 Blob URL 在 iOS 17.4.1 失效。
       const res = await fetch(gf.portraitUrl);
+      if (!res.ok) throw new Error(`下载头像失败: HTTP ${res.status}`);
       const blob = await res.blob();
-      const file = new File([blob], `${gf.id}.jpg`, { type: blob.type || 'image/jpeg' });
-      const objectUrl = URL.createObjectURL(blob);
+      const dataUrl: string = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error('图片读取失败'));
+        reader.readAsDataURL(blob);
+      });
+      const cleanBlob = await (await fetch(dataUrl)).blob();
+      const mime = cleanBlob.type || 'image/jpeg';
+      const file = new File([cleanBlob], `${gf.id}.jpg`, { type: mime });
       const { imagePath } = await uploadImage(apiKey, file);
       setImages((imgsPrev) => {
         const updated = [...imgsPrev];
-        updated[slotIdx] = { path: imagePath, preview: objectUrl };
+        updated[slotIdx] = { path: imagePath, preview: dataUrl };
         return updated;
       });
       onSuccess(`已锚定「${gf.nameZh || gf.name}」到参考图 ${slotIdx + 1}`);
     } catch (err) {
-      onError(err instanceof Error ? err.message : '上传失败');
-      // 上传失败：回滚选中的女友
-      setSelectedGirlfriends((p) => p.filter((_, idx) => idx !== slotIdx));
-      // 同时清空占位预览
-      setImages((imgs) => {
-        const updated = [...imgs];
-        updated[slotIdx] = { path: 'None', preview: '' };
-        return updated;
-      });
+      const msg = err instanceof Error ? err.message : '上传失败';
+      console.error('[NinfiniteLongVideo handleGirlfriendSelect] failed:', err, { gfId: gf.id, url: gf.portraitUrl });
+      onError(`锚定「${gf.nameZh || gf.name}」失败: ${msg}。图片已显示但未上传，请检查网络后重试`);
+      // 抓取/上传失败：保留 portraitUrl 作为预览（用户至少能看到头像），path 留空表示没真正上传成功
+      // 不取消 selectedGirlfriends，让用户可以继续选择其他数字人
     } finally {
       setGirlfriendUploading(false);
     }
@@ -557,13 +604,13 @@ const handleGirlfriendSelect = useCallback(
         </div>
       </div>
 
-      {/* 数字人锚定 (支持多数字人：点击头像循环切换锚定/取消) */}
+      {/* 数字人锚定 (支持多数字人：移动端允许并行锚定，不阻塞整个选择器) */}
       <GirlfriendSelector
         selectedIds={selectedGirlfriends
           .filter(Boolean)
           .map((g) => (g.isCustom ? `custom_${g.id}` : g.id))}
         onSelect={handleGirlfriendSelect}
-        disabled={girlfriendUploading || submitting}
+        disabled={submitting}
       />
 
       {/* PosePresetSelector - 视频姿势预设 */}
@@ -587,47 +634,57 @@ const handleGirlfriendSelect = useCallback(
           )}
         </h3>
         <div className="grid grid-cols-5 gap-2">
-          {images.map((img, idx) => (
-            <div key={idx} className="relative">
-              {img.preview ? (
-                <div className="relative aspect-square rounded-xl overflow-hidden border-2 border-purple-200 bg-bg-elevated">
-                  <img src={img.preview} alt={`参考图 ${idx + 1}`} className="w-full h-full object-cover" />
-                  <button
-                    type="button"
-                    onClick={() => handleImageRemove(idx)}
-                    disabled={submitting}
-                    className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-colors"
-                  >
-                    <X size={12} />
-                  </button>
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1">
-                    <span className="text-[10px] text-white/90">参考图 {idx + 1}</span>
+          {images.map((img, idx) => {
+            const isUploading = uploadingSlots.has(idx);
+            return (
+              <div key={idx} className="relative">
+                {img.preview ? (
+                  <div className="relative aspect-square rounded-xl overflow-hidden border-2 border-purple-200 bg-bg-elevated">
+                    <img src={img.preview} alt={`参考图 ${idx + 1}`} className="w-full h-full object-cover" />
+                    {/* 上传中遮罩：仅在该槽位上传时显示 */}
+                    {isUploading && (
+                      <div className="absolute inset-0 bg-black/45 flex flex-col items-center justify-center gap-1 pointer-events-none">
+                        <Loader2 size={20} className="text-white animate-spin" />
+                        <span className="text-[10px] text-white/90">上传中...</span>
+                      </div>
+                    )}
+                    {!isUploading && (
+                      <button
+                        type="button"
+                        onClick={() => handleImageRemove(idx)}
+                        disabled={submitting}
+                        className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-colors"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1">
+                      <span className="text-[10px] text-white/90">
+                        {isUploading ? '上传中...' : `参考图 ${idx + 1}`}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <label className={`relative flex flex-col items-center justify-center aspect-square rounded-xl border-2 border-dashed bg-bg-elevated cursor-pointer transition-colors ${uploading || submitting ? 'border-border opacity-50 cursor-not-allowed' : 'border-border hover:border-purple-400'}`}>
-                  {uploading ? (
-                    <Loader2 size={20} className="text-purple-400 animate-spin" />
-                  ) : (
-                    <>
-                      <Upload size={18} className="text-text-tertiary" />
-                      <span className="text-[10px] text-text-tertiary mt-1">图 {idx + 1}</span>
-                    </>
-                  )}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="absolute inset-0 opacity-0 cursor-pointer"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleImageUpload(file, idx);
-                    }}
-                    disabled={uploading || submitting}
-                  />
-                </label>
-              )}
-            </div>
-          ))}
+                ) : (
+                  <label className={`relative flex flex-col items-center justify-center aspect-square rounded-xl border-2 border-dashed bg-bg-elevated transition-colors ${submitting ? 'border-border opacity-50 cursor-not-allowed' : 'border-border hover:border-purple-400 cursor-pointer'}`}>
+                    <Upload size={18} className="text-text-tertiary" />
+                    <span className="text-[10px] text-text-tertiary mt-1">图 {idx + 1}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        // 重置 input.value，确保下次能重新选择同一文件
+                        e.target.value = '';
+                        if (file) handleImageUpload(file, idx);
+                      }}
+                      disabled={submitting}
+                    />
+                  </label>
+                )}
+              </div>
+            );
+          })}
         </div>
         <p className="text-[11px] text-text-tertiary mt-2">
           未上传的参考图将自动使用 'None' 填充 (与官方 API 一致)
@@ -967,7 +1024,7 @@ const handleGirlfriendSelect = useCallback(
         <GenerateButton
           onClick={handleSubmit}
           isLoading={submitting}
-          disabled={!prompt.trim() || uploadedCount === 0 || submitting || uploading || girlfriendUploading}
+          disabled={!prompt.trim() || uploadedCount === 0 || submitting || uploading}
           label={uploading ? '上传中...' : submitting ? '提交中...' : `生成 ${finalDuration} 秒视频`}
         />
       </div>

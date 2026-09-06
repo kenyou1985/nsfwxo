@@ -25,7 +25,13 @@ export function Toast({ toasts, onRemove }: ToastProps) {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none max-w-[480px] mx-auto">
+    // 使用 env(safe-area-inset-bottom) 让 Toast 避开 iPhone 14 PM/15/16 等机型的 Home Indicator (34px)。
+    // 之前用 fixed bottom-4 (16px) 在带灵动岛/Home Indicator 的机型上会被系统手势条完全遮住，
+    // 用户根本看不到成功/失败提示 → 误以为按钮"卡死"。iPhone 12/XR 等老机型 inset=0 不影响。
+    <div
+      className="fixed left-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none max-w-[480px] mx-auto"
+      style={{ bottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
+    >
       {toasts.map((toast) => (
         <div
           key={toast.id}
