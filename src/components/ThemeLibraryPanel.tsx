@@ -17,6 +17,8 @@ interface ThemeLibraryPanelProps {
   on应用提示词: (提示词: string) => void;
   /** 批量生成：传入多个主题的完整数据，由父组件负责循环调用 submitTask */
   on批量生成?: (themes: ThemeEntry[], duration: 15 | 30 | 60) => void;
+  /** 单独填入：传入多个主题完整数据，由父组件负责渲染标签切换 UI */
+  on单独填入?: (themes: ThemeEntry[], duration: 15 | 30 | 60) => void;
   on上传图片?: (files: File[]) => void;
   multiRefMode?: boolean;
   /** 外部强制设置已选主题（如从外部导入时） */
@@ -32,6 +34,7 @@ const 时长选项 = [
 export default function ThemeLibraryPanel({
   on应用提示词,
   on批量生成,
+  on单独填入,
   on上传图片,
   multiRefMode = false,
   externalSelected,
@@ -98,9 +101,12 @@ export default function ThemeLibraryPanel({
 
   const 应用全部已选 = useCallback(() => {
     if (已选主题列表.length === 0) return;
-    const 合并提示词 = 已选主题列表.map((t) => 主题转视频提示词(t, 时长)).join('\n\n---\n\n');
-    on应用提示词(合并提示词);
-  }, [已选主题列表, 时长, on应用提示词]);
+    // 默认填入第一个主题的提示词
+    const firstPrompt = 主题转视频提示词(已选主题列表[0], 时长);
+    on应用提示词(firstPrompt);
+    // 同时通知父组件所有主题数据（用于渲染标签切换 UI）
+    on单独填入?.(已选主题列表, 时长);
+  }, [已选主题列表, 时长, on应用提示词, on单独填入]);
 
   const 处理批量生成 = useCallback(async () => {
     if (已选主题列表.length === 0) return;
@@ -234,15 +240,15 @@ export default function ThemeLibraryPanel({
 
       {/* ── 已选主题操作栏（选中时固定显示） ── */}
       {已选主题列表.length > 0 && (
-        <div className="bg-violet-50 border border-violet-200 rounded-xl p-3 space-y-2">
+        <div className="bg-gradient-to-r from-amber-100 to-orange-100 border border-amber-300 rounded-xl p-3 space-y-2 shadow-sm">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1">
-                <Check size={13} className="text-violet-600" />
-                <span className="text-xs font-semibold text-violet-700">已选 {已选主题列表.length} 个主题</span>
+                <Check size={13} className="text-amber-600" />
+                <span className="text-xs font-semibold text-amber-700">已选 {已选主题列表.length} 个主题</span>
               </div>
-              <div className="h-3 w-px bg-violet-200" />
-              <span className="text-[11px] text-violet-600">{时长Info.label} · 预计 {已选主题列表.length * 时长Info.shots} 个镜头</span>
+              <div className="h-3 w-px bg-amber-200" />
+              <span className="text-[11px] text-amber-600">{时长Info.label} · 预计 {已选主题列表.length * 时长Info.shots} 个镜头</span>
             </div>
             <div className="flex items-center gap-2">
               {/* 批量生成 */}
@@ -250,7 +256,7 @@ export default function ThemeLibraryPanel({
                 <button
                   onClick={处理批量生成}
                   disabled={批量生成中}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-lg text-xs font-medium hover:opacity-90 transition-all disabled:opacity-70"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-lg text-xs font-medium hover:opacity-90 transition-all disabled:opacity-70"
                 >
                   {批量生成中 ? (
                     <><Loader2 size={12} className="animate-spin" /> 生成中... ({批量进度}/{已选主题列表.length})</>
@@ -262,14 +268,14 @@ export default function ThemeLibraryPanel({
               {/* 单独填入（每个主题单独填入各自提示词到主题词列表） */}
               <button
                 onClick={应用全部已选}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 text-white rounded-lg text-xs font-medium hover:bg-amber-600 transition-all"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg text-xs font-semibold hover:opacity-90 transition-all shadow-sm"
               >
                 单独填入
               </button>
               {/* 清除 */}
               <button
                 onClick={清除已选}
-                className="px-2 py-1.5 text-xs text-violet-600 hover:text-violet-800 transition-colors"
+                className="px-2 py-1.5 text-xs text-amber-600 hover:text-amber-800 transition-colors"
               >
                 清除
               </button>
@@ -284,9 +290,9 @@ export default function ThemeLibraryPanel({
               return (
                 <div
                   key={theme.id}
-                  className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 bg-white rounded-xl border border-violet-100 shadow-sm"
+                  className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 bg-white rounded-xl border border-amber-200 shadow-sm"
                 >
-                  <span className="text-[11px] font-bold text-violet-700 whitespace-nowrap">{theme.title}</span>
+                  <span className="text-[11px] font-bold text-amber-700 whitespace-nowrap">{theme.title}</span>
                   {jpTag && (
                     <span className="text-[9px] px-1 py-0.5 rounded-full bg-pink-50 border border-pink-200 text-pink-600 font-medium whitespace-nowrap"
                       style={{ fontFamily: '"Noto Sans JP", "Hiragino Sans", sans-serif' }}>
@@ -298,7 +304,7 @@ export default function ThemeLibraryPanel({
                   </span>
                   <button
                     onClick={() => 切换主题选中(theme)}
-                    className="text-violet-400 hover:text-violet-700 ml-0.5"
+                    className="text-amber-400 hover:text-amber-700 ml-0.5"
                   >
                     <X size={11} />
                   </button>

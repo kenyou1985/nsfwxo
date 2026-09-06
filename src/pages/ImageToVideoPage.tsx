@@ -17,7 +17,7 @@ import type { GirlfriendPreset } from '../data/girlfriendPresets';
 import { PosePresetSelector } from '../components/PosePresetSelector';
 import { RunningHubModelPicker } from '../components/RunningHubModelPicker';
 import ThemeLibraryPanel from '../components/ThemeLibraryPanel';
-import { THEME_LIBRARY, 主题转视频提示词 } from '../data/themeLibrary';
+import { THEME_LIBRARY, THEME_CATEGORIES, 主题转视频提示词 } from '../data/themeLibrary';
 import type { ThemeEntry } from '../data/themeLibrary';
 import type { RunningHubModelEntry } from '../services/runninghubModelsService';
 import { NinfiniteLongVideoPage } from './NinfiniteLongVideoPage';
@@ -2682,6 +2682,32 @@ function MiniMaxH3T2VPanel({
     onSuccess(`已应用模板：${template.name}`);
   };
 
+  // 单独填入：收到多个主题，初始化标签切换状态，默认显示第一个主题提示词
+  const handleTheme单独填入 = useCallback((themes: ThemeEntry[], duration: 15 | 30 | 60) => {
+    const prompts = themes.map(t => 主题转视频提示词(t, duration));
+    setMh3ThemeTabs(themes);
+    setMh3ThemeTabIndex(0);
+    setMh3ThemePrompts(prompts);
+    setMh3Prompt(prompts[0] ?? '');
+    onSuccess?.(`已填入 ${themes.length} 个主题，可点击标签切换`);
+  }, [onSuccess]);
+
+  // 切换主题标签：更新 textarea 显示当前主题的提示词
+  const handleThemeTabSwitch = useCallback((idx: number) => {
+    setMh3ThemeTabIndex(idx);
+    setMh3Prompt(mh3ThemePrompts[idx] ?? '');
+  }, [mh3ThemePrompts]);
+
+  // 当用户编辑 textarea 时，同步更新当前主题的提示词
+  const handleThemePromptChange = useCallback((value: string) => {
+    setMh3Prompt(value);
+    setMh3ThemePrompts(prev => {
+      const updated = [...prev];
+      updated[mh3ThemeTabIndex] = value;
+      return updated;
+    });
+  }, [mh3ThemeTabIndex]);
+
   return (
     <div className="space-y-4">
       {/* 提示词 */}
@@ -2728,13 +2754,40 @@ function MiniMaxH3T2VPanel({
                 </button>
               ))}
             </div>
+            {/* 主题标签切换（单独填入后显示） */}
+            {mh3ThemeTabs.length > 0 && (
+              <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
+                <span className="text-[10px] text-amber-600 font-semibold">主题：</span>
+                {mh3ThemeTabs.map((theme, idx) => {
+                  const isActive = idx === mh3ThemeTabIndex;
+                  const catDef = THEME_CATEGORIES.find(c => c.key === theme.category);
+                  return (
+                    <button
+                      key={theme.id}
+                      onClick={() => handleThemeTabSwitch(idx)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all border ${
+                        isActive
+                          ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white border-amber-400 shadow-sm'
+                          : 'bg-bg-elevated text-text-secondary border-border hover:border-amber-300 hover:bg-amber-50'
+                      }`}
+                      title={theme.title}
+                    >
+                      {theme.title.length > 6 ? theme.title.slice(0, 6) + '…' : theme.title}
+                      {catDef && (
+                        <span className="ml-1 text-[9px] opacity-80">{catDef.japanese[0]}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
         <div className="relative">
           <textarea
             value={mh3Prompt}
-            onChange={(e) => setMh3Prompt(e.target.value)}
+            onChange={(e) => handleThemePromptChange(e.target.value)}
             placeholder={mh3AutoPrompt ? '开启自动优化提示词，可不填或填写简单描述' : '描述视频中的人物动作、表情、场景变化...'}
             rows={10}
             className="w-full px-3 py-2 pr-9 rounded-lg bg-bg-elevated border border-border text-sm text-text-primary placeholder-slate-500 focus:outline-none focus:border-blue-400/50 resize-none"
@@ -2743,7 +2796,12 @@ function MiniMaxH3T2VPanel({
           {mh3Prompt && (
             <button
               type="button"
-              onClick={() => setMh3Prompt('')}
+              onClick={() => {
+                setMh3Prompt('');
+                setMh3ThemeTabs([]);
+                setMh3ThemePrompts([]);
+                setMh3ThemeTabIndex(0);
+              }}
               disabled={isSubmitting}
               className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full bg-bg-surface border border-border text-text-tertiary hover:text-red-500 hover:border-red-300 hover:bg-red-500/10 transition-colors disabled:opacity-50"
               title="清除提示词"
@@ -2775,8 +2833,16 @@ function MiniMaxH3T2VPanel({
         </div>
         <div className="px-4 pb-4 pt-2">
           <ThemeLibraryPanel
-            on应用提示词={(提示词) => { setMh3Prompt(提示词); onSuccess?.('已应用主题提示词'); }}
+            on应用提示词={(提示词) => {
+              // 单个主题应用：直接填入，清空主题标签状态
+              setMh3ThemeTabs([]);
+              setMh3ThemeTabIndex(0);
+              setMh3ThemePrompts([]);
+              setMh3Prompt(提示词);
+              onSuccess?.('已应用主题提示词');
+            }}
             on批量生成={handleThemeBatchGenerate}
+            on单独填入={handleTheme单独填入}
           />
         </div>
       </div>
@@ -2955,6 +3021,11 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
   const [mh3Duration, setMh3Duration] = useState(12);
   const [mh3AspectRatio, setMh3AspectRatio] = useState('9:16 (Portrait Widescreen)');
   const [mh3Submitting, setMh3Submitting] = useState(false);
+  // 主题标签切换状态（单独填入时使用）
+  const [mh3ThemeTabs, setMh3ThemeTabs] = useState<ThemeEntry[]>([]);
+  const [mh3ThemeTabIndex, setMh3ThemeTabIndex] = useState(0);
+  // 每个主题的独立提示词（可编辑）
+  const [mh3ThemePrompts, setMh3ThemePrompts] = useState<string[]>([]);
 
   const [selectedGirlfriend, setSelectedGirlfriend] = useState<GirlfriendPreset | null>(null);
   const [girlfriendUploading, setGirlfriendUploading] = useState(false);
