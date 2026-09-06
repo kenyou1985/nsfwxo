@@ -960,10 +960,12 @@ function MiniMaxH3Panel({
     onSuccess(`已应用模板：${template.name}`);
   };
 
-  // Girlfriend selection handler
+  // Girlfriend selection handler — optimistic update: show portraitUrl immediately
   const handleGirlfriendSelect = useCallback(async (gf: GirlfriendPreset) => {
     setSelectedGirlfriend(gf);
     setGirlfriendUploading(true);
+    // 乐观更新：立即显示 portraitUrl，避免等 fetch+upload 期间 UI 无变化
+    setMmImages(prev => [{ path: '', preview: gf.portraitUrl }, ...prev.slice(0, 2)]);
     try {
       let file: File;
       let objectUrl: string;
@@ -981,9 +983,9 @@ function MiniMaxH3Panel({
       }
 
       const { imagePath } = await uploadImage(apiKey, file);
-      // Add as first reference image
+      // 上传完成后用真实路径替换
       setMmImages(prev => {
-        const updated = [{ path: imagePath, preview: objectUrl }, ...prev.slice(0, 2)];
+        const updated = [{ path: imagePath, preview: objectUrl }, ...prev.slice(1, 3)];
         return updated;
       });
       onSuccess(`已选择女友「${gf.nameZh || gf.name}」并设为参考图`);
@@ -1606,6 +1608,12 @@ function MiniMaxLongVideoPanel({
       const msg = err instanceof Error ? err.message : '上传失败';
       onError(`女友图片上传失败: ${msg}，已临时显示参考图`);
       setSelectedGirlfriends((p) => p.filter((_, idx) => idx !== slotIdx));
+      // 失败时清空占位预览
+      setMlImages((imgs) => {
+        const updated = [...imgs];
+        updated[slotIdx] = { path: 'None', preview: '' };
+        return updated;
+      });
     } finally {
       setGirlfriendUploading(false);
     }

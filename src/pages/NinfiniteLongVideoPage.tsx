@@ -379,6 +379,12 @@ const handleGirlfriendSelect = useCallback(
       next[slotIdx] = gf;
       return next;
     });
+    // 乐观更新：立即显示 portraitUrl 作为预览，避免等 fetch+upload 期间参考图无变化
+    setImages((imgs) => {
+      const updated = [...imgs];
+      updated[slotIdx] = { path: '', preview: gf.portraitUrl };
+      return updated;
+    });
 
     // 4) 异步上传图片到对应槽位
     setGirlfriendUploading(true);
@@ -398,6 +404,12 @@ const handleGirlfriendSelect = useCallback(
       onError(err instanceof Error ? err.message : '上传失败');
       // 上传失败：回滚选中的女友
       setSelectedGirlfriends((p) => p.filter((_, idx) => idx !== slotIdx));
+      // 同时清空占位预览
+      setImages((imgs) => {
+        const updated = [...imgs];
+        updated[slotIdx] = { path: 'None', preview: '' };
+        return updated;
+      });
     } finally {
       setGirlfriendUploading(false);
     }
