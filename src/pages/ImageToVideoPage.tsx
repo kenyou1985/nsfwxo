@@ -1366,7 +1366,7 @@ function MiniMaxH3Panel({
             value={mmPrompt}
             onChange={(e) => setMmPrompt(e.target.value)}
             placeholder={mmAutoPrompt ? '开启自动提示词，可不填或填写简单描述' : '描述视频中的人物动作、表情、场景变化...'}
-            rows={4}
+            rows={10}
             className="w-full px-3 py-2 pr-9 rounded-lg bg-bg-elevated border border-border text-sm text-text-primary placeholder-slate-500 focus:outline-none focus:border-purple-400/50 resize-none"
             disabled={isSubmitting}
           />
@@ -1382,6 +1382,27 @@ function MiniMaxH3Panel({
             </button>
           )}
         </div>
+        {/* 参考图快速引用按钮 */}
+        {mmImages.filter(img => img.path).length > 0 && (
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
+            <span className="text-[10px] text-purple-500">快速引用：</span>
+            {mmImages.map((img, idx) => img.path && (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => setMmPrompt(p => p + `<Picture ${idx + 1}>`)}
+                disabled={isSubmitting}
+                className="px-2 py-1 rounded-md text-[10px] bg-purple-50 border border-purple-200 text-purple-600 hover:bg-purple-100 transition-colors disabled:opacity-50"
+                title={`插入 <Picture ${idx + 1}> 引用参考图 ${idx + 1}`}
+              >
+                图{idx + 1}
+              </button>
+            ))}
+            <span className="text-[10px] text-indigo-400">
+              提示：可用 &lt;Picture 1&gt;, &lt;Picture 2&gt; 等引用参考图
+            </span>
+          </div>
+        )}
         {mmSelectedGirlfriends.length > 0 && (
           <div className="mt-2 px-2 py-1 rounded bg-red-50 border border-red-200 text-[10px] text-red-600">
             已锚定数字人：{mmSelectedGirlfriends.map(g => g.nameZh || g.name).join('、')}
@@ -2111,6 +2132,31 @@ function MiniMaxLongVideoPanel({
                   </button>
                 )}
               </div>
+              {/* 参考图快速引用按钮 */}
+              {mlImages.filter(img => img.path).length > 0 && (
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                  <span className="text-[10px] text-cyan-500">快速引用：</span>
+                  {mlImages.map((img, imgIdx) => img.path && (
+                    <button
+                      key={imgIdx}
+                      type="button"
+                      onClick={() => {
+                        const newPrompts = [...mlPrompts];
+                        newPrompts[idx] = (newPrompts[idx] ?? '') + `<Picture ${imgIdx + 1}>`;
+                        setMlPrompts(newPrompts);
+                      }}
+                      disabled={isSubmitting}
+                      className="px-2 py-1 rounded-md text-[10px] bg-cyan-50 border border-cyan-200 text-cyan-600 hover:bg-cyan-100 transition-colors disabled:opacity-50"
+                      title={`插入 <Picture ${imgIdx + 1}> 引用参考图 ${imgIdx + 1}`}
+                    >
+                      图{imgIdx + 1}
+                    </button>
+                  ))}
+                  <span className="text-[10px] text-indigo-400">
+                    提示：可用 &lt;Picture 1&gt;, &lt;Picture 2&gt; 等引用参考图
+                  </span>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -2756,7 +2802,7 @@ function MiniMaxH3T2VPanel({
             </div>
             {/* 主题标签切换（单独填入后显示） */}
             {mh3ThemeTabs.length > 0 && (
-              <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
+              <div className="ml-auto flex flex-wrap items-center gap-1.5 flex-shrink-0 max-w-[60%]">
                 <span className="text-[10px] text-amber-600 font-semibold">主题：</span>
                 {mh3ThemeTabs.map((theme, idx) => {
                   const isActive = idx === mh3ThemeTabIndex;

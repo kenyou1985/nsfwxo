@@ -15311,9 +15311,112 @@ export function 根据时长生成分镜(主题: ThemeEntry, 时长: 15 | 30 | 6
   return 主题.beat30s;
 }
 
+/**
+ * 判断主题分类是否需要在 H3 提示词中显式声明双方裸体。
+ * 性爱、户外野战、多人派对、女同、SM、奇异猎奇 → 必须明确写"赤裸"，否则模型
+ * 容易让男性穿着衣服，生成出来的视频画面违和（参考用户反馈）。
+ */
+function 主题是否需要显式裸体(主题: ThemeEntry): boolean {
+  return ['纯性爱', '户外野战', '多人派对', '女同情欲', 'SM重口', '奇异猎奇'].includes(主题.category);
+}
+
+/**
+ * 判断主题分类是否需要在 subject_definitions 中显式定义男性主体。
+ * 性爱、户外野战、多人派对、SM、奇异猎奇涉及男性强制行为 → 必须在
+ * subject_definitions 里写明肌肉健壮男性的外观，否则分镜里出现"被男性X"
+ * 会导致模型把主体搞混。
+ */
+function 主题是否需要显式男性主体(主题: ThemeEntry): boolean {
+  return ['纯性爱', '户外野战', '多人派对', 'SM重口', '奇异猎奇'].includes(主题.category);
+}
+
+/**
+ * 把 ThemeEntry 转换为符合 H3 官方六段式（Ref2VA）规范的提示词字符串。
+ *
+ * 输出格式（严格对齐 H3 Ref2VA 模板）：
+ *
+ *   subject_definitions:
+ *   <Picture 1> ...
+ *   [可选] 男性主体（未在参考图中）：肌肉健壮男性 ...
+ *
+ *   summary:
+ *   目标视频展示 ...，视频采用写实电影风格 ...
+ *
+ *   retention_analysis:
+ *   <Picture 1> 在所有镜头中 fully_preserved（面部 / 发型 / 妆容 / 身材比例完全保留）。
+ *
+ *   detailed_description:
+ *   视频采用真实感、电影级风格，<scenario>。
+ *   [Shot 1] 00:00.000
+ *   <镜头1 prompt>
+ *
+ *   [Shot 2] 00:07.000
+ *   <镜头2 prompt>
+ *   ...
+ *
+ *   overall_soundscape:
+ *   ...
+ *
+ *   non_diegetic_music: N/A
+ *
+ * @param 主题 主题条目
+ * @param 时长 视频时长（15 / 30 / 60 秒）
+ */
 export function 主题转视频提示词(主题: ThemeEntry, 时长: 15 | 30 | 60): string {
   const beats = 根据时长生成分镜(主题, 时长);
-  const header = `subject_definitions: <Picture 1> ${主题.multiRef ? 'and <Picture 2> ' : ''}as the protagonist(s) of this video.\n\nscenario: ${主题.scenario}\n\nshot_breakdown:`;
-  const body = beats.map((b) => `[${b.scene}] ${b.prompt}`).join('\n\n');
-  return `${header}\n\n${body}`;
+  const needNudity = 主题是否需要显式裸体(主题);
+  const needMale = 主题是否需要显式男性主体(主题);
+
+  // ── 1. subject_definitions ──
+  const subjectDefLines: string[] = ['subject_definitions:'];
+  subjectDefLines.push(
+    `<Picture 1> 是视频主角的参考图，由用户上传，图中女性作为目标视频的核心角色，全程面部、发型、妆容、身材比例完全保留。`
+  );
+  if (needMale) {
+    subjectDefLines.push(
+      `男性主体（不在参考图中）：一名肌肉健壮的成年男性，年龄 25-35 岁，身材魁梧，裸露上身，胸肌和腹肌发达，仅穿深色长裤或全裸（视具体场景），是实施强制和性行为的主导方，在所有涉及男性的镜头中持续出现并主导动作。`
+    );
+  }
+  if (主题.multiRef) {
+    subjectDefLines.push(
+      `<Picture 2> 是第二张参考图，作为视频中的辅助角色，全程面部、发型、身材比例完全保留。`
+    );
+  }
+
+  // ── 2. summary ──
+  const summary = `summary:\n目标视频展示<Picture 1>${needMale ? '中的女性与上述男性主体' : '中的角色'}在「${主题.title}」主题下的完整场景。\n主题场景：${主题.scenario}。\n视频采用真实感、电影级成人片风格，第一人称视角（男性视角）或第三人称全景，镜头稳定略带手持轻微晃动，${needNudity ? '全程双方赤裸，所有性行为镜头真实描写，无打码无马赛克。' : '画面构图与镜头语言紧扣主题氛围。'}`;
+
+  // ── 3. retention_analysis ──
+  const retention = `retention_analysis:\n<Picture 1>中的女性在所有镜头中 fully_preserved（面部 / 发型 / 妆容 / 身材比例完全保留）。${needNudity ? '服装在过程中被主动脱下或撤除，全程双方赤裸。' : ''}`;
+
+  // ── 4. detailed_description ──
+  const interval = 时长 / Math.max(beats.length, 1);
+  const shotLines: string[] = [];
+  for (let i = 0; i < beats.length; i++) {
+    const beat = beats[i];
+    const seconds = i * interval;
+    const mins = Math.floor(seconds / 60);
+    const secs = (seconds % 60).toFixed(3).padStart(6, '0');
+    const timestamp = `${String(mins).padStart(2, '0')}:${secs}`;
+    // H3 官方格式：[Shot N] 00:00.000  （时间戳独占一行）
+    shotLines.push(`[Shot ${i + 1}] ${timestamp}\n${beat.prompt}`);
+  }
+  const detailedDesc = `detailed_description:\n视频采用真实感、电影级风格，${主题.scenario}。\n${shotLines.join('\n\n')}`;
+
+  // ── 5. overall_soundscape ──
+  const soundscape = needNudity
+    ? `overall_soundscape:\n真实的环境氛围音、自然呼吸声、身体接触声（亲吻、拍打、插入、抽插时的湿润撞击声）、皮革与金属器具的摩擦声，以及角色反应性发声。女性有清晰的呼吸、呻吟、叫喊与高潮叫声，男性有低沉的喘息、命令声和撞击声。全程声音与画面动作一致，无背景音乐遮盖。`
+    : `overall_soundscape:\n真实的环境氛围音、自然呼吸声、身体动作声，以及角色反应性发声。全程声音与画面动作一致。`;
+
+  // ── 6. non_diegetic_music ──
+  const music = `non_diegetic_music: N/A`;
+
+  return [
+    subjectDefLines.join('\n'),
+    summary,
+    retention,
+    detailedDesc,
+    soundscape,
+    music,
+  ].join('\n\n');
 }

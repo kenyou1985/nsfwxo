@@ -10,7 +10,7 @@ import { GirlfriendSelector } from '../components/GirlfriendSelector';
 import { PosePresetSelector } from '../components/PosePresetSelector';
 import { H3_VIDEO_TEMPLATES } from './ImageToVideoPage';
 import ThemeLibraryPanel from '../components/ThemeLibraryPanel';
-import { THEME_LIBRARY, 主题转视频提示词 } from '../data/themeLibrary';
+import { THEME_LIBRARY, THEME_CATEGORIES, 主题转视频提示词 } from '../data/themeLibrary';
 import type { ThemeEntry } from '../data/themeLibrary';
 
 // ────────────────────────────────────────────────────────────────────────────────
@@ -186,6 +186,10 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
     }
   }, [initialImage, initialImages, initialPrompt, onSuccess]);
   const [prompt, setPrompt] = useState<string>('15s剧情，<Picture 1> 和<Picture 2> 在激烈性爱，多姿势多角度。');
+  // 主题库"单独填入"后显示的标签切换：每个主题一个独立可编辑的提示词
+  const [themeTabs, setThemeTabs] = useState<ThemeEntry[]>([]);
+  const [themeTabIndex, setThemeTabIndex] = useState<number>(0);
+  const [themePrompts, setThemePrompts] = useState<string[]>([]);
   const [duration, setDuration] = useState<number>(60);
   const [customDuration, setCustomDuration] = useState<string>('');
   const [unetModelIndex, setUnetModelIndex] = useState<string>('0');
@@ -305,6 +309,43 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
     setThemeBatchProgress(null);
     onSuccess(`已提交 ${themes.length} 个主题到长视频 v1.1 生成队列`);
   }, [images, buildNodeListWithPrompt, onError, onSuccess]);
+
+  /** 主题库"单独填入"：每个主题独立生成 H3 提示词，存入主题标签列表，
+   *  用户可在标签之间切换查看 / 编辑。第一个主题默认显示在 textarea 中。 */
+  const handleTheme单独填入 = useCallback((themes: ThemeEntry[], duration: 15 | 30 | 60) => {
+    if (themes.length === 0) return;
+    const prompts = themes.map((t) => 主题转视频提示词(t, duration));
+    setThemeTabs(themes);
+    setThemeTabIndex(0);
+    setThemePrompts(prompts);
+    setPrompt(prompts[0] ?? '');
+    onSuccess(`已填入 ${themes.length} 个主题，可点击标签切换`);
+  }, [onSuccess]);
+
+  /** 切换主题标签：更新 textarea 显示当前主题的提示词 */
+  const handleThemeTabSwitch = useCallback((idx: number) => {
+    if (idx < 0 || idx >= themePrompts.length) return;
+    setThemeTabIndex(idx);
+    setPrompt(themePrompts[idx] ?? '');
+  }, [themePrompts]);
+
+  /** 用户编辑 textarea 时，同步更新当前主题的提示词 */
+  const handleThemePromptChange = useCallback((value: string) => {
+    setPrompt(value);
+    setThemePrompts((prev) => {
+      if (themeTabIndex < 0 || themeTabIndex >= prev.length) return prev;
+      const updated = [...prev];
+      updated[themeTabIndex] = value;
+      return updated;
+    });
+  }, [themeTabIndex]);
+
+  /** 清除所有主题标签状态（点 X 按钮时调用） */
+  const handleClearThemeTabs = useCallback(() => {
+    setThemeTabs([]);
+    setThemePrompts([]);
+    setThemeTabIndex(0);
+  }, []);
 
   // 安全释放 blob URL，避免移动端内存泄漏导致页面崩溃
   const revokeIfBlob = (url: string) => {
@@ -582,8 +623,10 @@ const handleGirlfriendSelect = useCallback(
   // ── 模板预设 ──────────────────────────────────────────────────────────────────
   const handleTemplateApply = useCallback((template: typeof H3_VIDEO_TEMPLATES[0]) => {
     setPrompt(template.prompt);
+    // 应用模板时清除主题标签：用户已选择用模板覆盖提示词
+    handleClearThemeTabs();
     onSuccess(`已应用模板：${template.name}`);
-  }, [onSuccess]);
+  }, [onSuccess, handleClearThemeTabs]);
 
   return (
     <div className="space-y-4 pb-24">
@@ -697,9 +740,14 @@ const handleGirlfriendSelect = useCallback(
           <h3 className="text-sm font-medium text-text-primary flex items-center gap-2">
             <Sparkles size={15} className="text-primary" />
             提示词 (node 205)
+            {themeTabs.length > 0 && (
+              <span className="px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-semibold">
+                {themeTabIndex + 1}/{themeTabs.length}
+              </span>
+            )}
           </h3>
         </div>
-        {/* 模版预设 */}
+        {/* 模版预设 + 主题标签切换 */}
         {H3_VIDEO_TEMPLATES.length > 0 && (
           <div className="flex items-center gap-2 mb-3">
             <span className="text-xs text-text-tertiary flex-shrink-0">模版：</span>
@@ -716,11 +764,50 @@ const handleGirlfriendSelect = useCallback(
                 </button>
               ))}
             </div>
+            {/* 主题标签切换（单独填入后显示在截图位置 1） */}
+            {themeTabs.length > 0 && (
+              <div className="ml-auto flex flex-wrap items-center gap-1.5 flex-shrink-0 max-w-[60%]">
+                <span className="text-[10px] text-amber-600 font-semibold whitespace-nowrap">主题：</span>
+                {themeTabs.map((theme, idx) => {
+                  const isActive = idx === themeTabIndex;
+                  const catDef = THEME_CATEGORIES.find((c) => c.key === theme.category);
+                  return (
+                    <button
+                      key={theme.id}
+                      type="button"
+                      onClick={() => handleThemeTabSwitch(idx)}
+                      disabled={submitting}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all border ${
+                        isActive
+                          ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white border-amber-400 shadow-sm'
+                          : 'bg-bg-elevated text-text-secondary border-border hover:border-amber-300 hover:bg-amber-50'
+                      } disabled:opacity-50`}
+                      title={theme.title}
+                    >
+                      {theme.title.length > 6 ? theme.title.slice(0, 6) + '…' : theme.title}
+                      {catDef && catDef.japanese[0] && (
+                        <span className="ml-1 text-[9px] opacity-80">{catDef.japanese[0]}</span>
+                      )}
+                    </button>
+                  );
+                })}
+                {/* 清除按钮 */}
+                <button
+                  type="button"
+                  onClick={handleClearThemeTabs}
+                  disabled={submitting}
+                  className="ml-1 px-1.5 py-1 rounded-md text-[10px] text-text-tertiary hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                  title="清除所有主题标签"
+                >
+                  <X size={11} />
+                </button>
+              </div>
+            )}
           </div>
         )}
         <textarea
           value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
+          onChange={(e) => (themeTabs.length > 0 ? handleThemePromptChange(e.target.value) : setPrompt(e.target.value))}
           rows={16}
           placeholder="例如: 图片1为男主，图片2为女主，生成两人约会的视频提示词"
           disabled={submitting}
@@ -870,8 +957,14 @@ const handleGirlfriendSelect = useCallback(
         </div>
         <div className="px-4 pb-4 pt-2">
           <ThemeLibraryPanel
-            on应用提示词={(提示词) => { setPrompt(提示词); onSuccess('已应用主题提示词'); }}
+            on应用提示词={(提示词) => {
+              // 单个主题应用：直接填入，并清除主题标签状态
+              handleClearThemeTabs();
+              setPrompt(提示词);
+              onSuccess('已应用主题提示词');
+            }}
             on批量生成={handleThemeBatchGenerate}
+            on单独填入={handleTheme单独填入}
           />
         </div>
       </div>
