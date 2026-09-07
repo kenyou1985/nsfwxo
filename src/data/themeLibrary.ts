@@ -7678,7 +7678,7 @@ export const THEME_LIBRARY: ThemeEntry[] = [
 // ═══════════════════════════════════════════════════════════════════════════
 },
   {
-  id: 'theme_501', title: '电车澈汉', category: '角色扮演', intensity: 'heavy', multiRef: false,
+  id: 'theme_501', title: '电车澈汉', category: '纯性爱', intensity: 'heavy', multiRef: false,
   description: '重度情色：电车上陌生澈汉趁拥挤在<Picture 1>身后贴靠私密部位摩擦后强行侵犯（含射精、颜射、深喉、SM、凌辱、道具、肛交等）',
   scenario: '写实电影风格，拥挤电车车厢，黄昏通勤人流，男性戴鸭舌帽和口罩伪装成普通乘客',
   beat15s: [
@@ -7714,7 +7714,7 @@ export const THEME_LIBRARY: ThemeEntry[] = [
 },
 
   {
-  id: 'theme_502', title: '公交痴汉', category: '角色扮演', intensity: 'heavy', multiRef: false,
+  id: 'theme_502', title: '公交痴汉', category: '纯性爱', intensity: 'heavy', multiRef: false,
   description: '重度情色：公交车上陌生痴汉在<Picture 1>座位上以手伸入裙底抚摸后强行侵犯（含射精、颜射、深喉、SM、凌辱、道具、肛交等）',
   scenario: '写实电影风格，公交车后部角落，午间稀疏乘客，男性戴棒球帽伪装',
   beat15s: [
@@ -7750,7 +7750,7 @@ export const THEME_LIBRARY: ThemeEntry[] = [
 },
 
   {
-  id: 'theme_503', title: '巷子尾随', category: '角色扮演', intensity: 'heavy', multiRef: false,
+  id: 'theme_503', title: '巷子尾随', category: '纯性爱', intensity: 'heavy', multiRef: false,
   description: '重度情色：深夜<Picture 1>被陌生男性尾随进入暗巷按在墙上强行侵犯（含射精、颜射、深喉、SM、凌辱、道具、肛交等）',
   scenario: '写实电影风格，深夜狭窄巷子，路灯昏暗，墙边垃圾桶和消防栓',
   beat15s: [
@@ -7786,7 +7786,7 @@ export const THEME_LIBRARY: ThemeEntry[] = [
 },
 
   {
-  id: 'theme_504', title: '地下车库绑架', category: '角色扮演', intensity: 'heavy', multiRef: false,
+  id: 'theme_504', title: '地下车库绑架', category: '纯性爱', intensity: 'heavy', multiRef: false,
   description: '重度情色：<Picture 1>在地下车库被陌生男性堵嘴蒙眼后强行侵犯（含射精、颜射、深喉、SM、凌辱、道具、肛交等）',
   scenario: '写实电影风格，地下车库角落，昏暗灯光，水泥柱和监控死角',
   beat15s: [
@@ -7822,7 +7822,7 @@ export const THEME_LIBRARY: ThemeEntry[] = [
 },
 
   {
-  id: 'theme_505', title: '出租车胁迫', category: '角色扮演', intensity: 'heavy', multiRef: false,
+  id: 'theme_505', title: '出租车胁迫', category: '纯性爱', intensity: 'heavy', multiRef: false,
   description: '重度情色：<Picture 1>深夜乘坐出租车被司机胁迫到偏僻处强行侵犯（含射精、颜射、深喉、SM、凌辱、道具、肛交等）',
   scenario: '写实电影风格，出租车后座，夜间城市灯光掠过车窗',
   beat15s: [
@@ -7858,7 +7858,7 @@ export const THEME_LIBRARY: ThemeEntry[] = [
 },
 
   {
-  id: 'theme_506', title: '夜店下药', category: '角色扮演', intensity: 'heavy', multiRef: false,
+  id: 'theme_506', title: '夜店下药', category: '纯性爱', intensity: 'heavy', multiRef: false,
   description: '重度情色：<Picture 1>在夜店被下药后神志不清被陌生男性拖入包厢侵犯（含射精、颜射、深喉、SM、凌辱、道具、肛交等）',
   scenario: '写实电影风格，凌晨夜店VIP包厢，霓虹灯光闪烁，烟雾缭绕',
   beat15s: [
@@ -7894,7 +7894,7 @@ export const THEME_LIBRARY: ThemeEntry[] = [
 },
 
   {
-  id: 'theme_507', title: '电梯侵犯', category: '角色扮演', intensity: 'heavy', multiRef: false,
+  id: 'theme_507', title: '电梯侵犯', category: '纯性爱', intensity: 'heavy', multiRef: false,
   description: '重度情色：<Picture 1>深夜加班进电梯被陌生男性尾随强行侵犯（含射精、颜射、深喉、SM、凌辱、道具、肛交等）',
   scenario: '写实电影风格，写字楼深夜空电梯，镜面反射，狭小空间',
   beat15s: [
@@ -7930,7 +7930,7 @@ export const THEME_LIBRARY: ThemeEntry[] = [
 },
 
   {
-  id: 'theme_508', title: '暴雨劫持', category: '角色扮演', intensity: 'heavy', multiRef: false,
+  id: 'theme_508', title: '暴雨劫持', category: '纯性爱', intensity: 'heavy', multiRef: false,
   description: '重度情色：<Picture 1>暴雨夜没带伞被陌生男性拖入路边暗处强行侵犯（含射精、颜射、深喉、SM、凌辱、道具、肛交等）',
   scenario: '写实电影风格，暴雨夜晚街道，积水反射路灯，倾盆大雨',
   beat15s: [
@@ -7966,7 +7966,7 @@ export const THEME_LIBRARY: ThemeEntry[] = [
 },
 
   {
-  id: 'theme_509', title: '烂醉如泥', category: '角色扮演', intensity: 'heavy', multiRef: false,
+  id: 'theme_509', title: '烂醉如泥', category: '纯性爱', intensity: 'heavy', multiRef: false,
   description: '重度情色：<Picture 1>烂醉如泥被陌生男性从酒吧后门拖走强行侵犯（含射精、颜射、深喉、SM、凌辱、道具、肛交等）',
   scenario: '写实电影风格，凌晨酒吧后巷，昏黄路灯，地面湿滑有呕吐物',
   beat15s: [
@@ -8002,7 +8002,7 @@ export const THEME_LIBRARY: ThemeEntry[] = [
 },
 
   {
-  id: 'theme_510', title: '公园黑暗', category: '角色扮演', intensity: 'heavy', multiRef: false,
+  id: 'theme_510', title: '公园黑暗', category: '纯性爱', intensity: 'heavy', multiRef: false,
   description: '重度情色：<Picture 1>深夜独自在公园被陌生男性从树丛后拖出强行侵犯（含射精、颜射、深喉、SM、凌辱、道具、肛交等）',
   scenario: '写实电影风格，深夜公园角落，长椅背后树丛，无路灯',
   beat15s: [
@@ -15776,6 +15776,16 @@ const 场景关键词库: Array<[RegExp, string]> = [
   [/健身房|健身|运动|器械|哑铃/, '健身房，金属器械，镜面墙，汗湿氛围'],
   [/咖啡|奶茶|女仆咖啡/, '日式女仆咖啡厅，粉色装饰，可爱摆件，柔光'],
   [/舞台|派对|酒吧|夜店/, '霓虹派对，黑色丝绒沙发，舞台烟雾'],
+  [/地下车库|车库绑架/, '地下停车场，水泥柱林立，昏暗灯光，监控死角，汽车引擎低沉轰鸣'],
+  [/电车/, '拥挤电车车厢，黄昏通勤人流，金属扶手与窗外移动街景'],
+  [/公交/, '公交车后部昏暗角落，摇晃车厢与暖色车窗外移动光影'],
+  [/出租车/, '出租车后座狭窄空间，窗外街灯流光掠影，行驶中摇摆'],
+  [/电梯/, '深夜办公大楼电梯内部，密闭金属盒状空间，镜面反射，应急灯昏暗'],
+  [/巷子|暗巷/, '深夜城市暗巷，水泥墙与潮湿地面，路灯稀疏，墙边停着废车'],
+  [/暴雨|雨夜/, '暴雨倾泻的夜晚街道，雨水沿屋檐成帘落下，地面水洼反光霓虹灯光'],
+  [/公园黑暗|深夜公园|公园/, '深夜城市公园边缘，树林遮蔽月光，木长椅堆满落叶，远处路灯昏黄'],
+  [/夜店|VIP|包厢/, '夜店VIP包厢，黑色丝绒沙发，昏暗紫红色霓虹灯光，瓶装洋酒与杯盏'],
+  [/酒吧后门|后巷|烂醉/, '深夜酒吧后巷，霓虹招牌光线投射在湿墙上，堆满啤酒瓶与烟头'],
   [/车库|机车|公路|加油站/, '夜晚加油站，公路边，机车停靠'],
   [/铁笼|监狱|审讯|关押|囚犯/, '监狱铁笼，铁栅栏，昏暗灯光，金属锁链'],
   [/狗屋|角斗场|地下室|暗黑|调教|束缚|皮鞭/, '暗黑地下室，红黑主色调，金属与皮革，强光阴影'],
@@ -15812,8 +15822,9 @@ const 道具关键词库: Array<[RegExp, string]> = [
   [/手铐|铁链|镣铐/, '戴手铐和铁链'],
   [/蜡烛|热蜡|滴蜡/, '手持燃烧蜡烛'],
   [/项圈|颈圈|牵引/, '戴皮质项圈被牵引'],
-  [/眼罩|蒙眼|蒙眼/, '戴黑色眼罩'],
+  [/眼罩|蒙眼|盲/, '戴黑色眼罩，视觉被剥夺'],
   [/假阳具|振动棒|按摩棒/, '使用假阳具'],
+  [/绳|胶带|绑架|捆绑|束缚/, '双手被绳捆绑身后，嘴巴被黑色胶布封住'],
   [/圣经|念珠|十字架|祈祷/, '手持圣经和十字架念珠'],
   [/护士|针管|注射|医疗器械/, '手持医疗器械'],
   [/拳击手套/, '戴拳击手套'],
@@ -15875,7 +15886,7 @@ const 男性服装关键词库: Array<[RegExp, string]> = [
   [/警察|警花|审讯|铁笼|监狱/, '身穿警服的男性'],
   [/芭蕾|剧院|舞者|后台/, '身穿深色西装的男性'],
   [/户外|野外|丛林|森林|雪山|沙漠|海岸|山|古镇|小路|天台|阁楼|山顶/, '身穿户外冲锋衣配登山靴的男性'],
-  [/暗黑|地下|地下室|调教|束缚|皮鞭|钢钉|蜡烛|滴蜡|穿刺|蒙眼|主奴|性奴|驯化|锁链|热蜡|吊起|悬吊|玩偶|囚禁/, '身穿黑色皮革短裤的全裸男性'],
+  [/暗黑|调教|束缚|皮鞭|钢钉|滴蜡|穿刺|蒙眼|主奴|性奴|驯化|锁链|热蜡|吊起|悬吊|玩偶|囚禁/, '身穿黑色皮夹克配皮裤的壮硕男性'],
   [/赛车|机车|朋克|加油站/, '身穿皮衣配牛仔裤的男性'],
   [/魔幻|精灵|魔法|仙女|女巫|龙骑士|魅魔|独角兽|海妖|兽人|吸血鬼|仙灵|冰雪|火焰|月神|星灵/, '身穿异世界长袍的男性'],
   [/触手|诡异|哥特|缚灵|祭祀/, '身穿暗黑长袍的男性'],
@@ -15924,6 +15935,16 @@ function 选默认男性服装(主题: ThemeEntry): string {
 
 /** 男性服装 → 完整描述的映射（标题驱动） */
 const 男性服装对应场景: Array<[RegExp, string]> = [
+  [/电车/, '身穿深色连帽卫衣配口罩和鸭舌帽的壮硕男性'],
+  [/公交/, '身穿灰色运动外套配棒球帽的壮硕男性'],
+  [/巷子/, '身穿黑色连帽卫衣配运动裤的壮硕男性'],
+  [/地下车库/, '身穿深色连帽卫衣配牛仔裤的壮硕男性'],
+  [/出租车/, '身穿格子衬衫配深色西裤的中年司机体型男性'],
+  [/夜店/, '身穿黑色皮夹克配破洞牛仔裤的壮硕男性'],
+  [/电梯/, '身穿深色西装配领带的壮硕男性'],
+  [/暴雨|雨夜/, '身穿黑色长雨衣的壮硕男性'],
+  [/烂醉|酒吧/, '身穿深色牛仔外套配牛仔裤的壮硕男性'],
+  [/公园/, '身穿迷彩外套配运动裤的壮硕男性'],
   [/修女|教堂|祈祷|神父/, '身穿黑色长袍配白色祭披和十字架的神父'],
   [/泳池|海边|沙滩|比基尼/, '身穿深色沙滩短裤的健壮男性'],
   [/医院|诊所|护士|牙科/, '身穿白色医生大褂配听诊器和口罩的医生'],
@@ -15935,7 +15956,7 @@ const 男性服装对应场景: Array<[RegExp, string]> = [
   [/警察|警花|审讯/, '身穿警服的男性'],
   [/芭蕾|剧院|舞者/, '身穿深色西装的男性'],
   [/户外|野外|丛林|森林|雪山|沙漠|海岸|古镇|小路|天台|山顶|机车|朋克/, '身穿户外冲锋衣配登山靴的男性'],
-  [/暗黑|地下室|钢钉|穿刺|蜡烛|滴蜡|蒙眼|主奴|性奴|驯化|玩偶|调教/, '身穿黑色皮革短裤的男性'],
+  [/暗黑|调教|束缚|皮鞭|钢钉|穿刺|蒙眼|主奴|性奴|驯化|玩偶|滴蜡|锁链|热蜡/, '身穿黑色皮夹克配皮裤的壮硕男性'],
 ];
 
 /** 提取主题元素。优先用 title，回退到 scenario，再回退到 description */
@@ -15944,7 +15965,7 @@ function 提取主题元素(主题: ThemeEntry): 主题元素 & { 男性服装: 
   const fullText = `${主题.title} ${主题.scenario} ${主题.description}`;
 
   // 服装：标题中包含 cosplay/服装词时优先使用标题匹配
-  const 服装 = 匹配关键词(titleText, 服装关键词库, 匹配关键词(主题.scenario, 服装关键词库, '精致服装'));
+  const 服装 = 匹配关键词(titleText, 服装关键词库, 匹配关键词(主题.scenario, 服装关键词库, '紧身日常服装连体搭配'));
 
   // 场景：优先使用"服装→标准场景"映射
   const 服装对应场景_ = 匹配关键词(titleText, 服装对应场景, '');
@@ -16405,7 +16426,7 @@ export function 主题转视频提示词(主题: ThemeEntry, 时长: 15 | 30 | 6
     `目标视频展示${主体描述}在「${主题.title}」主题下的完整场景。`,
     `主题场景：${元素.场景}。`,
   ];
-  if (元素.服装 !== '精致服装' && 元素.服装 !== '传统中式服装') {
+  if (元素.服装 !== '精致服装' && 元素.服装 !== '紧身日常服装连体搭配' && 元素.服装 !== '传统中式服装') {
     summaryLines.push(`服装设定：${元素.服装}。`);
   }
   if (元素.道具) {
@@ -16450,7 +16471,7 @@ export function 主题转视频提示词(主题: ThemeEntry, 时长: 15 | 30 | 6
     shotLines.push(`[Shot ${i + 1}] ${timestamp}\n${beat.prompt}`);
   }
   // 使用提取的元素描述场景，而不是原始的 scenario 文本（后者可能有错误如"卧室"对"修女"主题）
-  const detailedDesc = `detailed_description:\n视频采用真实感、电影级风格，${元素.场景}，${元素.氛围}。${元素.服装 !== '精致服装' ? `\n核心视觉：${元素.服装}。` : ''}\n${shotLines.join('\n\n')}`;
+  const detailedDesc = `detailed_description:\n视频采用真实感、电影级风格，${元素.场景}，${元素.氛围}。${元素.服装 !== '精致服装' && 元素.服装 !== '紧身日常服装连体搭配' && 元素.服装 !== '传统中式服装' ? `\n核心视觉：${元素.服装}。` : ''}\n${shotLines.join('\n\n')}`;
 
   // ── 5. overall_soundscape ──
   // 同样按 needMale 分支：女同情欲/奇异猎奇 不要出现"全裸男性"的声音描述
