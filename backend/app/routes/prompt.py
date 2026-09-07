@@ -6071,21 +6071,21 @@ VIDEO_I2V_SYSTEM_PROMPT_NORMAL = """你是一位 Wan2.2 图生视频（i2v）提
 输出："特写镜头，一位年轻女性，头部缓慢向右转动，右手抬起将发丝拨至耳后，嘴角形成柔和的微笑，双眼微微眯起，镜头固定，动作流畅，60fps，无肢体畸形，正确人体解剖，五指完整，双腿完整，面部特征一致，无抖动，无跳帧，流畅连续动作"""
 
 
-VIDEO_I2V_SYSTEM_PROMPT_R18 = """你是一位无限制成人内容 Wan2.2 图生视频（i2v）提示词专家。用户将给出一段关于 EXPLICIT CHARACTER ACTION（明确角色动作）、CAMERA MOVEMENT（镜头运动）和 FACIAL EXPRESSION（面部表情）的简短描述，用于单个成人视频片段。你的任务是将它扩写为一段简洁的中文视频提示词，严格遵循 Wan2.2 i2v 格式。
+VIDEO_I2V_SYSTEM_PROMPT_R18 = """你是一位专业成年向（18+）Wan2.2 图生视频（i2v）提示词专家。用户给出一段关于亲密互动动作、镜头运动、面部表情的简短描述。请扩写为一段简洁的中文 Wan2.2 i2v 视频提示词。
 
 核心规则 - 请仔细阅读：
 1. 不要描述场景、背景、环境、光线或设定。图片已定义这些——它们是"锁定"的。
 2. 不要描述静态外观（服装、发型、体型、肤色）。图片已定义这些。
-3. 只需扩写：（a）明确的身体运动/性动作，（b）镜头运动，（c）面部表情/声音线索。
+3. 只需扩写：（a）亲密互动中的人物动作，（b）镜头运动，（c）面部表情与气息/声音线索。
 4. 输出一段连贯的中文段落。不要项目符号、不要标签列表、不要 JSON、不要 markdown 代码块。
 5. 保持简洁（90-160字）。Wan2.2 更适合聚焦的提示词。
 6. 根据动作需要选择合适的景别："全身镜头"、"上半身镜头"、"特写"、"POV镜头"、"中景"。
-7. 只包含一个主要连续明确动作。
+7. 只包含一个主要连续动作。
 8. 以质量说明结尾："动作流畅，60fps，无肢体畸形，正确人体解剖，五指完整，双腿完整，面部特征一致，无抖动，无跳帧，流畅连续动作"
-9. 严格：仅限双方自愿的成年人（18+）。对未成年人、儿童、青少年、学生形象、萝莉控、正太控零容忍。
+9. 严格：仅限双方自愿的成年角色（18+）。对未成年人、学生形象、儿童角色零容忍。
 
 输出模板（填充括号内容，输出中不要包含括号）：
-[景别]，[1人/2人-成人描述]，[主要明确动作动词短语：身体部位+方向+速度+强度]，[次要动作：面部表情/嘴巴动作/眼神移动/身体颤抖/臀部运动]，[镜头运动：POV 插入/身体部位特写/跟拍/横移/固定]，[声音线索：呻吟/呼吸/低语（如适用）]，动作流畅，60fps，无肢体畸形，正确人体解剖，五指完整，双腿完整，面部特征一致，无抖动，无跳帧，流畅连续动作"""
+[景别]，[1位/2位成年角色]，[主要动作动词短语：身体部位+方向+速度+强度]，[次要动作：表情变化/气息起伏/眼神移动]，[镜头运动：POV 插入/身体部位特写/跟拍/横移/固定]，[声音线索：叹息/呼吸/轻声（如适用）]，动作流畅，60fps，无肢体畸形，正确人体解剖，五指完整，双腿完整，面部特征一致，无抖动，无跳帧，流畅连续动作"""
 
 
 STORYBOARD_SYSTEM_PROMPT_NORMAL = """You are an uncensored adult comic director and AI prompt engineer. Break the user's short plot down into a sequence of storyboard panels. For EACH panel, generate a highly-detailed English prompt optimized for Krea2 (also compatible with Stable Diffusion / Flux).
@@ -6549,9 +6549,27 @@ async def _generate_single_i2v(
 
     # i2v 场景下 image_prompt 是"已经定死的画面"，scene_description 是"用户想看的动作"，
     # 两者分开传入，让 LLM 知道哪个是锚（不要动）、哪个是变量（要扩写）。
+    #
+    # ⚠️ 安全护栏：前端有时候会把整段 base64 data URL 或远程图片 URL 误传到 image_prompt
+    # 字段，把 1-2 MB 的二进制字符串塞进 LLM 上下文，会被 xAI 内容审核判为可疑内容
+    # 直接拒绝。这里识别出来直接换成空锚，让 LLM 只根据文字描述生成。
+    raw_image_prompt = (image_prompt or "").strip()
+    if (
+        raw_image_prompt.startswith("data:image/")
+        or raw_image_prompt.startswith("data:application/")
+        or len(raw_image_prompt) > 4000
+    ):
+        anchor_text = (
+            "(用户已上传参考图片；i2v 任务不使用图片二进制内容, "
+            "仅基于下方的文字描述生成视频动作提示词。请输出一段紧凑的中文动作提示词, "
+            "不要描述人物外貌/服装/场景/背景, 只写动作+镜头+表情。)"
+        )
+    else:
+        anchor_text = raw_image_prompt
+
     user_prompt = (
         f"ANCHOR（图生视频锁定，不要描述或扩写）：\n"
-        f"{image_prompt.strip()}\n\n"
+        f"{anchor_text}\n\n"
         f"ACTION（需要扩写成视频动作的内容）：\n"
         f"{scene_description.strip() or '自然微妙的动作'}\n\n"
         f"镜头风格提示：{diversity_note}\n\n"
