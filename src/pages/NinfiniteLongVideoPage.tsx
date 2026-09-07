@@ -1133,15 +1133,6 @@ const handleGirlfriendSelect = useCallback(
           </div>
         )}
       </div>
-
-      {/* 数字人锚定 */}
-      <GirlfriendSelector
-        selectedIds={selectedGirlfriends
-          .filter(Boolean)
-          .map((g) => (g.isCustom ? `custom_${g.id}` : g.id))}
-        onSelect={handleGirlfriendSelect}
-        disabled={submitting}
-      />
     </div>
   );
 }

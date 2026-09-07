@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { extractVideoPromptFromImagePrompt } from '../utils/videoPromptExtractor';
-import { makeThumbnailForStorage } from '../utils/imageThumbnail';
+import { makeThumbnailForStorage, makePreviewForStorage } from '../utils/imageThumbnail';
 import { AspectAwareImage } from '../components/AspectAwareImage';
 import { generateH3Prompt, generateH3PromptsForPanels, generateH3ShotPrompt, generateH3ShotPromptsForPanels, generateH3CommonParts, assembleH3Prompt, extractShotFromLLMOutput, type H3PanelShot, type H3CommonParts } from '../services/h3PromptService';
 import {
@@ -5069,15 +5069,18 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         return;
       }
 
-      // Build node list for video generation (matching ImageToVideoPage format)
+      // Build node list for MiniMax H3 video generation (WORKFLOW.MINIMAX_H3 = 2084661265636839425)
       const nodes = [
-        { nodeId: '28', fieldName: 'value', fieldValue: '720', description: '最长边' },
-        { nodeId: '20', fieldName: 'value', fieldValue: '5', description: '时长（秒）' },
-        { nodeId: '77', fieldName: 'value', fieldValue: 'false', description: '补帧（默认关）' },
-        { nodeId: '21', fieldName: 'image', fieldValue: imagePath, description: '图片上传' },
-        { nodeId: '38', fieldName: 'value', fieldValue: finalVideoPrompt, description: '提示词' },
-        { nodeId: '42', fieldName: 'lora_name', fieldValue: 'SmoothMixAnimationStyle_High.safetensors', description: 'lora（high）' },
-        { nodeId: '42', fieldName: 'strength_model', fieldValue: '1.0', description: 'lora权重' },
+        { nodeId: '238', fieldName: 'value', fieldValue: '0.5', description: '强度' },
+        { nodeId: '185', fieldName: 'value', fieldValue: '15', description: '时长' },
+        { nodeId: '182', fieldName: 'select', fieldValue: '1', description: '风格模式' },
+        { nodeId: '127', fieldName: 'value', fieldValue: 'false', description: '自动提示词' },
+        { nodeId: '38', fieldName: 'prompt', fieldValue: finalVideoPrompt, description: '提示词' },
+        { nodeId: '19', fieldName: 'unet_name', fieldValue: 'DasiwaMinimaxH3_dasiwaREF2VAHybridV1.safetensors', description: '视频模型' },
+        { nodeId: '111', fieldName: 'lora_name', fieldValue: 'SmoothMixAnimationStyle_High.safetensors', description: 'LoRA模型' },
+        { nodeId: '111', fieldName: 'strength_model', fieldValue: '1.0', description: 'LoRA权重' },
+        // 参考图1（只用第一张图）
+        { nodeId: '50', fieldName: 'image', fieldValue: imagePath, description: '参考图1' },
       ];
 
       // Notify VideoTaskList via localStorage so it shows the task.
@@ -5104,7 +5107,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         console.warn('[handleDirectGenerateVideo] localStorage notify failed (non-fatal):', storageErr);
       }
 
-      await taskManager.addTask('img2vid', nodes, finalVideoPrompt, WORKFLOW.IMAGE_TO_VIDEO);
+      await taskManager.addTask('img2vid', nodes, finalVideoPrompt, WORKFLOW.MINIMAX_H3);
       onSuccess('视频生成任务已提交');
     } catch (err) {
       onError(err instanceof Error ? err.message : '视频生成失败');
@@ -5362,6 +5365,75 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     }
   }, [activePanels, activeThemeInfo, plot, panelH3Duration, r18Mode, onSuccess, onError, panelVideoPrompts, sbHistoryId, panelH3ShotMap, panelH3Prompts, handleGeneratePanelH3]);
 
+  /** 单分镜：跳转到长视频 v2 并填入提取的视频提示词（复用长视频1.1逻辑，仅换模型） */
+  const handleGotoLongVideoV2 = useCallback(async (imageUrl: string) => {
+    // 先上传图片获取 path + downloadUrl
+    // 【重要】imagePath 是相对路径（"openapi/xxx.jpg"），不能直接当 <img src> 用。
+    // preview 必须用 downloadUrl（RunningHub 全 URL）才能正确显示。
+    let imagePath = imageUrl;
+    let downloadUrl = imageUrl.startsWith('http') ? imageUrl : '';
+    if (imageUrl.startsWith('data:') || imageUrl.startsWith('blob:')) {
+      try {
+        const res = await fetch(imageUrl);
+        const blob = await res.blob();
+        const file = new File([blob], `storyboard_v2_${Date.now()}.jpg`, { type: 'image/jpeg' });
+        const { imagePath: uploadedPath, downloadUrl: uploadedUrl } = await uploadImage(apiKey, file);
+        imagePath = uploadedPath;
+        downloadUrl = uploadedUrl || downloadUrl;
+      } catch {
+        onError('图片上传失败，请重试');
+        return;
+      }
+    }
+
+    // 存储到 sessionStorage，由 ImageToVideoPage 消费。
+    // 【preview 策略】必须用 RunningHub 全 URL（downloadUrl），不是相对路径 imagePath。
+    // 之前把 imagePath 当 preview 用，导致 <img src="openapi/xxx.jpg"> 破图。
+    const previewUrl = downloadUrl
+      || (imageUrl.startsWith('http') ? imageUrl : '')
+      || await makePreviewForStorage(imageUrl);
+    const payload = {
+      imagePath,
+      imagePreview: previewUrl,
+      targetModel: 'minimaxlongv2',
+      processed: false,
+    };
+    try {
+      sessionStorage.setItem('storyboard_h3_longvideo', JSON.stringify(payload));
+    } catch (storageErr) {
+      // 兜底：再试一次（去掉 imagePreview，纯字符串 + path）
+      try {
+        sessionStorage.setItem('storyboard_h3_longvideo', JSON.stringify({
+          imagePath,
+          imagePreview: '',
+          targetModel: 'minimaxlongv2',
+          processed: false,
+        }));
+        console.warn('[handleGotoLongVideoV2] sessionStorage 满了，已省略 imagePreview');
+      } catch (storageErr2) {
+        // 最后兜底：写入 IndexedDB，sessionStorage 只放 ref
+        try {
+          const ref = await storeImage(JSON.stringify(payload));
+          sessionStorage.setItem('storyboard_h3_longvideo', JSON.stringify({
+            ref,
+            imagePath,
+            targetModel: 'minimaxlongv2',
+            processed: false,
+          }));
+          console.log(`[handleGotoLongVideoV2] sessionStorage 已满，payload 写入 IndexedDB ref=${ref}`);
+        } catch (storageErr3) {
+          if (storageErr3 instanceof Error && storageErr3.name === 'QuotaExceededError') {
+            onError('浏览器存储空间不足，请关闭部分标签页后重试，或清理浏览器缓存后重试');
+          } else {
+            onError('存储失败，请重试');
+          }
+          return;
+        }
+      }
+    }
+    onNavigate?.('img2vid');
+  }, [apiKey, onError, onNavigate]);
+
   /** 单个分镜：跳转到长视频 1.1 并填入 H3 提示词 */
   const handleGotoLongVideoWithH3 = useCallback(async (
     idx: number,
@@ -5369,15 +5441,19 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     imageUrl: string,
     panelH3Prompt: string,
   ) => {
-    // 先上传图片获取 path
+    // 先上传图片获取 path + downloadUrl
+    // 【重要】imagePath 是相对路径（"openapi/xxx.jpg"），不能直接当 <img src> 用。
+    // preview 必须用 downloadUrl（RunningHub 全 URL）才能正确显示。
     let imagePath = imageUrl;
+    let downloadUrl = imageUrl.startsWith('http') ? imageUrl : '';
     if (imageUrl.startsWith('data:') || imageUrl.startsWith('blob:')) {
       try {
         const res = await fetch(imageUrl);
         const blob = await res.blob();
         const file = new File([blob], `storyboard_h3_${Date.now()}.jpg`, { type: 'image/jpeg' });
-        const { imagePath: uploadedPath } = await uploadImage(apiKey, file);
+        const { imagePath: uploadedPath, downloadUrl: uploadedUrl } = await uploadImage(apiKey, file);
         imagePath = uploadedPath;
+        downloadUrl = uploadedUrl || downloadUrl;
       } catch {
         onError('图片上传失败，请重试');
         return;
@@ -5412,12 +5488,51 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         r18: r18Mode,
       });
     }
-    sessionStorage.setItem('storyboard_h3_longvideo', JSON.stringify({
-      imagePath,
-      imagePreview: imageUrl,
-      h3Prompt,
-      processed: false,
-    }));
+    const previewUrl = downloadUrl
+      || (imageUrl.startsWith('http') ? imageUrl : '')
+      || await makePreviewForStorage(imageUrl);
+    try {
+      sessionStorage.setItem('storyboard_h3_longvideo', JSON.stringify({
+        imagePath,
+        imagePreview: previewUrl,
+        h3Prompt,
+        processed: false,
+      }));
+    } catch (storageErr) {
+      // 兜底 1：去掉 imagePreview（H3 提示词不能省）
+      try {
+        sessionStorage.setItem('storyboard_h3_longvideo', JSON.stringify({
+          imagePath,
+          imagePreview: '',
+          h3Prompt,
+          processed: false,
+        }));
+        console.warn('[handleGotoLongVideoWithH3] sessionStorage 满了，已省略 imagePreview');
+      } catch (storageErr2) {
+        // 兜底 2：写入 IndexedDB，sessionStorage 只放 ref
+        try {
+          const ref = await storeImage(JSON.stringify({
+            imagePath,
+            imagePreview: previewUrl,
+            h3Prompt,
+          }));
+          sessionStorage.setItem('storyboard_h3_longvideo', JSON.stringify({
+            ref,
+            imagePath,
+            h3Prompt: '', // payload 在 IndexedDB，但 consumer 需要 imagePath/h3Prompt 同时存在
+            processed: false,
+          }));
+          console.log(`[handleGotoLongVideoWithH3] sessionStorage 已满，payload 写入 IndexedDB ref=${ref}`);
+        } catch (storageErr3) {
+          if (storageErr3 instanceof Error && storageErr3.name === 'QuotaExceededError') {
+            onError('浏览器存储空间不足，请关闭部分标签页后重试，或清理浏览器缓存后重试');
+          } else {
+            onError('存储失败，请重试');
+          }
+          return;
+        }
+      }
+    }
     onNavigate?.('img2vid');
   }, [apiKey, panelH3Duration, r18Mode, onError, onNavigate, onSuccess, panelH3ShotMap, sbHistoryId]);
 
@@ -6873,6 +6988,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                 onTogglePanelH3Constraint={handleTogglePanelH3Constraint}
                 onGeneratePanelH3={() => handleGeneratePanelH3(idx, panel)}
                 onGotoLongVideoWithH3={(imageUrl) => handleGotoLongVideoWithH3(idx, panel, imageUrl, panelH3Prompts[pK])}
+                onGotoLongVideoV2={(imageUrl) => handleGotoLongVideoV2(imageUrl)}
               />
             );
           })}
@@ -7190,7 +7306,7 @@ function FavoritesList({ favorites, r18Mode, onRemove, onClear }: {
   );
 }
 
-function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onToggle, onCopyPanel, genState, onGenerateImage, onFavorited, onDownload, taskManager, digitalHumanMode, selectedGirlfriend, selectedImageIndex, onSelectImage, onGenerateVideo, videoPrompt, hasGeneratedImages, onPreviewImage, videoGenLoading, onDirectGenerateVideo, themeTitle, onRegenerateVideoPrompt, promptEditLoading, onVideoPromptChange, historyId, panelH3Prompt, panelH3Duration, panelH3Loading, onGeneratePanelH3, onGotoLongVideoWithH3, onImagePromptChange, onRegenerateImagePrompt, imagePromptRegenLoading, onPanelH3PromptChange, panelH3ConstraintEnabled, onTogglePanelH3Constraint }: {
+function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onToggle, onCopyPanel, genState, onGenerateImage, onFavorited, onDownload, taskManager, digitalHumanMode, selectedGirlfriend, selectedImageIndex, onSelectImage, onGenerateVideo, videoPrompt, hasGeneratedImages, onPreviewImage, videoGenLoading, onDirectGenerateVideo, themeTitle, onRegenerateVideoPrompt, promptEditLoading, onVideoPromptChange, historyId, panelH3Prompt, panelH3Duration, panelH3Loading, onGeneratePanelH3, onGotoLongVideoWithH3, onGotoLongVideoV2, onImagePromptChange, onRegenerateImagePrompt, imagePromptRegenLoading, onPanelH3PromptChange, panelH3ConstraintEnabled, onTogglePanelH3Constraint }: {
   panel: { panel_number: number; scene_description: string; image_prompt: string };
   idx: number; isExpanded: boolean; r18Mode: boolean; copiedPanel: number | null;
   onToggle: () => void; onCopyPanel: () => void;
@@ -7222,6 +7338,8 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
   panelH3Loading?: boolean;
   onGeneratePanelH3?: () => void;
   onGotoLongVideoWithH3?: (imageUrl: string) => void;
+  /** 「图生视频 → 长视频v2」按钮：把分镜首图传给长视频 V2 模型 */
+  onGotoLongVideoV2?: (imageUrl: string) => void;
   /** 图片提示词编辑回调（用户在卡片内直接改 image_prompt） */
   onImagePromptChange?: (newPrompt: string) => void;
   /** 触发该分镜的图片提示词 LLM 重新生成 */
@@ -7531,19 +7649,17 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
                         const imageToUse = selectedImageIndex !== undefined && allDisplayImages[selectedImageIndex]
                           ? allDisplayImages[selectedImageIndex]
                           : allDisplayImages[0];
-                        // Always pass a panel-derived videoPrompt. If empty, the button is
-// already disabled (see below) — letting the user click would either
-// submit an empty prompt or fall back to panel.image_prompt which is
-// often the whole-storyboard master prompt and would produce junk.
-                        // videoPrompt 可能为 undefined（动画提示词区域为空时），
-                        // 但此时按钮已被 disabled={!videoPrompt} 禁用，
-                        // 所以这里用空字符串兜底是安全的。
-                        const promptForVideo = videoPrompt ?? '';
+                        // 当 videoPrompt 为空时，从 image_prompt + scene_description 自动提取
+                        const promptForVideo = videoPrompt || extractVideoPromptFromImagePrompt({
+                          imagePrompt: panel.image_prompt,
+                          sceneDescription: panel.scene_description,
+                          r18Mode: r18Mode,
+                        });
                         onDirectGenerateVideo?.(imageToUse, promptForVideo);
                       }}
-                      disabled={videoGenLoading || !videoPrompt}
+                      disabled={videoGenLoading}
                       className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                        !videoPrompt || videoGenLoading
+                        videoGenLoading
                           ? 'bg-purple-100 text-purple-400 cursor-not-allowed'
                           : 'bg-purple-500 text-white hover:bg-purple-600'
                       }`}
@@ -7571,7 +7687,7 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
                         ? <><RefreshCw size={11} />重新生成H3</>
                         : <><Sparkles size={11} />生成H3提示词</>}
                   </button>
-                  {panelH3Prompt && hasImages && (
+                  {hasImages && (
                     <button
                       type="button"
                       onClick={() => {
@@ -7589,6 +7705,21 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
                       }`}
                     >
                       <Video size={11} />图生视频 → 长视频1.1
+                    </button>
+                  )}
+                  {hasImages && (
+                    <button
+                      type="button"
+                      onClick={() => onGotoLongVideoV2?.(selectedImageIndex !== undefined && allDisplayImages[selectedImageIndex] ? allDisplayImages[selectedImageIndex] : allDisplayImages[0])}
+                      disabled={videoGenLoading}
+                      title="用提取的视频提示词在长视频 V2 中生成视频"
+                      className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                        videoGenLoading
+                          ? 'bg-cyan-100 text-cyan-400 cursor-not-allowed'
+                          : 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white hover:opacity-90'
+                      }`}
+                    >
+                      <Video size={11} />图生视频 → 长视频v2
                     </button>
                   )}
                 </div>

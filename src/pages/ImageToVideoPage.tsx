@@ -2346,277 +2346,6 @@ non_diegetic_music:
 
 一段节奏明快、带有电子合成器元素的舞曲，BPM约为120，低音贝斯贯穿始终，在动作切换点有明显的重音强调。`,
   },
-  {
-    name: '时间停止',
-    color: 'from-violet-500 to-purple-600',
-    prompt: `subject_definitions:
-
-<Picture 1>是视频主角的参考图，由用户上传，图中女性将作为目标视频的核心角色出现。
-
-summary:
-
-目标视频展示<Picture 1>中的女性角色在时间停止效果触发后，完全陷入静止状态，一名男性趁机对她实施不可描述行为。视频采用写实电影风格，第一人称视角，镜头稳定略带手持轻微晃动。
-
-retention_analysis:
-
-<Picture 1>中的女性在所有镜头中 fully_preserved（面部 / 发型 / 妆容 / 身材比例 / 服装完全保留）。
-
-detailed_description:
-
-[Shot 1] 00:00.000，实拍电影风格，第一人称视角，中景镜头完整呈现<Picture 1>中的女性角色正面朝向镜头站立于画面中央，完整保留其面部特征、发型、妆容、身材比例及上身完整服装。她的左手抬起放在脸侧，手指比出和平手势指向镜头。镜头稳定拍摄，略带轻微手持晃动。At 00:02.000，一只男性手从画面右侧进入帧中手持一枚怀表，怀表顶部表面有可见按钮。食指向下按动按钮，动作清晰、机械感十足。随即触发时间停止视觉效果：强烈的菱形光线折射在画面中爆发，图像短暂扭曲变形，整个场景冻结，时间完全停止。
-
-[Shot 2] At 00:02.500，镜头切至同一第一人称视角构图。<Picture 1>中的女性现已完全冻结僵硬——她的身体笔直僵硬，比出和平手势的手锁定原位，眼睛空洞无神无聚焦，没有眨眼和任何眼球运动，身体各部分完全静止。两只手进入画面用力撕开她的上身服装，从领口或中心接缝处撕裂布料，露出大尺寸裸露乳房。撕裂过程中，女性的身体、和平手势和眼睛保持完全冻结静止。
-
-[Shot 3] At 00:05.000，镜头小幅向下倾斜缓慢移动拍摄她的下半身。两只手用力撕开她的裙子或裤子，从中间撕裂布料露出私处。一只手揉捏挤压她的大腿内侧和外侧。镜头随后小幅拉远缓慢移动拍摄她的全身。
-
-[Shot 4] At 00:07.000，镜头切至更近的中景。<Picture 1>中的女性保持完全冻结静止，两只手用力揉捏和挤压她裸露的乳房，动作清晰、刻意、强劲。一只手向上移动抓住她的下巴或脸颊，另一只手不停的抚摸女性的阴部。<Picture 1>中的女性保持和平手势无任何变化，眼睛保持空洞完全无眨眼，眼球不动，全身保持绝对冻结静止直到视频结束。
-
-[Shot 5] At 00:15.000，女人转身，双手脱掉女人裤子，露出雪白的肥臀，双手不停的拍打和抓女人屁股。近景特写屁股。
-
-[Shot 6] At 00:20.000，巨大的阴茎插入女人的阴部，来回快速的抽插，女人达到高潮不停的叫喊，最后浓稠白色精液喷射在她的臀部，分多次喷出。视频定格结束。
-
-overall_soundscape:
-
-清脆响亮的机械咔哒声在怀表按钮按下的瞬间发出，紧接着是短暂的时间停止音效，模拟时钟齿轮快速旋转的声音。效果消退后，响亮的暴力撕裂布料声主导音景，伴随着轻微潮湿的肉体被揉捏挤压的声音。性爱后入的时候，女人高潮的叫声，以及男人撞击女人臀部的声音，视频结束时大量精液喷出的潮湿喷射声。没有女性发出的任何声音、呼吸声或任何其他声音。
-
-non_diegetic_music: N/A`,
-  },
-  {
-    name: '远程换装',
-    color: 'from-pink-500 to-rose-500',
-    prompt: `subject_definitions:
-
-<Picture 1>是视频主角的参考图，由用户上传，图中女性将作为目标视频的核心角色出现。
-
-summary:
-
-目标视频展示<Picture 1>中的女性角色在试衣间镜子前持续展示服装，一名男性手持手机通过按钮切换服装，最终触发时间停止并实施不可描述行为。视频采用写实电影风格，第一人称视角，镜头稳定略带手持轻微晃动。
-
-retention_analysis:
-
-<Picture 1>中的女性在所有镜头中 fully_preserved（面部 / 发型 / 妆容 / 身材比例 / 原始服装完全保留）。
-
-detailed_description:
-
-[Shot 1] 00:00.000，实拍电影风格，明亮干净的试衣间配全身镜，中景镜头呈现<Picture 1>中的女性站立于镜子前，完整保留其面部特征、发型、妆容、身材比例及完整原始服装。她已经持续扭动身体、左右旋转、小幅旋转展示服装和身材，表情骄傲俏皮。镜头稳定中景拍摄，略带轻微手持晃动。At 00:03.000，一只男性手从画面底部以第一人称视角进入帧中手持智能手机。手机屏幕清晰显示一个无面白色全身人体模型穿着时尚短外套和迷你裙，下方有亮红色按钮。食指按下红色按钮。瞬间，零延迟，女性的服装切换为完全相同的短外套和迷你裙。她实时惊讶地向下看，然后继续愉快地扭动和旋转。
-
-[Shot 2] At 00:05.000，手向左滑动；人体模型现在穿着紧身露背迷你裙。红色按钮再次按下。瞬间她的服装变为同一款连衣裙。她惊喜地睁大眼睛，继续更夸张地旋转。
-
-[Shot 3] At 00:08.000，再次滑动显示白色蕾丝比基尼。按钮按下。瞬间她穿着白色蕾丝比基尼。她僵住0.5-1秒，眼睛因真实震惊和尴尬而睁大，双手遮住胸部，身体变得僵硬和拘束。
-
-[Shot 4] At 00:10.000，最后一次滑动显示完全赤裸的空白人体模型。按钮按下。瞬间她所有衣服消失，完全赤裸露出大尺寸裸露乳房和暴露的私处。同时触发怀表时间停止效果：菱形光线折射闪烁，场景冻结。<Picture 1>中的女性完全僵硬冻结，眼睛空洞无眨眼，如果存在之前的和平手势也锁定原位。两只手撕裂任何剩余布料（如需要），然后抓住她的臀部，以站立狗式姿势用力节奏抽插。一只手绕过身体粗略地揉捏和挤压她的乳房。
-
-[Shot 5] At 00:12.000，在她保持绝对冻结静止的同时，镜头环绕360度展示，从胸部转到臀部特写，最后结束。
-
-overall_soundscape:
-
-开始时轻柔的布料摩擦声和她旋转时的轻快脚步声。每次按下按钮时清脆的按钮点击声。短暂的时钟齿轮时间停止音效。。时间停止后没有女性发出的任何声音或呼吸声。
-
-non_diegetic_music: N/A`,
-  },
-  {
-    name: '催眠魔眼',
-    color: 'from-indigo-500 to-purple-700',
-    prompt: `subject_definitions:
-
-<Picture 1>是视频主角的参考图，由用户上传，图中女性将作为目标视频的核心角色出现。
-
-summary:
-
-目标视频展示<Picture 1>中的女性被催眠师手持的旋转怀表催眠，进入失神迷醉状态后，身体在催眠指令下不受控制地自我抚慰。视频采用写实电影风格，第一人称视角，镜头稳定略带手持轻微晃动。
-
-retention_analysis:
-
-<Picture 1>中的女性在所有镜头中 fully_preserved（面部 / 发型 / 妆容 / 身材比例 / 服装完全保留）。
-
-detailed_description:
-
-[Shot 1] 00:00.000，实拍电影风格，第一人称视角，中景镜头呈现<Picture 1>中的女性坐于舒适的单人沙发上，神情警觉且略带好奇，完整保留其面部特征、发型、妆容、身材比例及完整服装。镜头稳定拍摄，略带轻微手持晃动。At 00:02.000，一只男性手从画面中央进入帧中，拇指和食指之间捏着一枚闪亮的银色怀表，表链悬垂。怀表在她眼前缓慢左右摆动，节奏催眠般稳定。
-
-[Shot 2] At 00:05.000，<Picture 1>中的女性目光被怀表牢牢吸引，眼球跟随摆动节奏机械地左右扫视。At 00:07.000，她的眼皮开始沉重，缓缓合上又艰难睁开，反复3次后彻底闭上，进入深度催眠状态。身体放松瘫软，头部微微后仰。
-
-[Shot 3] At 00:10.000，男性手按下食指在空中做出"起来"指令动作。<Picture 1>中的女性立刻从沙发上僵硬地站起，眼睛始终紧闭，双手垂于身体两侧，像一具人偶般站立。
-
-[Shot 4] At 00:13.000，男性手做出缓慢抚摸胸口的手势。<Picture 1>中的女性双手在催眠指令下缓慢抬起，犹豫而机械地放在自己的胸口上。她隔着自己的完整服装缓慢地抚摸和揉捏自己的乳房，眼神依然完全紧闭，呼吸开始变得急促，嘴唇微微张开。
-
-[Shot 5] At 00:18.000，男性手做出向下抚摸的手势。<Picture 1>中的女性双手缓缓下移至自己的裙摆处。手指机械地卷起裙子的下摆并向上拉起至大腿中段，露出一截雪白的大腿。镜头缓慢推近拍摄大腿特写。
-
-[Shot 6] At 00:22.000，男性手做出更激烈的手势指令。<Picture 1>中的女性彻底失控地蹲下，坐回沙发边缘，双手在自己大腿和裙下部位之间急促而混乱地抚慰，眼神紧闭面部表情扭曲到接近高潮。整个身体肌肉紧绷颤抖，呼吸急促到近乎喘鸣。
-
-[Shot 7] At 00:28.000，男性手在画面前方打响指。<Picture 1>中的女性瞬间清醒睁眼，意识到自己当下的姿势和动作后神情震惊、尴尬、羞耻。她立刻松开双手慌忙整理裙摆，脸颊通红，眼神躲闪。镜头定格在她的羞耻表情上结束。
-
-overall_soundscape:
-
-开始时怀表金属链轻微摆动的叮当声和她警觉的呼吸声。催眠生效后，房间里完全寂静只剩下她急促的呼吸声和她手掌隔着衣料揉捏的轻微摩擦声。清醒后她小声惊呼"啊"的一声倒吸凉气声。
-
-non_diegetic_music:
-
-催眠阶段使用低沉缓慢的合成器 pad 音色，营造梦幻迷离的氛围；清醒瞬间音乐骤停。`,
-  },
-  {
-    name: '鬼压床',
-    color: 'from-slate-700 to-black',
-    prompt: `subject_definitions:
-
-<Picture 1>是视频主角的参考图，由用户上传，图中女性将作为目标视频的核心角色出现。
-
-summary:
-
-目标视频展示<Picture 1>中的女性在深夜熟睡时遭遇鬼压床现象，身体被无形力量操控，陷入无法动弹且被迫高潮的噩梦。视频采用写实电影风格，固定机位俯拍，昏暗暖色调夜灯照明。
-
-retention_analysis:
-
-<Picture 1>中的女性在所有镜头中 fully_preserved（面部 / 发型 / 妆容 / 身材比例 / 睡衣完全保留）。
-
-detailed_description:
-
-[Shot 1] 00:00.000，实拍电影风格，固定机位俯拍视角，昏暗的卧室环境只开床头小夜灯，暖黄色调。<Picture 1>中的女性侧躺在一张柔软的床上，身穿性感黑色蕾丝吊带睡裙和配套内裤，完整保留其面部特征、发型、妆容（淡妆）、身材比例。她闭眼熟睡，呼吸平稳，镜头缓慢稳定地推进拍摄。
-
-[Shot 2] At 00:05.000，<Picture 1>中的女性在睡梦中轻微皱眉呢喃，身体出现不自主的轻微抽动。她的眼睛在眼皮下快速左右转动，显示她正在做噩梦但无法醒来。
-
-[Shot 3] At 00:09.000，诡异事件发生——<Picture 1>中的女性被无形力量从侧躺姿势扳正为仰卧姿势，整个过程中她的身体完全僵硬，床单发出被无形重量压下的褶皱声，仿佛有透明人形压在她身上。
-
-[Shot 4] At 00:12.000，<Picture 1>中的女性双手被无形力量缓慢抬起，吊带睡裙的两根肩带从肩头顺滑滑落至两侧上臂，露出她的大尺寸裸露乳房。胸部随急促呼吸剧烈起伏。她的嘴唇紧闭但发出低沉的呜咽声，眼皮快速抖动却始终无法睁开。
-
-[Shot 5] At 00:15.000，镜头切至侧面平视。<Picture 1>中的女性睡裙的下摆被无形力量缓慢向上卷起至腰部，露出雪白的大腿和内裤。一股无形的力量从床尾向上游走，触碰她的大腿内侧时，她的腿不由自主地颤抖分开。
-
-[Shot 6] At 00:19.000，<Picture 1>中的女性身体开始痉挛般的律动，臀部在床单上不由自主地前后小幅抬起又落下，节奏逐渐加快。她的表情扭曲，张开嘴无声喘息，眉头紧锁，眼球在紧闭的眼皮下剧烈转动。双腿反复收紧张开。整个身体呈现出明显的、被强制的高潮反应。
-
-[Shot 7] At 00:25.000，<Picture 1>中的女性在无声的高潮中身体强烈弓起绷紧数秒后瘫软回床垫。吊带睡裙半褪、头发凌乱铺散。她终于睁开眼睛猛地坐起，眼睛大睁大口喘气，神情惊恐四下张望确认房间里是否真的只有自己。
-
-overall_soundscape:
-
-深夜的寂静中只有她原本平稳的呼吸声。被无形力量操控时，床单被压皱的轻微声响，床架轻微的吱呀声。她急促而压抑的呜咽声从喉咙深处挤出。清醒瞬间她惊喘的吸气声和心跳般的快速呼吸。
-
-non_diegetic_music:
-
-极低频的嗡鸣声和缓慢的心跳低音贯穿，营造压迫感和不安氛围；高潮瞬间加入尖锐的弦乐颤音；清醒瞬间音乐骤停为死寂。`,
-  },
-  {
-    name: '触手孵化',
-    color: 'from-emerald-500 to-teal-700',
-    prompt: `subject_definitions:
-
-<Picture 1>是视频主角的参考图，由用户上传，图中女性将作为目标视频的核心角色出现。
-
-summary:
-
-目标视频展示<Picture 1>中的女性在神秘森林遗迹中意外触发古代机关，被多条湿润发光的触手缠绕全身并进行不可描述的玩弄。视频采用写实电影风格，第一人称视角，镜头稳定略带手持轻微晃动。
-
-retention_analysis:
-
-<Picture 1>中的女性在所有镜头中 fully_preserved（面部 / 发型 / 妆容 / 身材比例 / 服装逐步被剥离）。
-
-detailed_description:
-
-[Shot 1] 00:00.000，实拍电影风格，第一人称视角，昏暗神秘的古代石质遗迹内部，点缀有发光苔藓和悬浮光尘。<Picture 1>中的女性身穿紧身黑色皮衣皮裤套装，戴着手套，完整保留其面部特征、发型、妆容、身材比例。她正好奇地观察墙上的古老浮雕，伸手抚摸一块发光的圆形宝石。
-
-[Shot 2] At 00:04.000，宝石被按下的瞬间，地面震动，石壁缝隙中伸出多条（约6-8条）湿润发光、表面有吸盘纹路的墨绿色触手。<Picture 1>中的女性惊声尖叫试图后退，但触手速度极快地从脚踝处缠上固定她的双腿。
-
-[Shot 3] At 00:07.000，更多触手从不同方向涌出，一条粗壮的触手缠住她的腰身，另外两条触手分别缠住她的左右手腕并高举过头顶，固定在墙面上。她挣扎但力量悬殊，皮衣在触手缠绕下开始被拉伸。
-
-[Shot 4] At 00:10.000，触手开始缓慢而刻意地扒开她的皮衣，一条细触手从领口伸入皮衣内部，从内向外顶开拉链；另一条触手则缠绕皮衣下摆向上卷起。她的乳沟和腹部逐渐暴露在外，皮肤在被剥离衣物的过程中泛起鸡皮疙瘩。
-
-[Shot 5] At 00:14.000，皮衣被触手完全撕下并抛向一旁，<Picture 1>中的女性上身只剩胸罩，下身皮裤也被触手缓慢褪至膝盖。她拼命摇头挣扎，眼睛瞪大，嘴唇颤抖呼救但声音渐弱。两条细触手分别缠绕她两侧乳房，开始缓慢旋转挤压揉捏。
-
-[Shot 6] At 00:18.000，触手将皮裤完全褪去，她只剩内衣内裤。一条更粗壮的触手缠绕大腿根部，吸盘在她的小腹和大腿内侧吸吮；另一条细触手缠绕她的脚踝向上托起她的右腿至肩膀高度，让她的私处完全暴露。
-
-[Shot 7] At 00:22.000，一条灵活的触手尖部对准她的内裤中央，缓慢而有节奏地透过内裤摩擦她的阴部。她的表情从惊恐逐渐变为难以自控的呻吟，眼睛翻白，嘴唇张开不停喘息。触手持续刺激，配合其他触手对她的乳房和臀部持续揉捏。
-
-[Shot 8] At 00:28.000，<Picture 1>中的女性在触手的多重刺激下达到高潮，身体强烈弓起，嘴巴无声张开，触手趁她失神的瞬间将她整个人缠绕包裹悬挂起来呈现茧状。她无力地瘫软在触手茧中，眼睛半闭失神。
-
-overall_soundscape:
-
-遗迹内回荡的空旷回声，被触发时沉重的石块摩擦震动声。触手湿润的吸吮声和挤压吸盘的黏腻声。<Picture 1>中的女性从惊叫逐渐变为压抑的喘息和无法自控的呻吟。高潮瞬间的一声尖锐长音。
-
-non_diegetic_music:
-
-诡异的低频大提琴拨弦和缓慢的合成器音色，加入水流般的环境音效，营造古老神秘又色情的氛围。`,
-  },
-  {
-    name: '嫉妒闺蜜',
-    color: 'from-rose-600 to-red-700',
-    prompt: `subject_definitions:
-
-<Picture 1>是视频主角的参考图，由用户上传，图中女性将作为目标视频的核心角色出现。
-
-summary:
-
-目标视频展示<Picture 1>中的女性在一场奢华派对上被嫉妒心爆棚的闺蜜锁在衣帽间，闺蜜撕开她的礼服对其进行性羞辱和身体羞辱。视频采用写实电影风格，跟拍视角，戏剧化打光。
-
-retention_analysis:
-
-<Picture 1>中的女性在所有镜头中 fully_preserved（面部 / 发型 / 妆容 / 身材比例 / 礼服逐步被撕毁）。
-
-detailed_description:
-
-[Shot 1] 00:00.000，实拍电影风格，跟拍视角，奢华派对的衣帽间，暖色戏剧化打光。<Picture 1>中的女性身穿昂贵银色亮片高开叉晚礼服，佩戴钻石项链和高跟鞋，完整保留其面部特征、发型（精致盘发）、妆容（精致晚妆）、身材比例。她正要打开衣帽间的门出去，被闺蜜（仅出现背影或手臂）猛地推回衣帽间并锁上门。
-
-[Shot 2] At 00:04.000，闺蜜愤怒地尖叫质问："他今晚为什么一直在看你！"并把<Picture 1>中的女性按在镜子前。<Picture 1>中的女性表情惊恐挣扎，试图解释但闺蜜不听。闺蜜的双手用力扯住她胸前的项链用力一拽，项链断裂，钻石散落在地上发出清脆声响。
-
-[Shot 3] At 00:08.000，闺蜜双手用力抓住<Picture 1>中的女性的晚礼服肩带，用力向下撕扯，昂贵的银色亮片布料被撕裂，发出清脆的撕裂声。<Picture 1>中的女性的上身礼服上半部分被撕开至腰部，露出大尺寸裸露乳房。她双手下意识交叉护胸，闺蜜一把把她的手拉开让她面对镜子看到自己暴露的样子。
-
-[Shot 4] At 00:12.000，闺蜜绕到她身后，双手用力抓住礼服的腰封部分暴力向下扯，腰封被撕断，礼服裙摆坠落堆在脚边。<Picture 1>中的女性只剩内裤和高跟鞋，上身完全赤裸。闺蜜从镜子里抓住她的下巴强迫她直视自己被撕光的样子，嘲讽地笑着说："看看你这副样子，还怎么勾引他？"
-
-[Shot 5] At 00:16.000，闺蜜用力把<Picture 1>中的女性推倒在衣帽间的长凳上，<Picture 1>中的女性挣扎着想起身但被闺蜜按住肩膀。<Picture 1>中的女性眼神从惊恐逐渐转为愤怒和羞耻混合的神情，眼眶含泪但咬紧牙关。
-
-[Shot 6] At 00:19.000，闺蜜从背后用力抓住<Picture 1>中的女性的双乳粗暴揉捏挤压，故意用力掐她的乳尖让她痛苦地叫出声。闺蜜边揉边嘲讽："这对奶子我早就想毁了，今天正好！"<Picture 1>中的女性疼痛得身体前倾，眼泪滑下脸颊。
-
-[Shot 7] At 00:22.000，闺蜜一手按住她的后背，另一手伸向她大腿之间，用力撕开她的内裤，手指粗暴地插入她的阴部并快速抽插。<Picture 1>中的女性痛苦与屈辱混合的尖叫，双手抓住长凳边缘指节发白。
-
-[Shot 8] At 00:26.000，闺蜜突然停下动作，从<Picture 1>中的女性的背后退开并整理自己的头发和衣服，恢复优雅的姿态。<Picture 1>中的女性瘫软在长凳上不停颤抖，眼泪流满脸颊，嘴巴张开大口喘气。闺蜜临走前冷冷丢下一句"派对结束了"，摔门离去。<Picture 1>中的女性独自在空荡的衣帽间崩溃地蜷缩起来。
-
-overall_soundscape:
-
-派对远处的背景音乐声，衣帽间内清晰的心跳和呼吸声。项链断裂的清脆声、布料被撕裂的尖锐声、皮肉被拍打的清脆声。<Picture 1>中的女性的尖叫、求饶和崩溃哭泣。闺蜜冷酷的嘲讽话语。门摔上的砰然回响。
-
-non_diegetic_music:
-
-戏剧化的弦乐，从低沉的悬疑氛围逐渐升级到尖锐的高潮段，在闺蜜离开的瞬间戛然而止为一片寂静。`,
-  },
-  {
-    name: '脱衣复仇',
-    color: 'from-fuchsia-600 to-pink-800',
-    prompt: `subject_definitions:
-
-<Picture 1>是视频主角的参考图，由用户上传，图中女性将作为目标视频的核心角色出现。
-
-summary:
-
-目标视频展示<Picture 1>中的女性穿着奢华深 V 红色礼服闯入前男友的婚礼现场，在宾客面前进行一场充满挑逗意味的脱衣舞表演，并最终与前男友在化妆间独处完成不可描述的报复性性爱。视频采用写实电影风格，戏剧化婚宴现场打光，镜头跟拍。
-
-retention_analysis:
-
-<Picture 1>中的女性在所有镜头中 fully_preserved（面部 / 发型 / 妆容 / 身材比例 / 服装逐步被脱下）。
-
-detailed_description:
-
-[Shot 1] 00:00.000，实拍电影风格，奢华酒店宴会厅的婚礼现场，暖黄色调奢华吊灯打光。<Picture 1>中的女性身穿一袭深 V 红色丝绒开叉长款礼服，佩戴钻石耳环和高跟鞋，妆容精致红唇，完整保留其面部特征、发型（大波浪卷发）、妆容、身材比例。她推开宴会厅大门走进来，所有宾客的目光瞬间聚焦在她身上。镜头从她的高跟鞋缓慢上移至她的脸。
-
-[Shot 2] At 00:04.000，<Picture 1>中的女性无视所有人径直走到婚礼舞台中央，新郎脸色煞白，新娘脸色铁青。她故意在舞台上慢慢转一圈展示自己的身材，开叉的礼服裙摆在大腿根部露出雪白的大腿。她对前男友微微一笑："听说今天是你的好日子，我也来送你一份礼物。"
-
-[Shot 3] At 00:08.000，背景音乐骤变，<Picture 1>中的女性开始在舞台上随着节奏缓慢摆动腰部和臀部，双手从肩膀沿锁骨缓慢滑向胸前，礼服深 V 处乳沟若隐若现。宾客们有的惊呼有的尴尬，新郎试图上前阻止被她一个眼神逼退。
-
-[Shot 4] At 00:13.000，<Picture 1>中的女性双手放到背后缓缓拉开礼服的隐藏拉链，礼服从肩头滑落至手肘，露出她穿着精致黑色蕾丝胸罩的丰满上身。她故意停顿一秒让所有宾客看清，然后让礼服整体滑落至脚边，她只穿着蕾丝内衣内裤和高跟鞋站在舞台上。
-
-[Shot 5] At 00:18.000，新郎终于冲上台一把抓住<Picture 1>中的女性的手腕把她拉下舞台。"你疯了吗？！跟我来！"镜头跟随两人冲进走廊尽头的化妆间，门砰地关上。新娘在舞台上气哭，所有宾客议论纷纷。
-
-[Shot 6] At 00:21.000，化妆间内，新郎一把把<Picture 1>中的女性按在化妆台上喘着粗气质问她到底想怎样。<Picture 1>中的女性反而主动勾住他的脖子吻上去，新郎短暂挣扎后无法自控地回应这个吻。他的手粗暴地揉捏她的乳房。
-
-[Shot 7] At 00:25.000，新郎把<Picture 1>中的女性翻过身压在化妆台上，掀起她的裙摆扯下她的蕾丝内裤。她双手撑在化妆台镜子上看着镜中自己被压在台上的样子，嘴巴张开发出压抑的呻吟。新郎从后方进入她并开始猛烈抽插，化妆台在撞击下前后摇晃发出吱呀声。
-
-[Shot 8] At 00:30.000，<Picture 1>中的女性在化妆台前被后入式猛烈抽插，她的叫声越来越大越来越无法压抑，新郎也粗重地喘息。她双手抓住化妆台边缘，镜子中能看到她的表情从挑逗变为沉溺于快感，新郎双手抓着她的腰用力撞击。
-
-[Shot 9] At 00:35.000，新郎即将射精时抽出阴茎，浓稠的白色精液喷射在她的后背上和腰窝处，分多次喷出。<Picture 1>中的女性趴在化妆台上不停颤抖喘气，嘴角带着复仇得逞的微笑。她缓缓转头看向化妆镜中的自己，眼神是得意和满足。镜头定格在她的微笑和后背的精液上。
-
-overall_soundscape:
-
-婚礼进行曲骤然中断。闯入时宾客的惊呼声和椅子挪动的嘈杂声。脱衣舞时的低胸性感音乐和观众压抑的惊叹声。化妆间内椅子摔门声、激烈的亲吻声、化妆台撞击墙壁的吱呀声、皮肉撞击的清脆声。<Picture 1>中的女性无法自控的呻吟声和新郎粗重的喘息声。结束后的安静中她急促的呼吸声。
-
-non_diegetic_music:
-
-从婚礼进行曲骤变为拉丁风情的性感小鼓点和贝斯，进入化妆间后音乐变得低沉迷离，高潮时音乐达到最响后突然停止，化为一段悠长的余音。`,
-  },
 ];
 
 const MH3_ASPECT_RATIOS = [
@@ -3131,12 +2860,46 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
       if (h3LongVideoData) {
         sessionStorage.removeItem('storyboard_h3_longvideo');
         try {
-          const { imagePath: h3ImgPath, imagePreview: h3ImgPreview, h3Prompt: h3PromptText } = JSON.parse(h3LongVideoData);
-          // 切换到长视频 1.1 模型
-          setVideoModel('longvideov2');
+          let h3ImgPath = '';
+          let h3ImgPreview = '';
+          let h3PromptText = '';
+          let targetModel = '';
+          const parsed = JSON.parse(h3LongVideoData);
+          // 【兼容】两种 payload 格式：
+          //   1. { imagePath, imagePreview, h3Prompt, targetModel } — 直接内联（最常见）
+          //   2. { ref, imagePath, h3Prompt, targetModel }          — 写入端降级到 IndexedDB 的情况
+          //      这种情况下完整 payload 存在 IndexedDB（imagePreview 在 IndexedDB 里），
+          //      sessionStorage 里只放 imagePath / h3Prompt / targetModel / ref。
+          if (parsed.ref) {
+            const jsonStr = resolveImageRef(parsed.ref);
+            if (jsonStr) {
+              const fromIdb = JSON.parse(jsonStr);
+              h3ImgPath = fromIdb.imagePath || parsed.imagePath || '';
+              h3ImgPreview = fromIdb.imagePreview || '';
+              h3PromptText = fromIdb.h3Prompt || parsed.h3Prompt || '';
+              targetModel = parsed.targetModel || '';
+            } else {
+              h3ImgPath = parsed.imagePath || '';
+              h3PromptText = parsed.h3Prompt || '';
+              targetModel = parsed.targetModel || '';
+            }
+          } else {
+            h3ImgPath = parsed.imagePath || '';
+            h3ImgPreview = parsed.imagePreview || '';
+            h3PromptText = parsed.h3Prompt || '';
+            targetModel = parsed.targetModel || '';
+          }
+          // 根据 targetModel 切换到对应的视频模型（长视频1.1 或 长视频v2）
+          setVideoModel(targetModel === 'minimaxlongv2' ? 'minimaxlongv2' : 'longvideov2');
           // 设置参考图
           if (h3ImgPath) {
-            setNlInitialImage({ path: h3ImgPath, preview: h3ImgPreview || h3ImgPath });
+            // 【重要】h3ImgPath 是 RunningHub 的相对路径（"openapi/xxx.jpg"），
+            // 不能直接当 <img src>。preview 必须用全 URL（imagePreview 或
+            // h3ImgPath 拼接 CDN）。这里 fallback 链：preview（写入端用
+            // downloadUrl）→ path（如果 path 是 http(s) 才用）→ 空字符串。
+            const looksLikeUrl = /^https?:\/\//i.test(h3ImgPath);
+            const finalPreview = h3ImgPreview || (looksLikeUrl ? h3ImgPath : '');
+            setNlInitialImage({ path: h3ImgPath, preview: finalPreview });
           }
           // 设置 H3 提示词 —— 同时写入 MiniMax H3 面板和 NinfiniteLongVideoPage
           // （Bug 修复：原来只 setMlH3Prompt，longvideov2 页面看不到完整 H3 提示词）
@@ -3144,7 +2907,7 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
             setMlH3Prompt(h3PromptText);
             setNlInitialPrompt(h3PromptText);
           }
-          onSuccess?.('已从剧情分镜导入图片和 H3 提示词到长视频 1.1');
+          onSuccess?.('已从剧情分镜导入图片和提示词到' + (targetModel === 'minimaxlongv2' ? '长视频 V2' : '长视频 1.1'));
         } catch (err) {
           console.warn('[ImageToVideoPage] Failed to process storyboard_h3_longvideo:', err);
         }
@@ -3162,6 +2925,7 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
           //   { images: [...], h3Prompt, ... }  — 极旧的内联格式（fallback）
           let batchImages: Array<{ idx: number; path: string; preview: string }> = [];
           let batchH3Prompt = '';
+          let batchTargetModel = '';
           if (sessionEntry.ref) {
             const jsonStr = resolveImageRef(sessionEntry.ref);
             if (!jsonStr) {
@@ -3170,13 +2934,15 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
             const payload = JSON.parse(jsonStr);
             batchImages = payload.images || [];
             batchH3Prompt = payload.h3Prompt || '';
+            batchTargetModel = payload.targetModel || '';
           } else {
             // 兼容老 inline 格式（用户从旧部署缓存来的 sessionStorage）
             batchImages = sessionEntry.images || [];
             batchH3Prompt = sessionEntry.h3Prompt || '';
+            batchTargetModel = sessionEntry.targetModel || '';
           }
-          // 切换到长视频 1.1 模型
-          setVideoModel('longvideov2');
+          // 根据 targetModel 切换到对应的视频模型（长视频1.1 或 长视频v2）
+          setVideoModel(batchTargetModel === 'minimaxlongv2' ? 'minimaxlongv2' : 'longvideov2');
           // 设置多张参考图（用于 NinfiniteLongVideoPage 的多图 slots）
           if (batchImages.length > 0) {
             // 【fix】preview 在写入端已是 cacheKey，消费端必须通过 resolveImageRef
@@ -3199,7 +2965,7 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
             setMlH3Prompt(batchH3Prompt);
             setNlInitialPrompt(batchH3Prompt);
           }
-          onSuccess?.(`已从剧情分镜批量导入 ${batchImages.length}/${sessionEntry.totalPanels || '?'} 张图片 + 完整 H3 提示词到长视频 1.1`);
+          onSuccess?.(`已从剧情分镜批量导入 ${batchImages.length}/${sessionEntry.totalPanels || '?'} 张图片 + 完整 H3 提示词到${batchTargetModel === 'minimaxlongv2' ? '长视频 V2' : '长视频 1.1'}`);
         } catch (err) {
           console.warn('[ImageToVideoPage] Failed to process storyboard_h3_longvideo_batch:', err);
           onError?.(err instanceof Error ? err.message : `批量跳转数据读取失败：${String(err)}`);
@@ -3215,8 +2981,10 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
           
           // 处理图片
           let finalImagePath = imageUrl || '';
-          let finalImagePreview = imageUrl || '';
-          
+          // 【修复】imagePath 是相对路径（"openapi/xxx.jpg"），<img src> 必须用全 URL。
+          // 优先用 uploadResult.downloadUrl，否则用原 URL，最后退到 imageUrl。
+          let finalImagePreview = (imageUrl && (imageUrl.startsWith('http') || imageUrl.startsWith('blob:'))) ? imageUrl : '';
+
           // Upload image if it's a data URL or blob
           if (imageUrl && (imageUrl.startsWith('data:') || imageUrl.startsWith('blob:'))) {
             try {
@@ -3225,7 +2993,7 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
               const file = new File([blob], `random_${Date.now()}.jpg`, { type: 'image/jpeg' });
               const uploadResult = await uploadImage(apiKey, file);
               finalImagePath = uploadResult.imagePath;
-              finalImagePreview = imageUrl;
+              finalImagePreview = uploadResult.downloadUrl || finalImagePreview;
             } catch (uploadErr) {
               console.warn('[ImageToVideoPage] Failed to upload random image:', uploadErr);
             }
@@ -3808,13 +3576,6 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
       {/* Wan 2.2 UI */}
       {videoModel === 'wan22' && (
         <div key="wan22">
-      {/* Girlfriend 选择器 - 移动端允许并行锚定 */}
-      <GirlfriendSelector
-        selectedIds={selectedGirlfriend ? [(selectedGirlfriend.isCustom ? `custom_${selectedGirlfriend.id}` : selectedGirlfriend.id)] : []}
-        onSelect={handleGirlfriendSelect}
-        disabled={isSubmitting}
-      />
-
       {/* 图片上传 */}
       <div className="rounded-xl bg-bg-surface border border-border p-4">
         <div className="flex items-center justify-between mb-3">

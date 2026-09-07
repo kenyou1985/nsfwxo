@@ -612,52 +612,54 @@ export function StoryboardSection({
                       </div>
                     </div>
 
-                    {/* Scene description */}
-                    <p className="text-[10px] text-text-secondary leading-relaxed mb-2">
-                      {panel.scene_description}
-                    </p>
-
-                    {/* Prompt preview */}
-                    <p className="text-[9px] text-text-tertiary font-mono leading-relaxed line-clamp-3 mb-1">
-                      {panel.image_prompt}
-                    </p>
-
-                    {/* Video prompt — derived from image prompt + scene description
-                        so the animation prompt aligns with the panel's actual action,
-                        not the whole storyboard's master image_prompt. */}
-                    {imgs.length > 0 && (
-                      <div className="mb-2">
-                        <div className="flex items-center gap-1 mb-0.5">
-                          <Video size={8} className="text-blue-400" />
-                          <span className="text-[8px] text-blue-400 font-medium">动画提示词</span>
-                        </div>
-                        <p className="text-[8px] text-blue-500/80 font-mono leading-relaxed line-clamp-2 bg-blue-50 rounded px-1.5 py-1">
-                          {extractVideoPromptFromImagePrompt({
-                            imagePrompt: panel.image_prompt,
-                            sceneDescription: panel.scene_description,
-                            r18Mode: r18Enabled,
-                          })}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Image grid preview — same ImageGrid used everywhere else in the app,
-                        so the display logic is identical to the history page's image tab. */}
+                    {/* 强制分屏显示：图片在左，文字描述在右，避免画面冲突。 */}
                     {imgs.length > 0 ? (
-                      <div className="mt-2 pt-2 border-t border-purple-100">
-                        <ImageGrid
-                          images={imgs}
-                          selectedIndex={selectedPanelImages[idx] ?? null}
-                          onSelectImage={(imgIdx) => setSelectedPanelImages(prev => ({ ...prev, [idx]: imgIdx }))}
-                          onToggleFavorite={onToggleFavorite ? (url) => onToggleFavorite(url, panel.image_prompt) : undefined}
-                        />
+                      <div className="flex gap-3 mt-2">
+                        {/* 左侧：图片 */}
+                        <div className="w-1/3 flex-shrink-0">
+                          <ImageGrid
+                            images={imgs}
+                            selectedIndex={selectedPanelImages[idx] ?? null}
+                            onSelectImage={(imgIdx) => setSelectedPanelImages(prev => ({ ...prev, [idx]: imgIdx }))}
+                            onToggleFavorite={onToggleFavorite ? (url) => onToggleFavorite(url, panel.image_prompt) : undefined}
+                          />
+                        </div>
+                        {/* 右侧：场景描述 + 图生视频提示词（不再重复显示英文 image_prompt） */}
+                        <div className="flex-1 min-w-0 space-y-1.5">
+                          <p className="text-[10px] text-text-secondary leading-relaxed line-clamp-3">
+                            {panel.scene_description}
+                          </p>
+                          <div>
+                            <div className="flex items-center gap-1 mb-0.5">
+                              <Video size={8} className="text-blue-400" />
+                              <span className="text-[8px] text-blue-400 font-medium">动画提示词</span>
+                            </div>
+                            <p className="text-[8px] text-blue-500/80 font-mono leading-relaxed line-clamp-3 bg-blue-50 rounded px-1.5 py-1">
+                              {extractVideoPromptFromImagePrompt({
+                                imagePrompt: panel.image_prompt,
+                                sceneDescription: panel.scene_description,
+                                r18Mode: r18Enabled,
+                              })}
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     ) : (
-                      <p className="text-[9px] text-text-tertiary italic mt-1">
-                        {isLoading
-                          ? (displayLang === 'zh' ? '图片生成中...' : 'Generating...')
-                          : (displayLang === 'zh' ? '点击下方"一键生成"获取预览图' : 'Click "Generate All" below to get previews')}
-                      </p>
+                      <div className="mt-2 space-y-1.5">
+                        {/* 无图时：仅显示场景描述 + 英文 image_prompt（保留原行为，
+                            用户没图时本来也看不到视频提示词） */}
+                        <p className="text-[10px] text-text-secondary leading-relaxed">
+                          {panel.scene_description}
+                        </p>
+                        <p className="text-[9px] text-text-tertiary font-mono leading-relaxed line-clamp-3">
+                          {panel.image_prompt}
+                        </p>
+                        <p className="text-[9px] text-text-tertiary italic mt-1">
+                          {isLoading
+                            ? (displayLang === 'zh' ? '图片生成中...' : 'Generating...')
+                            : (displayLang === 'zh' ? '点击下方"一键生成"获取预览图' : 'Click "Generate All" below to get previews')}
+                        </p>
+                      </div>
                     )}
                   </div>
                 );

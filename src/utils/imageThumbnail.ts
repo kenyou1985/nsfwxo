@@ -15,8 +15,26 @@
  */
 const THUMB_MAX_SIDE = 64;
 const THUMB_QUALITY = 0.75;
+/** Preview thumbnails for the long-video 参考图 grid — bigger than storage
+ *  thumbnails (256×256 vs 64×64) because that grid shows tiles at 100–200 px.
+ *  Still tiny enough to keep sessionStorage well under the 5 MB quota even
+ *  with dozens of previews stored. */
+const PREVIEW_MAX_SIDE = 384;
+const PREVIEW_QUALITY = 0.85;
 
 export async function makeThumbnailForStorage(imageUrl: string): Promise<string> {
+  return makeSizedThumbnail(imageUrl, THUMB_MAX_SIDE, THUMB_QUALITY);
+}
+
+/**
+ * Higher-quality preview thumbnail for surfaces that show the image at 100–200 px
+ * (e.g. the long-video 参考图 grid). Falls back to the original on errors.
+ */
+export async function makePreviewForStorage(imageUrl: string): Promise<string> {
+  return makeSizedThumbnail(imageUrl, PREVIEW_MAX_SIDE, PREVIEW_QUALITY);
+}
+
+async function makeSizedThumbnail(imageUrl: string, maxSide: number, quality: number): Promise<string> {
   if (!imageUrl) return '';
   if (!imageUrl.startsWith('data:') && !imageUrl.startsWith('blob:')) {
     return imageUrl;
@@ -27,7 +45,7 @@ export async function makeThumbnailForStorage(imageUrl: string): Promise<string>
     const { width, height } = img;
     if (width === 0 || height === 0) return imageUrl;
 
-    const scale = Math.min(1, THUMB_MAX_SIDE / Math.max(width, height));
+    const scale = Math.min(1, maxSide / Math.max(width, height));
     const w = Math.max(1, Math.round(width * scale));
     const h = Math.max(1, Math.round(height * scale));
 
@@ -37,7 +55,7 @@ export async function makeThumbnailForStorage(imageUrl: string): Promise<string>
     const ctx = canvas.getContext('2d');
     if (!ctx) return imageUrl;
     ctx.drawImage(img, 0, 0, w, h);
-    return canvas.toDataURL('image/jpeg', THUMB_QUALITY);
+    return canvas.toDataURL('image/jpeg', quality);
   } catch {
     // CORS-tainted images can't be drawn; just return the original.
     return imageUrl;
