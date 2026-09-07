@@ -7017,8 +7017,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                 panelH3ConstraintEnabled={panelH3ConstraintEnabled[sbHistoryId || 'solo']}
                 onTogglePanelH3Constraint={handleTogglePanelH3Constraint}
                 onGeneratePanelH3={() => handleGeneratePanelH3(idx, panel)}
-                onGotoLongVideoWithH3={(imageUrl) => handleGotoLongVideoWithH3(idx, panel, imageUrl, panelH3Prompt)}
-                onGotoLongVideoV2={(imageUrl) => handleGotoLongVideoV2(idx, panel, imageUrl, panelH3Prompt)}
+                onGotoLongVideoWithH3={(imageUrl) => handleGotoLongVideoWithH3(idx, panel, imageUrl, panelH3Prompts[pK])}
+                onGotoLongVideoV2={(imageUrl) => handleGotoLongVideoV2(idx, panel, imageUrl, panelH3Prompts[pK])}
               />
             );
           })}
