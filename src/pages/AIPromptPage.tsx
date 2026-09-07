@@ -5366,7 +5366,12 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   }, [activePanels, activeThemeInfo, plot, panelH3Duration, r18Mode, onSuccess, onError, panelVideoPrompts, sbHistoryId, panelH3ShotMap, panelH3Prompts, handleGeneratePanelH3]);
 
   /** 单分镜：跳转到长视频 v2 并填入提取的视频提示词（复用长视频1.1逻辑，仅换模型） */
-  const handleGotoLongVideoV2 = useCallback(async (imageUrl: string) => {
+  const handleGotoLongVideoV2 = useCallback(async (
+    idx: number,
+    panel: { image_prompt: string },
+    imageUrl: string,
+    panelH3Prompt: string,
+  ) => {
     // 先上传图片获取 path + downloadUrl
     // 【重要】imagePath 是相对路径（"openapi/xxx.jpg"），不能直接当 <img src> 用。
     // preview 必须用 downloadUrl（RunningHub 全 URL）才能正确显示。
@@ -5386,6 +5391,30 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       }
     }
 
+    // 构造 H3 提示词（与 handleGotoLongVideoWithH3 一致的优先级）：
+    //   1. shotMap 里有完整 Shot → 组装单 Shot H3
+    //   2. fallback panelH3Prompt（当前 [Shot N] 纯字符串）
+    //   3. 都没有 → generateH3Prompt 现生成
+    const curHistoryId = sbHistoryId || 'solo';
+    const curShotMap = panelH3ShotMap[curHistoryId] || new Map<number, H3PanelShot>();
+    const shot = curShotMap.get(idx + 1);
+    let h3Prompt: string;
+    if (shot) {
+      const singlePanelCommonParts = generateH3CommonParts(
+        [{ image_prompt: panel.image_prompt }],
+        { duration: panelH3Duration, r18: r18Mode },
+      );
+      h3Prompt = assembleH3Prompt(singlePanelCommonParts, [shot], panelH3Duration);
+    } else if (panelH3Prompt) {
+      h3Prompt = panelH3Prompt;
+    } else {
+      h3Prompt = generateH3Prompt({
+        imagePrompt: panel.image_prompt,
+        duration: panelH3Duration,
+        r18: r18Mode,
+      });
+    }
+
     // 存储到 sessionStorage，由 ImageToVideoPage 消费。
     // 【preview 策略】必须用 RunningHub 全 URL（downloadUrl），不是相对路径 imagePath。
     // 之前把 imagePath 当 preview 用，导致 <img src="openapi/xxx.jpg"> 破图。
@@ -5395,6 +5424,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     const payload = {
       imagePath,
       imagePreview: previewUrl,
+      h3Prompt,
       targetModel: 'minimaxlongv2',
       processed: false,
     };
@@ -5432,7 +5462,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       }
     }
     onNavigate?.('img2vid');
-  }, [apiKey, onError, onNavigate]);
+  }, [apiKey, onError, onNavigate, sbHistoryId, panelH3ShotMap, panelH3Duration, r18Mode]);
 
   /** 单个分镜：跳转到长视频 1.1 并填入 H3 提示词 */
   const handleGotoLongVideoWithH3 = useCallback(async (
@@ -6988,7 +7018,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                 onTogglePanelH3Constraint={handleTogglePanelH3Constraint}
                 onGeneratePanelH3={() => handleGeneratePanelH3(idx, panel)}
                 onGotoLongVideoWithH3={(imageUrl) => handleGotoLongVideoWithH3(idx, panel, imageUrl, panelH3Prompt)}
-                onGotoLongVideoV2={(imageUrl) => handleGotoLongVideoV2(imageUrl)}
+                onGotoLongVideoV2={(imageUrl) => handleGotoLongVideoV2(idx, panel, imageUrl, panelH3Prompt)}
               />
             );
           })}
