@@ -391,7 +391,7 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
         } catch { /* use original path */ }
       }
 
-      const res = await expandVideoFromImage(imageDataUrl, sceneHint, true, 1, ['grok-4.6'], 150000);
+      const res = await expandVideoFromImage(imageDataUrl, sceneHint, true, 1, ['grok-4.3'], 150000);
       const generated = res.prompts?.[0];
       if (generated) {
         setPrompt(generated);
@@ -745,7 +745,7 @@ const handleGirlfriendSelect = useCallback(
             <div className="flex items-center gap-2">
               <Sparkles size={14} className="text-pink-500" />
               <span className="text-xs font-medium text-text-primary">情色创作模式</span>
-              <span className="text-[10px] text-text-tertiary hidden sm:inline">· Grok-4.6 AI 分析</span>
+              <span className="text-[10px] text-text-tertiary hidden sm:inline">· Grok-4.3 AI 分析</span>
             </div>
             <button
               onClick={() => setEroticMode(!eroticMode)}

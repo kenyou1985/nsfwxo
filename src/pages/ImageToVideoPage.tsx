@@ -965,7 +965,7 @@ function MiniMaxH3Panel({
     }
   };
 
-  /** 情色创作模式：调用 Grok-4.6 分析参考图，生成 H3 提示词 */
+  /** 情色创作模式：调用 Grok-4.3 分析参考图，生成 H3 提示词 */
   const handleEroticAnalyze = useCallback(async () => {
     const uploadedImages = mmImages.filter(img => img.path && img.path !== 'None');
     if (uploadedImages.length === 0) {
@@ -1006,7 +1006,7 @@ function MiniMaxH3Panel({
         sceneHint,
         true,
         1,
-        ['grok-4.6'],
+        ['grok-4.3'],
         150000,
       );
       const prompt = res.prompts?.[0];
@@ -1345,7 +1345,7 @@ function MiniMaxH3Panel({
             <div className="flex items-center gap-2">
               <Sparkles size={14} className="text-pink-500" />
               <span className="text-xs font-medium text-text-primary">情色创作模式</span>
-              <span className="text-[10px] text-text-tertiary hidden sm:inline">· Grok-4.6 AI 分析</span>
+              <span className="text-[10px] text-text-tertiary hidden sm:inline">· Grok-4.3 AI 分析</span>
             </div>
             {/* 开关 */}
             <button
