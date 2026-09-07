@@ -931,6 +931,11 @@ interface MiniMaxH3PanelProps {
   setMmSelectedGirlfriends: React.Dispatch<React.SetStateAction<GirlfriendPreset[]>>;
   /** 批量生成进度回调（面板内更新父组件状态） */
   onBatchProgress?: (progress: { current: number; total: number } | null) => void;
+  /** 情色创作模式（参考图 AI 分析生成提示词） */
+  mmEroticMode: boolean;
+  setMmEroticMode: (v: boolean) => void;
+  mmEroticLevel: 'soft' | 'normal' | 'sm';
+  setMmEroticLevel: (v: 'soft' | 'normal' | 'sm') => void;
 }
 
 function MiniMaxH3Panel({
@@ -944,11 +949,14 @@ function MiniMaxH3Panel({
   selectedGirlfriend, setSelectedGirlfriend, girlfriendUploading, setGirlfriendUploading,
   mmSelectedGirlfriends, setMmSelectedGirlfriends,
   onBatchProgress,
+  mmEroticMode, setMmEroticMode, mmEroticLevel, setMmEroticLevel,
 }: MiniMaxH3PanelProps) {
   // 主题库批量生成状态
   const [themeBatchProgress, setThemeBatchProgress] = useState<{ current: number; total: number } | null>(null);
   // 每个槽位的上传状态（移动端优化：避免一个上传阻塞全部 9 个槽位）
   const [mmUploadingSlots, setMmUploadingSlots] = useState<Set<number>>(new Set());
+  // 情色创作分析状态
+  const [mmEroticAnalyzing, setMmEroticAnalyzing] = useState(false);
 
   // 安全释放 blob URL，避免移动端内存泄漏导致页面崩溃
   const revokeIfBlob = (url: string) => {
@@ -956,6 +964,47 @@ function MiniMaxH3Panel({
       try { URL.revokeObjectURL(url); } catch { /* noop */ }
     }
   };
+
+  /** 情色创作模式：调用 Grok-4.6 分析参考图，生成 H3 提示词 */
+  const handleEroticAnalyze = useCallback(async () => {
+    const uploadedImages = mmImages.filter(img => img.path && img.path !== 'None');
+    if (uploadedImages.length === 0) {
+      onError('请先上传至少一张参考图');
+      return;
+    }
+    setMmEroticAnalyzing(true);
+    try {
+      // 取第一张图作为主图分析
+      const firstImage = uploadedImages[0];
+      const levelMap = {
+        soft: '纯情色展示（soft erotic，仅唯美暧昧，无直接性行为）',
+        normal: '带性爱（normal erotic，有亲密动作和情感氛围）',
+        sm: 'SM重口味（heavy SM，含捆绑、支配、角色扮演等重口味元素）',
+      };
+      const levelHint = levelMap[mmEroticLevel];
+      const sceneHint = `请分析图片中的人物外貌、服装、场景、动作、情绪，以第一人称视角生成一段适合 MiniMax H3 图生视频的英文提示词。创作方向：${levelHint}。要求输出纯英文提示词句子，不要解释。`;
+
+      const res = await expandVideoFromImage(
+        firstImage.path,
+        sceneHint,
+        true,
+        1,
+        ['grok-4.6'],
+        150000,
+      );
+      const prompt = res.prompts?.[0];
+      if (prompt) {
+        setMmPrompt(prompt);
+        onSuccess('情色创作提示词已生成，请根据需要编辑');
+      } else {
+        onError('生成失败，未返回提示词');
+      }
+    } catch (err) {
+      onError(err instanceof Error ? err.message : '分析失败，请重试');
+    } finally {
+      setMmEroticAnalyzing(false);
+    }
+  }, [mmImages, mmEroticLevel, onError, onSuccess]);
 
   // Pose preset handler
   const handlePoseSelect = (posePrompt: string, poseName: string) => {
@@ -1271,6 +1320,76 @@ function MiniMaxH3Panel({
           <span className="text-xs text-text-tertiary">
             {mmImages.filter(img => img.path).length}/9
           </span>
+        </div>
+
+        {/* 情色创作模式开关 + 方向选择 */}
+        <div className="mb-3 p-3 rounded-xl bg-gradient-to-r from-pink-500/5 via-rose-500/5 to-red-500/5 border border-pink-200/50">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Sparkles size={14} className="text-pink-500" />
+              <span className="text-xs font-medium text-text-primary">情色创作模式</span>
+              <span className="text-[10px] text-text-tertiary hidden sm:inline">· Grok-4.6 AI 分析</span>
+            </div>
+            {/* 开关 */}
+            <button
+              onClick={() => setMmEroticMode(!mmEroticMode)}
+              className={`w-10 h-5 rounded-full transition-colors relative ${mmEroticMode ? 'bg-pink-500' : 'bg-text-tertiary'}`}
+              disabled={isSubmitting || mmEroticAnalyzing}
+            >
+              <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${mmEroticMode ? 'translate-x-5' : 'translate-x-0.5'}`} />
+            </button>
+          </div>
+          {/* 方向选择（开关开启时显示） */}
+          {mmEroticMode && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-text-tertiary flex-shrink-0">创作方向：</span>
+                {([
+                  { value: 'soft', label: '纯情色', color: 'from-pink-400 to-rose-400' },
+                  { value: 'normal', label: '带性爱', color: 'from-rose-400 to-red-400' },
+                  { value: 'sm', label: 'SM重口味', color: 'from-red-400 to-orange-400' },
+                ] as const).map(({ value, label, color }) => (
+                  <button
+                    key={value}
+                    onClick={() => setMmEroticLevel(value)}
+                    disabled={isSubmitting || mmEroticAnalyzing}
+                    className={`px-3 py-1 rounded-lg text-[10px] font-medium bg-gradient-to-r ${color} text-white transition-opacity hover:opacity-90 disabled:opacity-50 ${
+                      mmEroticLevel === value ? 'ring-2 ring-white/60' : 'opacity-70'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {/* 分析按钮 */}
+              <button
+                onClick={handleEroticAnalyze}
+                disabled={isSubmitting || mmEroticAnalyzing || mmImages.filter(img => img.path).length === 0}
+                className={`w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                  mmEroticAnalyzing
+                    ? 'bg-pink-500/50 text-white/70 cursor-not-allowed'
+                    : mmImages.filter(img => img.path).length === 0
+                    ? 'bg-pink-500/30 text-white/50 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-pink-500 to-rose-500 text-white hover:opacity-90 shadow-sm'
+                }`}
+              >
+                {mmEroticAnalyzing ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    <span>分析中，请稍候...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={14} />
+                    <span>分析参考图生成 H3 提示词</span>
+                  </>
+                )}
+              </button>
+              <p className="text-[10px] text-pink-400/80">
+                将分析第一张参考图，结合选定方向生成适合该场景的 H3 视频提示词
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-5 gap-2">
@@ -2009,6 +2128,9 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
   const [mmLora, setMmLora] = useState('MysticXXX_MMH3-V1.safetensors');
   const [mmLoraWeight, setMmLoraWeight] = useState(0.4);
   const [mmUploading, setMmUploading] = useState(false);
+  // 情色创作模式
+  const [mmEroticMode, setMmEroticMode] = useState(false);
+  const [mmEroticLevel, setMmEroticLevel] = useState<'soft' | 'normal' | 'sm'>('normal');
 
   // MiniMax H3 T2V state
   const [mh3Prompt, setMh3Prompt] = useState('');
@@ -2701,6 +2823,10 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
           mmSelectedGirlfriends={mmSelectedGirlfriends}
           setMmSelectedGirlfriends={setMmSelectedGirlfriends}
           onBatchProgress={setThemeBatchProgress}
+          mmEroticMode={mmEroticMode}
+          setMmEroticMode={setMmEroticMode}
+          mmEroticLevel={mmEroticLevel}
+          setMmEroticLevel={setMmEroticLevel}
         />
       )}
 
