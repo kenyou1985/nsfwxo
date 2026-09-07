@@ -2614,7 +2614,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               h3Prompt={h3Prompts[idx]}
               h3Generating={h3ProcessingIndices.has(idx)}
               sceneLabel={result.theme_label || result.theme || (THEMES.find((t) => t.key === theme)?.label || theme || (r18Mode ? 'R18' : '默认主题'))}
-              onGotoLongVideoWithH3={handleGotoLongVideoWithH3}
+              onGotoLongVideoWithH3={(imageUrl) => handleGotoLongVideoWithH3(index, { image_prompt: result.image_prompt || '' }, imageUrl, h3Prompts[idx])}
               selectedImageIndex={selectedImageIndices[idx]}
               onSelectImage={(imageIdx, imageUrl) => handleSelectRandomImage(idx, imageIdx, imageUrl)}
             />
@@ -2749,7 +2749,7 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
   /** 当前场景/主题标签（用于显示在 H3 提示词上方） */
   sceneLabel?: string;
   /** 点击后用 H3 提示词 + 第一张生成图跳转到长视频 1.1 */
-  onGotoLongVideoWithH3?: (imageUrl: string, idx: number, videoPrompt?: string) => void;
+  onGotoLongVideoWithH3?: (imageUrl: string, h3Prompt?: string) => void;
   /** 当前选中的图片索引（用于长视频 1.1） */
   selectedImageIndex?: number;
   /** 选中图片回调 */
@@ -2960,7 +2960,7 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
                           const imageToUse = selectedImageIndex !== undefined && allDisplayImages[selectedImageIndex]
                             ? allDisplayImages[selectedImageIndex]
                             : allDisplayImages[0];
-                          onGotoLongVideoWithH3(imageToUse, index, h3Prompt);
+                          onGotoLongVideoWithH3(imageToUse, h3Prompt);
                         }}
                         className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90 transition-all"
                         title={selectedImageIndex !== undefined ? '用已选中的图片生成视频' : '点击图片选中后再生成视频（默认使用第一张）'}
@@ -3062,7 +3062,7 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
                   <button
                     onClick={() => {
                       const img = selectedImageIndex !== undefined ? allDisplayImages[selectedImageIndex] : allDisplayImages[0];
-                      onGotoLongVideoWithH3(img, index, h3Prompt);
+                      onGotoLongVideoWithH3(img, h3Prompt);
                     }}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90 transition-all"
                   >
@@ -6987,7 +6987,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                 panelH3ConstraintEnabled={panelH3ConstraintEnabled[sbHistoryId || 'solo']}
                 onTogglePanelH3Constraint={handleTogglePanelH3Constraint}
                 onGeneratePanelH3={() => handleGeneratePanelH3(idx, panel)}
-                onGotoLongVideoWithH3={(imageUrl) => handleGotoLongVideoWithH3(idx, panel, imageUrl, panelH3Prompts[pK])}
+                onGotoLongVideoWithH3={(imageUrl) => handleGotoLongVideoWithH3(idx, panel, imageUrl, panelH3Prompt)}
                 onGotoLongVideoV2={(imageUrl) => handleGotoLongVideoV2(imageUrl)}
               />
             );
@@ -7337,7 +7337,7 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
   panelH3Duration?: 15 | 30 | 60;
   panelH3Loading?: boolean;
   onGeneratePanelH3?: () => void;
-  onGotoLongVideoWithH3?: (imageUrl: string) => void;
+  onGotoLongVideoWithH3?: (imageUrl: string, h3Prompt?: string) => void;
   /** 「图生视频 → 长视频v2」按钮：把分镜首图传给长视频 V2 模型 */
   onGotoLongVideoV2?: (imageUrl: string) => void;
   /** 图片提示词编辑回调（用户在卡片内直接改 image_prompt） */
@@ -7694,7 +7694,7 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
                         const img = selectedImageIndex !== undefined && allDisplayImages[selectedImageIndex]
                           ? allDisplayImages[selectedImageIndex]
                           : allDisplayImages[0];
-                        onGotoLongVideoWithH3?.(img);
+                        onGotoLongVideoWithH3?.(img, panelH3Prompt);
                       }}
                       disabled={videoGenLoading}
                       title="用 H3 提示词在长视频 1.1 中生成视频"
