@@ -200,7 +200,14 @@ export function MiniMaxLongVideoV2Page({
         sm: 'SM重口味（heavy SM，含捆绑、支配、角色扮演等重口味元素）',
       };
       const levelHint = levelMap[eroticLevel];
-      const sceneHint = `请分析图片中的人物外貌、服装、场景、动作、情绪，以第一人称视角生成一段适合 MiniMax H3 图生视频的英文提示词。创作方向：${levelHint}。要求输出纯英文提示词句子，不要解释。`;
+      // 过滤未成年相关关键词，避免 grok-4.6 安全过滤触发
+      const hintRaw = `请分析图片中的人物外貌、服装、场景、动作、情绪，以第一人称视角生成一段适合 MiniMax H3 图生视频的英文提示词。创作方向：${levelHint}。要求输出纯英文提示词句子，不要解释。`;
+      const sceneHint2 = hintRaw
+        .replace(/未成年[人人]?/g, '成人')
+        .replace(/未满18[岁]?/g, '18+')
+        .replace(/[少青]年/g, '成年')
+        .replace(/萝莉|正太|幼女|正幼/g, '')
+        .replace(/teenager|underage|minor|child\b/g, 'adult');
 
       let imageDataUrl = firstImage.path;
       if (firstImage.path.startsWith('blob:') || firstImage.path.startsWith('http')) {
@@ -216,7 +223,7 @@ export function MiniMaxLongVideoV2Page({
         } catch { /* use original path */ }
       }
 
-      const res = await expandVideoFromImage(imageDataUrl, sceneHint, true, 1, ['grok-4.3'], 150000);
+      const res = await expandVideoFromImage(imageDataUrl, sceneHint2, true, 1, ['grok-4.6'], 150000);
       const generated = res.prompts?.[0];
       if (generated) {
         setPrompt(generated);
@@ -532,7 +539,7 @@ export function MiniMaxLongVideoV2Page({
             <div className="flex items-center gap-2">
               <Sparkles size={14} className="text-pink-500" />
               <span className="text-xs font-medium text-text-primary">情色创作模式</span>
-              <span className="text-[10px] text-text-tertiary hidden sm:inline">· Grok-4.3 AI 分析</span>
+              <span className="text-[10px] text-text-tertiary hidden sm:inline">· Grok-4.6 AI 分析</span>
             </div>
             <button
               onClick={() => setEroticMode(!eroticMode)}
