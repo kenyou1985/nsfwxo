@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Video, Image as ImageIcon, Loader2, X, Sparkles, Copy, Check } from 'lucide-react';
 import { uploadImage, WORKFLOW } from '../services/runninghub';
+import { expandVideoFromImage } from '../services/promptApi';
 import { GenerateButton } from '../components/GenerateButton';
 import { VideoTaskList } from '../components/VideoTaskList';
 import type { NodeInfo } from '../types';
@@ -167,6 +168,10 @@ export function MiniMaxLongVideoV2Page({
   const [uploading, setUploading] = useState<boolean>(false);
   const [uploadingSlots, setUploadingSlots] = useState<Set<number>>(new Set());
   const [submitting, setSubmitting] = useState<boolean>(false);
+  // 情色创作模式
+  const [eroticMode, setEroticMode] = useState(false);
+  const [eroticLevel, setEroticLevel] = useState<'soft' | 'normal' | 'sm'>('normal');
+  const [eroticAnalyzing, setEroticAnalyzing] = useState(false);
 
   const taskListRef = useRef<{
     submitTask: (prompt: string, imagePath: string, imagePreview: string, nodeInfoList: NodeInfo[], workflowId?: string) => void;
@@ -178,6 +183,53 @@ export function MiniMaxLongVideoV2Page({
       try { URL.revokeObjectURL(url); } catch { /* noop */ }
     }
   };
+
+  /** 情色创作模式：调用 Grok-4.6 分析参考图，生成提示词 */
+  const handleEroticAnalyze = useCallback(async () => {
+    const uploadedImages = images.filter(img => img.path && img.path !== 'None');
+    if (uploadedImages.length === 0) {
+      onError('请先上传至少一张参考图');
+      return;
+    }
+    setEroticAnalyzing(true);
+    try {
+      const firstImage = uploadedImages[0];
+      const levelMap = {
+        soft: '纯情色展示（soft erotic，仅唯美暧昧，无直接性行为）',
+        normal: '带性爱（normal erotic，有亲密动作和情感氛围）',
+        sm: 'SM重口味（heavy SM，含捆绑、支配、角色扮演等重口味元素）',
+      };
+      const levelHint = levelMap[eroticLevel];
+      const sceneHint = `请分析图片中的人物外貌、服装、场景、动作、情绪，以第一人称视角生成一段适合 MiniMax H3 图生视频的英文提示词。创作方向：${levelHint}。要求输出纯英文提示词句子，不要解释。`;
+
+      let imageDataUrl = firstImage.path;
+      if (firstImage.path.startsWith('blob:') || firstImage.path.startsWith('http')) {
+        try {
+          const resp = await fetch(firstImage.path);
+          const blob = await resp.blob();
+          const reader = new FileReader();
+          imageDataUrl = await new Promise<string>((resolve, reject) => {
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        } catch { /* use original path */ }
+      }
+
+      const res = await expandVideoFromImage(imageDataUrl, sceneHint, true, 1, ['grok-4.6'], 150000);
+      const generated = res.prompts?.[0];
+      if (generated) {
+        setPrompt(generated);
+        onSuccess('情色创作提示词已生成，请根据需要编辑');
+      } else {
+        onError('生成失败，未返回提示词');
+      }
+    } catch (err) {
+      onError(err instanceof Error ? err.message : '分析失败，请重试');
+    } finally {
+      setEroticAnalyzing(false);
+    }
+  }, [images, eroticLevel, onError, onSuccess]);
 
   // ── 参考图上传 ─────────────────────────────────────────────────────────
   const handleImageUpload = useCallback(async (file: File, index: number) => {
@@ -472,6 +524,73 @@ export function MiniMaxLongVideoV2Page({
             参考图（最多3张）
           </h3>
           <span className="text-xs text-text-tertiary">{uploadedCount}/3</span>
+        </div>
+
+        {/* 情色创作模式开关 + 方向选择 */}
+        <div className="mb-3 p-3 rounded-xl bg-gradient-to-r from-pink-500/5 via-rose-500/5 to-red-500/5 border border-pink-200/50">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Sparkles size={14} className="text-pink-500" />
+              <span className="text-xs font-medium text-text-primary">情色创作模式</span>
+              <span className="text-[10px] text-text-tertiary hidden sm:inline">· Grok-4.6 AI 分析</span>
+            </div>
+            <button
+              onClick={() => setEroticMode(!eroticMode)}
+              className={`w-10 h-5 rounded-full transition-colors relative ${eroticMode ? 'bg-pink-500' : 'bg-text-tertiary'}`}
+              disabled={submitting || eroticAnalyzing}
+            >
+              <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${eroticMode ? 'translate-x-5' : 'translate-x-0.5'}`} />
+            </button>
+          </div>
+          {eroticMode && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-text-tertiary flex-shrink-0">创作方向：</span>
+                {([
+                  { value: 'soft', label: '纯情色', color: 'from-pink-400 to-rose-400' },
+                  { value: 'normal', label: '带性爱', color: 'from-rose-400 to-red-400' },
+                  { value: 'sm', label: 'SM重口味', color: 'from-red-400 to-orange-400' },
+                ] as const).map(({ value, label, color }) => (
+                  <button
+                    key={value}
+                    onClick={() => setEroticLevel(value)}
+                    disabled={submitting || eroticAnalyzing}
+                    className={`px-3 py-1 rounded-lg text-[10px] font-bold bg-gradient-to-r ${color} text-white transition-all hover:opacity-90 disabled:opacity-50 ${
+                      eroticLevel === value ? 'ring-2 ring-yellow-300 shadow-md scale-105' : 'opacity-60'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={handleEroticAnalyze}
+                disabled={submitting || eroticAnalyzing || images.filter(img => img.path).length === 0}
+                className={`w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                  eroticAnalyzing
+                    ? 'bg-pink-500/50 text-white/70 cursor-not-allowed'
+                    : images.filter(img => img.path).length === 0
+                    ? 'bg-pink-500/30 text-white/50 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-pink-500 to-rose-500 text-white hover:opacity-90 shadow-sm'
+                }`}
+              >
+                {eroticAnalyzing ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    <span>分析中，请稍候...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={14} />
+                    <span>分析参考图生成提示词</span>
+                  </>
+                )}
+              </button>
+              <p className="text-[10px] text-pink-400/80">
+                将分析第一张参考图，结合选定方向生成适合该场景的视频提示词
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-3 gap-3">

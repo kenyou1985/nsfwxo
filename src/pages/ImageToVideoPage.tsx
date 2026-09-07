@@ -984,8 +984,25 @@ function MiniMaxH3Panel({
       const levelHint = levelMap[mmEroticLevel];
       const sceneHint = `请分析图片中的人物外貌、服装、场景、动作、情绪，以第一人称视角生成一段适合 MiniMax H3 图生视频的英文提示词。创作方向：${levelHint}。要求输出纯英文提示词句子，不要解释。`;
 
+      // 将 OSS URL 或 blob URL 转换为 base64 data URL，避免后端无法下载远程图片
+      let imageDataUrl = firstImage.path;
+      if (firstImage.path.startsWith('blob:') || firstImage.path.startsWith('http')) {
+        try {
+          const resp = await fetch(firstImage.path);
+          const blob = await resp.blob();
+          const reader = new FileReader();
+          imageDataUrl = await new Promise<string>((resolve, reject) => {
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        } catch {
+          // fetch 失败时仍使用原路径
+        }
+      }
+
       const res = await expandVideoFromImage(
-        firstImage.path,
+        imageDataUrl,
         sceneHint,
         true,
         1,
@@ -1353,8 +1370,8 @@ function MiniMaxH3Panel({
                     key={value}
                     onClick={() => setMmEroticLevel(value)}
                     disabled={isSubmitting || mmEroticAnalyzing}
-                    className={`px-3 py-1 rounded-lg text-[10px] font-medium bg-gradient-to-r ${color} text-white transition-opacity hover:opacity-90 disabled:opacity-50 ${
-                      mmEroticLevel === value ? 'ring-2 ring-white/60' : 'opacity-70'
+                    className={`px-3 py-1 rounded-lg text-[10px] font-bold bg-gradient-to-r ${color} text-white transition-all hover:opacity-90 disabled:opacity-50 ${
+                      mmEroticLevel === value ? 'ring-2 ring-yellow-300 shadow-md scale-105' : 'opacity-60'
                     }`}
                   >
                     {label}
