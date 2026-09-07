@@ -910,7 +910,6 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
             {([
               { key: 'all', label: '全部' },
               { key: 'minimax_long_v2', label: 'MiniMax 长视频 V2' },
-              { key: 'minimax_long', label: 'MiniMax 长视频' },
               { key: 'long_v1_1', label: '长视频 v1.1' },
             ] as const).map(({ key, label }) => (
               <button
