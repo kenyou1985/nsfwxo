@@ -647,6 +647,16 @@ const handleGirlfriendSelect = useCallback(
         </div>
       </div>
 
+      {/* 任务列表 */}
+      <VideoTaskList
+        ref={taskListRef}
+        apiKey={apiKey}
+        workflowId={WORKFLOW_ID}
+        onError={onError}
+        onSuccess={onSuccess}
+        onTaskComplete={handleTaskComplete}
+      />
+
       {/* 数字人锚定 (支持多数字人：移动端允许并行锚定，不阻塞整个选择器) */}
       <GirlfriendSelector
         selectedIds={selectedGirlfriends
@@ -808,10 +818,11 @@ const handleGirlfriendSelect = useCallback(
         <textarea
           value={prompt}
           onChange={(e) => (themeTabs.length > 0 ? handleThemePromptChange(e.target.value) : setPrompt(e.target.value))}
-          rows={16}
+          rows={4}
           placeholder="例如: 图片1为男主，图片2为女主，生成两人约会的视频提示词"
           disabled={submitting}
-          className="w-full px-3 py-2 rounded-lg bg-bg-elevated border border-border text-sm text-text-primary placeholder-slate-500 focus:outline-none focus:border-primary/50 resize-none"
+          style={{ maxHeight: '320px', minHeight: '80px' }}
+          className="w-full px-3 py-2 rounded-lg bg-bg-elevated border border-border text-sm text-text-primary placeholder-slate-500 focus:outline-none focus:border-primary/50 resize-y overflow-y-auto"
         />
         {/* 引用参考图快捷按钮 */}
         {uploadedCount > 0 && (
@@ -894,12 +905,23 @@ const handleGirlfriendSelect = useCallback(
             <textarea
               value={enhancedPrompt}
               onChange={(e) => setEnhancedPrompt(e.target.value)}
-              rows={6}
-              className="w-full px-3 py-2 rounded-lg bg-white border border-green-200 text-sm text-green-800 focus:outline-none focus:border-green-400 resize-none font-mono"
+              rows={4}
+              style={{ maxHeight: '320px', minHeight: '80px' }}
+              className="w-full px-3 py-2 rounded-lg bg-white border border-green-200 text-sm text-green-800 focus:outline-none focus:border-green-400 resize-y overflow-y-auto font-mono"
               placeholder="返回的优化提示词将在此显示..."
             />
           </div>
         )}
+
+        {/* 生成按钮 - 放在提示词下方 */}
+        <div className="pt-3 mt-3 border-t border-border/50">
+          <GenerateButton
+            onClick={handleSubmit}
+            isLoading={submitting}
+            disabled={!prompt.trim() || uploadedCount === 0 || submitting || uploading}
+            label={uploading ? '上传中...' : submitting ? '提交中...' : `生成 ${finalDuration} 秒视频`}
+          />
+        </div>
       </div>
 
       {/* 时长 (核心参数) */}
@@ -1112,24 +1134,13 @@ const handleGirlfriendSelect = useCallback(
         )}
       </div>
 
-      {/* 生成按钮 */}
-      <div className="sticky bottom-0 bg-gradient-to-t from-white via-white to-transparent pt-4 pb-2">
-        <GenerateButton
-          onClick={handleSubmit}
-          isLoading={submitting}
-          disabled={!prompt.trim() || uploadedCount === 0 || submitting || uploading}
-          label={uploading ? '上传中...' : submitting ? '提交中...' : `生成 ${finalDuration} 秒视频`}
-        />
-      </div>
-
-      {/* 任务列表 */}
-      <VideoTaskList
-        ref={taskListRef}
-        apiKey={apiKey}
-        workflowId={WORKFLOW_ID}
-        onError={onError}
-        onSuccess={onSuccess}
-        onTaskComplete={handleTaskComplete}
+      {/* 数字人锚定 */}
+      <GirlfriendSelector
+        selectedIds={selectedGirlfriends
+          .filter(Boolean)
+          .map((g) => (g.isCustom ? `custom_${g.id}` : g.id))}
+        onSelect={handleGirlfriendSelect}
+        disabled={submitting}
       />
     </div>
   );

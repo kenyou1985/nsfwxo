@@ -15,6 +15,7 @@ interface VideoTask {
   error: string | null;
   startTime: number;
   nodeInfoList: NodeInfo[];
+  workflowId?: string;
 }
 
 // ─── localStorage 配额保护 ─────────────────────────────────────────────────────
@@ -466,6 +467,7 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
         taskId: task.taskId,
         nodeInfoList: task.nodeInfoList,
         createdAt: Date.now(),
+        workflowId: task.workflowId,
       };
       records.unshift(record);
       if (records.length > 50) records.splice(50);
@@ -711,6 +713,7 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
       error: null,
       startTime: Date.now(),
       nodeInfoList,
+      workflowId,
     };
 
     setTasks((prev) => [newTask, ...prev].slice(0, maxTasks));

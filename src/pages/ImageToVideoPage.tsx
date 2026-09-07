@@ -21,6 +21,7 @@ import { THEME_LIBRARY, THEME_CATEGORIES, 主题转视频提示词 } from '../da
 import type { ThemeEntry } from '../data/themeLibrary';
 import type { RunningHubModelEntry } from '../services/runninghubModelsService';
 import { NinfiniteLongVideoPage } from './NinfiniteLongVideoPage';
+import { MiniMaxLongVideoV2Page } from './MiniMaxLongVideoV2Page';
 import { generateH3Prompt } from '../services/h3PromptService';
 import { resolveImageRef } from '../services/imageCacheService';
 
@@ -1025,7 +1026,9 @@ function MiniMaxH3Panel({
     const slotIdx = emptyIdx;
     setMmSelectedGirlfriends(prev => [...prev, gf]);
     // 同步父组件的 selectedGirlfriend（用于 PosePresetSelector，显示第一个女友的姿势）
-    setSelectedGirlfriend(prev => prev ?? gf);
+    if (!selectedGirlfriend) {
+      setSelectedGirlfriend(gf);
+    }
     // 立即用 portraitUrl 作为预览
     setMmImages(prev => {
       const updated = [...prev];
@@ -1127,7 +1130,10 @@ function MiniMaxH3Panel({
       setMmSelectedGirlfriends(prev => prev.filter((_, i) => i !== index));
       // 如果移除的是用于 PosePresetSelector 的第一个女友，同步更新 selectedGirlfriend
       if (index === 0 && removed) {
-        setSelectedGirlfriend(prev => prev?.id === removed.id ? (mmSelectedGirlfriends[1] ?? null) : prev);
+        const nextGirlfriend = mmSelectedGirlfriends[1] ?? null;
+        if (selectedGirlfriend?.id === removed.id) {
+          setSelectedGirlfriend(nextGirlfriend);
+        }
       }
     }
   };
@@ -1346,7 +1352,7 @@ function MiniMaxH3Panel({
           </button>
         </div>
         {/* 模版预设 */}
-        <div className="flex items-center gap-2 mb-3">
+        <div className="flex items-center gap-2 mb-2">
           <span className="text-xs text-text-tertiary flex-shrink-0">模版：</span>
           <div className="flex flex-wrap gap-1.5">
             {H3_VIDEO_TEMPLATES.map((tpl) => (
@@ -1361,13 +1367,35 @@ function MiniMaxH3Panel({
             ))}
           </div>
         </div>
+        {/* 参考图快速引用按钮 - 移至提示词上方 */}
+        {mmImages.filter(img => img.path).length > 0 && (
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
+            <span className="text-[10px] text-purple-500 flex-shrink-0">快速引用：</span>
+            {mmImages.map((img, idx) => img.path && (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => setMmPrompt(mmPrompt + `<Picture ${idx + 1}>`)}
+                disabled={isSubmitting}
+                className="px-2 py-1 rounded-md text-[10px] bg-purple-50 border border-purple-200 text-purple-600 hover:bg-purple-100 transition-colors disabled:opacity-50"
+                title={`插入 <Picture ${idx + 1}> 引用参考图 ${idx + 1}`}
+              >
+                图{idx + 1}
+              </button>
+            ))}
+            <span className="text-[10px] text-indigo-400">
+              提示：可用 &lt;Picture 1&gt;, &lt;Picture 2&gt; 等引用参考图
+            </span>
+          </div>
+        )}
         <div className="relative">
           <textarea
             value={mmPrompt}
             onChange={(e) => setMmPrompt(e.target.value)}
             placeholder={mmAutoPrompt ? '开启自动提示词，可不填或填写简单描述' : '描述视频中的人物动作、表情、场景变化...'}
-            rows={10}
-            className="w-full px-3 py-2 pr-9 rounded-lg bg-bg-elevated border border-border text-sm text-text-primary placeholder-slate-500 focus:outline-none focus:border-purple-400/50 resize-none"
+            rows={4}
+            style={{ maxHeight: '320px', minHeight: '80px' }}
+            className="w-full px-3 py-2 pr-9 rounded-lg bg-bg-elevated border border-border text-sm text-text-primary placeholder-slate-500 focus:outline-none focus:border-purple-400/50 resize-y overflow-y-auto"
             disabled={isSubmitting}
           />
           {mmPrompt && (
@@ -1382,32 +1410,21 @@ function MiniMaxH3Panel({
             </button>
           )}
         </div>
-        {/* 参考图快速引用按钮 */}
-        {mmImages.filter(img => img.path).length > 0 && (
-          <div className="flex items-center gap-2 mt-2 flex-wrap">
-            <span className="text-[10px] text-purple-500">快速引用：</span>
-            {mmImages.map((img, idx) => img.path && (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => setMmPrompt(p => p + `<Picture ${idx + 1}>`)}
-                disabled={isSubmitting}
-                className="px-2 py-1 rounded-md text-[10px] bg-purple-50 border border-purple-200 text-purple-600 hover:bg-purple-100 transition-colors disabled:opacity-50"
-                title={`插入 <Picture ${idx + 1}> 引用参考图 ${idx + 1}`}
-              >
-                图{idx + 1}
-              </button>
-            ))}
-            <span className="text-[10px] text-indigo-400">
-              提示：可用 &lt;Picture 1&gt;, &lt;Picture 2&gt; 等引用参考图
-            </span>
-          </div>
-        )}
         {mmSelectedGirlfriends.length > 0 && (
           <div className="mt-2 px-2 py-1 rounded bg-red-50 border border-red-200 text-[10px] text-red-600">
             已锚定数字人：{mmSelectedGirlfriends.map(g => g.nameZh || g.name).join('、')}
           </div>
         )}
+
+        {/* 生成按钮 - 放在提示词下方 */}
+        <div className="pt-3 mt-3 border-t border-border/50">
+          <GenerateButton
+            onClick={handleSubmit}
+            isLoading={isSubmitting}
+            disabled={!mmImages[0]?.path || isSubmitting || mmUploading || girlfriendUploading}
+            label={girlfriendUploading ? '锚定上传中...' : mmUploading ? '上传中...' : isSubmitting ? '提交中...' : '生成视频'}
+          />
+        </div>
       </div>
 
       {/* ── 主题库面板（MiniMax H3 专用）── */}
@@ -1540,16 +1557,6 @@ function MiniMaxH3Panel({
             disabled={isSubmitting}
           />
         </div>
-      </div>
-
-      {/* 生成按钮 */}
-      <div className="pt-2 pb-4">
-        <GenerateButton
-          onClick={handleSubmit}
-          isLoading={isSubmitting}
-          disabled={!mmImages[0]?.path || isSubmitting || mmUploading || girlfriendUploading}
-          label={girlfriendUploading ? '锚定上传中...' : mmUploading ? '上传中...' : isSubmitting ? '提交中...' : '生成视频'}
-        />
       </div>
     </div>
   );
@@ -2116,8 +2123,9 @@ function MiniMaxLongVideoPanel({
                   value={mlPrompts[idx]}
                   onChange={(e) => updatePrompt(idx, e.target.value)}
                   placeholder={mlAutoPrompt ? '开启自动提示词，可不填或填写简单描述' : `描述第${idx + 1}段视频的动作、表情、场景变化...`}
-                  rows={3}
-                  className="w-full px-3 py-2 pr-9 rounded-lg bg-bg-elevated border border-border text-sm text-text-primary placeholder-slate-500 focus:outline-none focus:border-cyan-400/50 resize-none"
+                  rows={4}
+                  style={{ maxHeight: '320px', minHeight: '80px' }}
+                  className="w-full px-3 py-2 pr-9 rounded-lg bg-bg-elevated border border-border text-sm text-text-primary placeholder-slate-500 focus:outline-none focus:border-cyan-400/50 resize-y overflow-y-auto"
                   disabled={isSubmitting}
                 />
                 {mlPrompts[idx] && (
@@ -2165,6 +2173,16 @@ function MiniMaxLongVideoPanel({
             已锚定数字人：{selectedGirlfriends[0].nameZh || selectedGirlfriends[0].name}
           </div>
         )}
+
+        {/* 生成按钮 - 放在提示词下方 */}
+        <div className="pt-3 mt-3 border-t border-border/50">
+          <GenerateButton
+            onClick={handleSubmit}
+            isLoading={isSubmitting}
+            disabled={!mlImages[0]?.path || isSubmitting || mlUploading || girlfriendUploading}
+            label={girlfriendUploading ? '锚定上传中...' : mlUploading ? '上传中...' : isSubmitting ? '提交中...' : '生成视频'}
+          />
+        </div>
       </div>
 
       {/* 视频模型配置 */}
@@ -2279,16 +2297,6 @@ function MiniMaxLongVideoPanel({
             disabled={isSubmitting}
           />
         </div>
-      </div>
-
-      {/* 生成按钮 */}
-      <div className="pt-2 pb-4">
-        <GenerateButton
-          onClick={handleSubmit}
-          isLoading={isSubmitting}
-          disabled={!mlImages[0]?.path || isSubmitting || mlUploading || girlfriendUploading}
-          label={girlfriendUploading ? '锚定上传中...' : mlUploading ? '上传中...' : isSubmitting ? '提交中...' : '生成视频'}
-        />
       </div>
     </div>
   );
@@ -2643,6 +2651,13 @@ interface MiniMaxH3T2VPanelProps {
   taskListRef: React.RefObject<{ submitTask: (prompt: string, imagePath: string, imagePreview: string, nodeInfoList: NodeInfo[], workflowId?: string) => void } | null>;
   /** 批量生成进度回调 */
   onBatchProgress?: (progress: { current: number; total: number } | null) => void;
+  // 主题标签切换状态
+  mh3ThemeTabs: ThemeEntry[];
+  setMh3ThemeTabs: (v: ThemeEntry[]) => void;
+  mh3ThemeTabIndex: number;
+  setMh3ThemeTabIndex: (v: number) => void;
+  mh3ThemePrompts: string[];
+  setMh3ThemePrompts: (v: string[]) => void;
 }
 
 function MiniMaxH3T2VPanel({
@@ -2655,6 +2670,9 @@ function MiniMaxH3T2VPanel({
   isSubmitting, setIsSubmitting,
   onError, onSuccess, taskListRef,
   onBatchProgress,
+  mh3ThemeTabs, setMh3ThemeTabs,
+  mh3ThemeTabIndex, setMh3ThemeTabIndex,
+  mh3ThemePrompts, setMh3ThemePrompts,
 }: MiniMaxH3T2VPanelProps) {
   // 主题库批量生成状态
   const [themeBatchProgress, setThemeBatchProgress] = useState<{ current: number; total: number } | null>(null);
@@ -2747,12 +2765,10 @@ function MiniMaxH3T2VPanel({
   // 当用户编辑 textarea 时，同步更新当前主题的提示词
   const handleThemePromptChange = useCallback((value: string) => {
     setMh3Prompt(value);
-    setMh3ThemePrompts(prev => {
-      const updated = [...prev];
-      updated[mh3ThemeTabIndex] = value;
-      return updated;
-    });
-  }, [mh3ThemeTabIndex]);
+    const updatedPrompts = [...mh3ThemePrompts];
+    updatedPrompts[mh3ThemeTabIndex] = value;
+    setMh3ThemePrompts(updatedPrompts);
+  }, [mh3ThemeTabIndex, mh3ThemePrompts]);
 
   return (
     <div className="space-y-4">
@@ -2835,8 +2851,9 @@ function MiniMaxH3T2VPanel({
             value={mh3Prompt}
             onChange={(e) => handleThemePromptChange(e.target.value)}
             placeholder={mh3AutoPrompt ? '开启自动优化提示词，可不填或填写简单描述' : '描述视频中的人物动作、表情、场景变化...'}
-            rows={10}
-            className="w-full px-3 py-2 pr-9 rounded-lg bg-bg-elevated border border-border text-sm text-text-primary placeholder-slate-500 focus:outline-none focus:border-blue-400/50 resize-none"
+            rows={4}
+            style={{ maxHeight: '320px', minHeight: '80px' }}
+            className="w-full px-3 py-2 pr-9 rounded-lg bg-bg-elevated border border-border text-sm text-text-primary placeholder-slate-500 focus:outline-none focus:border-blue-400/50 resize-y overflow-y-auto"
             disabled={isSubmitting}
           />
           {mh3Prompt && (
@@ -2855,6 +2872,16 @@ function MiniMaxH3T2VPanel({
               <X size={12} />
             </button>
           )}
+        </div>
+
+        {/* 生成按钮 - 放在提示词下方 */}
+        <div className="pt-3 mt-3 border-t border-border/50">
+          <GenerateButton
+            onClick={handleSubmit}
+            isLoading={isSubmitting}
+            disabled={!mh3Prompt.trim() || isSubmitting || mh3Submitting}
+            label={isSubmitting ? '提交中...' : '生成视频'}
+          />
         </div>
       </div>
 
@@ -2935,23 +2962,13 @@ function MiniMaxH3T2VPanel({
           })}
         </div>
       </div>
-
-      {/* 生成按钮 */}
-      <div className="pt-2 pb-4">
-        <GenerateButton
-          onClick={handleSubmit}
-          isLoading={isSubmitting}
-          disabled={!mh3Prompt.trim() || isSubmitting || mh3Submitting}
-          label={isSubmitting ? '提交中...' : '生成视频'}
-        />
-      </div>
     </div>
   );
 }
 
 // ─── 主页面 ────────────────────────────────────────────────────────────────
 
-type VideoModel = 'wan22' | 'minimaxh3' | 'minimaxlong' | 'minimaxh3t2v' | 'longvideov2';
+type VideoModel = 'wan22' | 'minimaxh3' | 'minimaxlong' | 'minimaxh3t2v' | 'longvideov2' | 'minimaxlongv2';
 
 export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPageProps) {
   // Model selector
@@ -3019,7 +3036,7 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
   const [mlPrompts, setMlPrompts] = useState<string[]>(['', '', '']);
   const [mlDuration, setMlDuration] = useState(10);
   const [mlAutoPrompt, setMlAutoPrompt] = useState(false); // false = 关闭自动提示词
-  const [mlDirectOutput, setMlDirectOutput] = useState(false); // false = ZIP 格式（直出模式默认关闭）
+  const [mlDirectOutput, setMlDirectOutput] = useState(true); // true = 直出视频（默认直出）
   const [mlVideoModel, setMlVideoModel] = useState('');
   const [mlLora, setMlLora] = useState('');
   const [mlLoraWeight, setMlLoraWeight] = useState(0.4);
@@ -3265,6 +3282,10 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
             // 切换到 长视频 v1.1 模型，并写入 slot 0
             setVideoModel('longvideov2');
             setNlInitialImage({ path: finalImagePath, preview: finalImagePreview });
+          } else if (targetModel === 'minimaxlongv2') {
+            // 切换到 MiniMax 长视频 V2 模型，并写入 slot 0
+            setVideoModel('minimaxlongv2');
+            setNlInitialImage({ path: finalImagePath, preview: finalImagePreview });
           } else if (targetModel === 'minimaxh3') {
             // 切换到 MiniMax H3 模型
             setVideoModel('minimaxh3');
@@ -3326,6 +3347,8 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
             onSuccess?.('已从历史记录导入图片到 MiniMax H3，请输入提示词后点击生成');
           } else if (targetModel === 'longvideov2') {
             onSuccess?.('已从历史记录导入图片到长视频 v1.1，请输入提示词后点击生成');
+          } else if (targetModel === 'minimaxlongv2') {
+            onSuccess?.('已从历史记录导入图片到长视频 V2，请输入提示词后点击生成');
           } else {
             onSuccess?.('已从历史记录导入图片，请输入提示词后点击生成');
           }
@@ -3624,6 +3647,16 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
               MiniMax 长视频
             </button>
             <button
+              onClick={() => setVideoModel('minimaxlongv2')}
+              className={`px-4 py-2 rounded-lg text-xs font-medium transition-all ${
+                videoModel === 'minimaxlongv2'
+                  ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-sm'
+                  : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              MiniMax 长视频 V2
+            </button>
+            <button
               onClick={() => setVideoModel('longvideov2')}
               className={`px-4 py-2 rounded-lg text-xs font-medium transition-all ${
                 videoModel === 'longvideov2'
@@ -3659,6 +3692,12 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
           onSuccess={onSuccess}
           taskListRef={taskListRef}
           onBatchProgress={setThemeBatchProgress}
+          mh3ThemeTabs={mh3ThemeTabs}
+          setMh3ThemeTabs={setMh3ThemeTabs}
+          mh3ThemeTabIndex={mh3ThemeTabIndex}
+          setMh3ThemeTabIndex={setMh3ThemeTabIndex}
+          mh3ThemePrompts={mh3ThemePrompts}
+          setMh3ThemePrompts={setMh3ThemePrompts}
         />
       )}
 
@@ -3740,6 +3779,17 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
           setMlH3Duration={setMlH3Duration}
           handleGenerateH3Prompt={handleGenerateH3Prompt}
           handleGotoLongVideoWithH3={handleGotoLongVideoWithH3}
+        />
+      )}
+
+      {/* MiniMax 长视频 V2 UI */}
+      {videoModel === 'minimaxlongv2' && (
+        <MiniMaxLongVideoV2Page
+          apiKey={apiKey}
+          onError={onError}
+          onSuccess={onSuccess}
+          initialImage={nlInitialImage}
+          initialPrompt={nlInitialPrompt}
         />
       )}
 
@@ -3940,6 +3990,18 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
             />
           </div>
 
+          {/* 生成按钮 - 放在提示词下方 */}
+          <GenerateButton
+            onClick={handleSubmit}
+            isLoading={isSubmitting}
+            disabled={!imagePath || !prompt.trim() || isSubmitting || isReuploading || girlfriendUploading}
+            label={
+              girlfriendUploading ? '锚定上传中...' :
+              isReuploading ? '重新上传历史图片中...' :
+              isSubmitting ? '提交中...' : '生成视频'
+            }
+          />
+
           <div className="grid grid-cols-2 gap-4">
             <ParameterSelect label="时长" value={duration} options={DURATION_OPTIONS} onChange={setDuration} disabled={isSubmitting} />
             <ParameterSelect label="分辨率" value={resolution} options={RESOLUTION_OPTIONS} onChange={setResolution} disabled={isSubmitting} />
@@ -3979,20 +4041,6 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
             </div>
           </div>
         </div>
-      </div>
-
-      {/* 生成按钮 */}
-      <div className="pt-2 pb-4">
-        <GenerateButton
-          onClick={handleSubmit}
-          isLoading={isSubmitting}
-          disabled={!imagePath || !prompt.trim() || isSubmitting || isReuploading || girlfriendUploading}
-          label={
-            girlfriendUploading ? '锚定上传中...' :
-            isReuploading ? '重新上传历史图片中...' :
-            isSubmitting ? '提交中...' : '生成视频'
-          }
-        />
       </div>
         </div>
       )}

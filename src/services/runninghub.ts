@@ -149,6 +149,8 @@ export const WORKFLOW = {
   NINFINITE_LONG_V3: '2094226327238135810',
   /** N无限X一键长视频 v1.1 旧版 (workflowId 2094672102264090625, 有 bug, 仅保留给历史记录参考) */
   NINFINITE_LONG_V2: '2094672102264090625',
+  /** MiniMax 长视频 V2 (V2 API, 默认3张参考图, 像素/视频数量/时长/N开关) */
+  MINIMAX_LONG_V2: '2092046754606030850',
 } as const;
 
 export interface WorkflowNode {

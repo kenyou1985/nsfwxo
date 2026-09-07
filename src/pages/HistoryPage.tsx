@@ -49,6 +49,7 @@ interface VideoHistoryRecord {
   coins: string | null;
   taskId: string | null;
   createdAt: number;
+  workflowId?: string;
 }
 
 /** 检查 URL 是否是视频 */
@@ -73,6 +74,7 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
   const [activeTab, setActiveTab] = useState<'image' | 'video' | 'favorites' | 'gpt-image-2'>('image');
   const [records, setRecords] = useState<HistoryRecord[]>([]);
   const [videoRecords, setVideoRecords] = useState<VideoHistoryRecord[]>([]);
+  const [videoFilter, setVideoFilter] = useState<'all' | 'minimax_long_v2' | 'minimax_long' | 'long_v1_1'>('all');
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
   const [loadedImages, setLoadedImages] = useState<Record<string, string[]>>({});
   const loadedImagesRef = useRef<Record<string, string[]>>({});
@@ -329,6 +331,28 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
     onNavigate('img2vid');
   }, [onNavigate, onError, gpt2CachedImages]);
 
+  // GPT Image 2 → 长视频 v2
+  const handleGpt2LongVideoV2 = useCallback((record: GptImage2Record, imgIndex: number) => {
+    if (!onNavigate) {
+      onError?.('当前页面无法跳转到图生视频');
+      return;
+    }
+    const cached = gpt2CachedImages[record.id];
+    const url = cached?.[imgIndex];
+    if (!url) {
+      onError?.('图片尚未加载完成');
+      return;
+    }
+    try {
+      sessionStorage.setItem('history_img2vid', JSON.stringify({ imageUrl: url, targetModel: 'minimaxlongv2' }));
+    } catch (err) {
+      console.error('[HistoryPage] failed to set sessionStorage', err);
+      onError?.('保存图片失败');
+      return;
+    }
+    onNavigate('img2vid');
+  }, [onNavigate, onError, gpt2CachedImages]);
+
   const handleGpt2Edit = useCallback((record: GptImage2Record, imgIndex: number) => {
     if (!onNavigate) {
       onError?.('当前页面无法跳转到图生图');
@@ -449,6 +473,22 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
     }
     try {
       sessionStorage.setItem('history_img2vid', JSON.stringify({ imageUrl, targetModel: 'longvideov2' }));
+    } catch (err) {
+      console.error('[HistoryPage] failed to set sessionStorage', err);
+      onError?.('保存图片失败：' + (err instanceof Error ? err.message : '未知错误'));
+      return;
+    }
+    onNavigate('img2vid');
+  }, [onNavigate, onError]);
+
+  // 图片历史 → 长视频 v2：把图片存到 sessionStorage，跳到图生视频页面。
+  const handleGenerateLongVideoV2FromImage = useCallback((imageUrl: string) => {
+    if (!onNavigate) {
+      onError?.('当前页面无法跳转到图生视频');
+      return;
+    }
+    try {
+      sessionStorage.setItem('history_img2vid', JSON.stringify({ imageUrl, targetModel: 'minimaxlongv2' }));
     } catch (err) {
       console.error('[HistoryPage] failed to set sessionStorage', err);
       onError?.('保存图片失败：' + (err instanceof Error ? err.message : '未知错误'));
@@ -842,6 +882,17 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
                       >
                         <Video size={11} />长视频 1.1
                       </button>
+                      <button
+                        onClick={() => {
+                          const selectedIdx = selectedImg2vidIndex[record.id] ?? 0;
+                          const url = images[selectedIdx] ?? images[0];
+                          handleGenerateLongVideoV2FromImage(url);
+                        }}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-gradient-to-r from-cyan-500 to-blue-500 text-white hover:opacity-90 transition-all"
+                        title={`使用第 ${(selectedImg2vidIndex[record.id] ?? 0) + 1} 张图片生长视频 V2`}
+                      >
+                        <Video size={11} />长视频 V2
+                      </button>
                     </div>
                   )}
                 </div>
@@ -854,7 +905,36 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
       {/* Video history */}
       {activeTab === 'video' && videoRecords.length > 0 && (
         <div className="space-y-3">
-          {videoRecords.map((record) => {
+          {/* 工作流筛选器 */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {([
+              { key: 'all', label: '全部' },
+              { key: 'minimax_long_v2', label: 'MiniMax 长视频 V2' },
+              { key: 'minimax_long', label: 'MiniMax 长视频' },
+              { key: 'long_v1_1', label: '长视频 v1.1' },
+            ] as const).map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setVideoFilter(key)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  videoFilter === key
+                    ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-sm'
+                    : 'bg-bg-elevated text-text-secondary hover:text-text-primary border border-border'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {videoRecords
+            .filter((r) => {
+              if (videoFilter === 'all') return true;
+              if (videoFilter === 'minimax_long_v2') return r.workflowId === '2092046754606030850';
+              if (videoFilter === 'minimax_long') return r.workflowId === '2091369701523136514';
+              if (videoFilter === 'long_v1_1') return r.workflowId === '2094226327238135810' || r.workflowId === '2094672102264090625';
+              return true;
+            })
+            .map((record) => {
             const firstIsVideo = isVideoUrl(record.images[0] || '');
             return (
               <div
@@ -1344,6 +1424,13 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
                             title={`使用第 ${(selectedGpt2Img2vidIdx[record.id] ?? 0) + 1} 张图片生长视频（长视频 v1.1）`}
                           >
                             <Video size={11} />长视频 1.1
+                          </button>
+                          <button
+                            onClick={() => handleGpt2LongVideoV2(record, selectedGpt2Img2vidIdx[record.id] ?? 0)}
+                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-gradient-to-r from-cyan-500 to-blue-500 text-white hover:opacity-90 transition-all"
+                            title={`使用第 ${(selectedGpt2Img2vidIdx[record.id] ?? 0) + 1} 张图片生长视频 V2`}
+                          >
+                            <Video size={11} />长视频 V2
                           </button>
                         </div>
                       )}
