@@ -151,6 +151,8 @@ export const WORKFLOW = {
   NINFINITE_LONG_V2: '2094672102264090625',
   /** MiniMax 长视频 V2 (V2 API, 默认3张参考图, 像素/视频数量/时长/N开关) */
   MINIMAX_LONG_V2: '2092046754606030850',
+  /** 图生图（多图编辑）：支持3张参考图，生成融合多图的编辑结果 */
+  MULTI_REF_IMG2IMG: '2083216078276165634',
 } as const;
 
 export interface WorkflowNode {

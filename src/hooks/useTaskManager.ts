@@ -43,7 +43,7 @@ export interface PersistedTaskEntry {
   id: string;
   taskId: string | null;
   prompt: string;
-  workflowType: 'txt2img' | 'img2img' | 'img2vid';
+  workflowType: 'txt2img' | 'img2img' | 'img2vid' | 'multi-ref-img2img';
   workflowIdOverride?: string;
   nodeInfoList: NodeInfo[];
   resultId?: string; // UI result identifier for matching restored tasks to UI state
@@ -51,7 +51,7 @@ export interface PersistedTaskEntry {
   zipUrl?: string | null; // Persisted for recovery after page refresh
   storyboardInfo?: { historyId: string; panelIdx: number }; // Storyboard panel association
   /** UI module that produced this task — used for history-page source tag. */
-  source?: 'expand' | 'random' | 'smart-storyboard' | 'storyboard' | 'txt2img' | 'img2img' | 'img2vid';
+  source?: 'expand' | 'random' | 'smart-storyboard' | 'storyboard' | 'txt2img' | 'img2img' | 'img2vid' | 'multi-ref-img2img';
   /** Storyboard / random theme title — also displayed on history cards. */
   themeTitle?: string;
   /** 1-based panel number for storyboard tasks. */
@@ -114,24 +114,24 @@ export interface TaskManagerReturn {
   tasks: QueuedTask[];
   isFull: boolean;
   addTask: (
-    workflowType: 'txt2img' | 'img2img' | 'img2vid',
+    workflowType: 'txt2img' | 'img2img' | 'img2vid' | 'multi-ref-img2img',
     nodeInfoList: NodeInfo[],
     prompt: string,
     workflowIdOverride?: string,
     resultId?: string,
     storyboardInfo?: { historyId: string; panelIdx: number },
-    source?: 'expand' | 'random' | 'smart-storyboard' | 'storyboard' | 'txt2img' | 'img2img' | 'img2vid',
+    source?: 'expand' | 'random' | 'smart-storyboard' | 'storyboard' | 'txt2img' | 'img2img' | 'img2vid' | 'multi-ref-img2img',
     themeTitle?: string,
     panelNumber?: number
   ) => Promise<string>;
   addTaskWithNodeList: (
-    workflowType: 'txt2img' | 'img2img' | 'img2vid',
+    workflowType: 'txt2img' | 'img2img' | 'img2vid' | 'multi-ref-img2img',
     nodeInfoList: NodeInfo[],
     prompt: string,
     workflowIdOverride?: string,
     resultId?: string,
     storyboardInfo?: { historyId: string; panelIdx: number },
-    source?: 'expand' | 'random' | 'smart-storyboard' | 'storyboard' | 'txt2img' | 'img2img' | 'img2vid',
+    source?: 'expand' | 'random' | 'smart-storyboard' | 'storyboard' | 'txt2img' | 'img2img' | 'img2vid' | 'multi-ref-img2img',
     themeTitle?: string,
     panelNumber?: number
   ) => Promise<string>;
@@ -589,6 +589,7 @@ export function useTaskManager({
       const resolvedWorkflowId = workflowIdOverride
         || (workflowType === 'txt2img' ? getDefaultWorkflow()
           : workflowType === 'img2img' ? WORKFLOW.IMAGE_TO_IMAGE
+          : workflowType === 'multi-ref-img2img' ? WORKFLOW.MULTI_REF_IMG2IMG
           : WORKFLOW.IMAGE_TO_VIDEO);
 
       // Mark in-flight synchronously so concurrent addTask/drain calls see it.
@@ -744,13 +745,13 @@ export function useTaskManager({
 
   const addTask = useCallback(
     async (
-      workflowType: 'txt2img' | 'img2img' | 'img2vid',
+      workflowType: 'txt2img' | 'img2img' | 'img2vid' | 'multi-ref-img2img',
       nodeInfoList: NodeInfo[],
       prompt: string,
       workflowIdOverride?: string,
       resultId?: string,
       storyboardInfo?: { historyId: string; panelIdx: number },
-      source?: 'expand' | 'random' | 'smart-storyboard' | 'storyboard' | 'txt2img' | 'img2img' | 'img2vid',
+      source?: 'expand' | 'random' | 'smart-storyboard' | 'storyboard' | 'txt2img' | 'img2img' | 'img2vid' | 'multi-ref-img2img',
       themeTitle?: string,
       panelNumber?: number,
     ): Promise<string> => {

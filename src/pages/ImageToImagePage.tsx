@@ -93,6 +93,26 @@ export function ImageToImagePage({
   // Aspect ratio: 'portrait' (竖屏 9:16) or 'landscape' (横屏 16:9)
   const [aspectRatio, setAspectRatio] = useState<'portrait' | 'landscape'>('portrait');
 
+  // ─── 图生图（多图编辑）模式 ────────────────────────────────────────────────
+  type Img2ImgMode = 'single' | 'multi';
+  const [img2imgMode, setImg2imgMode] = useState<Img2ImgMode>('single');
+
+  interface MultiRefImage {
+    path: string;   // RunningHub path (用于 nodeInfoList)
+    preview: string; // data URL (用于 <img> preview)
+  }
+
+  const EMPTY_MULTI = (): MultiRefImage => ({ path: '', preview: '' });
+
+  const [multiRefImages, setMultiRefImages] = useState<MultiRefImage[]>([EMPTY_MULTI(), EMPTY_MULTI(), EMPTY_MULTI()]);
+  const [multiRefUploading, setMultiRefUploading] = useState(false); // 全局上传中标志
+  const [multiRefAspectRatio, setMultiRefAspectRatio] = useState('3:4');
+  const [multiRefPrompt, setMultiRefPrompt] = useState('');
+  const [multiRefEnhance, setMultiRefEnhance] = useState(false);
+  const [multiRefCount, setMultiRefCount] = useState(1);
+  const [multiRefSubmitting, setMultiRefSubmitting] = useState(false);
+  const [multiRefUploadErrors, setMultiRefUploadErrors] = useState<(string | null)[]>([null, null, null]);
+
   // Pre-fill customPrompt when navigating from history regenerate
   useEffect(() => {
     if (initialPrompt && initialPrompt.trim()) {
@@ -274,6 +294,116 @@ export function ImageToImagePage({
     },
     [apiKey, onSuccess]
   );
+
+  const handleMultiRefImageChange = (index: number, path: string, preview: string) => {
+    setMultiRefImages(prev => {
+      const updated = [...prev];
+      updated[index] = { path, preview };
+      return updated;
+    });
+  };
+
+  const handleMultiRefUpload = async (index: number, file: File) => {
+    setMultiRefUploadErrors(prev => { const e = [...prev]; e[index] = null; return e; });
+    setMultiRefUploading(true);
+    try {
+      const objectUrl = URL.createObjectURL(file);
+      const { imagePath } = await uploadImage(apiKey, file);
+      setMultiRefImages(prev => {
+        const updated = [...prev];
+        updated[index] = { path: imagePath, preview: objectUrl };
+        return updated;
+      });
+      onSuccess?.(`参考图 ${index + 1} 上传成功`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '上传失败';
+      setMultiRefUploadErrors(prev => { const e = [...prev]; e[index] = msg; return e; });
+    } finally {
+      setMultiRefUploading(false);
+    }
+  };
+
+  const handleMultiRefGenerate = async () => {
+    // 至少需要1张图
+    const hasImage = multiRefImages.some(img => img.path);
+    if (!hasImage) {
+      onError?.('请至少上传一张参考图');
+      return;
+    }
+    if (!multiRefPrompt.trim()) {
+      onError?.('请输入描述提示词');
+      return;
+    }
+    if (taskManager.isFull) {
+      onError?.(`任务队列已满（最多 ${MAX_TASKS} 个任务），请等待当前任务完成`);
+      return;
+    }
+
+    setMultiRefSubmitting(true);
+    try {
+      const nodeList: import('../types').NodeInfo[] = [];
+
+      // 最多3张参考图（nodeId: 154/118/95）
+      const multiImageNodeIds = ['154', '118', '95'];
+      multiRefImages.forEach((img, idx) => {
+        if (img.path) {
+          nodeList.push({
+            nodeId: multiImageNodeIds[idx],
+            fieldName: 'image',
+            fieldValue: img.path,
+            description: `参考图${idx + 1}`,
+          });
+        }
+      });
+
+      // 增强开关（nodeId: 188）
+      nodeList.push({
+        nodeId: '188',
+        fieldName: 'value',
+        fieldValue: String(multiRefEnhance),
+        description: '增强',
+      });
+
+      // 宽高比（nodeId: 189）
+      nodeList.push({
+        nodeId: '189',
+        fieldName: 'aspect_ratio',
+        fieldValue: multiRefAspectRatio,
+        description: '宽高比',
+      });
+
+      // 分辨率（nodeId: 186，固定 2048）
+      nodeList.push({
+        nodeId: '186',
+        fieldName: 'value',
+        fieldValue: '2048',
+        description: '分辨率',
+      });
+
+      // 生成数量（nodeId: 187）
+      nodeList.push({
+        nodeId: '187',
+        fieldName: 'value',
+        fieldValue: String(multiRefCount),
+        description: '数量',
+      });
+
+      // 提示词（nodeId: 107）
+      nodeList.push({
+        nodeId: '107',
+        fieldName: 'text',
+        fieldValue: multiRefPrompt.trim(),
+        description: '提示词',
+      });
+
+      await taskManager.addTask('multi-ref-img2img', nodeList, multiRefPrompt.trim(), WORKFLOW.MULTI_REF_IMG2IMG);
+      onSuccess?.('多图编辑任务已提交');
+    } catch (err) {
+      onError?.(err instanceof Error ? err.message : '提交失败');
+    } finally {
+      setMultiRefSubmitting(false);
+    }
+  };
 
   const handlePoseSelect = useCallback((posePrompt: string, poseName: string) => {
     // Krea2 style: pose preset is a coherent English paragraph — join with
@@ -810,13 +940,54 @@ export function ImageToImagePage({
         onRegenerate={taskManager.regenerateTask}
       />
 
-      {/* Girlfriend Selector */}
-      <GirlfriendSelector
-        selectedId={selectedGirlfriend ? (selectedGirlfriend.isCustom ? `custom_${selectedGirlfriend.id}` : selectedGirlfriend.id) : null}
-        onSelect={handleGirlfriendSelect}
-        disabled={girlfriendUploading || taskManager.isFull}
-      />
+      {/* 图生图模型选择 */}
+      <div className="rounded-xl bg-bg-surface border border-border p-4">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium text-text-primary">图生图模型</span>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setImg2imgMode('single')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                img2imgMode === 'single'
+                  ? 'bg-primary text-white'
+                  : 'bg-bg-elevated text-text-tertiary hover:bg-bg-hover'
+              }`}
+              disabled={taskManager.isFull}
+            >
+              单图编辑
+            </button>
+            <button
+              onClick={() => setImg2imgMode('multi')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                img2imgMode === 'multi'
+                  ? 'bg-primary text-white'
+                  : 'bg-bg-elevated text-text-tertiary hover:bg-bg-hover'
+              }`}
+              disabled={taskManager.isFull}
+            >
+              多图编辑
+            </button>
+          </div>
+        </div>
+        {img2imgMode === 'multi' && (
+          <div className="mt-2 text-xs text-text-tertiary">
+            支持同时上传3张参考图，生成融合多图元素的编辑结果
+          </div>
+        )}
+      </div>
 
+      {/* Girlfriend Selector — 仅单图模式 */}
+      {img2imgMode === 'single' && (
+        <GirlfriendSelector
+          selectedId={selectedGirlfriend ? (selectedGirlfriend.isCustom ? `custom_${selectedGirlfriend.id}` : selectedGirlfriend.id) : null}
+          onSelect={handleGirlfriendSelect}
+          disabled={girlfriendUploading || taskManager.isFull}
+        />
+      )}
+
+      {/* ─── 单图编辑模式 UI ─────────────────────────────────────────────── */}
+      {img2imgMode === 'single' && (
+        <>
       {/* Image upload (shows selected girlfriend preview) */}
       <div className="rounded-xl bg-bg-surface border border-border p-4">
         <ImageUploader
@@ -842,7 +1013,120 @@ export function ImageToImagePage({
           </div>
         )}
       </div>
+        </>
+      )}
 
+      {/* ─── 多图编辑模式 UI ────────────────────────────────────────────── */}
+      {img2imgMode === 'multi' && (
+        <>
+        {/* 3张参考图上传 */}
+        <div className="rounded-xl bg-bg-surface border border-border p-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {[0, 1, 2].map(idx => (
+              <div key={idx}>
+                <div className="text-xs font-medium text-text-secondary mb-1.5">
+                  参考图 {idx + 1}
+                </div>
+                <ImageUploader
+                  value={multiRefImages[idx]?.path || ''}
+                  previewUrl={multiRefImages[idx]?.preview || ''}
+                  onChange={(path, preview) => handleMultiRefImageChange(idx, path, preview)}
+                  onUpload={(file) => handleMultiRefUpload(idx, file)}
+                  disabled={taskManager.isFull || multiRefSubmitting}
+                  error={multiRefUploadErrors[idx] || undefined}
+                  uploadLabel="上传"
+                />
+              </div>
+            ))}
+          </div>
+          {multiRefUploading && (
+            <div className="mt-2 flex items-center gap-1 text-xs text-text-tertiary">
+              <div className="w-3 h-3 border border-text-tertiary/30 border-t-text-tertiary rounded-full animate-spin" />
+              上传中...
+            </div>
+          )}
+        </div>
+
+        {/* 多图编辑设置面板 */}
+        <div className="rounded-xl bg-bg-surface border border-border p-4 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-text-primary mb-1.5">宽高比</label>
+            <select
+              value={multiRefAspectRatio}
+              onChange={e => setMultiRefAspectRatio(e.target.value)}
+              disabled={taskManager.isFull || multiRefSubmitting}
+              className="w-full px-3 py-2 rounded-lg bg-bg-elevated text-text-primary text-sm border border-border focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+            >
+              {['1:1', '3:4', '4:3', '2:3', '3:2', '9:16', '16:9'].map(r => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-1.5">生成数量</label>
+              <input
+                type="number"
+                min={1}
+                max={8}
+                value={multiRefCount}
+                onChange={e => setMultiRefCount(Math.max(1, Math.min(8, Number(e.target.value))))}
+                disabled={taskManager.isFull || multiRefSubmitting}
+                className="w-full px-3 py-2 rounded-lg bg-bg-elevated text-text-primary text-sm border border-border focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-1.5">分辨率</label>
+              <div className="px-3 py-2 rounded-lg bg-bg-elevated text-text-secondary text-sm border border-border">
+                2048px
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-text-primary mb-1.5">
+              描述提示词 <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              value={multiRefPrompt}
+              onChange={e => setMultiRefPrompt(e.target.value)}
+              placeholder="描述多张图片之间的关系，例如：图1女人坐在图2沙发上，图3的背景是海边"
+              rows={3}
+              disabled={taskManager.isFull || multiRefSubmitting}
+              className="w-full px-3 py-2 rounded-lg bg-bg-elevated text-text-primary text-sm border border-border focus:outline-none focus:ring-1 focus:ring-primary resize-none disabled:opacity-50 placeholder:text-text-tertiary"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setMultiRefEnhance(v => !v)}
+              className={`w-10 h-5 rounded-full transition-colors relative ${
+                multiRefEnhance ? 'bg-primary' : 'bg-bg-elevated border border-border'
+              }`}
+              disabled={taskManager.isFull || multiRefSubmitting}
+            >
+              <div className={`w-4 h-4 rounded-full absolute top-0.5 transition-all ${
+                multiRefEnhance ? 'right-0.5 bg-white' : 'left-0.5 bg-text-tertiary'
+              }`} />
+            </button>
+            <span className="text-sm text-text-secondary">增强模式</span>
+          </div>
+
+          {/* 多图编辑生成按钮 */}
+          <GenerateButton
+            onClick={handleMultiRefGenerate}
+            isLoading={multiRefSubmitting}
+            disabled={!multiRefImages.some(img => img.path) || !multiRefPrompt.trim() || taskManager.isFull}
+            label={multiRefSubmitting ? '提交中...' : taskManager.isFull ? '队列已满' : '开始生成'}
+          />
+        </div>
+        </>
+      )}
+
+      {/* ─── 单图模式专属功能 ─────────────────────────────────────────────── */}
+      {img2imgMode === 'single' && (
+        <>
       {/* Pose presets */}
       <PosePresetSelector
         type="image"
@@ -971,17 +1255,6 @@ export function ImageToImagePage({
         </div>
       </div>
 
-      {/* Generated images gallery */}
-      {allImages.length > 0 && (
-        <div className="rounded-xl bg-bg-surface border border-border p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium text-text-primary">生成结果</h3>
-            <span className="text-xs text-text-tertiary">{allImages.length} 张图片</span>
-          </div>
-          <ImageGrid key={refreshKey} images={allImages} onToggleFavorite={handleToggleFavorite} />
-        </div>
-      )}
-
       {/* Generate button - desktop */}
       <div className="hidden lg:block pt-2 pb-4">
         <GenerateButton
@@ -1013,6 +1286,8 @@ export function ImageToImagePage({
           }
         />
       </div>
+        </>
+      )}
     </div>
   );
 }

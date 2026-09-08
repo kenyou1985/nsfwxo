@@ -115,7 +115,7 @@ export interface ImageToImageParams {
 export interface QueuedTask {
   id: string;
   taskId: string | null;
-  workflowType: 'txt2img' | 'img2img' | 'img2vid';
+  workflowType: 'txt2img' | 'img2img' | 'img2vid' | 'multi-ref-img2img';
   workflowIdOverride?: string;
   status: TaskStatus;
   prompt: string;
@@ -135,7 +135,7 @@ export interface QueuedTask {
    * - random          → 随机抽卡
    * - smart-storyboard → 智能分镜 (StoryboardSection 在智能扩写页内触发的任务)
    * - storyboard      → 剧情分镜 (剧情分镜页面内的批量/单图任务) */
-  source?: 'expand' | 'random' | 'smart-storyboard' | 'storyboard' | 'txt2img' | 'img2img' | 'img2vid';
+  source?: 'expand' | 'random' | 'smart-storyboard' | 'storyboard' | 'txt2img' | 'img2img' | 'img2vid' | 'multi-ref-img2img';
   /** Storyboard / random theme title. Displayed alongside the source badge in
    * the history page so users can tell which story/theme a finished image
    * belongs to. Optional — only set for sources that have a theme context. */

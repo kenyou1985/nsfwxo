@@ -657,7 +657,7 @@ interface 历史分组项 {
   创建时间: number;
   图片列表: string[];
   zipUrl?: string;
-  workflowType: 'txt2img' | 'img2img' | 'img2vid';
+  workflowType: 'txt2img' | 'img2img' | 'img2vid' | 'multi-ref-img2img';
 }
 
 function 历史图片选择器({ on选择, 当前图片路径 }: { on选择: (url: string, preview: string) => void; 当前图片路径: string }) {
