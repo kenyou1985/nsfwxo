@@ -120,6 +120,85 @@ R18_POSITIONS = re.compile(
     re.I,
 )
 
+# ── 头部位置关键词（与身体方向强相关）──
+# 仰头/抬头 → 身体应为仰卧/站立抬头/女上位/坐姿，不应为后入/趴姿
+# 注意：\b 不适用于中日韩字符，所以中文部分不加 \b
+HEAD_LOOKING_UP = re.compile(
+    r"(仰头|抬头|头向后仰|头向后倾斜|头向后|仰着脸|仰起头|抬着头|仰面|head tilted back|"
+    r"head tilted upward|head thrown back|head up|looking up|face upward|gazing upward|"
+    r"chin up|chin tilted upward|gazing at ceiling|eyes to ceiling|head back|"
+    r"neck craned back|craning neck back|head thrown back in pleasure|"
+    r"face upturned|face tilted upward|neck extended upward|"
+    r"her head back|chin raised upward|head arched back|arched neck backward|"
+    r"backward tilt|head tilted backward|face looking up)",
+    re.I,
+)
+
+# 低头/俯头 → 身体应为前倾/后入/爬姿，不应为正面面对镜头
+HEAD_LOOKING_DOWN = re.compile(
+    r"(低头|俯头|头低垂|头向下|低着头|头低着|头俯下|面朝下|脸朝下|"
+    r"head down|head bowed|head lowered|looking down|"
+    r"face downward|face down|chin down|head bent forward|forehead down|"
+    r"head bowed forward|head tilting forward|face toward|facing down|"
+    r"head bent|head drooping|gaze downward|looking at floor|gazing downward)",
+    re.I,
+)
+
+# ── 身体方向关键词 ──
+# 正面/面对镜头 → 与后入/从身后冲突
+BODY_FACING_CAMERA = re.compile(
+    r"(正面|面对镜头|面对着镜头|面朝镜头|脸朝镜头|正脸|正脸朝向|正脸朝着|"
+    r"facing camera|facing the camera|face to camera|face toward camera|"
+    r"toward camera|facing viewer|front view|front-facing|front facing|"
+    r"woman facing camera|woman facing the camera|her face to camera|"
+    r"looking at camera|looking at the viewer|gazing at camera|eyes on camera|"
+    r"face toward viewer|looking at viewer|direct eye contact with camera|"
+    r"her face in frame|her face visible|face clearly visible|front-facing woman)",
+    re.I,
+)
+
+# 背面/从身后/后入 → 与正面面对镜头冲突
+BODY_FACING_AWAY = re.compile(
+    r"(背面|从身后|后入|背对镜头|背朝镜头|背对|背影|"
+    r"from behind|facing away|facing away from camera|back to camera|"
+    r"back toward camera|her back to camera|rear view|rear-facing|rear facing|"
+    r"woman from behind|behind view|doggystyle|doggy|back view|backside view|"
+    r"her back visible|rear-facing woman|woman with back to camera|back toward viewer|"
+    r"bent over|facing opposite direction|turned away|away from camera)",
+    re.I,
+)
+
+# ── 束缚状态关键词 ──
+# 大字形/仰卧固定 → 无法做出后入姿势
+BONDAGE_SUPINE = re.compile(
+    r"(大字形|大字摊开|大字固定|仰卧|平躺|仰躺|躺在|仰面躺着|"
+    r"双手高举过头|双手举过头|双手绑在|双手被绑|双手固定|双手固定在|"
+    r"双腿分开|双腿被拉开|双腿强制|双腿强制向|脚踝锁死|脚踝被|"
+    r"lying on back|lying flat|spread eagle|spread-eagle|on her back|supine|"
+    r"bondage on back|restrained on back|bound on back|tied on back|strapped to back|"
+    r"hands above head|arms up|arms stretched|arms spread|"
+    r"hands tied above|绑在沙发上|固定在|束缚在|restrained spread|"
+    r"固定在床|绑在床头)",
+    re.I,
+)
+
+# ── 拍打/接触动作关键词 ──
+SLAP_OR_CONTACT = re.compile(
+    r"(拍打|打屁股|拍屁股|扇耳光|"
+    r"spank|spanking|slap|slapping|slapped|palm strike|"
+    r"hand on cheek|cheek slap|butt slap|ass slap|pussy slap|genital slap|"
+    r"facing blow|slapping face|cheeks|slaps her|slaps her face|slaps her cheek)",
+    re.I,
+)
+
+# ── 侧身/侧卧关键词 ──
+SIDE_POSITION = re.compile(
+    r"(侧身|侧卧|侧躺|侧面|侧向|"
+    r"side|lying on side|on her side|side view|side-lying|"
+    r"lateral view|profile view|from the side|on side)",
+    re.I,
+)
+
 # ── 多种肤色关键词 ──
 SKIN_TONES = re.compile(
     r"\b(pale|fair|light|fresh|creamy|albino)\s+(?:skin|complect|toned)|"
@@ -541,6 +620,108 @@ def detect_prompt_conflicts(prompt: str) -> List[str]:
         # 短提示词且大量逗号分隔，可能是标签列表而非连贯描述
         conflicts.append("提示词过短且包含多个标签，疑似标签列表而非连贯段落")
 
+    # ════════════════════════════════════════════════════════════════════════
+    # ══ 新增：人体物理逻辑冲突检测（解决截图1/截图2问题） ══════════════════════
+    # ════════════════════════════════════════════════════════════════════════
+
+    # 5a. 仰头/抬头 + 后入/从身后 → 物理矛盾（截图1问题）
+    # 后入要求身体前倾/俯卧，头部向下或侧向；仰头要求身体后仰/仰卧
+    has_head_up = HEAD_LOOKING_UP.search(prompt)
+    has_doggy = re.search(
+        r"(doggystyle|doggy|from behind|后入|从身后|rear entry|anal from behind|"
+        r"penetrating from behind|thrusting from behind|entering from behind|"
+        r"bent over|taken from behind|fucked from behind|having sex from behind|"
+        r"standing rear|standing behind|kneeling rear|kneeling behind|on all fours|"
+        r"四肢着地|俯身|趴着|弯腰|弓背|对准她的肛门|对准肛门|肛门插入)",
+        prompt, re.I,
+    )
+    if has_head_up and has_doggy:
+        conflicts.append(
+            "头部位置与体位矛盾：描述'仰头/抬头/头向后仰'的同时又描述'后入/从身后插入/四肢着地'——"
+            "物理上不可能同时满足。若要后入，女人头部应向下/向前/侧向，不是仰头看天花板。"
+        )
+
+    # 5b. 正面面对镜头 + 后入/从身后拍打屁股 → 物理矛盾（截图2问题）
+    # 后入要求身体背对镜头；正面要求脸和身体朝向镜头
+    has_face_camera = BODY_FACING_CAMERA.search(prompt)
+    has_rear_entry = re.search(
+        r"(doggystyle|doggy|from behind|后入|从身后|rear entry|spank|spanking|"
+        r"slapping|拍打|拍屁股|打屁股|slap|ass slap|butt slap|back view|rear view|"
+        r"behind view|从后面|从背后|后入式|背后|back toward camera|back to camera|"
+        r"rear-facing|bent over|facing away|turned away|away from camera|背面|背对)",
+        prompt, re.I,
+    )
+    if has_face_camera and has_rear_entry:
+        conflicts.append(
+            "身体方向与动作矛盾：描述'正面面对镜头/正脸朝镜头'的同时又描述'后入/从身后插入/拍打屁股/背对镜头'——"
+            "物理上不可能同时满足。若女人正面对镜头，男性无法同时从身后插入或拍打屁股。"
+        )
+
+    # 5c. 拍打屁股 + 正面面对镜头 → 矛盾（拍屁股默认从后方视角）
+    has_slapping = SLAP_OR_CONTACT.search(prompt)
+    if has_slapping and has_face_camera:
+        # 如果同时描述拍打和正面，需要检查是否明确说明从侧面拍打
+        has_side_slap = re.search(r"(side|侧面|侧向|from the side|to the side)", prompt, re.I)
+        if not has_side_slap:
+            conflicts.append(
+                "动作与视角矛盾：描述'拍打屁股'通常是从后方视角，但同时描述'正面面对镜头'——"
+                "建议将拍打动作改为'手放在臀部上'或明确从侧面拍摄。"
+            )
+
+    # 5d. 大字形仰卧/平躺 + 后入/从身后 → 物理矛盾
+    # 大字形固定通常意味着仰卧摊开，无法同时后入
+    has_spread_supine = BONDAGE_SUPINE.search(prompt)
+    if has_spread_supine and has_doggy:
+        conflicts.append(
+            "束缚姿势与体位矛盾：描述'大字形固定/仰卧/双手高举过头/双腿被分开绑住'的同时又描述'后入/从身后插入'——"
+            "物理上不可能同时满足。大字形仰卧时身体正面朝上，若要插入应为正面姿势（传教士/女上位），不是后入。"
+        )
+
+    # 5e. 侧身/侧卧 + 后入 → 可能矛盾（需要明确侧入式）
+    has_side_pos = SIDE_POSITION.search(prompt)
+    if has_side_pos and has_doggy and not re.search(r"(side entry|侧入|sideways|sided)", prompt, re.I):
+        conflicts.append(
+            "侧身姿势与后入描述矛盾：描述'侧身/侧卧'的同时又描述'后入'——"
+            "若要后入，请明确使用'四肢着地/趴着'等正面朝下的姿势；若要侧入，请明确使用'侧入式/侧躺'。"
+        )
+
+    # 5f. 跪姿 + 后入拍打 → 可能矛盾（跪姿是正面朝上，不是背面朝下）
+    has_kneeling_pos = re.search(
+        r"(kneeling|kneels?|跪着|跪姿|on knees|跪在地上)", prompt, re.I
+    )
+    if has_kneeling_pos and has_rear_entry and not re.search(r"(kneeling doggy|kneeling rear|跪姿后入)", prompt, re.I):
+        conflicts.append(
+            "跪姿与后入描述矛盾：描述'跪姿'时身体正面朝上，但后入要求身体背面朝下——"
+            "若要后入，请使用'四肢着地/趴着'姿势；若要跪姿口交/传教士，请使用'跪姿正面'。"
+        )
+
+    # 5g. 头部方向与性爱动作矛盾（通用检查）
+    # 仰头 + 口交/深喉 → 通常OK（仰头方便口交）
+    # 低头 + 口交 → 矛盾
+    has_head_down = HEAD_LOOKING_DOWN.search(prompt)
+    has_oral = re.search(
+        r"(oral|blowjob|deepthroat|口交|深喉|口吮|舔舐|licking|sucking|"
+        r"mouth on|mouth around|giving head|performing oral|深喉抽送|含住)",
+        prompt, re.I,
+    )
+    if has_head_down and has_oral:
+        conflicts.append(
+            "头部位置与口交动作矛盾：描述'低头/头向下'的同时又描述'口交/深喉'——"
+            "口交时头部应抬起或向前伸，低头会导致动作困难。"
+        )
+
+    # 5h. 多个身体方向描述冲突
+    direction_count = sum([
+        1 if BODY_FACING_CAMERA.search(prompt) else 0,
+        1 if BODY_FACING_AWAY.search(prompt) else 0,
+        1 if SIDE_POSITION.search(prompt) else 0,
+    ])
+    if direction_count > 1:
+        conflicts.append(
+            "身体方向描述冲突：同时描述了正面/背面/侧身多个方向——"
+            "每个镜头只能有一个明确的身体方向（正面/背面/侧面/仰卧/俯卧）。"
+        )
+
     return conflicts
 
 
@@ -570,6 +751,75 @@ Rewrite it as a SINGLE COHERENT PARAGRAPH following these STRICT rules:
 13. IMPORTANT - DO NOT describe character appearance: Do NOT mention hair color, eye color, skin color, race, ethnicity, body type, face shape, cheekbones, lips, nose, skin tone, or any physical appearance details. The reference image defines the character.
 14. Only describe: pose, body position, clothing state (wearing/removed), setting, lighting, mood, camera angle, and artistic style.
 
+═══════════════════════════════════════════════════════════════════════
+【CRITICAL — BODY ORIENTATION & HEAD POSITION CONSISTENCY】
+═══════════════════════════════════════════════════════════════════════
+This is the most common source of body deformation. You MUST enforce these
+physics rules so the AI image generator doesn't produce anatomically impossible
+images (e.g. woman looking at ceiling while being penetrated from behind).
+
+A. HEAD POSITION ↔ BODY ORIENTATION must be consistent within a single frame:
+   - 仰头/抬头 (head tilted back, looking at ceiling): ONLY valid for
+     [missionary / face-up / cowgirl / lying on back / face-to-face standing].
+     INVALID for [doggystyle / from behind / on all fours / bent over /
+     standing rear entry / kneeling doggystyle]. If you see head-tilted-back
+     paired with doggystyle, REMOVE the head-tilted-back OR change the
+     position to missionary/cowgirl.
+   - 低头/俯头 (head bowed forward / chin down): valid for [doggystyle /
+     from behind / on all fours / bent over / standing rear]. INVALID for
+     oral / deepthroat / kneeling face-to-face. If head-down is paired with
+     oral, lift the head slightly or change position.
+   - 侧头 (head turned to the side): valid for [missionary / side-lying /
+     spooning / scissoring]. INVALID for doggystyle where the head is
+     normally centered/forward.
+
+B. FACE-TO-CAMERA ↔ PENETRATION ANGLE must agree:
+   - 正面面对镜头 (face toward camera / front view): ONLY valid when the
+     man's body is in front of hers or beside her. INVALID for
+     [doggy / from behind / standing rear / on all fours / bent over].
+   - 后入 (doggy / from behind): her BACK faces the camera. She CANNOT
+     simultaneously have her face/eyes looking directly at the camera.
+     If you see "face toward camera" + "from behind", pick ONE:
+       (a) Remove "face toward camera" — describe her in profile/over-shoulder
+       (b) Remove the rear entry — change to face-to-face cowgirl/missionary
+   - 拍打屁股 (slapping ass / spanking): default viewpoint is from BEHIND.
+     If face is toward camera, the slap is impossible unless the camera is
+     explicitly framed from the SIDE (which is rare). When in doubt, REPLACE
+     "slapping her ass" with "hand placed on her lower back" or "kneading
+     her hip from behind with one hand" or change camera to "side view
+     showing both faces and her profile".
+
+C. BONDAGE POSITION ↔ SEXUAL POSITION:
+   - 大字形固定 / spread-eagle on back / arms above head: her body is FLAT
+     on her back. Penetration MUST be from in front (missionary / cowgirl).
+     INVALID for doggystyle / from behind / on all fours.
+   - 双手绑在背后 (hands bound behind back): implies she's not bound on her
+     back (you can't bind hands behind back if lying face-down). Use either
+     (a) hands bound behind back + doggystyle (face down), OR (b) hands
+     bound above head + missionary. NEVER combine both.
+   - 四肢着地 (on all fours / hands-and-knees): penetration from behind.
+     Her face is DOWN/AWAY from camera, not up at the ceiling.
+
+D. CAMERA ANGLE ↔ BODY ORIENTATION:
+   - Overhead shot (top-down): the body lies BELOW the camera. Face/limbs
+     are seen from above.
+   - Worm's-eye / low angle: the body is ABOVE the camera. Face/limbs are
+     seen from below.
+   - Profile / side view: only ONE side of the body is visible.
+   - Front view / face to camera: torso and face both visible, body
+     facing camera.
+
+E. WHEN FIXING: pick the LATER/dominant action and adjust the earlier
+   description to match. For example, if the prompt says "侧中景捕捉身体曲线
+   (side medium shot)" but then describes "正面面对镜头 (face toward camera)",
+   keep the side medium shot and remove "face toward camera" — change to
+   "her face turned slightly toward camera in profile".
+
+F. If both elements are essential, use SEQUENTIAL framing: split into two
+   separate paragraphs separated by transition markers like "镜头切换" /
+   "Cut to" / "Camera angle shifts to" — each paragraph MUST be internally
+   consistent.
+
 Output ONLY the rewritten coherent paragraph. Nothing else."""
 
     try:
@@ -587,6 +837,7 @@ def _fallback_fix(prompt: str) -> str:
     2. 保留主要姿态
     3. 清理重复标签
     4. 移除矛盾的环境/光照描述（保留第一个出现的）
+    5. 修复身体方向/头部位置矛盾
     """
     lines = prompt.replace(" , ", ", ").split("\n")
 
@@ -620,6 +871,51 @@ def _fallback_fix(prompt: str) -> str:
                     if len(cleaned) > 50:
                         result = cleaned
                     break
+
+    # ─── 身体方向/头部位置矛盾修复 ────────────────────────────────────────
+    # 检测到后入/肛门/阴道插入时移除仰头描述
+    if re.search(
+        r"(doggystyle|doggy|from behind|后入|从身后|rear entry|"
+        r"on all fours|四肢着地|bent over|对准.*插入|肛门|阴道.*插入|"
+        r"penetrating from behind|thrusting from behind)",
+        result, re.I,
+    ):
+        # 移除"仰头/抬头/头向后仰"等与后入矛盾的描述
+        head_up_patterns = [
+            r"仰头[，。,\s]*",
+            r"被迫仰头[，。,\s]*",
+            r"她被迫仰头[，。,\s]*",
+            r"让她被迫仰头[，。,\s]*",
+            r"她仰头[，。,\s]*",
+            r"抬头[，。,\s]*",
+            r"头向后仰[，。,\s]*",
+            r"head tilted back[,.。,\s]*",
+            r"looking up at ceiling[,.。,\s]*",
+            r"gazing at ceiling[,.。,\s]*",
+            r"head thrown back[,.。,\s]*",
+        ]
+        for pat in head_up_patterns:
+            result = re.sub(pat, "", result, flags=re.I)
+
+    # 检测到"正面面对镜头"时移除后入描述
+    if BODY_FACING_CAMERA.search(result):
+        # 如果同时有"拍打屁股"且没有"侧面"标识，改为"手放在臀部"
+        if SLAP_OR_CONTACT.search(result) and not SIDE_POSITION.search(result):
+            # 兼容中文 "拍打她的臀部" 这种带"她/的"的情况
+            result = re.sub(
+                r"(拍打|palm strikes?|slap(?:s|ping)?|spank(?:s|ing)?)\s*(她|他)?\s*的?\s*(臀部|屁股|ass|butt|buttocks|rear)",
+                r"one hand resting on her \g<3>",
+                result, flags=re.I,
+            )
+
+    # 检测到大字形仰卧时移除后入描述
+    if BONDAGE_SUPINE.search(result):
+        # 把"后入式"改为"正面传教士式"
+        result = re.sub(
+            r"后入式",
+            "传教士式",
+            result,
+        )
 
     return result
 

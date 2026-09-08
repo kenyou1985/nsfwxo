@@ -469,6 +469,14 @@ export function ImageToImagePage({
     onSuccess(`已添加姿势: ${poseName}`);
   }, [customPrompt, onSuccess]);
 
+  // 多图编辑模式：姿势预设同步到 multiRefPrompt
+  const handleMultiRefPoseSelect = useCallback((posePrompt: string, poseName: string) => {
+    const current = multiRefPrompt.trim();
+    const newPrompt = current ? `${current}\n\n${posePrompt}` : posePrompt;
+    setMultiRefPrompt(newPrompt);
+    onSuccess?.(`多图编辑已添加姿势: ${poseName}`);
+  }, [multiRefPrompt, onSuccess]);
+
   const handleImageChange = (path: string, url: string) => {
     updateParam('uploadedImagePath', path);
     if (!url && previewUrl) {
@@ -981,7 +989,9 @@ export function ImageToImagePage({
     }
   };
 
-  const img2imgTasks = taskManager.tasks.filter((t: QueuedTask) => t.workflowType === 'img2img');
+  const img2imgTasks = taskManager.tasks.filter((t: QueuedTask) =>
+    t.workflowType === 'img2img' || t.workflowType === 'multi-ref-img2img'
+  );
   const allImages = img2imgTasks.flatMap((t: QueuedTask) => t.images);
   const totalSelected = positiveTags.length + negativeTags.length;
 
@@ -1207,6 +1217,15 @@ export function ImageToImagePage({
               disabled={taskManager.isFull || multiRefSubmitting}
               className="w-full px-3 py-2 rounded-lg bg-bg-elevated text-text-primary text-sm border border-border focus:outline-none focus:ring-1 focus:ring-primary resize-none disabled:opacity-50 placeholder:text-text-tertiary"
             />
+            {/* 多图模式姿势预设（同步到 multiRefPrompt） */}
+            <div className="mt-3">
+              <PosePresetSelector
+                type="image"
+                onSelect={handleMultiRefPoseSelect}
+                disabled={taskManager.isFull || multiRefSubmitting}
+                selectedGirlfriend={multiRefGirlfriend}
+              />
+            </div>
             {multiRefGirlfriend && (
               <div className="mt-1.5 text-xs text-text-tertiary">
                 已锚定数字人「{multiRefGirlfriend.nameZh || multiRefGirlfriend.name}」，将自动注入角色身份锁定提示词
