@@ -4,7 +4,6 @@ import { uploadImage, WORKFLOW } from '../services/runninghub';
 import { expandVideoFromImage, generateH3DnaPrompt, extractImageDna, type ImageDnaResult } from '../services/promptApi';
 import { ImageUploader } from '../components/ImageUploader';
 import { GenerateButton } from '../components/GenerateButton';
-import { VideoTaskList } from '../components/VideoTaskList';
 import type { NodeInfo } from '../types';
 import type { GirlfriendPreset } from '../data/girlfriendPresets';
 import { GirlfriendSelector } from '../components/GirlfriendSelector';
@@ -14,6 +13,15 @@ import ThemeLibraryPanel from '../components/ThemeLibraryPanel';
 import { THEME_LIBRARY, THEME_CATEGORIES, 主题转视频提示词 } from '../data/themeLibrary';
 import type { ThemeEntry } from '../data/themeLibrary';
 import { ImageDnaPanel } from '../components/ImageDnaPanel';
+
+/** 提交视频任务到共享 VideoTaskList 的函数签名 */
+export type SubmitVideoTaskFn = (
+  prompt: string,
+  imagePath: string,
+  imagePreview: string,
+  nodeInfoList: NodeInfo[],
+  workflowId?: string,
+) => void;
 
 // ─── 提示词卡片组件（情色创作模式结果展示）───────────────────────────────
 interface V1EroticPromptCardProps {
@@ -244,9 +252,15 @@ interface NinfiniteLongVideoPageProps {
   initialImages?: Array<{ path: string; preview: string }> | null;
   /** 初始提示词 (用于 H3 提示词引擎 → 长视频 v1.1 的场景) */
   initialPrompt?: string | null;
+  /**
+   * 共享的视频任务提交函数（由父页面 ImageToVideoPage 注入，
+   * 让长视频 v1.1 子页面把任务提交到顶部那个全局 VideoTaskList，
+   * 而不是自己内部再渲染一个）
+   */
+  submitTask?: SubmitVideoTaskFn;
 }
 
-export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImage, initialImages, initialPrompt }: NinfiniteLongVideoPageProps) {
+export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImage, initialImages, initialPrompt, submitTask: externalSubmitTask }: NinfiniteLongVideoPageProps) {
   // ── 表单状态 (默认值全部对齐官方 curl 示例) ────────────────────────────────
   const [images, setImages] = useState<ReferenceImage[]>(
     Array.from({ length: 9 }, () => ({ path: 'None', preview: '' }))
@@ -410,9 +424,37 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
     return images.length; // 已满，返回末尾索引（理论上不发生）
   }, [images]);
 
-  const taskListRef = useRef<{
-    submitTask: (prompt: string, imagePath: string, imagePreview: string, nodeInfoList: NodeInfo[], workflowId?: string) => void;
-  } | null>(null);
+  /**
+   * 提交任务到共享 VideoTaskList：
+   *   - 如果父页面注入了 submitTask（即在 ImageToVideoPage 顶部的全局任务列表），
+   *     直接调用它，任务进入顶部队列，子页面自身不再渲染任务列表。
+   *   - 否则（独立使用本页面时）回退到 localStorage 通知机制，
+   *     让当前页面上可能挂载的 VideoTaskList 通过 500ms 轮询拿到任务。
+   */
+  const submitVideoTask = useCallback<SubmitVideoTaskFn>(
+    (prompt, imagePath, imagePreview, nodeInfoList, workflowId) => {
+      if (externalSubmitTask) {
+        externalSubmitTask(prompt, imagePath, imagePreview, nodeInfoList, workflowId);
+        return;
+      }
+      try {
+        localStorage.setItem(
+          'nsfwxo_video_task_submit',
+          JSON.stringify({
+            prompt,
+            imagePreview,
+            nodeInfoList,
+            workflowId,
+            timestamp: Date.now(),
+            processed: false,
+          }),
+        );
+      } catch (e) {
+        console.warn('[NinfiniteLongVideoPage] failed to enqueue task via localStorage:', e);
+      }
+    },
+    [externalSubmitTask],
+  );
 
   /** 构建带自定义提示词的 node list（用于主题库批量生成） — 100% 对齐官方 curl 示例 */
   const buildNodeListWithPrompt = useCallback((videoPrompt: string, duration: number): NodeInfo[] => {
@@ -474,7 +516,7 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
       const theme = themes[i];
       const themePrompt = 主题转视频提示词(theme, duration);
       const nodeList = buildNodeListWithPrompt(themePrompt, duration);
-      taskListRef.current?.submitTask(themePrompt, firstImage.path, firstImage.preview, nodeList, WORKFLOW_ID);
+      submitVideoTask(themePrompt, firstImage.path, firstImage.preview, nodeList, WORKFLOW_ID);
       setThemeBatchProgress({ current: i + 1, total: themes.length });
       await new Promise((r) => setTimeout(r, 200));
     }
@@ -866,7 +908,7 @@ const handleGirlfriendSelect = useCallback(
 
     const nodeList = buildNodeList();
     const firstImage = images.find((img) => img.path && img.path !== 'None') ?? images[0];
-    taskListRef.current?.submitTask(
+    submitVideoTask(
       prompt,
       firstImage.path,
       firstImage.preview,
@@ -906,16 +948,6 @@ const handleGirlfriendSelect = useCallback(
           </div>
         </div>
       </div>
-
-      {/* 任务列表 */}
-      <VideoTaskList
-        ref={taskListRef}
-        apiKey={apiKey}
-        workflowId={WORKFLOW_ID}
-        onError={onError}
-        onSuccess={onSuccess}
-        onTaskComplete={handleTaskComplete}
-      />
 
       {/* 数字人锚定 (支持多数字人：移动端允许并行锚定，不阻塞整个选择器) */}
       <GirlfriendSelector
@@ -1125,7 +1157,7 @@ const handleGirlfriendSelect = useCallback(
                           // 一键提交 v1.1 任务
                           const nodeList = buildNodeListWithPrompt(promptText, finalDuration);
                           const firstImage = images.find(img => img.path && img.path !== 'None') ?? images[0];
-                          taskListRef.current?.submitTask(
+                          submitVideoTask(
                             promptText,
                             firstImage.path,
                             firstImage.preview,

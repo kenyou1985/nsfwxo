@@ -2937,7 +2937,33 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
     processStoryboardData();
   }, [apiKey, onError, onSuccess, resolution, duration, interpolation, loraHigh, loraHighWeight, loraLow, loraLowWeight]);
 
-  const taskListRef = useRef<{ submitTask: (prompt: string, imagePath: string, imagePreview: string, nodeInfoList: NodeInfo[]) => void } | null>(null);
+  // 同时被顶部 VideoTaskList 使用 + 被长视频 V2 / v1.1 子页面通过 props 注入的
+  // sharedSubmitTask 调用，所以类型签名需要包含 workflowId（子页面要传给各自的
+  // 工作流 ID）。同时 VideoTaskListHandle.submitTask 也支持 workflowId。
+  const taskListRef = useRef<{
+    submitTask: (
+      prompt: string,
+      imagePath: string,
+      imagePreview: string,
+      nodeInfoList: NodeInfo[],
+      workflowId?: string,
+    ) => void;
+  } | null>(null);
+
+  /**
+   * 把 taskListRef.current?.submitTask 包装成稳定的函数，
+   * 传给嵌入本页面内的长视频 V2 / 长视频 v1.1 子页面。
+   *
+   * 这样所有"图生视频"相关子模块（Wan 2.2 / MiniMax H3 文生视频 /
+   * MiniMax H3 / MiniMax 长视频 V2 / 长视频 v1.1）共用本页面顶部
+   * 那一个 VideoTaskList，不再各自渲染一个，模块间切换也不会丢任务。
+   */
+  const sharedSubmitTask = useCallback(
+    (prompt: string, imagePath: string, imagePreview: string, nodeInfoList: NodeInfo[], workflowId?: string) => {
+      taskListRef.current?.submitTask(prompt, imagePath, imagePreview, nodeInfoList, workflowId);
+    },
+    [],
+  );
 
   // Build node list with custom parameters (for storyboard video generation)
   const buildNodeListWithParams = (
@@ -3332,6 +3358,7 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
           onSuccess={onSuccess}
           initialImage={nlInitialImage}
           initialPrompt={nlInitialPrompt}
+          submitTask={sharedSubmitTask}
         />
       )}
 
@@ -3344,6 +3371,7 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
           initialImage={nlInitialImage}
           initialImages={nlInitialImages}
           initialPrompt={nlInitialPrompt}
+          submitTask={sharedSubmitTask}
         />
       )}
 
