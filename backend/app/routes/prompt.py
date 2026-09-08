@@ -7040,7 +7040,7 @@ Now generate the H3 video prompt(s) based on the DNA information above. {"Output
 
 async def _generate_single_h3_prompt(api_key: str, system_prompt: str, user_prompt: str) -> str:
     """调用一次 Grok，返回清洗过的提示词字符串"""
-    raw = await call_grok(api_key, system_prompt, user_prompt, model_order=["grok-4.6"])
+    raw = await call_grok(api_key, system_prompt, user_prompt, model_order=["grok-4.6", "grok-4.3"])
     return raw.strip()
 
 
