@@ -529,6 +529,12 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
   /** 情色创作模式：结合 DNA 信息生成 H3 提示词 */
   const handleEroticAnalyze = useCallback(async () => {
     const uploadedImages = images.filter(img => img.path && img.path !== 'None');
+    const hasImages = uploadedImages.length > 0;
+    const noDna = !imageDna;
+    console.log('[handleEroticAnalyze] 点击了生成H3按钮', {
+      hasImages, noDna, submitting, eroticAnalyzing, dnaLoading,
+      imageDna_keys: imageDna ? Object.keys(imageDna) : null,
+    });
     if (uploadedImages.length === 0) {
       onError('请先上传至少一张参考图');
       return;
@@ -1039,6 +1045,14 @@ const handleGirlfriendSelect = useCallback(
                   images.filter(img => img.path && img.path !== 'None').length === 0 ||
                   dnaLoading || !imageDna
                 }
+                title={
+                  submitting ? '正在提交中，请稍候'
+                  : eroticAnalyzing ? '正在生成中，请稍候'
+                  : images.filter(img => img.path && img.path !== 'None').length === 0 ? '请先上传参考图'
+                  : dnaLoading ? 'DNA 提取中，请稍候'
+                  : !imageDna ? '请等待 DNA 提取完成'
+                  : '结合 DNA 信息生成 H3 视频提示词'
+                }
                 className={`w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
                   eroticAnalyzing
                     ? 'bg-pink-500/50 text-white/70 cursor-not-allowed'
@@ -1062,6 +1076,17 @@ const handleGirlfriendSelect = useCallback(
               <p className="text-[10px] text-pink-400/80">
                 将分析第一张参考图，结合选定方向生成适合该场景的视频提示词
               </p>
+              {/* 调试信息：显示按钮 disabled 原因 */}
+              <div className="mt-1 flex flex-wrap gap-1 text-[9px] text-pink-300/60">
+                {submitting && <span className="px-1 py-0.5 rounded bg-pink-900/40">⚠ submitting</span>}
+                {eroticAnalyzing && <span className="px-1 py-0.5 rounded bg-pink-900/40">⚠ eroticAnalyzing</span>}
+                {images.filter(img => img.path && img.path !== 'None').length === 0 && <span className="px-1 py-0.5 rounded bg-pink-900/40">⚠ 无参考图</span>}
+                {dnaLoading && <span className="px-1 py-0.5 rounded bg-pink-900/40">⚠ DNA加载中</span>}
+                {!imageDna && <span className="px-1 py-0.5 rounded bg-pink-900/40">⚠ 无DNA数据</span>}
+                {!submitting && !eroticAnalyzing && images.filter(img => img.path && img.path !== 'None').length > 0 && !dnaLoading && imageDna && (
+                  <span className="px-1 py-0.5 rounded bg-green-900/40 text-green-300/80">✓ 就绪</span>
+                )}
+              </div>
 
               {/* ═══ 提示词结果展示区 ═══════════════════════════════════════════ */}
               {eroticPrompts.length > 0 && (

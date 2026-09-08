@@ -1010,6 +1010,12 @@ export async function generateH3DnaPrompt(params: GenerateH3DnaParams): Promise<
   const timeout = setTimeout(() => controller.abort(), 300000); // 5min（生成多条需要更长时间）
 
   try {
+    console.log('[generateH3DnaPrompt] 发起请求 → POST', url, {
+      eroticLevel: params.eroticLevel, duration: params.duration,
+      count: params.count ?? 1,
+      hasCharacter: !!params.dna.character_type,
+      clothingCount: params.dna.clothing_list?.length ?? 0,
+    });
     const response = await fetch(url, {
       method: 'POST',
       signal: controller.signal,

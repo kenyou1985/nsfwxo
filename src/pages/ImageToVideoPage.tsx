@@ -1120,6 +1120,14 @@ function MiniMaxH3Panel({
    */
   const handleEroticAnalyze = useCallback(async () => {
     const uploadedImages = mmImages.filter(img => img.path && img.path !== 'None');
+    console.log('[ImageToVideo] handleEroticAnalyze 点击', {
+      hasImages: uploadedImages.length > 0,
+      hasDna: !!mmImageDna,
+      isSubmitting,
+      mmEroticAnalyzing,
+      mmDnaLoading,
+      mmImageDna_keys: mmImageDna ? Object.keys(mmImageDna) : null,
+    });
     if (uploadedImages.length === 0) {
       onError('请先上传至少一张参考图');
       return;
@@ -1727,6 +1735,17 @@ function MiniMaxH3Panel({
                   ? 'DNA 已提取完成，点击上方按钮生成基于人物/场景/服装信息的 H3 提示词'
                   : '上传参考图后，将自动提取图片DNA信息'}
               </p>
+              {/* 调试信息 */}
+              <div className="mt-1 flex flex-wrap gap-1 text-[9px] text-pink-300/60">
+                {isSubmitting && <span className="px-1 py-0.5 rounded bg-pink-900/40">⚠ isSubmitting</span>}
+                {mmEroticAnalyzing && <span className="px-1 py-0.5 rounded bg-pink-900/40">⚠ mmEroticAnalyzing</span>}
+                {mmImages.filter(img => img.path).length === 0 && <span className="px-1 py-0.5 rounded bg-pink-900/40">⚠ 无参考图</span>}
+                {mmDnaLoading && <span className="px-1 py-0.5 rounded bg-pink-900/40">⚠ DNA加载中</span>}
+                {!mmImageDna && <span className="px-1 py-0.5 rounded bg-pink-900/40">⚠ 无DNA数据</span>}
+                {!isSubmitting && !mmEroticAnalyzing && mmImages.filter(img => img.path).length > 0 && !mmDnaLoading && mmImageDna && (
+                  <span className="px-1 py-0.5 rounded bg-green-900/40 text-green-300/80">✓ 就绪</span>
+                )}
+              </div>
 
               {/* ═══ 提示词结果展示区 ═══════════════════════════════════════════ */}
               {mmEroticPrompts.length > 0 && (
