@@ -108,10 +108,15 @@ export function ImageToImagePage({
   const [multiRefUploading, setMultiRefUploading] = useState(false); // 全局上传中标志
   const [multiRefAspectRatio, setMultiRefAspectRatio] = useState('3:4');
   const [multiRefPrompt, setMultiRefPrompt] = useState('');
-  const [multiRefEnhance, setMultiRefEnhance] = useState(false);
-  const [multiRefCount, setMultiRefCount] = useState(1);
+  const [multiRefEnhance, setMultiRefEnhance] = useState(false); // 188: 文生图开关
+  const [multiRefResolution, setMultiRefResolution] = useState(2048); // 186: 分辨率
+  const [multiRefCount, setMultiRefCount] = useState(2); // 187: 抽卡数（默认2）
   const [multiRefSubmitting, setMultiRefSubmitting] = useState(false);
   const [multiRefUploadErrors, setMultiRefUploadErrors] = useState<(string | null)[]>([null, null, null]);
+
+  // 锚定数字人：选中的数字人预设会占据参考图1（nodeId 154）
+  const [multiRefGirlfriend, setMultiRefGirlfriend] = useState<GirlfriendPreset | null>(null);
+  const [multiRefGirlfriendUploading, setMultiRefGirlfriendUploading] = useState(false);
 
   // Pre-fill customPrompt when navigating from history regenerate
   useEffect(() => {
@@ -303,6 +308,47 @@ export function ImageToImagePage({
     });
   };
 
+  // 锚定数字人：选中数字人后自动上传到参考图1（nodeId 154），并锁定该槽位
+  const handleMultiRefGirlfriendSelect = useCallback(
+    async (gf: GirlfriendPreset) => {
+      setMultiRefGirlfriend(gf);
+      setMultiRefUploadErrors([null, null, null]);
+      setMultiRefGirlfriendUploading(true);
+      // 清空参考图1手动上传内容（被数字人锁定）
+      setMultiRefImages(prev => {
+        const updated = [...prev];
+        updated[0] = { path: '', preview: gf.portraitUrl }; // 先显示预设预览
+        return updated;
+      });
+      try {
+        let file: File;
+        if (gf.portraitUrl.startsWith('data:')) {
+          const res = await fetch(gf.portraitUrl);
+          const blob = await res.blob();
+          file = new File([blob], `${gf.id}.jpg`, { type: blob.type || 'image/jpeg' });
+        } else {
+          const res = await fetch(gf.portraitUrl);
+          const blob = await res.blob();
+          file = new File([blob], `${gf.id}.jpg`, { type: 'image/jpeg' });
+        }
+        const { imagePath } = await uploadImage(apiKey, file);
+        setMultiRefImages(prev => {
+          const updated = [...prev];
+          updated[0] = { path: imagePath, preview: gf.portraitUrl };
+          return updated;
+        });
+        onSuccess?.(`已锚定数字人「${gf.nameZh || gf.name}」作为参考图1`);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : '上传失败';
+        onError?.(`数字人图片上传失败: ${msg}，已临时显示预览图`);
+        // 仍保留预览 URL（portraitUrl），path 为空不影响提交（会提示）
+      } finally {
+        setMultiRefGirlfriendUploading(false);
+      }
+    },
+    [apiKey, onSuccess, onError]
+  );
+
   const handleMultiRefUpload = async (index: number, file: File) => {
     setMultiRefUploadErrors(prev => { const e = [...prev]; e[index] = null; return e; });
     setMultiRefUploading(true);
@@ -372,11 +418,11 @@ export function ImageToImagePage({
         description: '宽高比',
       });
 
-      // 分辨率（nodeId: 186，固定 2048）
+      // 分辨率（nodeId: 186）
       nodeList.push({
         nodeId: '186',
         fieldName: 'value',
-        fieldValue: '2048',
+        fieldValue: String(multiRefResolution),
         description: '分辨率',
       });
 
@@ -389,14 +435,23 @@ export function ImageToImagePage({
       });
 
       // 提示词（nodeId: 107）
+      // 若锚定了数字人，追加角色身份锁定提示词
+      let finalPrompt = multiRefPrompt.trim();
+      if (multiRefGirlfriend) {
+        const charName = multiRefGirlfriend.nameZh || multiRefGirlfriend.name;
+        const charId = multiRefGirlfriend.id.toUpperCase().slice(0, 4);
+        const identityAnchor = `Strictly preserve the exact identity, character, and features of ${charName} (ID:${charId}) from reference image 1. Do not alter the character at all. `;
+        finalPrompt = identityAnchor + finalPrompt;
+      }
+
       nodeList.push({
         nodeId: '107',
         fieldName: 'text',
-        fieldValue: multiRefPrompt.trim(),
+        fieldValue: finalPrompt,
         description: '提示词',
       });
 
-      await taskManager.addTask('multi-ref-img2img', nodeList, multiRefPrompt.trim(), WORKFLOW.MULTI_REF_IMG2IMG);
+      await taskManager.addTask('multi-ref-img2img', nodeList, finalPrompt, WORKFLOW.MULTI_REF_IMG2IMG);
       onSuccess?.('多图编辑任务已提交');
     } catch (err) {
       onError?.(err instanceof Error ? err.message : '提交失败');
@@ -1019,30 +1074,58 @@ export function ImageToImagePage({
       {/* ─── 多图编辑模式 UI ────────────────────────────────────────────── */}
       {img2imgMode === 'multi' && (
         <>
+        {/* 锚定数字人（多图模式） */}
+        <GirlfriendSelector
+          selectedId={multiRefGirlfriend ? (multiRefGirlfriend.isCustom ? `custom_${multiRefGirlfriend.id}` : multiRefGirlfriend.id) : null}
+          onSelect={handleMultiRefGirlfriendSelect}
+          disabled={multiRefGirlfriendUploading || taskManager.isFull || multiRefSubmitting}
+        />
+
         {/* 3张参考图上传 */}
         <div className="rounded-xl bg-bg-surface border border-border p-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {[0, 1, 2].map(idx => (
-              <div key={idx}>
-                <div className="text-xs font-medium text-text-secondary mb-1.5">
-                  参考图 {idx + 1}
+            {[0, 1, 2].map(idx => {
+              const lockedByGirlfriend = idx === 0 && !!multiRefGirlfriend;
+              return (
+                <div key={idx}>
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <span className="text-xs font-medium text-text-secondary">参考图 {idx + 1}</span>
+                    {lockedByGirlfriend && (
+                      <span className="px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-500 text-[10px] font-medium border border-red-200/50">
+                        锚定数字人
+                      </span>
+                    )}
+                  </div>
+                  <ImageUploader
+                    value={multiRefImages[idx]?.path || ''}
+                    previewUrl={multiRefImages[idx]?.preview || ''}
+                    onChange={(path, preview) => handleMultiRefImageChange(idx, path, preview)}
+                    onUpload={(file) => handleMultiRefUpload(idx, file)}
+                    disabled={taskManager.isFull || multiRefSubmitting || lockedByGirlfriend}
+                    error={multiRefUploadErrors[idx] || undefined}
+                    uploadLabel={lockedByGirlfriend ? '已锁定' : '上传'}
+                  />
                 </div>
-                <ImageUploader
-                  value={multiRefImages[idx]?.path || ''}
-                  previewUrl={multiRefImages[idx]?.preview || ''}
-                  onChange={(path, preview) => handleMultiRefImageChange(idx, path, preview)}
-                  onUpload={(file) => handleMultiRefUpload(idx, file)}
-                  disabled={taskManager.isFull || multiRefSubmitting}
-                  error={multiRefUploadErrors[idx] || undefined}
-                  uploadLabel="上传"
-                />
-              </div>
-            ))}
+              );
+            })}
           </div>
           {multiRefUploading && (
             <div className="mt-2 flex items-center gap-1 text-xs text-text-tertiary">
               <div className="w-3 h-3 border border-text-tertiary/30 border-t-text-tertiary rounded-full animate-spin" />
               上传中...
+            </div>
+          )}
+          {multiRefGirlfriend && (
+            <div className="mt-2 flex items-center gap-2">
+              <div className="px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 text-[10px] font-medium border border-red-200/50">
+                锚定数字人 · {multiRefGirlfriend.nameZh || multiRefGirlfriend.name}
+              </div>
+              {multiRefGirlfriendUploading && (
+                <div className="flex items-center gap-1 text-[10px] text-text-tertiary">
+                  <div className="w-3 h-3 border border-text-tertiary/30 border-t-text-tertiary rounded-full animate-spin" />
+                  上传中...
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1065,21 +1148,47 @@ export function ImageToImagePage({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-text-primary mb-1.5">生成数量</label>
-              <input
-                type="number"
-                min={1}
-                max={8}
-                value={multiRefCount}
-                onChange={e => setMultiRefCount(Math.max(1, Math.min(8, Number(e.target.value))))}
+              <label className="block text-sm font-medium text-text-primary mb-1.5">分辨率</label>
+              <select
+                value={multiRefResolution}
+                onChange={e => setMultiRefResolution(Number(e.target.value))}
                 disabled={taskManager.isFull || multiRefSubmitting}
                 className="w-full px-3 py-2 rounded-lg bg-bg-elevated text-text-primary text-sm border border-border focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
-              />
+              >
+                {[1024, 1536, 2048, 3072, 4096].map(r => (
+                  <option key={r} value={r}>{r}px</option>
+                ))}
+              </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-text-primary mb-1.5">分辨率</label>
-              <div className="px-3 py-2 rounded-lg bg-bg-elevated text-text-secondary text-sm border border-border">
-                2048px
+              <label className="block text-sm font-medium text-text-primary mb-1.5">抽卡数</label>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setMultiRefCount(Math.max(1, multiRefCount - 1))}
+                  disabled={taskManager.isFull || multiRefSubmitting || multiRefCount <= 1}
+                  className="w-8 h-8 rounded-lg bg-bg-elevated border border-border text-text-primary hover:bg-bg-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  −
+                </button>
+                <input
+                  type="number"
+                  min={1}
+                  max={8}
+                  value={multiRefCount}
+                  onChange={e => {
+                    const v = Number(e.target.value);
+                    if (!isNaN(v)) setMultiRefCount(Math.max(1, Math.min(8, v)));
+                  }}
+                  disabled={taskManager.isFull || multiRefSubmitting}
+                  className="flex-1 min-w-0 px-2 py-1.5 rounded-lg bg-bg-elevated text-text-primary text-sm text-center border border-border focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+                />
+                <button
+                  onClick={() => setMultiRefCount(Math.min(8, multiRefCount + 1))}
+                  disabled={taskManager.isFull || multiRefSubmitting || multiRefCount >= 8}
+                  className="w-8 h-8 rounded-lg bg-bg-elevated border border-border text-text-primary hover:bg-bg-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  +
+                </button>
               </div>
             </div>
           </div>
@@ -1091,14 +1200,22 @@ export function ImageToImagePage({
             <textarea
               value={multiRefPrompt}
               onChange={e => setMultiRefPrompt(e.target.value)}
-              placeholder="描述多张图片之间的关系，例如：图1女人坐在图2沙发上，图3的背景是海边"
+              placeholder={multiRefGirlfriend
+                ? `描述多张图片之间的关系，例如：图1${multiRefGirlfriend.nameZh || multiRefGirlfriend.name}坐在图2沙发上，图3的背景是海边`
+                : '描述多张图片之间的关系，例如：图1女人坐在图2沙发上，图3的背景是海边'}
               rows={3}
               disabled={taskManager.isFull || multiRefSubmitting}
               className="w-full px-3 py-2 rounded-lg bg-bg-elevated text-text-primary text-sm border border-border focus:outline-none focus:ring-1 focus:ring-primary resize-none disabled:opacity-50 placeholder:text-text-tertiary"
             />
+            {multiRefGirlfriend && (
+              <div className="mt-1.5 text-xs text-text-tertiary">
+                已锚定数字人「{multiRefGirlfriend.nameZh || multiRefGirlfriend.name}」，将自动注入角色身份锁定提示词
+              </div>
+            )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-text-primary">文生图开关</span>
             <button
               onClick={() => setMultiRefEnhance(v => !v)}
               className={`w-10 h-5 rounded-full transition-colors relative ${
@@ -1110,7 +1227,6 @@ export function ImageToImagePage({
                 multiRefEnhance ? 'right-0.5 bg-white' : 'left-0.5 bg-text-tertiary'
               }`} />
             </button>
-            <span className="text-sm text-text-secondary">增强模式</span>
           </div>
 
           {/* 多图编辑生成按钮 */}
