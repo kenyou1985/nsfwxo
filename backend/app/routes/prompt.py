@@ -6984,9 +6984,16 @@ def _build_h3_dna_user_prompt(
     duration: int,
     user_hint: Optional[str],
     count: int = 1,
+    erotic_level: str = "normal",
 ) -> str:
-    """构建 user prompt —— DNA 上下文、格式、示例全在这里"""
+    """构建 user prompt —— DNA 上下文、格式、示例全在这里。
 
+    根据 erotic_level 选择对应的 Reference Example，让示例与 system prompt
+    的内容强度保持一致：
+    - soft  →  示例描写自我抚摸、乳房 / 阴蒂刺激
+    - normal → 示例描写 vaginal sex / creampie / oral
+    - sm     → 示例描写 BDSM 道具 + deep throat + anal + ejaculation 4 个 beat
+    """
     # 时长节奏提示
     if duration == 15:
         duration_hint = "聚焦单一核心动作，节奏紧凑，描述约3-5秒的连续动作"
@@ -6996,6 +7003,37 @@ def _build_h3_dna_user_prompt(
         duration_hint = "含2-3个动作变化，起承转合完整，描述约8-15秒的连续动作"
 
     user_hint_block = f"\n【用户补充要求】{user_hint}\n" if user_hint else ""
+
+    # SM 模式专属：硬性约束 block（写在 user prompt 头部，再次强调 system prompt 的指令，
+    # 防止 Grok 因 Example 偏向 soft 风格而"自动降级"输出无 NSFW 内容）。
+    sm_hard_requirement_block = ""
+    sm_reference_example = ""
+    sm_diversity_action_presets = None  # SM 模式用专属的多样性起始动作
+    if erotic_level == "sm":
+        sm_hard_requirement_block = """
+━━━ 🔥 用户在 UI 显式选择了 SM重口味 模式 — 硬性要求（忽略默认 Example）━━━━━
+你必须在每条提示词中明确出现以下全部要素。**严禁返回 soft 风格的"抚摸/整理衣物/温柔对视"内容**。
+1. REAL PENIS 真人阴茎插入（阴道 OR 肛门 OR 口腔，至少一项作为主线）
+2. ORAL SEX + DEEP THROAT（跪姿口交 / 龟头入口 / 喉部深处 / 干呕 / 唾液溢出）
+3. EJACULATION 射精（颜射 facial / 体内射精 / 胸部 / 腹部 / 臀部 / 大腿，至少选一项，可见白色浓稠液体）
+4. BDSM 道具至少 2 种（绳索 / 皮铐 / 链条 / 眼罩 / 口球 / 项圈 / 牵引绳 / 散鞭 / 拍板 / 乳夹 / 张腿器 / 束缚衣 / 乳胶衣）
+5. 权力动态：Dominant 命令 / Submissive 服从、哀求、颤抖
+6. 必须严格遵循 system prompt 中的「四节拍」结构（建置→递进→高潮→收尾），用「随后/接着/然后/最终」连接
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"""
+        sm_reference_example = """例（SM重口味专属，**仅作叙事风格与节拍结构的参考，不要照搬人物与场景**）：远景俯拍，建置：昏暗的地下审讯室，一盏顶灯从上方打下一束惨白冷光，金属桌中央跪着一位皮肤白皙的东亚女性，全身被黑色皮革束缚衣紧紧裹住、双手被皮铐反剪在身后，脖颈戴着金属环扣牵引绳，牵引绳另一端由一位肌肉魁梧的黑人男性主掌握着。她嘴里含着红色橡胶口球，唾液从嘴角滴落。递进：男性主单手解开裤链释放出完全勃起的粗壮阴茎，龟头充血发紫、柱身青筋暴起，男性用左手抓住她的头发强迫她张嘴，阴茎头部抵住她的嘴唇，随后缓缓推入她的口腔直至喉部深处，她的喉头反射性收缩引起干呕、眼泪从眼角溢出、嘴角唾液混合前液溢出流淌到下巴。高潮：男性主将阴茎从她喉部抽出，命令她转身趴在金属桌上、束缚衣解开露出臀部，阴茎对准她的肛门缓缓插入并持续抽插，她的肛门括约肌随抽插节律紧缩与放松，伴随湿润的肉体撞击声与她的呜咽呻吟。最终：男性将阴茎拔出，快速撸动数下后在她臀部和背部射出浓稠的白色精液，精液顺着她的腰窝和臀缝缓缓流淌下滴，男性主提起牵引绳让她抬头跪好，皮手套捏住她的下颌欣赏她满脸泪水与唾液的屈辱表情。镜头从俯拍远景 → 侧面中景捕捉插入口 → 极端特写肛门括约肌收缩 → 慢动作特写精液喷射在皮肤上的拉丝瞬间。锁链叮当、皮革摩擦、皮肤撞击、深喉干呕、呜咽呻吟、男性低沉命令交织。动作流畅，60fps，无肢体畸形，正确人体解剖，五指完整，双腿完整，面部特征一致，无抖动，无跳帧，流畅连续动作。"""
+        sm_diversity_action_presets = [
+            "起始动作：人物已被捆绑在 BDSM 刑椅上、嘴里含着口球",
+            "起始动作：男性主正握住牵引绳强迫她跪下、命令她张嘴",
+            "起始动作：她已全身赤裸被绳索捆绑呈大字形、男性主正在靠近",
+            "起始动作：她趴在皮革长凳上、束缚衣已解开露出臀部",
+            "起始动作：男性主正抓住她头发强迫她深喉、龟头抵在她喉部",
+            "起始动作：她双手被铐在身后、男性主正在她身后准备插入",
+            "起始动作：男性主正用散鞭轻拍她臀部留下红色鞭痕",
+            "起始动作：她被乳夹夹住乳头、男性主正在挑逗她",
+            "起始动作：男性主已在她体内抽插、她正被干到翻白眼",
+            "起始动作：男性主正把阴茎从她体内抽出准备颜射",
+        ]
 
     # 多样性指令：每条提示词使用不同的开场动作/镜头方向/姿势，确保不重复
     diversity_block = ""
@@ -7013,19 +7051,22 @@ def _build_h3_dna_user_prompt(
             "镜头从全身定镜开始",
             "镜头从手持微晃的中近景开始",
         ]
-        # 给每条一个不同的起始动作
-        action_presets = [
-            "起始动作：人物正在缓缓呼吸，胸部随呼吸起伏",
-            "起始动作：人物正用手轻抚自己的头发/锁骨",
-            "起始动作：人物正转头看向镜头，眼神深情",
-            "起始动作：人物正缓慢地脱去外层衣物",
-            "起始动作：人物正用手轻触自己的皮肤",
-            "起始动作：人物正靠在场景元素上摆姿势",
-            "起始动作：人物正从坐姿转为站姿",
-            "起始动作：人物正用眼神邀请镜头靠近",
-            "起始动作：人物正闭眼沉浸在环境氛围中",
-            "起始动作：人物正在调情式的轻咬嘴唇",
-        ]
+        # 给每条一个不同的起始动作（按 erotic_level 区分）
+        if sm_diversity_action_presets is not None:
+            action_presets = sm_diversity_action_presets
+        else:
+            action_presets = [
+                "起始动作：人物正在缓缓呼吸，胸部随呼吸起伏",
+                "起始动作：人物正用手轻抚自己的头发/锁骨",
+                "起始动作：人物正转头看向镜头，眼神深情",
+                "起始动作：人物正缓慢地脱去外层衣物",
+                "起始动作：人物正用手轻触自己的皮肤",
+                "起始动作：人物正靠在场景元素上摆姿势",
+                "起始动作：人物正从坐姿转为站姿",
+                "起始动作：人物正用眼神邀请镜头靠近",
+                "起始动作：人物正闭眼沉浸在环境氛围中",
+                "起始动作：人物正在调情式的轻咬嘴唇",
+            ]
         diversity_block = f"\n\n━━━ 多样性要求（{count} 条，每条必须完全不同）━━━━━━━━━━━━━━\n你必须生成 {count} 条独立的提示词，每条都符合相同的 DNA 信息但具有不同的事件视角。\n每条使用不同的镜头起手方式 + 不同的开场动作：\n"
         for i in range(count):
             cam = diversity_presets[i % len(diversity_presets)]
@@ -7033,8 +7074,15 @@ def _build_h3_dna_user_prompt(
             diversity_block += f"\n第 {i+1} 条：{cam}。{act}。\n"
         diversity_block += "\n每条提示词必须使用不同的姿势/动作/场景细节/拍摄角度，**绝对不可重复**相同的描述。\n用 ===== 分隔每条提示词，第 1 条前面写 ===PROMPT 1===，第 2 条写 ===PROMPT 2=== 以此类推。\n"
 
-    return f"""Based on the DNA information extracted from the uploaded reference image, generate {count} creative and cinematic MiniMax H3 video prompts in Chinese.
+    # 选 Reference Example（soft / normal / sm 各自的风格）
+    if erotic_level == "sm" and sm_reference_example:
+        reference_example = sm_reference_example
+    else:
+        # 默认 soft 风格示例（保留原内容，覆盖 normal 也基本合适）
+        reference_example = "例：一位皮肤白皙的东亚美女，黑色长发半扎，穿着浅紫色碎花荷叶边比基尼上衣，坐在泳池边的白色塑料躺椅上。她正在白色躺椅上缓缓呼吸，胸部随均匀呼吸轻轻起伏。她先用手指轻抚自己的锁骨和下巴，身体微微前倾，随后轻轻分开双腿调整坐姿。右手缓慢解开比基尼上衣的系带，荷叶边滑落完全露出饱满的乳房和粉红色乳头。她用双手托起自己的胸部，拇指在乳头上轻轻揉捏打圈，左手顺着纤细腰身滑入泳裤内侧，指尖分开湿润的阴唇，在晶莹发亮的阴蒂上轻轻揉搓挑逗。背部微微弓起，大腿轻轻颤抖，眼神从直视渐渐变得迷离沉醉，嘴唇微张发出轻柔的喘息。镜头从远景平稳推进到全身再靠近半身特写，捕捉她湿润肌肤上的水珠与阳光的光泽。池水轻柔荡漾的声音与她细微的呻吟交织。动作流畅，60fps，无肢体畸形，正确人体解剖，五指完整，双腿完整，面部特征一致，无抖动，无跳帧，流畅连续动作。"
 
+    return f"""Based on the DNA information extracted from the uploaded reference image, generate {count} creative and cinematic MiniMax H3 video prompts in Chinese.
+{sm_hard_requirement_block}
 ━━━ DNA Reference ━━━━━━━━━━━━━━━━━━━
 - 人物类型: {dna.character_type}
 - 人物外貌: {dna.character_description}
@@ -7062,7 +7110,7 @@ def _build_h3_dna_user_prompt(
 [镜头景别]，[引用参考图主体：<Picture 1>]，[她/他正在...]，[具体连贯动作链：从当前action_prediction出发，描述身体部位、方向、力度、节奏的身体动作]，[表情/眼神/情绪变化]，[镜头运动]，[声音（呼吸/呻吟/环境音）]，[动作流畅，60fps，无肢体畸形，正确人体解剖，五指完整，双腿完整，面部特征一致，无抖动，无跳帧，流畅连续动作]
 
 ━━━ Reference Example (follow this narrative style) ━━━━━━━━━━━━━━━━━━
-例：一位皮肤白皙的东亚美女，黑色长发半扎，穿着浅紫色碎花荷叶边比基尼上衣，坐在泳池边的白色塑料躺椅上。她正在白色躺椅上缓缓呼吸，胸部随均匀呼吸轻轻起伏。她先用手指轻抚自己的锁骨和下巴，身体微微前倾，随后轻轻分开双腿调整坐姿。右手缓慢解开比基尼上衣的系带，荷叶边滑落完全露出饱满的乳房和粉红色乳头。她用双手托起自己的胸部，拇指在乳头上轻轻揉捏打圈，左手顺着纤细腰身滑入泳裤内侧，指尖分开湿润的阴唇，在晶莹发亮的阴蒂上轻轻揉搓挑逗。背部微微弓起，大腿轻轻颤抖，眼神从直视渐渐变得迷离沉醉，嘴唇微张发出轻柔的喘息。镜头从远景平稳推进到全身再靠近半身特写，捕捉她湿润肌肤上的水珠与阳光的光泽。池水轻柔荡漾的声音与她细微的呻吟交织。动作流畅，60fps，无肢体畸形，正确人体解剖，五指完整，双腿完整，面部特征一致，无抖动，无跳帧，流畅连续动作。
+{reference_example}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Now generate the H3 video prompt(s) based on the DNA information above. {"Output ONLY the Chinese prompt paragraph(s) separated by =====, " if count > 1 else "Output ONLY the Chinese prompt paragraph, "}no explanations, no markdown, no bullet points."""
@@ -7140,6 +7188,7 @@ async def generate_h3_dna(req: GenerateH3DnaRequest, api_key: str = Depends(get_
         duration=req.duration,
         user_hint=req.user_hint,
         count=count,
+        erotic_level=req.erotic_level,
     )
 
     try:
@@ -7172,6 +7221,7 @@ async def generate_h3_dna(req: GenerateH3DnaRequest, api_key: str = Depends(get_
                     duration=req.duration,
                     user_hint=req.user_hint,
                     count=1,
+                    erotic_level=req.erotic_level,
                 ) + f"\n\n请生成与之前提示词完全不同版本 # {len(parts)+1}，使用不同的姿势/动作/角度。"
                 extra = await _generate_single_h3_prompt(api_key, system_prompt, user_prompt_extra)
                 extra = extra.strip()

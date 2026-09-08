@@ -2579,23 +2579,49 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
       setMmDnaLoading(true);
       setMmDnaError(null);
       try {
-        // 将图片转换为 base64 data URL
-        let imageDataUrl = firstImage.path;
-        if (firstImage.path.startsWith('blob:') || firstImage.path.startsWith('http')) {
-          try {
-            const resp = await fetch(firstImage.path);
-            const blob = await resp.blob();
-            imageDataUrl = await new Promise<string>((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onload = () => resolve(reader.result as string);
-              reader.onerror = reject;
-              reader.readAsDataURL(blob);
-            });
-          } catch {
-            // fetch 失败时仍使用原路径
+        // 优先使用 preview（永远是 data:image/...;base64,...，浏览器本地零网络依赖）
+        // 历史图片选择器 / 服装图插入 / 用户本地上传 都会先把 dataUrl 写入 preview 字段。
+        // 只有当 preview 为空（罕见：例如从外部 API 注入的纯 CDN 链接）才回退到 path + fetch。
+        let imageDataUrl = firstImage.preview;
+
+        if (!imageDataUrl) {
+          // 回退路径：path 可能是 blob: / http(s): / RunningHub CDN 相对路径
+          // 后端会处理 CDN 相对路径，但 blob: / http 在移动浏览器 fetch 时常被 CORS 或
+          // "Load failed" 拦截（iOS Safari 17.4+ 修复过部分问题，但 base64 才是稳态）。
+          if (firstImage.path.startsWith('http://') || firstImage.path.startsWith('https://') || firstImage.path.startsWith('blob:')) {
+            try {
+              const resp = await fetch(firstImage.path);
+              if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+              const blob = await resp.blob();
+              imageDataUrl = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result as string);
+                reader.onerror = () => reject(new Error('FileReader 读取失败'));
+                reader.readAsDataURL(blob);
+              });
+            } catch (fetchErr) {
+              // 给用户明确错误信息而不是默默继续（让后端收到 blob: URL 然后报错）
+              throw new Error(
+                `无法读取参考图：${fetchErr instanceof Error ? fetchErr.message : String(fetchErr)}。` +
+                '请尝试重新上传图片，或刷新页面后重试。',
+              );
+            }
+          } else if (firstImage.path) {
+            // RunningHub CDN 相对路径：直接交给后端去补全 CDN base URL
+            imageDataUrl = firstImage.path;
+          } else {
+            throw new Error('参考图路径为空，请先上传图片');
           }
         }
-        console.log('[DNA] calling extractImageDna with image:', imageDataUrl.slice(0, 80));
+
+        if (!imageDataUrl.startsWith('data:image/') && !imageDataUrl.startsWith('http')) {
+          // 非 data URL 也非 http URL（可能是 RunningHub CDN 相对路径如 openapi/xxx.jpg）：
+          // 直接交给后端 _normalize_image_url 处理即可，不要在浏览器里 fetch
+          // （fetch CDN 在移动端常因 CORS / 跨域 Cookie 失败，且会拖慢响应）。
+          console.log('[DNA] using server-side path (no in-browser fetch):', imageDataUrl.slice(0, 80));
+        } else {
+          console.log('[DNA] calling extractImageDna with image:', imageDataUrl.slice(0, 80));
+        }
         const result = await extractImageDna(imageDataUrl);
         // 记录图片 hash 以便下次比较
         (result as any)._imageHash = currentHash;
