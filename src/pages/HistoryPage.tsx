@@ -74,7 +74,7 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
   const [activeTab, setActiveTab] = useState<'image' | 'video' | 'favorites' | 'gpt-image-2'>('image');
   const [records, setRecords] = useState<HistoryRecord[]>([]);
   const [videoRecords, setVideoRecords] = useState<VideoHistoryRecord[]>([]);
-  const [videoFilter, setVideoFilter] = useState<'all' | 'minimax_long_v2' | 'minimax_long' | 'long_v1_1'>('all');
+  const [videoFilter, setVideoFilter] = useState<'all' | 'long_video'>('all');
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
   const [loadedImages, setLoadedImages] = useState<Record<string, string[]>>({});
   const loadedImagesRef = useRef<Record<string, string[]>>({});
@@ -905,12 +905,11 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
       {/* Video history */}
       {activeTab === 'video' && videoRecords.length > 0 && (
         <div className="space-y-3">
-          {/* 工作流筛选器 */}
+          {/* 工作流筛选器（合并长视频 V2 / v1.1 / H3 为统一列表） */}
           <div className="flex items-center gap-2 flex-wrap">
             {([
               { key: 'all', label: '全部' },
-              { key: 'minimax_long_v2', label: 'MiniMax 长视频 V2' },
-              { key: 'long_v1_1', label: '长视频 v1.1' },
+              { key: 'long_video', label: '长视频' },
             ] as const).map(({ key, label }) => (
               <button
                 key={key}
@@ -928,9 +927,17 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
           {videoRecords
             .filter((r) => {
               if (videoFilter === 'all') return true;
-              if (videoFilter === 'minimax_long_v2') return r.workflowId === '2092046754606030850';
-              if (videoFilter === 'minimax_long') return r.workflowId === '2091369701523136514';
-              if (videoFilter === 'long_v1_1') return r.workflowId === '2094226327238135810' || r.workflowId === '2094672102264090625';
+              if (videoFilter === 'long_video') {
+                // 长视频 V2 / v1.1 / H3（MiniMax H3）统一显示，不区分
+                const LONG_VIDEO_IDS = [
+                  '2092046754606030850', // 长视频 V2
+                  '2091369701523136514', // MiniMax 长视频
+                  '2094226327238135810', // 长视频 v1.1 (new)
+                  '2094672102264090625', // 长视频 v1.1 (旧版)
+                  '2084661265636839425', // MiniMax H3 图生视频
+                ];
+                return LONG_VIDEO_IDS.includes(r.workflowId);
+              }
               return true;
             })
             .map((record) => {

@@ -954,3 +954,205 @@ export async function streamGridStoryboard(
     },
   );
 }
+
+
+// ─── Image DNA Extraction ─────────────────────────────────────────────────────────
+
+export interface ClothingInfo {
+  name: string;
+  type: string;
+  color: string;
+  style: string;
+  image_url?: string;
+}
+
+export interface ImageDnaResult {
+  character_type: string;
+  character_description: string;
+  character_age_hint: string;
+  scene_type: string;
+  scene_description: string;
+  action_prediction: string;
+  clothing_list: ClothingInfo[];
+  overall_style: string;
+  nsfw_level: string;
+}
+
+/**
+ * 基于 DNA 信息生成 MiniMax H3 格式提示词（支持批量生成）
+ */
+export interface GenerateH3DnaParams {
+  imageUrl: string;
+  dna: ImageDnaResult;
+  eroticLevel: 'soft' | 'normal' | 'sm';
+  duration: 15 | 30 | 60;
+  userHint?: string;
+  /** 生成条数，默认 1 */
+  count?: number;
+}
+
+export interface GenerateH3DnaResult {
+  /** 多条独立的 H3 格式中文视频提示词 */
+  prompts: string[];
+  erotic_level: string;
+  duration: number;
+}
+
+export async function generateH3DnaPrompt(params: GenerateH3DnaParams): Promise<GenerateH3DnaResult> {
+  const yunwuKey = getYunwuKey();
+  if (!yunwuKey) {
+    throw new Error('OpenLux API Key 未设置');
+  }
+
+  const base = getBackendUrl();
+  const url = `${base}/api/prompt/generate/h3-dna`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 300000); // 5min（生成多条需要更长时间）
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${yunwuKey}`,
+      },
+      body: JSON.stringify({
+        image_url: params.imageUrl,
+        dna: params.dna,
+        erotic_level: params.eroticLevel,
+        duration: params.duration,
+        user_hint: params.userHint || null,
+        count: params.count ?? 1,
+      }),
+    });
+
+    if (!response.ok) {
+      const bodyText = await response.text().catch(() => '');
+      throw new Error(`H3 提示词生成失败 ${response.status}: ${bodyText}`);
+    }
+
+    const data = await response.json() as GenerateH3DnaResult;
+    return data;
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error('H3 提示词生成超时（300秒），请重试');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/**
+ * 调用后端 /api/prompt/extract-image-dna 端点
+ * 由 Gemini-3.8-flash 提取图片 DNA（人物/场景/服装信息）
+ */
+export async function extractImageDna(imageUrl: string): Promise<ImageDnaResult> {
+  const yunwuKey = getYunwuKey();
+  if (!yunwuKey) {
+    throw new Error('OpenLux API Key 未设置');
+  }
+
+  const base = getBackendUrl();
+  const url = `${base}/api/prompt/extract-image-dna`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 60000); // 60s timeout
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${yunwuKey}`,
+      },
+      body: JSON.stringify({ image_url: imageUrl }),
+    });
+
+    if (!response.ok) {
+      const bodyText = await response.text().catch(() => '');
+      throw new Error(`DNA 提取失败 ${response.status}: ${bodyText}`);
+    }
+
+    const data = await response.json() as ImageDnaResult;
+    return data;
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error('DNA 提取超时（60秒），请重试');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/**
+ * 调用后端 /api/prompt/extract-clothings 端点
+ * 使用 Gemini-3.8-flash 从参考图中提取服装区域图片
+ */
+export interface ExtractClothingsResult {
+  clothings: ClothingInfo[];
+}
+
+export async function extractClothings(
+  imageUrl: string,
+  clothingHints?: string[],
+  model?: string,
+  customElementImages?: string[],
+  additionalImageUrls?: string[],
+): Promise<ExtractClothingsResult> {
+  const yunwuKey = getYunwuKey();
+  if (!yunwuKey) {
+    throw new Error('OpenLux API Key 未设置');
+  }
+
+  const base = getBackendUrl();
+  const url = `${base}/api/prompt/extract-clothings`;
+  const controller = new AbortController();
+  // 服装提取需要更长时间（处理 base64 + 多参考图）
+  const timeout = setTimeout(() => controller.abort(), 240000); // 240s timeout
+
+  console.log('[extractClothings] 调用后端 API:', url, {
+    imageUrl: imageUrl.slice(0, 60),
+    clothingHints,
+    model,
+    customElements: customElementImages?.length,
+    additionalRefs: additionalImageUrls?.length,
+  });
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${yunwuKey}`,
+      },
+      body: JSON.stringify({
+        image_url: imageUrl,
+        ...(additionalImageUrls?.length ? { additional_image_urls: additionalImageUrls } : {}),
+        ...(clothingHints?.length ? { clothing_hints: clothingHints } : {}),
+        ...(model ? { model } : {}),
+        ...(customElementImages?.length ? { custom_element_images: customElementImages } : {}),
+      }),
+    });
+
+    if (!response.ok) {
+      const bodyText = await response.text().catch(() => '');
+      console.error('[extractClothings] API 错误:', response.status, bodyText);
+      throw new Error(`服装提取失败 ${response.status}: ${bodyText}`);
+    }
+
+    const data = await response.json() as ExtractClothingsResult;
+    console.log('[extractClothings] 成功提取:', data.clothings.length, '件服装');
+    return data;
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error('服装提取超时（240秒），请重试');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
+}

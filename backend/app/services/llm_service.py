@@ -1,10 +1,13 @@
 """LLM Service - Grok via OpenLux API 动态客户端封装"""
 
 import asyncio
+import base64
 import json
 import logging
 import re
 from typing import AsyncIterator, List, Optional, Union, Tuple
+
+import httpx
 from openai import AsyncOpenAI, APIError, AuthenticationError, RateLimitError
 
 logger = logging.getLogger(__name__)
@@ -494,6 +497,99 @@ async def stream_grok(
             continue
 
 
+async def call_llm(
+    api_key: str,
+    model_name: str,
+    system_prompt: str,
+    content_parts: List[dict],
+    temperature: float = 0.3,
+    max_tokens: int = 2048,
+) -> str:
+    """
+    Call any model via OpenLux API (api.openlux.ai)，支持多模态内容输入（如图片+文字）。
+
+    Args:
+        api_key: OpenLux API Key
+        model_name: 模型名称，如 "gemini-3.8-flash"、"grok-4.6"、"gpt-4o"
+        system_prompt: 系统提示词
+        content_parts: 内容部分列表，每个元素支持：
+            - {"type": "text", "text": "..."}
+            - {"type": "image_url", "image_url": {"url": "data:image/...;base64,..."}}
+        temperature: 温度，默认 0.3（更确定性输出）
+        max_tokens: 最大输出 token 数，默认 2048
+    Returns:
+        模型输出的文本内容
+
+    Raises:
+        OpenLuxAPIError / OpenLuxAuthError 等
+    """
+    client = AsyncOpenAI(
+        api_key=api_key,
+        base_url=OPENLUX_BASE_URL,
+        timeout=60.0,
+    )
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {
+            "role": "user",
+            "content": content_parts,
+        },
+    ]
+
+    last_error: Optional[Exception] = None
+    for retry in range(MAX_RETRIES):
+        try:
+            response = await client.chat.completions.create(
+                model=model_name,
+                messages=messages,
+                temperature=temperature,
+                max_completion_tokens=max_tokens,
+            )
+            result_text = response.choices[0].message.content
+            logger.info(
+                f"[call_llm] model={model_name} response (len={len(result_text) if result_text else 0}): "
+                f"{result_text[:300] if result_text else 'EMPTY'}"
+            )
+
+            if _is_refusal(result_text or ""):
+                if retry < MAX_RETRIES - 1:
+                    logger.warning(f"[call_llm] {model_name} returned refusal, retry {retry+1}/{MAX_RETRIES}")
+                    await asyncio.sleep(_RETRY_BASE_DELAY)
+                    continue
+                raise OpenLuxAPIError(f"模型拒绝了请求: {result_text[:200]}")
+
+            return result_text or ""
+
+        except AuthenticationError as e:
+            raise OpenLuxAuthError(f"无效的 OpenLux API Key (401): {str(e)}")
+        except RateLimitError as e:
+            if retry < MAX_RETRIES - 1:
+                wait_sec = (retry + 1) * 3
+                logger.warning(f"[call_llm] rate limit on {model_name}, retry {retry+1}/{MAX_RETRIES}, waiting {wait_sec}s")
+                await asyncio.sleep(wait_sec)
+                continue
+            raise OpenLuxRateLimitError(f"OpenLux 请求频率超限 (429): {str(e)}")
+        except Exception as e:
+            error_text = str(e).lower()
+            if "timeout" in error_text or "timed out" in error_text:
+                last_error = OpenLuxTimeoutError(f"OpenLux 请求超时（60秒）: {e}")
+                if retry < MAX_RETRIES - 1:
+                    await asyncio.sleep((retry + 1) * _RETRY_BASE_DELAY)
+                    continue
+                raise last_error
+            last_error = OpenLuxAPIError(f"LLM 调用失败: {str(e)}")
+            if retry < MAX_RETRIES - 1:
+                logger.warning(f"[call_llm] unexpected error on {model_name}: {e}, retry {retry+1}/{MAX_RETRIES}")
+                await asyncio.sleep(_RETRY_BASE_DELAY)
+                continue
+            raise last_error
+
+    if last_error:
+        raise last_error
+    raise OpenLuxAPIError(f"模型 {model_name} 调用在 {MAX_RETRIES} 次重试后仍失败")
+
+
 class OpenLuxAuthError(Exception):
     """无效的 API Key"""
     pass
@@ -565,3 +661,288 @@ def clean_json_response(raw_text: str) -> Union[list, dict]:
 class OpenLuxParseError(Exception):
     """JSON 解析失败"""
     pass
+
+
+# ─── Clothing Image Extraction ─────────────────────────────────────────────────
+
+GEMINI_ENDPOINT_BASE = "https://yunwu.ai/v1beta/models"
+
+
+def _parse_data_url(data_url: str) -> Optional[Tuple[bytes, str]]:
+    """解析 data URL → (bytes, mime)。例如 data:image/png;base64,xxxxxx"""
+    m = re.match(r"^data:([^;]+);base64,(.+)$", data_url, re.DOTALL)
+    if not m:
+        return None
+    try:
+        return base64.b64decode(m.group(2)), m.group(1)
+    except Exception:
+        return None
+
+
+async def extract_clothings_with_image(
+    api_key: str,
+    image_url: str,
+    clothing_hints: Optional[List[str]] = None,
+    model: str = "gpt-image-2-c",
+    custom_element_images: Optional[List[str]] = None,
+    additional_image_urls: Optional[List[str]] = None,
+) -> List[dict]:
+    """
+    从参考图中提取服装抠图合成图，支持三种图片生成模型：
+      - gpt-image-2-c                  (默认, OpenAI /v1/images/edits)
+      - grok-imagine-image-2.0          (OpenAI /v1/images/edits)
+      - gemini-3.1-flash-image-preview  (Gemini /v1beta/models/...:generateContent)
+
+    custom_element_images: 用户上传的自定义服装元素图片（base64 data URL 列表，最多3张）。
+                           作为额外图像输入参与合成（不会注入 prompt 文本，避免 429）。
+
+    additional_image_urls: 额外参考图 URL（最多 5 张），与 image_url 一起做视觉分析。
+                           每张图独立识别服装，所有结果合并不去重（保留重复/相似项）。
+
+    Returns:
+        List[dict] — 末尾元素为合成图 {"name": "服装抠图合成图", "image_url": "data:image/png;base64,..."}
+    """
+
+    # ── Step 1: 组装多参考图 URL 列表（去重保序） ─────────────────────────
+    all_image_urls: List[str] = [image_url]
+    if additional_image_urls:
+        for u in additional_image_urls:
+            if u and u not in all_image_urls:
+                all_image_urls.append(u)
+    logger.info(
+        f"[extract_clothings_with_image] 共 {len(all_image_urls)} 张参考图: "
+        f"{[u[:60] + ('...' if len(u) > 60 else '') for u in all_image_urls]}"
+    )
+
+    # ── Step 2: 逐张视觉分析 → 合并服装列表（不去重） ─────────────────────
+    base_vision_prompt = """分析图片中人物所穿的所有服装。
+输出格式（严格 JSON，无 markdown 代码块，无任何解释文字）：
+{
+  "clothings": [
+    {"name": "服装名称", "type": "上装|下装|连体|配饰|鞋子|袜子|其他", "color": "主色调", "style": "风格特征"}
+  ]
+}
+- 严格输出纯 JSON
+- 即使图中有重复或相似的服装（如多件上装、多双鞋），每件都独立列出，不要合并"""
+    if clothing_hints:
+        base_vision_prompt += f"\n已知服装提示：{', '.join(clothing_hints)}"
+
+    clothings: List[dict] = []
+    for idx, url in enumerate(all_image_urls):
+        per_image_prompt = base_vision_prompt + (
+            f"\n（这是第 {idx+1}/{len(all_image_urls)} 张参考图，请仅分析当前图。）"
+        )
+        try:
+            raw = await call_llm(
+                api_key=api_key,
+                model_name="gemini-3.8-flash",
+                system_prompt=per_image_prompt,
+                content_parts=[{"type": "image_url", "image_url": {"url": url}}],
+                temperature=0.3,
+                max_tokens=4096,
+            )
+        except Exception as e:
+            logger.warning(f"[extract_clothings_with_image] 第 {idx+1} 张视觉分析失败: {e}")
+            continue
+
+        text = raw.strip()
+        if text.startswith("```"):
+            text = re.sub(r"^```(?:json)?\s*", "", text)
+            text = re.sub(r"\s*```$", "", text)
+        try:
+            result = json.loads(text)
+        except json.JSONDecodeError:
+            logger.warning(f"[extract_clothings_with_image] 第 {idx+1} 张视觉分析 JSON 解析失败: {text[:200]}")
+            continue
+
+        # 保留所有识别结果，不去重
+        items = result.get("clothings") or []
+        for it in items:
+            it = dict(it)  # 复制避免引用
+            it["_source_index"] = idx + 1
+            clothings.append(it)
+        logger.info(f"[extract_clothings_with_image] 第 {idx+1} 张识别到 {len(items)} 件，累计 {len(clothings)} 件")
+
+    if not clothings:
+        return []
+
+    # 清理临时字段
+    for c in clothings:
+        c.pop("_source_index", None)
+
+    clothing_names = [c.get("name", "") for c in clothings]
+
+    # ── Step 3: 下载主图（用于合成） ──────────────────────────────────────
+    async def _download_bytes(url: str) -> Tuple[bytes, str]:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            b = resp.content
+        mime = "image/png" if url.lower().endswith(".png") else "image/jpeg"
+        return b, mime
+
+    try:
+        src_bytes, src_mime = await _download_bytes(image_url)
+    except Exception as e:
+        raise OpenLuxAPIError(f"无法下载主参考图: {e}")
+
+    # ── Step 4: 解析自定义服装元素图片 ─────────────────────────────────────
+    custom_imgs: List[Tuple[bytes, str]] = []  # (bytes, mime)
+    if custom_element_images:
+        for elem in custom_element_images[:3]:
+            parsed = _parse_data_url(elem)
+            if parsed:
+                custom_imgs.append(parsed)
+            else:
+                logger.warning(f"[extract_clothings_with_image] 跳过无法解析的自定义元素（{len(elem)} 字节）")
+
+    # ── Step 5: 构造编辑 prompt（不注入 base64） ─────────────────────────
+    clothing_desc = "、".join(filter(None, clothing_names))
+    custom_note = ""
+    if custom_imgs:
+        custom_note = (
+            f" 用户另外上传了 {len(custom_imgs)} 张自定义服装元素参考图（已作为附加图像传入），"
+            f"请在合成时把这些自定义元素也合入到最终合成图中，保留它们原本的颜色与质感。"
+        )
+    edit_prompt = (
+        f"从原图中精确提取出以下所有服装：{clothing_desc}。"
+        f"将人物身上的所有服装单品完整抠出来，合成为一张图片。"
+        f"背景处理为纯白色（#FFFFFF），保留服装原有的颜色、质感和细节，"
+        f"各服装单品清晰可见、无重叠遮挡。{custom_note}"
+        f"输出干净的服装抠图合成图。"
+    )
+
+    # ── Step 6: 按 model 分发图片生成 ─────────────────────────────────────
+    # OpenAI 兼容端点（/v1/images/edits）：主图 + 自定义元素（多张）作为 image[] 字段上传
+    async def _call_openai_image_edit(model_name: str) -> str:
+        # 构造多文件：image[0]=主图, image[1..]=自定义元素
+        ext_main = "png" if "png" in src_mime else "jpg"
+        files = [("image[]", (f"image0.{ext_main}", src_bytes, src_mime))]
+        for i, (b, m) in enumerate(custom_imgs):
+            ext = "png" if "png" in m else "jpg"
+            files.append((f"image[]", (f"image{i+1}.{ext}", b, m)))
+
+        data = {
+            "model": model_name,
+            "prompt": edit_prompt,
+            "n": "1",
+            "response_format": "b64_json",
+            "size": "1024x1024",
+        }
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.post(
+                f"{OPENLUX_BASE_URL}/images/edits",
+                files=files,
+                data=data,
+                headers={"Authorization": f"Bearer {api_key}"},
+            )
+            if resp.status_code != 200:
+                raise OpenLuxAPIError(
+                    f"{model_name} 失败 (HTTP {resp.status_code}): {resp.text[:300]}"
+                )
+            return resp.json()["data"][0]["b64_json"]
+
+    # Gemini 端点（/v1beta/models/<model>:generateContent）：使用 inline_data 多图输入
+    async def _call_gemini_image_edit(model_name: str) -> str:
+        parts: List[dict] = [{"text": edit_prompt}]
+        # 主图
+        parts.append({
+            "inline_data": {
+                "mime_type": src_mime,
+                "data": base64.b64encode(src_bytes).decode(),
+            }
+        })
+        # 自定义元素
+        for b, m in custom_imgs:
+            parts.append({
+                "inline_data": {
+                    "mime_type": m,
+                    "data": base64.b64encode(b).decode(),
+                }
+            })
+
+        body = {
+            "contents": [{"role": "user", "parts": parts}],
+            "generationConfig": {
+                "responseModalities": ["IMAGE"],
+            },
+        }
+        url = f"{GEMINI_ENDPOINT_BASE}/{model_name}:generateContent"
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.post(
+                url,
+                json=body,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+            )
+            if resp.status_code != 200:
+                raise OpenLuxAPIError(
+                    f"{model_name} 失败 (HTTP {resp.status_code}): {resp.text[:300]}"
+                )
+            data = resp.json()
+            for cand in data.get("candidates", []):
+                for part in cand.get("content", {}).get("parts", []):
+                    if "inline_data" in part and part["inline_data"].get("data"):
+                        return part["inline_data"]["data"]
+            raise OpenLuxAPIError(
+                f"{model_name} 未返回图片 (响应无 inline_data): {json.dumps(data)[:200]}"
+            )
+
+    # ── Step 7: 模型分发与备用 ────────────────────────────────────────────
+    primary_model = model or "gpt-image-2-c"
+    b64_result: Optional[str] = None
+
+    if primary_model == "gpt-image-2-c":
+        try:
+            logger.info("[extract_clothings_with_image] 调用 gpt-image-2-c")
+            b64_result = await _call_openai_image_edit("gpt-image-2-c")
+        except Exception as exc:
+            logger.warning(
+                f"[extract_clothings_with_image] gpt-image-2-c 失败，切换备用 grok-imagine-image-2.0: {exc}"
+            )
+            b64_result = await _call_openai_image_edit("grok-imagine-image-2.0")
+
+    elif primary_model == "grok-imagine-image-2.0":
+        try:
+            logger.info("[extract_clothings_with_image] 调用 grok-imagine-image-2.0")
+            b64_result = await _call_openai_image_edit("grok-imagine-image-2.0")
+        except Exception as exc:
+            logger.warning(f"[extract_clothings_with_image] grok-imagine-image-2.0 失败: {exc}")
+            raise OpenLuxAPIError(f"grok-imagine-image-2.0 失败: {exc}")
+
+    elif primary_model == "gemini-3.1-flash-image-preview":
+        try:
+            logger.info("[extract_clothings_with_image] 调用 gemini-3.1-flash-image-preview")
+            b64_result = await _call_gemini_image_edit("gemini-3.1-flash-image-preview")
+        except Exception as exc:
+            logger.warning(f"[extract_clothings_with_image] gemini-3.1-flash-image-preview 失败: {exc}")
+            raise OpenLuxAPIError(f"gemini-3.1-flash-image-preview 失败: {exc}")
+
+    else:
+        raise OpenLuxAPIError(
+            f"不支持的图片模型: {model}，可选: gpt-image-2-c | grok-imagine-image-2.0 | gemini-3.1-flash-image-preview"
+        )
+
+    # ── Step 8: 返回结果 ──────────────────────────────────────────────────
+    composite_url = f"data:image/png;base64,{b64_result}"
+    items: List[dict] = []
+    for c in clothings:
+        items.append({
+            "name": c.get("name", ""),
+            "type": c.get("type", "其他"),
+            "color": c.get("color", ""),
+            "style": c.get("style", ""),
+            "image_url": "",
+        })
+    items.append({
+        "name": "服装抠图合成图",
+        "type": "其他",
+        "color": "",
+        "style": "",
+        "image_url": composite_url,
+    })
+    logger.info(f"[extract_clothings_with_image] 完成，共 {len(items)} 条记录（{len(clothings)} 件服装 + 1 张合成图）")
+    return items
+

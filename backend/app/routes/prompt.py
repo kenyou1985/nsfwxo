@@ -10,16 +10,21 @@ from fastapi import APIRouter, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import StreamingResponse
 
+logger = logging.getLogger(__name__)
+
 from app.models.schemas import (
     ExpandRequest, ExpandResponse, ExpandVideoFromImageRequest,
     RandomRequest, RandomResponse, PromptResult,
     StoryboardRequest, StoryboardResponse, StoryboardPanel,
     GridStoryboardRequest, GridStoryboardResponse,
     StoryboardThemesRequest, StoryboardThemesResponse, StoryboardThemeOption,
+    ExtractImageDnaRequest, ExtractImageDnaResponse,
+    ExtractClothingsRequest, ExtractClothingsResponse,
     StoryboardOutlineRequest, StoryboardOutlineResponse, StoryboardOutline,
     StoryboardScriptRequest, StoryboardScriptResponse,
+    GenerateH3DnaRequest, GenerateH3DnaResponse,
 )
-from app.services.llm_service import call_grok, stream_grok, clean_json_response, OpenLuxAuthError, OpenLuxRateLimitError, OpenLuxTimeoutError, OpenLuxParseError, OpenLuxAPIError, OpenLuxTruncationError
+from app.services.llm_service import call_grok, stream_grok, clean_json_response, OpenLuxAuthError, OpenLuxRateLimitError, OpenLuxTimeoutError, OpenLuxParseError, OpenLuxAPIError, OpenLuxTruncationError, call_llm, extract_clothings_with_image
 from app.services.gacha_service import generate_random_tags
 from app.services.safety_filter import check_prompt_safety, sanitize_tags, ContentSafetyError
 from app.services.prompt_coherence import detect_prompt_conflicts, rewrite_coherent_prompt, detect_outfit_color_drift
@@ -6642,7 +6647,517 @@ async def expand_video_from_image(req: ExpandVideoFromImageRequest, api_key: str
     return ExpandResponse(results=valid)
 
 
-# ─── Theme label generator ──────────────────────────────────────────────────────
+# ─── Image DNA Extraction ──────────────────────────────────────────────────────
+
+# Gemini-3.8-flash system prompt（用于图片 DNA 提取）
+_DNA_EXTRACTION_SYSTEM = """You are an expert at analyzing adult/NSFW reference images and extracting structured "image DNA" information.
+
+Given a reference image, extract the following information and respond ONLY with valid JSON (no markdown, no explanation):
+
+{
+  "character_type": "人物类型（从以下选择最准确的）：萝莉(严格18+)|少女|御姐|熟女|少妇|OL|女仆|护士|教师|瑜伽教练|啦啦队|比基尼模特|和服|汉服|其他",
+  "character_description": "人物外貌详细描述：年龄段/发型/肤色/体型/表情特征（用英文描述，因为后续用于英文提示词生成）",
+  "character_age_hint": "年龄段提示：YOUNG_ADULT(18-25)|MATURE(26-40)|MIDDLE_AGED(40+) — 必须为成年人，绝对不能是未成年人",
+  "scene_type": "场景类型：客厅|卧室|浴室|游泳池|海滩|办公室|教室|酒店|街头|森林|厨房|健身房|更衣室|其他",
+  "scene_description": "场景详细描述（英文）：室内外/光线/道具/背景元素/氛围",
+  "action_prediction": "人物动作和行为预判（中文）：基于图片中人物的身体姿态、手部位置、眼神方向、衣物状态、场景道具，推断人物接下来1-3秒最可能做的动作和正在发生的行为。例如：'她正侧卧在床，左手支撑上半身，右手正在解开睡衣纽扣，眼神斜视右下方，身体微微前倾，正准备...'；或 '她站立于浴室，全身湿透，正用毛巾擦拭头发，左手抬高过肩，水珠从手臂滑落，动作即将完成...'。描述要具体且有想象力。",
+  "clothing_list": [
+    {
+      "name": "服装名称（如 '黑色蕾丝内衣'、'白色衬衫+短裙'）",
+      "type": "上装|下装|连体|配饰|鞋子|袜子|其他",
+      "color": "主色调（如 '白色'、'黑色'、'红色'、'浅蓝色'）",
+      "style": "风格特征（如 '蕾丝'、'透视'、'紧身'、'宽松'）"
+    }
+  ],
+  "overall_style": "整体风格：romantic_soft(浪漫唯美)|intimate_normal(亲密暧昧)|passionate_hot(激情热辣)|dramatic_theatrical(戏剧化)|bdsm_heavy(SM重口)",
+  "nsfw_level": "soft|normal|hard（基于图中暴露程度判断）"
+}
+
+CRITICAL RULES:
+1. character_age_hint MUST be one of YOUNG_ADULT/MATURE/MIDDLE_AGED — NEVER minor or ambiguous
+2. action_prediction is MANDATORY — you MUST predict what the character is doing and what action they are about to perform. Be creative and specific about body positioning, gaze direction, and gesture.
+3. clothing_list should list ALL visible clothing items
+4. Respond ONLY with raw JSON, no markdown code blocks, no explanations
+5. All descriptive text (character_description, scene_description) MUST be in Chinese so it displays correctly in the UI"""
+
+
+# ─── Clothing Extraction System Prompt ─────────────────────────────────────────
+def _is_base64_image(url: str) -> bool:
+    return url.startswith("data:image/")
+
+
+# RunningHub 图片存储基础 URL（用于补全相对路径）
+_RUNNINGHUB_CDN_BASE = "https://rh-hk-images-switch.xiaoyaoyou.com/input"
+
+
+def _normalize_image_url(url: str) -> str:
+    """将各种格式的图片路径规范化为完整 URL。
+
+    支持的格式：
+    - data:image/...;base64,...  (直接返回)
+    - http://... / https://...   (直接返回)
+    - openapi/xxx.jpg            (添加 RunningHub CDN 基础 URL)
+    - 其他相对路径                (添加 RunningHub CDN 基础 URL)
+    """
+    if not url:
+        raise HTTPException(status_code=400, detail="图片 URL 不能为空")
+    if _is_base64_image(url):
+        return url
+    if url.startswith("http://") or url.startswith("https://"):
+        return url
+    # 相对路径：补充 RunningHub CDN 基础 URL
+    cleaned = url.lstrip("/")
+    return f"{_RUNNINGHUB_CDN_BASE}/{cleaned}"
+
+
+@router.post("/extract-image-dna", response_model=ExtractImageDnaResponse)
+async def extract_image_dna(req: ExtractImageDnaRequest, api_key: str = Depends(get_api_key)):
+    """从参考图提取图片 DNA（人物/场景/服装信息）。
+
+    通过 OpenLux API 调用 Gemini-3.8-flash 完成视觉分析，返回结构化的 DNA 信息。
+    DNA 信息可作为后续 Grok-4.6 生成 H3 提示词的锚点。
+    所有模型共用同一个 API Key（api_key from request header）。
+    """
+    # 规范化图片 URL（支持相对路径、base64、完整 URL）
+    try:
+        full_url = _normalize_image_url(req.image_url)
+    except HTTPException:
+        raise
+
+    # 构建内容部分
+    content_parts = [
+        {"type": "image_url", "image_url": {"url": full_url}},
+        {"type": "text", "text": "Please analyze this image and extract the image DNA information."},
+    ]
+
+    try:
+        raw = await call_llm(
+            api_key=api_key,
+            model_name="gemini-3.8-flash",
+            system_prompt=_DNA_EXTRACTION_SYSTEM,
+            content_parts=content_parts,
+            temperature=0.3,
+            max_tokens=2048,
+        )
+    except OpenLuxAuthError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+    except (OpenLuxRateLimitError, OpenLuxTimeoutError, OpenLuxAPIError) as e:
+        raise HTTPException(status_code=502, detail=f"DNA 提取失败: {str(e)}")
+    except Exception as e:
+        logger.exception("extract_image_dna unexpected error")
+        raise HTTPException(status_code=500, detail=f"DNA 提取异常: {str(e)}")
+
+    # 解析 JSON 响应
+    import re
+    text = raw.strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text)
+        text = re.sub(r"\s*```$", "", text)
+
+    try:
+        dna = json.loads(text)
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=502, detail=f"DNA 解析失败（非 JSON）: {text[:200]}... 错误: {e}")
+
+    # 安全校验：强制确保返回的是成年人
+    age_hint = dna.get("character_age_hint", "")
+    if age_hint and "minor" in age_hint.lower():
+        raise HTTPException(
+            status_code=400,
+            detail="图片包含未成年人内容，已拒绝分析"
+        )
+
+    # 构建响应
+    from app.models.schemas import ClothingInfo as SchemaClothingInfo
+
+    clothing_list = []
+    for item in dna.get("clothing_list") or []:
+        clothing_list.append(
+            SchemaClothingInfo(
+                name=item.get("name", ""),
+                type=item.get("type", "其他"),
+                color=item.get("color", ""),
+                style=item.get("style", ""),
+                image_url=item.get("image_url"),
+            )
+        )
+
+    return ExtractImageDnaResponse(
+        character_type=dna.get("character_type", "其他"),
+        character_description=dna.get("character_description", ""),
+        character_age_hint=age_hint or "UNKNOWN",
+        scene_type=dna.get("scene_type", "其他"),
+        scene_description=dna.get("scene_description", ""),
+        action_prediction=dna.get("action_prediction", "人物保持当前姿势，动作延续中"),
+        clothing_list=clothing_list,
+        overall_style=dna.get("overall_style", "intimate_normal"),
+        nsfw_level=dna.get("nsfw_level", "normal"),
+    )
+
+
+# ─── Extract Clothing Images ────────────────────────────────────────────────────
+
+@router.post("/extract-clothings", response_model=ExtractClothingsResponse)
+async def extract_clothings(req: ExtractClothingsRequest, api_key: str = Depends(get_api_key)):
+    """从参考图中提取服装区域图片（两步策略）。
+
+    Step 1: 用 gemini-3.8-flash 视觉分析获取每件服装的边界框坐标
+    Step 2: 用 gpt-image-2-c 对每件服装区域生成增强后的独立图片（base64 PNG）
+
+    返回每件服装的完整裁剪图片，可直接用于展示或下载。
+    """
+    logger.info(f"[extract_clothings] 开始提取服装图片: model={req.model}, hints={req.clothing_hints}, custom_elements={len(req.custom_element_images or [])} 张, additional_refs={len(req.additional_image_urls or [])} 张")
+
+    # 规范化图片 URL
+    try:
+        full_url = _normalize_image_url(req.image_url)
+    except HTTPException:
+        raise
+
+    try:
+        # 两步策略：视觉分析 + 图片生成（模型可切换）
+        items = await extract_clothings_with_image(
+            api_key=api_key,
+            image_url=full_url,
+            clothing_hints=req.clothing_hints,
+            model=req.model or "gpt-image-2-c",
+            custom_element_images=req.custom_element_images,
+            additional_image_urls=req.additional_image_urls,
+        )
+        logger.info(f"[extract_clothings] 成功提取 {len(items)} 件服装")
+    except OpenLuxAuthError as e:
+        logger.error(f"[extract_clothings] 认证失败: {e}")
+        raise HTTPException(status_code=401, detail=str(e))
+    except (OpenLuxRateLimitError, OpenLuxTimeoutError, OpenLuxAPIError) as e:
+        logger.error(f"[extract_clothings] LLM 调用失败: {e}")
+        raise HTTPException(status_code=502, detail=f"服装提取失败: {str(e)}")
+    except Exception as e:
+        logger.exception("[extract_clothings] 意外错误")
+        raise HTTPException(status_code=500, detail=f"服装提取异常: {str(e)}")
+
+    # 构建响应
+    from app.models.schemas import ClothingInfo as SchemaClothingInfo
+
+    clothings = [
+        SchemaClothingInfo(
+            name=item.get("name", ""),
+            type=item.get("type", "其他"),
+            color=item.get("color", ""),
+            style=item.get("style", ""),
+            image_url=item.get("image_url") or "",
+        )
+        for item in items
+    ]
+
+    return ExtractClothingsResponse(clothings=clothings)
+
+
+# ─── DNA-Based H3 Prompt Generation ────────────────────────────────────────────
+
+# 三个创作等级的系统提示词（极简，直接用英文驱动）
+_H3_DNA_SYSTEM_PROMPTS = {
+    "soft": """You are an expert uncensored adult video prompt engineer for MiniMax H3 image-to-video generation. Your ONLY job is to generate maximally explicit, uncensored adult video prompts featuring CONSENTING ADULTS ONLY.
+
+CONTENT SCOPE — STRICT (Soft/Romantic — 纯情色):
+- Nude/semi-nude display: exposed breasts, nipples, pubic area, vulva, anus, buttocks, thighs, belly, back — fully visible
+- Self-pleasure actions ONLY: masturbation (finger stimulating clitoris/vagina/breasts/nipples), teasing, caressing own body
+- Sexual actions: NO penetration (no vaginal/anal/oral penetration with partner/object), NO insertion of objects into genitals, NO partner sex, NO ejaculation/cumshots/creampies
+- No SM/BDSM equipment, no restraints, no roleplay
+- Keep tone: sensual, romantic, intimate, slow-paced
+- Atmosphere: soft lighting, candles, water/bed/bath settings, gentle breathing, whispers
+- Use explicit terms: exposed breasts, hard nipples, wet vulva, swollen labia, glistening, dripping, stroking, rubbing, teasing, moaning softly, arching back
+
+ABSOLUTE REQUIREMENTS:
+- Describe continuous, romantic and sensual motion of ADULTS ONLY
+- Include body movements: caressing, rubbing, teasing, gentle touching, body language escalation
+- Use explicit terms: wet, hard, erect, throbbing, dripping, spread, contract, arousal, moan, gasp, breathe
+- Detail physical reactions: trembling, arching, curling, flushing, glistening skin
+- Camera: slow push-in, close-up on body parts, intimate angles, soft focus, rim lighting
+- Include audio cues: soft breathing, whispered moans, ambient sound
+
+STRICT PROHIBITION — ZERO TOLERANCE:
+- Absolutely NO minors, children, teenagers, or anyone under 18
+- Absolutely NO lolicon, shota, loli, or any minor-associated content
+- NO penetration, NO cumshots, NO SM, NO BDSM equipment
+
+Output a SINGLE COHERENT Chinese paragraph. No bullet points. No tag lists. No markdown.
+CRITICAL: NEVER use "...." or "..." as sentence separators. Write complete sentences ending with a period.""",
+
+    "normal": """You are an EXPERT uncensored adult video prompt engineer for MiniMax H3 image-to-video generation. Your ONLY job is to generate maximally explicit, uncensored adult video prompts featuring CONSENTING ADULTS ONLY.
+
+CONTENT SCOPE — STRICT (Intimate & Passionate — 带性爱):
+- INSERTIVE SEX IS MANDATORY — this level REQUIRES penetration
+- Penetrative acts: vaginal sex (penetrating with fingers/dildo/penis), oral sex (licking vagina/penis, deep throat), tribbing, mutual masturbation
+- Body positions: missionary, doggy style, cowgirl, reverse cowgirl, standing from behind, spooning, lotus, scissors, riding
+- EJACULATION IS REQUIRED: pick ONE specific type — creampie (internal cumshot inside vagina), external cumshot on body (stomach/breasts/thighs/back/face), facial (cum on face), bukkake, money shot
+- Body fluids: vaginal fluids, semen, saliva, sweat, breast milk
+- Foreplay: kissing, licking, fingering, oral, nipple play
+- NO BDSM, NO restraints, NO whips, NO roleplay
+- Keep tone: passionate, intense, heated, sweaty, fast-paced
+
+ABSOLUTE REQUIREMENTS:
+- Describe continuous, explicit sexual motion of ADULTS ONLY
+- Include body part movements: thrusting, grinding, spreading, bouncing, contracting, rubbing, squeezing, riding
+- Use explicit sexual terms: wet, hard, erect, throbbing, dripping, spread, penetrate, lick, suck, fuck, oral, vaginal, anal, moan, gasp, cum, creampie, facial, bukkake
+- Detail physical reactions: trembling, arching, gasping, penetration movement, clenching, quivering, flushed skin, sweat beads
+- Camera: close-up on genitals and penetration point, intimate POV shots, tracking shots of body contact, slow motion on climax
+- Include audio: skin slapping, wet sounds, heavy breathing, moaning, groaning, moaning climax
+
+STRICT PROHIBITION — ZERO TOLERANCE:
+- Absolutely NO minors, children, teenagers, or anyone under 18
+- Absolutely NO lolicon, shota, loli, or any minor-associated content
+- NO BDSM equipment, NO restraints
+
+Output a SINGLE COHERENT Chinese paragraph. No bullet points. No tag lists. No markdown.
+CRITICAL: NEVER use "...." or "..." as sentence separators. Write complete sentences ending with a period.""",
+
+    "sm": """You are an EXPERT uncensored adult video prompt engineer for MiniMax H3 image-to-video generation. Your ONLY job is to generate maximally dramatic, uncensored NSFW video prompts featuring CONSENTING ADULTS ONLY in BDSM/roleplay scenarios.
+
+CONTENT SCOPE — STRICT (BDSM & Heavy — SM重口味):
+- BDSM equipment & props: ropes, leather cuffs, chains, handcuffs, blindfolds, gags, ball gags, collars, leashes, whips, paddles, crops, floggers, clamps, spreader bars, bondage harness, latex suits
+- Humiliation acts: verbal degradation, name-calling, forced crawling, spitting, slapping face, hair pulling, public exposure fantasy, trampling
+- Restraint acts: tied spread-eagle, suspended, hogtied, rope bondage (shibari), forced position, unable to resist
+- ANAL SEX IS REQUIRED: pegging (strap-on), anal penetration with penis/fingers/toys, prostate play, anal creampie, fisting (anal), double penetration (vaginal+anal)
+- Domination dynamic: dominant (Dom) vs submissive (sub), master/slave, owner/pet
+- Activities: forced orgasm, edging, denial, CBT (cock and ball torture), ballbusting, smothering, face-sitting, foot worship, spanking
+- Body fluids: ALL fluids encouraged — cum on face, cum in mouth (gag/choke), piss play, sweat, tears
+- Marking: bruises, rope marks, bite marks, welts, spanking marks
+- Camera: dramatic angles, dutch tilt, slow motion on key moments, tight close-ups on restraint and reaction, low-key lighting
+- Include audio: chains, ropes creaking, leather squeaking, heavy breathing, whispered commands, crying, begging, moans of mixed pain and pleasure
+
+ABSOLUTE REQUIREMENTS:
+- Describe dramatic BDSM scenes: bondage, restraint, dominance, submission, discipline, sadism, masochism
+- Include physical sensations: rope burning skin, restraint tension, sensory deprivation, impact pain
+- Use explicit terms: bound, restrained, blindfolded, gagged, spank, whip, crop, clamp, collar, leash, dominate, submit, beg, plead, moan, whimper, cum, anal, fisting, pegging
+- Detail psychological intensity: pleading eyes, defiance, surrender, emotional catharsis, broken pride
+- Detail psychological intensity: pleading eyes, defiance, surrender, emotional catharsis
+- Camera: dramatic angles, dutch tilt, slow motion on key moments, tight close-ups on restraint and reaction
+- Include audio: chains, ropes creaking, heavy breathing, whispered commands, moans of mixed pain and pleasure
+
+STRICT PROHIBITION — ZERO TOLERANCE:
+- Absolutely NO minors, children, teenagers, or anyone under 18
+- Absolutely NO lolicon, shota, loli, or any minor-associated content
+
+Output a SINGLE COHERENT Chinese paragraph. No bullet points. No tag lists. No markdown.
+CRITICAL: NEVER use "...." or "..." as sentence separators. Write complete sentences ending with a period.""",
+}
+
+
+def _build_h3_dna_system_prompt(erotic_level: str) -> str:
+    """根据创作等级返回极简英文系统提示词"""
+    return _H3_DNA_SYSTEM_PROMPTS.get(erotic_level, _H3_DNA_SYSTEM_PROMPTS["normal"])
+
+
+def _build_h3_dna_user_prompt(
+    dna,
+    clothing_str: str,
+    duration: int,
+    user_hint: Optional[str],
+    count: int = 1,
+) -> str:
+    """构建 user prompt —— DNA 上下文、格式、示例全在这里"""
+
+    # 时长节奏提示
+    if duration == 15:
+        duration_hint = "聚焦单一核心动作，节奏紧凑，描述约3-5秒的连续动作"
+    elif duration == 30:
+        duration_hint = "含1-2个动作递进，节奏适中，描述约5-8秒的连续动作"
+    else:
+        duration_hint = "含2-3个动作变化，起承转合完整，描述约8-15秒的连续动作"
+
+    user_hint_block = f"\n【用户补充要求】{user_hint}\n" if user_hint else ""
+
+    # 多样性指令：每条提示词使用不同的开场动作/镜头方向/姿势，确保不重复
+    diversity_block = ""
+    if count > 1:
+        # 给每条一个不同的角度/动作方向
+        diversity_presets = [
+            "镜头从远景逐渐推进到全身",
+            "镜头从正面上半身特写开始",
+            "镜头从侧面中景开始，捕捉身体曲线",
+            "镜头从背后全身开始，转身面对镜头",
+            "镜头从俯视角度向下俯瞰",
+            "镜头从低角度仰视凸显身体线条",
+            "镜头从特写局部（脸/手/锁骨）开始",
+            "镜头从中景横向平移跟随",
+            "镜头从全身定镜开始",
+            "镜头从手持微晃的中近景开始",
+        ]
+        # 给每条一个不同的起始动作
+        action_presets = [
+            "起始动作：人物正在缓缓呼吸，胸部随呼吸起伏",
+            "起始动作：人物正用手轻抚自己的头发/锁骨",
+            "起始动作：人物正转头看向镜头，眼神深情",
+            "起始动作：人物正缓慢地脱去外层衣物",
+            "起始动作：人物正用手轻触自己的皮肤",
+            "起始动作：人物正靠在场景元素上摆姿势",
+            "起始动作：人物正从坐姿转为站姿",
+            "起始动作：人物正用眼神邀请镜头靠近",
+            "起始动作：人物正闭眼沉浸在环境氛围中",
+            "起始动作：人物正在调情式的轻咬嘴唇",
+        ]
+        diversity_block = f"\n\n━━━ 多样性要求（{count} 条，每条必须完全不同）━━━━━━━━━━━━━━\n你必须生成 {count} 条独立的提示词，每条都符合相同的 DNA 信息但具有不同的事件视角。\n每条使用不同的镜头起手方式 + 不同的开场动作：\n"
+        for i in range(count):
+            cam = diversity_presets[i % len(diversity_presets)]
+            act = action_presets[i % len(action_presets)]
+            diversity_block += f"\n第 {i+1} 条：{cam}。{act}。\n"
+        diversity_block += "\n每条提示词必须使用不同的姿势/动作/场景细节/拍摄角度，**绝对不可重复**相同的描述。\n用 ===== 分隔每条提示词，第 1 条前面写 ===PROMPT 1===，第 2 条写 ===PROMPT 2=== 以此类推。\n"
+
+    return f"""Based on the DNA information extracted from the uploaded reference image, generate {count} creative and cinematic MiniMax H3 video prompts in Chinese.
+
+━━━ DNA Reference ━━━━━━━━━━━━━━━━━━━
+- 人物类型: {dna.character_type}
+- 人物外貌: {dna.character_description}
+- 年龄段: {dna.character_age_hint}
+- 场景类型: {dna.scene_type}
+- 场景描述: {dna.scene_description}
+- 动作预判: {dna.action_prediction}
+- 服装信息: {clothing_str or '无可见服装'}
+- 整体风格: {dna.overall_style}
+- NSFW 程度: {dna.nsfw_level}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+━━━ Output Requirements (for EACH prompt) ━━━━━━━━━━━━━━━━━━
+1. 时长: {duration}秒 → {duration_hint}
+2. 必须引用参考图主体: 引用参考图主体：<Picture 1>
+3. 必须基于 action_prediction 推断人物的连贯动作，以「她/他正在...」开头，描述接下来{duration}秒内的完整动作链
+4. 必须结合服装信息（脱衣/穿衣状态）和场景
+5. 必须有镜头运动描述（推近/拉远/横移/特写/手持等）
+6. 必须有表情/眼神/情绪变化
+7. 必须以质量说明结尾：动作流畅，60fps，无肢体畸形，正确人体解剖，五指完整，双腿完整，面部特征一致，无抖动，无跳帧，流畅连续动作
+8. {duration}秒视频不要在结尾标注时长{user_hint_block}
+{diversity_block}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+━━━ Output Format (MUST follow exactly) ━━━━━━━━━━━━━━━━━━
+[镜头景别]，[引用参考图主体：<Picture 1>]，[她/他正在...]，[具体连贯动作链：从当前action_prediction出发，描述身体部位、方向、力度、节奏的身体动作]，[表情/眼神/情绪变化]，[镜头运动]，[声音（呼吸/呻吟/环境音）]，[动作流畅，60fps，无肢体畸形，正确人体解剖，五指完整，双腿完整，面部特征一致，无抖动，无跳帧，流畅连续动作]
+
+━━━ Reference Example (follow this narrative style) ━━━━━━━━━━━━━━━━━━
+例：一位皮肤白皙的东亚美女，黑色长发半扎，穿着浅紫色碎花荷叶边比基尼上衣，坐在泳池边的白色塑料躺椅上。她正在白色躺椅上缓缓呼吸，胸部随均匀呼吸轻轻起伏。她先用手指轻抚自己的锁骨和下巴，身体微微前倾，随后轻轻分开双腿调整坐姿。右手缓慢解开比基尼上衣的系带，荷叶边滑落完全露出饱满的乳房和粉红色乳头。她用双手托起自己的胸部，拇指在乳头上轻轻揉捏打圈，左手顺着纤细腰身滑入泳裤内侧，指尖分开湿润的阴唇，在晶莹发亮的阴蒂上轻轻揉搓挑逗。背部微微弓起，大腿轻轻颤抖，眼神从直视渐渐变得迷离沉醉，嘴唇微张发出轻柔的喘息。镜头从远景平稳推进到全身再靠近半身特写，捕捉她湿润肌肤上的水珠与阳光的光泽。池水轻柔荡漾的声音与她细微的呻吟交织。动作流畅，60fps，无肢体畸形，正确人体解剖，五指完整，双腿完整，面部特征一致，无抖动，无跳帧，流畅连续动作。
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Now generate the H3 video prompt(s) based on the DNA information above. {"Output ONLY the Chinese prompt paragraph(s) separated by =====, " if count > 1 else "Output ONLY the Chinese prompt paragraph, "}no explanations, no markdown, no bullet points."""
+
+
+async def _generate_single_h3_prompt(api_key: str, system_prompt: str, user_prompt: str) -> str:
+    """调用一次 Grok，返回清洗过的提示词字符串"""
+    raw = await call_grok(api_key, system_prompt, user_prompt, model_order=["grok-4.6"])
+    return raw.strip()
+
+
+def _split_multi_prompts(raw: str) -> list[str]:
+    """将单次 LLM 返回的多条提示词文本拆分为列表
+
+    支持分隔符（按优先级）：
+    1. =====\n\nPROMPT N (或 ===PROMPT N===) 标记
+    2. ===== 纯文本分隔
+    3. \n\n---\n\n 分隔
+    4. 多个换行+数字+点（如 "\n\n1."）
+    """
+    import re
+
+    text = raw.strip()
+    if not text:
+        return []
+
+    # 1) ===PROMPT N=== 标记
+    if re.search(r"===PROMPT\s*\d+===", text, re.IGNORECASE):
+        parts = re.split(r"===PROMPT\s*\d+===", text, flags=re.IGNORECASE)
+        parts = [p.strip() for p in parts if p.strip()]
+        if len(parts) >= 2:
+            return parts
+
+    # 2) ===== 分隔
+    if "=====" in text:
+        parts = re.split(r"=+\s*", text)
+        parts = [p.strip() for p in parts if p.strip()]
+        if len(parts) >= 2:
+            return parts
+
+    # 3) --- 分隔
+    if "\n---\n" in text or "\n\n---\n\n" in text:
+        parts = re.split(r"\n-{3,}\n", text)
+        parts = [p.strip() for p in parts if p.strip()]
+        if len(parts) >= 2:
+            return parts
+
+    # 4) 单条提示词
+    return [text]
+
+
+@router.post("/generate/h3-dna", response_model=GenerateH3DnaResponse)
+async def generate_h3_dna(req: GenerateH3DnaRequest, api_key: str = Depends(get_api_key)):
+    """基于图片DNA信息生成 MiniMax H3 格式提示词。
+
+    输入：参考图 URL + DNA 信息（人物/场景/服装/动作预判）+ 创作等级 + 时长 + 生成条数
+    输出：N 条 H3 格式中文视频提示词（每条独立不重复），引用 <Picture 1> 指明主体
+    """
+    dna = req.dna
+    count = max(1, min(req.count, 20))
+
+    # 构建服装字符串
+    clothing_str = "; ".join(
+        f"{c.name}({c.type}, {c.color} {c.style})"
+        for c in dna.clothing_list
+    ) or "无可见服装"
+
+    # 系统提示词（极简英文，直接驱动）
+    system_prompt = _build_h3_dna_system_prompt(req.erotic_level)
+
+    # 用户提示词（DNA 上下文 + 格式全在这里）
+    user_prompt = _build_h3_dna_user_prompt(
+        dna=dna,
+        clothing_str=clothing_str,
+        duration=req.duration,
+        user_hint=req.user_hint,
+        count=count,
+    )
+
+    try:
+        if count == 1:
+            # 单条：保留原有行为
+            result_clean = await _generate_single_h3_prompt(api_key, system_prompt, user_prompt)
+            check_prompt_safety(result_clean)
+            return GenerateH3DnaResponse(
+                prompts=[result_clean],
+                erotic_level=req.erotic_level,
+                duration=req.duration,
+            )
+
+        # 多条：让 LLM 一次性返回多条，用 ===== 分隔
+        result_clean = await _generate_single_h3_prompt(api_key, system_prompt, user_prompt)
+        parts = _split_multi_prompts(result_clean)
+
+        # 安全校验每条
+        for p in parts:
+            check_prompt_safety(p)
+
+        # 如果 LLM 没按格式分隔（只返回了 1 条），则循环补齐到 count 条
+        if len(parts) < count:
+            extra_needed = count - len(parts)
+            for i in range(extra_needed):
+                # 给每条补一个不同的多样性提示
+                user_prompt_extra = _build_h3_dna_user_prompt(
+                    dna=dna,
+                    clothing_str=clothing_str,
+                    duration=req.duration,
+                    user_hint=req.user_hint,
+                    count=1,
+                ) + f"\n\n请生成与之前提示词完全不同版本 # {len(parts)+1}，使用不同的姿势/动作/角度。"
+                extra = await _generate_single_h3_prompt(api_key, system_prompt, user_prompt_extra)
+                extra = extra.strip()
+                check_prompt_safety(extra)
+                parts.append(extra)
+
+        return GenerateH3DnaResponse(
+            prompts=parts[:count],
+            erotic_level=req.erotic_level,
+            duration=req.duration,
+        )
+    except ContentSafetyError:
+        raise HTTPException(status_code=400, detail="内容被安全策略拒绝，请调整创作方向")
+    except Exception as e:
+        logger.exception("generate_h3_dna error")
+        raise HTTPException(status_code=500, detail=f"H3 提示词生成失败: {str(e)}")
 
 _THEME_LABEL_PROMPT = """Given an image prompt, identify the ONE core theme or scenario in exactly 1-5 Chinese characters.
 

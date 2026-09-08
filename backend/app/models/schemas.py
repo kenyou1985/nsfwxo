@@ -179,3 +179,88 @@ class StoryboardScriptResponse(BaseModel):
     script_title: str
     duration: str = Field(default="15-30秒")
     panels: List[VideoScriptPanel]
+
+
+# ─── Extract Image DNA ────────────────────────────────────────────────────────
+
+class ExtractImageDnaRequest(BaseModel):
+    """从参考图提取"图片DNA"：人物类型、场景、服装信息
+
+    由 Gemini-3.8-flash 完成视觉分析，不经过 Grok。
+    提取结果供后续 Grok-4.6 生成 H3 提示词时作为锚点。
+    """
+    image_url: str = Field(..., min_length=1, max_length=4000, description="参考图 URL（支持 base64 data:image/... 或 http(s):// URL）")
+
+
+class ClothingInfo(BaseModel):
+    """单件服装信息"""
+    name: str = Field(..., description="服装名称，如 '黑色蕾丝内衣'、'白色衬衫'")
+    type: str = Field(..., description="服装类型: 上装/下装/连体/配饰/鞋子/袜子/其他")
+    color: str = Field(default="", description="主色调")
+    style: str = Field(default="", description="风格/特征，如 '蕾丝'、'透视'、'紧身'")
+    image_url: Optional[str] = Field(default=None, description="扣图后的服装单独图片 URL（base64）")
+
+
+class ExtractImageDnaResponse(BaseModel):
+    """图片DNA提取结果"""
+    character_type: str = Field(..., description="人物类型：萝莉(未满18禁止)/少女/御姐/熟女/少妇/OL/女仆/护士/教师/其他")
+    character_description: str = Field(..., description="人物外貌描述（年龄段/发型/肤色/体型等）")
+    character_age_hint: str = Field(..., description="年龄段提示：未成年/青年/中年（必须为成年）")
+    scene_type: str = Field(..., description="场景类型：客厅/卧室/浴室/游泳池/办公室/教室/街头/海滩/餐厅/酒店/其他")
+    scene_description: str = Field(..., description="场景详细描述（室内外/光线/道具等）")
+    action_prediction: str = Field(..., description="人物动作和行为预判：基于图片推断人物接下来1-3秒最可能做的动作和正在发生的行为（中文，具体有想象力）")
+    clothing_list: List[ClothingInfo] = Field(default_factory=list, description="服装列表（已扣图）")
+    overall_style: str = Field(..., description="整体风格：浪漫唯美/亲密暧昧/激情热辣/戏剧化/SM风格")
+    nsfw_level: str = Field(..., description="NSFW 程度：soft/normal/hard")
+
+
+# ─── Extract Clothing Images ────────────────────────────────────────────────────
+
+class ExtractClothingsRequest(BaseModel):
+    """使用 Gemini-3.8-flash 从参考图中提取服装区域图片
+
+    调用 AI 模型识别并裁剪出图片中人物所穿服装的独立区域图片。
+    用于服装提取、下载、复制等场景。
+    """
+    image_url: str = Field(..., min_length=1, max_length=4000, description="参考图 URL（支持 base64 data:image/... 或 http(s):// URL）")
+    additional_image_urls: Optional[List[str]] = Field(
+        default=None,
+        max_length=5,
+        description="额外参考图 URL 列表（最多 5 张），与 image_url 一起作为多参考图参与服装识别与合成，重复或相似服装不会被合并",
+    )
+    clothing_hints: Optional[List[str]] = Field(default=None, description="可选的服装名称列表，用于辅助 AI 识别")
+    model: Optional[str] = Field(
+        default="gpt-image-2-c",
+        description="服装抠图合成使用的图片模型: gpt-image-2-c | grok-imagine-image-2.0 | gemini-3.1-flash-image-preview",
+    )
+    custom_element_images: Optional[List[str]] = Field(
+        default=None,
+        max_length=3,
+        description="用户上传的自定义服装元素图片（base64 data URL），最多3张，会在生成合成图时作为参考元素一并合成",
+    )
+
+
+class ExtractClothingsResponse(BaseModel):
+    """服装提取结果"""
+    clothings: List[ClothingInfo] = Field(default_factory=list, description="提取的服装列表，每件包含扣图后的 base64 图片 URL")
+
+
+class GenerateH3DnaRequest(BaseModel):
+    """基于 DNA 信息生成 MiniMax H3 格式提示词"""
+    image_url: str = Field(..., description="参考图 URL（支持 base64 data:image/... 或 http(s):// URL）")
+    dna: ExtractImageDnaResponse = Field(..., description="DNA 提取结果（包含人物/场景/服装/动作预判信息）")
+    # erotic_level: soft=纯情色, normal=带性爱, sm=SM重口味
+    erotic_level: Literal["soft", "normal", "sm"] = Field(default="normal", description="创作方向等级")
+    # duration: 15/30/60 秒
+    duration: Literal[15, 30, 60] = Field(default=15, description="视频时长（秒）")
+    # 用户可选补充描述
+    user_hint: Optional[str] = Field(default=None, description="用户补充的动作/镜头描述（可选）")
+    # 批量生成条数（1/3/5/10/自定义），每条都是全新的不重复提示词
+    count: int = Field(default=1, ge=1, le=20, description="生成条数（1-20 条），每条不重复")
+
+
+class GenerateH3DnaResponse(BaseModel):
+    """H3 提示词生成结果"""
+    prompts: list[str] = Field(default_factory=list, description="生成的 H3 格式中文视频提示词列表（每条不重复）")
+    erotic_level: str = Field(..., description="使用的创作方向")
+    duration: int = Field(..., description="视频时长（秒）")

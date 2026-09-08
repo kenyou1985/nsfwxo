@@ -306,7 +306,15 @@ export function ModelLibraryPage({ onNavigate, onSuccess }: ModelLibraryPageProp
     if (filter === 'checkpoint') src = checkpoints;
     else if (filter === 'lora') src = loras;
     else if (filter === 'unet') src = unets;
-    else src = [...checkpoints, ...loras, ...unets];
+    else {
+      // 合并后去重（避免同名模型在多个列表中导致 React key 重复警告）
+      const seen = new Set<string>();
+      src = [...checkpoints, ...loras, ...unets].filter((m) => {
+        if (seen.has(m.name)) return false;
+        seen.add(m.name);
+        return true;
+      });
+    }
 
     // 分类
     let out = src;
