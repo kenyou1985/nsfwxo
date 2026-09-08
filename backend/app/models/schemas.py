@@ -189,7 +189,10 @@ class ExtractImageDnaRequest(BaseModel):
     由 Gemini-3.8-flash 完成视觉分析，不经过 Grok。
     提取结果供后续 Grok-4.6 生成 H3 提示词时作为锚点。
     """
-    image_url: str = Field(..., min_length=1, max_length=4000, description="参考图 URL（支持 base64 data:image/... 或 http(s):// URL）")
+    # max_length 放到 50_000_000 (50MB) 以兼容移动端原图 base64 data URL。
+    # 普通 2-5MB JPEG 经 base64 编码后约 2.7-6.7MB ≈ 2.7M-6.7M 字符，
+    # 4000 字符限制会导致所有移动端上传的图直接 Pydantic 422 失败。
+    image_url: str = Field(..., min_length=1, max_length=50_000_000, description="参考图 URL（支持 base64 data:image/... 或 http(s):// URL）")
 
 
 class ClothingInfo(BaseModel):
@@ -222,7 +225,7 @@ class ExtractClothingsRequest(BaseModel):
     调用 AI 模型识别并裁剪出图片中人物所穿服装的独立区域图片。
     用于服装提取、下载、复制等场景。
     """
-    image_url: str = Field(..., min_length=1, max_length=4000, description="参考图 URL（支持 base64 data:image/... 或 http(s):// URL）")
+    image_url: str = Field(..., min_length=1, max_length=50_000_000, description="参考图 URL（支持 base64 data:image/... 或 http(s):// URL，base64 时上限 50MB 字符以兼容移动端原图）")
     additional_image_urls: Optional[List[str]] = Field(
         default=None,
         max_length=5,
