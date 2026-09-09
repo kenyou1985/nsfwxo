@@ -10,7 +10,7 @@ import { uploadImage, WORKFLOW } from '../services/runninghub';
 import { expandVideoFromImage, streamExpandPrompt, streamRandomPrompt, extractImageDna, generateH3DnaPrompt, streamGenerateH3DnaPrompt, type ImageDnaResult } from '../services/promptApi';
 import { parseStoryboardScript, toVideoScriptPanels, type ParsedScriptPanel } from '../utils/scriptParser';
 import { getYunwuKey } from '../services/storage';
-import { compressDataUrlIfNeeded, compressImageFile, isHeicDataUrl } from '../utils/imagePreprocess';
+import { compressImageFile, isHeicDataUrl } from '../utils/imagePreprocess';
 import { getRecords, deleteRecord, clearAllHistory, type HistoryRecord } from '../services/historyService';
 import { extractImagesFromZipAsDataUrls } from '../services/runninghub';
 import type { NodeInfo } from '../types';
@@ -2773,10 +2773,9 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
           }
         }
 
-        // 移动端原图通常是 3-5MB JPEG，base64 后约 4-7MB 字符。
-        // 后端 Pydantic schema max_length 已放宽到 50MB，所以理论上不会再 422，
-        // 但请求体过大会拖慢响应并占用内存。在发送前压缩到 ≤ 900KB 字符。
-        imageDataUrl = await compressDataUrlIfNeeded(imageDataUrl);
+        // 不在前端压缩：后端 extractImageDna 内部已有智能重试压缩逻辑
+        //（900KB → 600KB → 300KB），前端压缩会导致 DNA 提取图片过于模糊。
+        // 后端 Pydantic schema max_length 已放宽到 50MB，直接发送原图即可。
 
         // ── HEIC 友好提示 ──
         // 如果原图就是 HEIC，压缩函数会跳过 canvas。直接告知用户，而不是让他们面对模糊的 415 错误。
