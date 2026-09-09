@@ -7009,6 +7009,12 @@ def _build_h3_dna_user_prompt(
     sm_hard_requirement_block = ""
     sm_reference_example = ""
     sm_diversity_action_presets = None  # SM 模式用专属的多样性起始动作
+
+    # Normal（带性爱）模式专属：硬性约束 block + 专属示例
+    normal_hard_requirement_block = ""
+    normal_reference_example = ""
+    normal_diversity_action_presets = None
+
     if erotic_level == "sm":
         sm_hard_requirement_block = """
 ━━━ 🔥 用户在 UI 显式选择了 SM重口味 模式 — 硬性要求（忽略默认 Example）━━━━━
@@ -7035,6 +7041,33 @@ def _build_h3_dna_user_prompt(
             "起始动作：男性主正把阴茎从她体内抽出准备颜射",
         ]
 
+    elif erotic_level == "normal":
+        # Normal（带性爱）模式：硬性要求插入/口交/射精，避免 Grok 输出 soft 风格的自我抚摸内容
+        normal_hard_requirement_block = """
+━━━ 🔥 用户在 UI 显式选择了 带性爱 模式 — 硬性要求（忽略默认 Example）━━━━━
+你必须在每条提示词中明确出现以下全部要素。**严禁返回 soft 风格的"抚摸/整理衣物/温柔对视"内容**。
+1. INSERTIVE SEX 插入式性爱是主线（必须出现）：阴道插入、口交、肛交，三选一以上作为动作核心
+2. 至少一种具体的性动作：thrusting（抽插）/ grinding（磨蹭）/ riding（骑乘）/ deepthroat（深喉）/ fingering（手指插入）/ licking（舔弄）
+3. 至少一种明确的 EJACULATION（射精）描述：颜射 facial / 体内射精 creampie / 胸部 cumshot / 腹部 cumshot / 臀部 cumshot / 大腿 cumshot，任选一项，必须可见白色浓稠液体喷出/流淌/滴落
+4. 至少一种前戏或爱抚动作：kissing（亲吻）/ licking（舔弄）/ nipple play（乳头刺激）/ fingering（手指挑逗）/ oral foreplay（口交前戏）
+5. 男主角必须出现并有明确的性动作参与：勃起阴茎、抽插、撸动、射精；不得只有女性角色独自抚摸
+6. 至少 1 个连贯的身体动作节拍：从插入或前戏开始 → 持续动作 → 高潮/射精收尾
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"""
+        normal_reference_example = """例（带性爱专属，**仅作叙事风格与节拍结构的参考，不要照搬人物与场景**）：中景侧面，建置：卧室暖色台灯下，一位皮肤白皙的东亚女性身穿半透明黑色蕾丝吊带睡裙跪在床沿，身后一位肌肉魁梧的男性正解开裤链释放出完全勃起的阴茎，龟头充血、柱身青筋可见。递进：男性从身后环抱她，一只手托起她的乳房揉捏乳头，另一只手顺着她的腰身滑入裙底分开湿润的阴唇，手指在她阴道口挑逗、按压阴蒂，唤醒她的呻吟。接着男性扶住她的胯部将她转向床沿，分开她的双腿，龟头抵住阴道口缓缓推入，开始缓慢抽插，交合处湿润发出咕叽声，她的乳房随抽插节律晃动。高潮：抽插加速，男性双手掐住她的胯部猛烈冲撞数十次后抽出，快速撸动数下，在她仰起的脸上和乳房上射出浓稠的白色精液，精液挂在她睫毛和乳尖缓缓滴落。最终：女性双腿发软瘫软在床沿，男性从身后拥抱她，手指滑过她布满汗水的脊背。镜头从中景侧面 → 推进到交合处特写 → 极端特写龟头插入瞬间 → 慢动作特写精液喷射在脸上的拉丝与流淌。皮肤撞击声、湿滑的抽插声、女性高亢呻吟、男性粗重喘息交织。动作流畅，60fps，无肢体畸形，正确人体解剖，五指完整，双腿完整，面部特征一致，无抖动，无跳帧，流畅连续动作。"""
+        normal_diversity_action_presets = [
+            "起始动作：男性正从背后进入她、双手托住她的乳房",
+            "起始动作：女性正骑在男性身上、双手按住他的胸膛扭动腰肢",
+            "起始动作：男性正把她压在床沿、分开她的双腿缓慢推入",
+            "起始动作：男性正抓住她的头发强迫她深喉、龟头抵在她喉部",
+            "起始动作：女性正趴在床沿、男性从身后猛烈抽插",
+            "起始动作：男性正用手指分开她的阴唇舔弄、龟头在她腿间滑动",
+            "起始动作：男性正将她抱起靠墙、双腿缠绕他的腰缓慢推入",
+            "起始动作：男性正从背后环抱她、一手揉捏乳房一手掐住胯部",
+            "起始动作：女性正跪姿舔弄男性勃起的阴茎、双手握住柱身",
+            "起始动作：男性正把阴茎从她体内抽出、撸动数下准备颜射",
+        ]
+
     # 多样性指令：每条提示词使用不同的开场动作/镜头方向/姿势，确保不重复
     diversity_block = ""
     if count > 1:
@@ -7054,6 +7087,8 @@ def _build_h3_dna_user_prompt(
         # 给每条一个不同的起始动作（按 erotic_level 区分）
         if sm_diversity_action_presets is not None:
             action_presets = sm_diversity_action_presets
+        elif normal_diversity_action_presets is not None:
+            action_presets = normal_diversity_action_presets
         else:
             action_presets = [
                 "起始动作：人物正在缓缓呼吸，胸部随呼吸起伏",
@@ -7077,12 +7112,17 @@ def _build_h3_dna_user_prompt(
     # 选 Reference Example（soft / normal / sm 各自的风格）
     if erotic_level == "sm" and sm_reference_example:
         reference_example = sm_reference_example
+    elif erotic_level == "normal" and normal_reference_example:
+        reference_example = normal_reference_example
     else:
-        # 默认 soft 风格示例（保留原内容，覆盖 normal 也基本合适）
+        # soft 默认示例
         reference_example = "例：一位皮肤白皙的东亚美女，黑色长发半扎，穿着浅紫色碎花荷叶边比基尼上衣，坐在泳池边的白色塑料躺椅上。她正在白色躺椅上缓缓呼吸，胸部随均匀呼吸轻轻起伏。她先用手指轻抚自己的锁骨和下巴，身体微微前倾，随后轻轻分开双腿调整坐姿。右手缓慢解开比基尼上衣的系带，荷叶边滑落完全露出饱满的乳房和粉红色乳头。她用双手托起自己的胸部，拇指在乳头上轻轻揉捏打圈，左手顺着纤细腰身滑入泳裤内侧，指尖分开湿润的阴唇，在晶莹发亮的阴蒂上轻轻揉搓挑逗。背部微微弓起，大腿轻轻颤抖，眼神从直视渐渐变得迷离沉醉，嘴唇微张发出轻柔的喘息。镜头从远景平稳推进到全身再靠近半身特写，捕捉她湿润肌肤上的水珠与阳光的光泽。池水轻柔荡漾的声音与她细微的呻吟交织。动作流畅，60fps，无肢体畸形，正确人体解剖，五指完整，双腿完整，面部特征一致，无抖动，无跳帧，流畅连续动作。"
 
+    # 合并 hard requirement block（normal + sm 各自独立追加到 user prompt 头部）
+    hard_requirement_block = (sm_hard_requirement_block or "") + (normal_hard_requirement_block or "")
+
     return f"""Based on the DNA information extracted from the uploaded reference image, generate {count} creative and cinematic MiniMax H3 video prompts in Chinese.
-{sm_hard_requirement_block}
+{hard_requirement_block}
 ━━━ DNA Reference ━━━━━━━━━━━━━━━━━━━
 - 人物类型: {dna.character_type}
 - 人物外貌: {dna.character_description}

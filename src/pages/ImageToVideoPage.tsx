@@ -919,11 +919,35 @@ function EroticPromptCard({
 }: EroticPromptCardProps) {
   const [editingPrompt, setEditingPrompt] = useState(prompt);
   const [isEditing, setIsEditing] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   // 当外部 prompt 变化时同步到编辑状态
   useEffect(() => {
     if (!isEditing) setEditingPrompt(prompt);
   }, [prompt, isEditing]);
+
+  const handleCopy = async () => {
+    const textToCopy = editingPrompt || prompt;
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(textToCopy);
+      } else {
+        // Fallback for non-secure contexts (e.g. http://)
+        const ta = document.createElement('textarea');
+        ta.value = textToCopy;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('[EroticPromptCard] 复制失败', err);
+    }
+  };
 
   return (
     <div className="rounded-xl border border-pink-200 bg-white overflow-hidden">
@@ -963,6 +987,18 @@ function EroticPromptCard({
             className="px-2 py-0.5 rounded-lg bg-pink-100 text-pink-600 text-[9px] font-medium hover:bg-pink-200 transition-colors"
           >
             使用
+          </button>
+          {/* 复制提示词 */}
+          <button
+            onClick={handleCopy}
+            title="复制提示词到剪贴板"
+            className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[9px] font-medium transition-colors ${
+              copied
+                ? 'bg-emerald-100 text-emerald-600'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            {copied ? <><Check size={9} /> 已复制</> : <><Copy size={9} /> 复制</>}
           </button>
           {/* 发送到长视频 */}
           <button
