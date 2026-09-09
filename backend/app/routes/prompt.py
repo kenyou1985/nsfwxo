@@ -8101,26 +8101,28 @@ def _split_multi_prompts(raw: str) -> list[str]:
     return [text]
 
 
-@router.post("/generate/h3-dna", response_model=GenerateH3DnaResponse)
-async def generate_h3_dna(req: GenerateH3DnaRequest, api_key: str = Depends(get_api_key)):
-    """基于图片DNA信息生成 MiniMax H3 格式提示词。
+@router.post("/generate/h3-dna/stream")
+async def generate_h3_dna_stream(req: GenerateH3DnaRequest, api_key: str = Depends(get_api_key)):
+    """流式 NDJSON 版本：实时推送 H3 提示词的每个字符。
 
-    输入：参考图 URL + DNA 信息（人物/场景/服装/动作预判）+ 创作等级 + 时长 + 生成条数
-    输出：N 条 H3 格式中文视频提示词（每条独立不重复），引用 <Picture 1> 指明主体
+    事件格式：
+      {"event":"start","index":0}                  — 第 N 条提示词开始生成
+      {"event":"delta","index":0,"text":"..."}     — 逐字符/逐词增量文本
+      {"event":"end","index":0,"prompt":"..."}     — 第 N 条生成完毕（含完整文本）
+      {"event":"error","index":0,"message":"..."}  — 该槽生成失败
+      {"event":"done","total":N,"successful":M}     — 全部生成完毕
 
-    多条时使用 asyncio.gather 并行生成，所有提示词同时开始调用 Grok-4.6，
-    不再串行等待，大幅缩短总等待时间。
+    多条时并行流式输出，最早完成的槽先 emit end 事件，
+    前端可按 index 分别渲染各槽的加载状态。
     """
     dna = req.dna
     count = max(1, min(req.count, 20))
 
-    # 构建服装字符串
     clothing_str = "; ".join(
         f"{c.name}({c.type}, {c.color} {c.style})"
         for c in dna.clothing_list
     ) or "无可见服装"
 
-    # 系统提示词（极简英文，直接驱动）
     system_prompt = _build_h3_dna_system_prompt(req.erotic_level)
 
     def _build_prompt(variation_idx: int) -> str:
@@ -8142,39 +8144,73 @@ async def generate_h3_dna(req: GenerateH3DnaRequest, api_key: str = Depends(get_
             + hint_suffix
         )
 
-    async def _gen_one(idx: int) -> str:
-        """生成单条提示词（独立任务）"""
-        up = _build_prompt(idx)
-        result = await _generate_single_h3_prompt(api_key, system_prompt, up)
-        check_prompt_safety(result)
-        return result
+    async def _gen_one_stream(idx: int) -> AsyncIterator[str]:
+        """单条提示词的流式生成（yield NDJSON lines）"""
+        try:
+            up = _build_prompt(idx)
+            collected: List[str] = []
 
-    try:
-        # ── 并行生成所有提示词 ──
-        if count == 1:
-            result_clean = await _gen_one(0)
-            return GenerateH3DnaResponse(
-                prompts=[result_clean],
-                erotic_level=req.erotic_level,
-                duration=req.duration,
-            )
+            yield _ndjson_event({"event": "start", "index": idx})
 
-        # 多条：asyncio.gather 并行调用，最长单条决定总耗时
-        results = await asyncio.gather(
-            *[_gen_one(i) for i in range(count)],
-            return_exceptions=False,
-        )
+            # 使用 stream_grok 逐块推送文本
+            async for piece in stream_grok(api_key, system_prompt, up, max_tokens=32768):
+                collected.append(piece)
+                yield _ndjson_event({"event": "delta", "index": idx, "text": piece})
 
-        return GenerateH3DnaResponse(
-            prompts=list(results),
-            erotic_level=req.erotic_level,
-            duration=req.duration,
-        )
-    except ContentSafetyError:
-        raise HTTPException(status_code=400, detail="内容被安全策略拒绝，请调整创作方向")
-    except Exception as e:
-        logger.exception("generate_h3_dna error")
-        raise HTTPException(status_code=500, detail=f"H3 提示词生成失败: {str(e)}")
+            result_clean = "".join(collected).strip()
+            check_prompt_safety(result_clean)
+
+            yield _ndjson_event({
+                "event": "end",
+                "index": idx,
+                "prompt": result_clean,
+            })
+        except ContentSafetyError as e:
+            yield _ndjson_event({"event": "error", "index": idx, "message": f"内容安全拒绝: {e}", "fatal": True})
+        except OpenLuxAPIError as e:
+            yield _ndjson_event({"event": "error", "index": idx, "message": str(e), "fatal": True})
+        except OpenLuxAuthError as e:
+            yield _ndjson_event({"event": "error", "index": idx, "message": str(e), "fatal": True})
+        except Exception as e:
+            yield _ndjson_event({"event": "error", "index": idx, "message": f"{type(e).__name__}: {e}", "fatal": True})
+
+    async def _merge_streams() -> AsyncIterator[str]:
+        """并行运行所有 _gen_one_stream，用 queue 合并 NDJSON lines，保留 index 顺序语义"""
+        queue: asyncio.Queue[Tuple[int, str]] = asyncio.Queue()
+        done_count = {"n": 0, "success": 0}
+        lock = asyncio.Lock()
+
+        async def enqueue(idx: int) -> None:
+            async for line in _gen_one_stream(idx):
+                await queue.put((idx, line))
+            async with lock:
+                done_count["n"] += 1
+            await queue.put((idx, None))  # sentinel: 该槽已完成
+
+        # 启动所有槽的并发生成
+        await asyncio.gather(*[asyncio.create_task(enqueue(i)) for i in range(count)])
+
+        # 收集完成信号
+        finished = set()
+        while len(finished) < count:
+            idx, line = await queue.get()
+            if line is None:
+                finished.add(idx)
+                continue
+            yield line
+            # 检查是否全部结束
+            async with lock:
+                if len(finished) == count:
+                    break
+
+        yield _ndjson_event({"event": "done", "total": count, "successful": done_count["success"]})
+
+    return StreamingResponse(
+        _merge_streams(),
+        media_type="application/x-ndjson",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
 
 _THEME_LABEL_PROMPT = """Given an image prompt, identify the ONE core theme or scenario in exactly 1-5 Chinese characters.
 

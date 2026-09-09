@@ -1050,6 +1050,96 @@ export async function generateH3DnaPrompt(params: GenerateH3DnaParams): Promise<
   }
 }
 
+// ─── H3 DNA 流式生成 ─────────────────────────────────────────────────────────────────
+
+export interface StreamH3DnaCallbacks {
+  onStart?: (info: { index: number }) => void;
+  /** 增量文本（每条提示词独立累加） */
+  onDelta?: (info: { index: number; text: string }) => void;
+  /** 单条提示词完成 */
+  onEnd?: (info: { index: number; prompt: string }) => void;
+  /** 单条出错 */
+  onError?: (info: { index: number; message: string }) => void;
+  /** 全部完成 */
+  onDone?: (info: { total: number; successful: number }) => void;
+}
+
+/**
+ * 流式 H3 DNA 提示词生成 — 实时显示每个字符。
+ *
+ * 使用方式（示例）：
+ *   const handle = await streamGenerateH3DnaPrompt({ ... }, {
+ *     onStart: ({ index }) => { ... },
+ *     onDelta: ({ index, text }) => {
+ *       // 实时累加第 index 条的文本
+ *       setText(prev => ({ ...prev, [index]: (prev[index]||'') + text }));
+ *     },
+ *     onEnd: ({ index, prompt }) => {
+ *       // 第 index 条完整了，填入正式结果
+ *     },
+ *     onError: ({ index, message }) => { ... },
+ *     onDone: ({ total, successful }) => { ... },
+ *   });
+ *   // handle.abort() 可取消
+ */
+export async function streamGenerateH3DnaPrompt(
+  params: GenerateH3DnaParams,
+  callbacks: StreamH3DnaCallbacks,
+): Promise<{ abort: () => void }> {
+  const yunwuKey = getYunwuKey();
+  if (!yunwuKey) {
+    callbacks.onError?.({ index: -1, message: 'OpenLux API Key 未设置' });
+    callbacks.onDone?.({ total: 0, successful: 0 });
+    return { abort: () => {} };
+  }
+
+  const base = getBackendUrl();
+  const url = `${base}/api/prompt/generate/h3-dna/stream`;
+
+  return openNdjsonStream(
+    url,
+    {
+      image_url: params.imageUrl,
+      dna: params.dna,
+      erotic_level: params.eroticLevel,
+      duration: params.duration,
+      user_hint: params.userHint || null,
+      count: params.count ?? 1,
+    },
+    (evt: StreamEvent) => {
+      switch (evt.event) {
+        case 'start':
+          callbacks.onStart?.({ index: (evt.index as number) ?? 0 });
+          break;
+        case 'delta':
+          callbacks.onDelta?.({
+            index: (evt.index as number) ?? 0,
+            text: (evt.text as string) ?? '',
+          });
+          break;
+        case 'end':
+          callbacks.onEnd?.({
+            index: (evt.index as number) ?? 0,
+            prompt: (evt.prompt as string) ?? '',
+          });
+          break;
+        case 'error':
+          callbacks.onError?.({
+            index: (evt.index as number) ?? 0,
+            message: (evt.message as string) ?? '未知错误',
+          });
+          break;
+        case 'done':
+          callbacks.onDone?.({
+            total: (evt.total as number) ?? 0,
+            successful: (evt.successful as number) ?? 0,
+          });
+          break;
+      }
+    },
+  );
+}
+
 /**
  * 调用后端 /api/prompt/extract-image-dna 端点
  * 由 Gemini-3.8-flash 提取图片 DNA（人物/场景/服装信息）

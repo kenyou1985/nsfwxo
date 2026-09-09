@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Video, Image as ImageIcon, Loader2, X, Sparkles, Copy, Check, Play } from 'lucide-react';
 import { uploadImage, WORKFLOW } from '../services/runninghub';
-import { expandVideoFromImage, generateH3DnaPrompt, extractImageDna, type ImageDnaResult } from '../services/promptApi';
+import { expandVideoFromImage, generateH3DnaPrompt, streamGenerateH3DnaPrompt, extractImageDna, type ImageDnaResult } from '../services/promptApi';
 import { GenerateButton } from '../components/GenerateButton';
 import type { NodeInfo } from '../types';
 import type { GirlfriendPreset } from '../data/girlfriendPresets';
@@ -398,7 +398,7 @@ export function MiniMaxLongVideoV2Page({
     }
   };
 
-  /** 情色创作模式：结合 DNA 信息生成 H3 提示词 */
+  /** 情色创作模式：结合 DNA 信息流式生成 H3 提示词 */
   const handleEroticAnalyze = useCallback(async () => {
     const uploadedImages = images.filter(img => img.path && img.path !== 'None');
     if (uploadedImages.length === 0) {
@@ -410,44 +410,81 @@ export function MiniMaxLongVideoV2Page({
       return;
     }
     setEroticAnalyzing(true);
-    try {
-      const firstImage = uploadedImages[0];
-      let imageDataUrl = firstImage.path;
-      if (firstImage.path.startsWith('blob:') || firstImage.path.startsWith('http')) {
-        try {
-          const resp = await fetch(firstImage.path);
-          const blob = await resp.blob();
-          imageDataUrl = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-          });
-        } catch { /* use original path */ }
-      }
 
-      const res = await generateH3DnaPrompt({
+    const firstImage = uploadedImages[0];
+    let imageDataUrl = firstImage.path;
+    if (firstImage.path.startsWith('blob:') || firstImage.path.startsWith('http')) {
+      try {
+        const resp = await fetch(firstImage.path);
+        const blob = await resp.blob();
+        imageDataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      } catch { /* use original path */ }
+    }
+
+    const userHint = prompt.trim() || undefined;
+    const dur = (parseInt(duration, 10) as 15 | 30 | 60);
+    const count = eroticCount;
+
+    setEroticPrompts(Array(count).fill('')); // 流式实时显示
+
+    const accumulated: Record<number, string> = {};
+
+    await streamGenerateH3DnaPrompt(
+      {
         imageUrl: imageDataUrl,
         dna: imageDna,
         eroticLevel: eroticLevel,
-        duration: (parseInt(duration, 10) as 15 | 30 | 60),
-        userHint: prompt.trim() || undefined,
-        count: eroticCount,
-      });
-
-      if (res.prompts && res.prompts.length > 0) {
-        setEroticPrompts(res.prompts);
-        // 默认把第一条填入主提示词区
-        setPrompt(res.prompts[0]);
-        onSuccess(`已生成 ${res.prompts.length} 条 H3 提示词，可在下方选择使用`);
-      } else {
-        onError('生成失败，未返回提示词');
-      }
-    } catch (err) {
-      onError(err instanceof Error ? err.message : '生成失败，请重试');
-    } finally {
-      setEroticAnalyzing(false);
-    }
+        duration: dur,
+        userHint,
+        count,
+      },
+      {
+        onStart: ({ index }) => { accumulated[index] = ''; },
+        onDelta: ({ index, text }) => {
+          accumulated[index] = (accumulated[index] ?? '') + text;
+          setEroticPrompts(prev => {
+            const updated = [...prev];
+            while (updated.length <= index) updated.push('');
+            updated[index] = accumulated[index] ?? '';
+            return updated;
+          });
+        },
+        onEnd: ({ index, prompt: p }) => {
+          accumulated[index] = p;
+          setEroticPrompts(prev => {
+            const updated = [...prev];
+            while (updated.length <= index) updated.push('');
+            updated[index] = p;
+            return updated;
+          });
+        },
+        onError: ({ index, message }) => {
+          console.error(`[H3 stream] prompt #${index + 1} failed:`, message);
+          accumulated[index] = `[生成失败 #${index + 1}: ${message}]`;
+          setEroticPrompts(prev => {
+            const updated = [...prev];
+            while (updated.length <= index) updated.push('');
+            updated[index] = accumulated[index] ?? '';
+            return updated;
+          });
+        },
+        onDone: ({ successful }) => {
+          setEroticAnalyzing(false);
+          const first = Object.values(accumulated).find(p => p && !p.startsWith('[生成失败'));
+          if (first) setPrompt(first);
+          if (successful > 0) {
+            onSuccess(`已生成 ${successful} 条 H3 提示词`);
+          } else {
+            onError(`H3 提示词生成全部失败，请重试`);
+          }
+        },
+      },
+    );
   }, [images, imageDna, eroticLevel, duration, eroticCount, prompt, onError, onSuccess]);
 
   // ── 参考图上传 ─────────────────────────────────────────────────────────

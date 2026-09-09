@@ -7,7 +7,7 @@ import { ParameterSelect } from '../components/ParameterSelect';
 import { GenerateButton } from '../components/GenerateButton';
 import { VideoTaskList } from '../components/VideoTaskList';
 import { uploadImage, WORKFLOW } from '../services/runninghub';
-import { expandVideoFromImage, streamExpandPrompt, streamRandomPrompt, extractImageDna, generateH3DnaPrompt, type ImageDnaResult } from '../services/promptApi';
+import { expandVideoFromImage, streamExpandPrompt, streamRandomPrompt, extractImageDna, generateH3DnaPrompt, streamGenerateH3DnaPrompt, type ImageDnaResult } from '../services/promptApi';
 import { parseStoryboardScript, toVideoScriptPanels, type ParsedScriptPanel } from '../utils/scriptParser';
 import { getYunwuKey } from '../services/storage';
 import { compressDataUrlIfNeeded, compressImageFile, isHeicDataUrl } from '../utils/imagePreprocess';
@@ -1175,106 +1175,95 @@ function MiniMaxH3Panel({
     }
     setMmEroticAnalyzing(true);
 
-    // ── 流式并行生成：每条提示词独立请求，完成一条立即显示一条 ──────────────
-    // 1. 立即显示 N 个 loading 占位槽（流式用户体验的关键）
-    const count = mmEroticCount;
-    setMmEroticPrompts(Array(count).fill(null)); // 全部 null = 全部加载中
-
-    try {
-      const firstImage = uploadedImages[0];
-
-      // 转换图片为 base64（handleEroticAnalyze 专用，仅用于 H3 生成，不用于 DNA 提取）
-      let imageDataUrl = firstImage.path;
-      if (firstImage.path.startsWith('blob:') || firstImage.path.startsWith('http')) {
-        try {
-          const resp = await fetch(firstImage.path);
-          const blob = await resp.blob();
-          imageDataUrl = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-          });
-        } catch {
-          // fetch 失败时仍使用原路径
-        }
-      }
-
-      const userHint = mmPrompt.trim() || undefined;
-      const duration = parseInt(mmDuration, 10) as 15 | 30 | 60;
-
-      // 2. 并行发起 N 个请求（count=1 每条），结果按完成顺序追加到 state
-      const pendingCount = { current: count };
-      const completedCount = { current: 0 };
-
-      // 每个请求完成后：找到第一个 null 槽并填入结果（按完成顺序填入，保证 UI 不乱序闪烁）
-      const fillNextSlot = (prompt: string) => {
-        completedCount.current += 1;
-        setMmEroticPrompts(prev => {
-          // 找到第一个 null 槽（loading 中的）
-          const idx = prev.findIndex(p => p === null);
-          if (idx < 0) return prev; // 已全部填满
-          const updated = [...prev];
-          updated[idx] = prompt;
-          return updated;
+    // 图片 base64 转换（用于 H3 流式生成）
+    const firstImage = uploadedImages[0];
+    let imageDataUrl = firstImage.path;
+    if (firstImage.path.startsWith('blob:') || firstImage.path.startsWith('http')) {
+      try {
+        const resp = await fetch(firstImage.path);
+        const blob = await resp.blob();
+        imageDataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
         });
-        // 最后一条完成时解锁按钮并填入第一条当默认提示词
-        if (completedCount.current === count) {
-          setMmEroticAnalyzing(false);
-          // 读取已填入的提示词（可能是乱序完成的，取第一条已完成的）
+      } catch {
+        // fetch 失败时仍使用原路径
+      }
+    }
+
+    const userHint = mmPrompt.trim() || undefined;
+    const duration = parseInt(mmDuration, 10) as 15 | 30 | 60;
+
+    // ── 流式并行生成：单次请求，多条并行流式输出 ───────────────────────────
+    // 1. 立即显示 N 个空 loading 占位槽（流式用户体验的关键）
+    const count = mmEroticCount;
+    setMmEroticPrompts(Array(count).fill('')); // 空字符串 = 正在生成
+
+    // 用 ref 保存每条提示词的累加文本（避免 setState 闭包问题）
+    const accumulated: Record<number, string> = {};
+
+    // 2. 单次流式请求，并行生成 count 条，最早完成的先显示
+    const { abort } = await streamGenerateH3DnaPrompt(
+      {
+        imageUrl: imageDataUrl,
+        dna: mmImageDna,
+        eroticLevel: mmEroticLevel,
+        duration,
+        userHint,
+        count,
+      },
+      {
+        onStart: ({ index }) => {
+          accumulated[index] = '';
+        },
+        onDelta: ({ index, text }) => {
+          accumulated[index] = (accumulated[index] ?? '') + text;
           setMmEroticPrompts(prev => {
-            const filled = prev.filter((p): p is string => p !== null);
-            if (filled.length > 0) {
-              setMmPrompt(filled[0]); // 默认填入第一条
-            }
+            const updated = [...prev];
+            while (updated.length <= index) updated.push('');
+            updated[index] = accumulated[index] ?? '';
+            return updated;
+          });
+        },
+        onEnd: ({ index, prompt }) => {
+          accumulated[index] = prompt;
+          setMmEroticPrompts(prev => {
+            const updated = [...prev];
+            while (updated.length <= index) updated.push('');
+            updated[index] = prompt;
+            return updated;
+          });
+        },
+        onError: ({ index, message }) => {
+          console.error(`[H3 stream] prompt #${index + 1} failed:`, message);
+          accumulated[index] = `[生成失败 #${index + 1}: ${message}]`;
+          setMmEroticPrompts(prev => {
+            const updated = [...prev];
+            while (updated.length <= index) updated.push('');
+            updated[index] = accumulated[index] ?? '';
+            return updated;
+          });
+        },
+        onDone: ({ successful }) => {
+          setMmEroticAnalyzing(false);
+          setMmEroticPrompts(prev => {
+            const first = prev.find(p => p && !p.startsWith('[生成失败'));
+            if (first) setMmPrompt(first);
             return prev;
           });
-          onSuccess(`已生成 ${count} 条 H3 提示词，可在下方选择使用`);
-        }
-      };
+          if (successful > 0) {
+            onSuccess(`已生成 ${successful} 条 H3 提示词`);
+          } else {
+            onError(`H3 提示词生成全部失败，请重试`);
+          }
+        },
+      },
+    );
 
-      // 同时发起所有 N 个请求（真正的并行，不等前一条完成再开始下一条）
-      const requestPromises = Array.from({ length: count }, (_, i) =>
-        generateH3DnaPrompt({
-          imageUrl: imageDataUrl,
-          dna: mmImageDna,
-          eroticLevel: mmEroticLevel,
-          duration,
-          userHint,
-          count: 1,  // 每条独立请求，流式更新
-        })
-          .then(res => {
-            if (res.prompts && res.prompts.length > 0) {
-              fillNextSlot(res.prompts[0]);
-            }
-          })
-          .catch((err: Error) => {
-            pendingCount.current -= 1;
-            console.error(`[H3] prompt #${i + 1} failed:`, err.message);
-            // 该槽标记为失败（用错误信息占位）
-            setMmEroticPrompts(prev => {
-              const idx = prev.findIndex(p => p === null);
-              if (idx < 0) return prev;
-              const updated = [...prev];
-              updated[idx] = `[生成失败 #${i + 1}: ${err.message}]`;
-              return updated;
-            });
-            // 最后一条时统一处理
-            if (pendingCount.current <= 0) {
-              setMmEroticAnalyzing(false);
-              onError(`H3 提示词生成失败，请重试`);
-            }
-          })
-      );
+    void abort;
 
-      // 等待所有请求完成（Promise.all 即使有失败也等全部 resolve/reject）
-      await Promise.allSettled(requestPromises);
-
-    } catch (err) {
-      setMmEroticAnalyzing(false);
-      setMmEroticPrompts([]);
-      onError(err instanceof Error ? err.message : '生成失败，请重试');
-    }
   }, [mmImages, mmEroticLevel, mmImageDna, mmPrompt, mmDuration, mmEroticCount, onError, onSuccess]);
 
   // Pose preset handler

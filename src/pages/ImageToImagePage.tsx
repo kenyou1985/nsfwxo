@@ -1326,11 +1326,11 @@ export function ImageToImagePage({
 
       {/* Girlfriend Selector — 仅单图模式 */}
       {img2imgMode === 'single' && (
-        <GirlfriendSelector
-          selectedId={selectedGirlfriend ? (selectedGirlfriend.isCustom ? `custom_${selectedGirlfriend.id}` : selectedGirlfriend.id) : null}
-          onSelect={handleGirlfriendSelect}
-          disabled={girlfriendUploading || taskManager.isFull}
-        />
+      <GirlfriendSelector
+        selectedId={selectedGirlfriend ? (selectedGirlfriend.isCustom ? `custom_${selectedGirlfriend.id}` : selectedGirlfriend.id) : null}
+        onSelect={handleGirlfriendSelect}
+        disabled={girlfriendUploading || taskManager.isFull}
+      />
       )}
 
       {/* ─── 单图编辑模式 UI ─────────────────────────────────────────────── */}
