@@ -40,6 +40,13 @@ interface PromptEditorProps {
   onGachaPromptChange?: (v: string) => void;
   /** 文本框下方插入的自定义按钮组（如"插入参考图引用"）— 仅在多图模式使用 */
   extraTextareaActions?: React.ReactNode;
+  /**
+   * 标签生成卡片的「生图」按钮回调 — 多图模式使用
+   * 点击后会以标签 + 自定义文本作为提示词直接提交生图任务
+   */
+  onSubmitGeneration?: () => void;
+  /** 「生图」按钮是否处于提交中状态 */
+  isSubmittingGeneration?: boolean;
 }
 
 export function PromptEditor({
@@ -70,6 +77,8 @@ export function PromptEditor({
   gachaPrompt,
   onGachaPromptChange,
   extraTextareaActions,
+  onSubmitGeneration,
+  isSubmittingGeneration = false,
 }: PromptEditorProps) {
   const [showNegative, setShowNegative] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -312,7 +321,24 @@ export function PromptEditor({
           <div className="bg-bg-surface border border-border/40 rounded-xl px-3 py-2">
             <div className="flex items-center justify-between mb-1">
               <span className="text-[9px] font-medium text-text-tertiary uppercase tracking-wide">标签生成</span>
-              <span className="text-[9px] text-text-tertiary/50">{positiveTags.length} 标签</span>
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] text-text-tertiary/50">{positiveTags.length} 标签</span>
+                {onSubmitGeneration && (
+                  <button
+                    onClick={onSubmitGeneration}
+                    disabled={disabled || isSubmittingGeneration}
+                    title="以当前标签+自定义文本作为提示词直接生图"
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                  >
+                    {isSubmittingGeneration ? (
+                      <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <Sparkles size={10} />
+                    )}
+                    <span>{isSubmittingGeneration ? '提交中' : '生图'}</span>
+                  </button>
+                )}
+              </div>
             </div>
             <p className="text-[10px] text-text-secondary font-mono leading-relaxed break-all line-clamp-3">
               {tagPromptText}

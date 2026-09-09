@@ -394,20 +394,28 @@ export function ImageToImagePage({
     }
   };
 
-  const handleMultiRefGenerate = async () => {
+  const handleMultiRefGenerate = async (overridePrompt?: string) => {
     // 至少需要1张图
     const hasImage = multiRefImages.some(img => img.path);
     if (!hasImage) {
       onError?.('请至少上传一张参考图');
       return;
     }
-    if (!multiRefPrompt.trim()) {
+    // 优先使用 overridePrompt（标签库「生图」按钮走这条路径）
+    // 否则使用当前的 multiRefPrompt 状态
+    const promptForSubmit = (overridePrompt ?? multiRefPrompt).trim();
+    if (!promptForSubmit) {
       onError?.('请输入描述提示词');
       return;
     }
     if (taskManager.isFull) {
       onError?.(`任务队列已满（最多 ${MAX_TASKS} 个任务），请等待当前任务完成`);
       return;
+    }
+
+    // 同步覆盖 multiRefPrompt（让截图2位置的描述提示词编辑框也保持一致）
+    if (overridePrompt) {
+      setMultiRefPrompt(overridePrompt);
     }
 
     setMultiRefSubmitting(true);
@@ -461,7 +469,7 @@ export function ImageToImagePage({
 
       // 提示词（nodeId: 107）
       // 若锚定了数字人，追加角色身份锁定提示词
-      let finalPrompt = multiRefPrompt.trim();
+      let finalPrompt = promptForSubmit;
       if (multiRefGirlfriend) {
         const charName = multiRefGirlfriend.nameZh || multiRefGirlfriend.name;
         const charId = multiRefGirlfriend.id.toUpperCase().slice(0, 4);
@@ -917,6 +925,32 @@ export function ImageToImagePage({
       .join(', ');
     return [pos, neg].filter(Boolean).join(', ');
   }, [multiRefPositiveTags, multiRefNegativeTags]);
+
+  /**
+   * 把多图模式标签库里的内容拼成完整提示词：
+   *   标签（正/负 tag + 权重） + 用户自定义文本 + 数字人 characterPrompt + 质量增强
+   * 返回 null 表示没有任何内容（提示用户至少选 1 个 tag 或输入自定义文本）
+   *
+   * 被两处复用：
+   *   1. 多图 TagPanel 的 onGenerateFromPrompt — 写入 multiRefPrompt（"自由提示词"按钮）
+   *   2. 多图 TagPanel 标签生成卡片的「生图」按钮 — 拼好后直接提交生图
+   */
+  const buildMultiRefTagPanelPrompt = useCallback((): string | null => {
+    const tagPart = buildMultiRefTagPrompt();
+    const userText = multiRefTagCustomPrompt.trim();
+    const parts: string[] = [];
+    if (tagPart) parts.push(tagPart);
+    if (userText) parts.push(userText);
+    if (multiRefGirlfriend?.characterPrompt) parts.push(multiRefGirlfriend.characterPrompt);
+    if (multiRefTagEn) parts.push(QUALITY_BOOST_PROMPT);
+    const finalPrompt = parts.join(', ').trim();
+    return finalPrompt || null;
+  }, [
+    buildMultiRefTagPrompt,
+    multiRefTagCustomPrompt,
+    multiRefGirlfriend,
+    multiRefTagEn,
+  ]);
 
   // ═══════ ════════════════════════════════════════════════════════════════════════
 
@@ -1737,17 +1771,7 @@ export function ImageToImagePage({
               onExpandedPromptChange={setMultiRefTagExpanded}
               extraTextareaActions={renderMultiRefTagPanelImageButtons()}
               onGenerateFromPrompt={async () => {
-                // 拼接 tag + customPrompt → 注入 multiRefPrompt
-                const tagPart = buildMultiRefTagPrompt();
-                const userText = multiRefTagCustomPrompt.trim();
-                const parts: string[] = [];
-                if (tagPart) parts.push(tagPart);
-                if (userText) parts.push(userText);
-                if (multiRefGirlfriend?.characterPrompt) {
-                  parts.push(multiRefGirlfriend.characterPrompt);
-                }
-                if (multiRefTagEn) parts.push(QUALITY_BOOST_PROMPT);
-                const finalPrompt = parts.join(', ').trim();
+                const finalPrompt = buildMultiRefTagPanelPrompt();
                 if (!finalPrompt) {
                   onError?.('请先选择标签或输入自定义提示词');
                   return;
@@ -1755,6 +1779,16 @@ export function ImageToImagePage({
                 setMultiRefPrompt(finalPrompt);
                 onSuccess?.('已根据标签/自定义提示词生成多图编辑种子');
               }}
+              onSubmitGeneration={async () => {
+                // 标签生成卡片的「生图」按钮 — 直接以标签库内容为提示词生图
+                const finalPrompt = buildMultiRefTagPanelPrompt();
+                if (!finalPrompt) {
+                  onError?.('请先选择标签或输入自定义提示词');
+                  return;
+                }
+                await handleMultiRefGenerate(finalPrompt);
+              }}
+              isSubmittingGeneration={multiRefSubmitting}
             />
           </div>
           {/* 桌面端：和单图模式一致的双列展示 */}
@@ -1781,16 +1815,7 @@ export function ImageToImagePage({
               onExpandedPromptChange={setMultiRefTagExpanded}
               extraTextareaActions={renderMultiRefTagPanelImageButtons()}
               onGenerateFromPrompt={async () => {
-                const tagPart = buildMultiRefTagPrompt();
-                const userText = multiRefTagCustomPrompt.trim();
-                const parts: string[] = [];
-                if (tagPart) parts.push(tagPart);
-                if (userText) parts.push(userText);
-                if (multiRefGirlfriend?.characterPrompt) {
-                  parts.push(multiRefGirlfriend.characterPrompt);
-                }
-                if (multiRefTagEn) parts.push(QUALITY_BOOST_PROMPT);
-                const finalPrompt = parts.join(', ').trim();
+                const finalPrompt = buildMultiRefTagPanelPrompt();
                 if (!finalPrompt) {
                   onError?.('请先选择标签或输入自定义提示词');
                   return;
@@ -1798,6 +1823,15 @@ export function ImageToImagePage({
                 setMultiRefPrompt(finalPrompt);
                 onSuccess?.('已根据标签/自定义提示词生成多图编辑种子');
               }}
+              onSubmitGeneration={async () => {
+                const finalPrompt = buildMultiRefTagPanelPrompt();
+                if (!finalPrompt) {
+                  onError?.('请先选择标签或输入自定义提示词');
+                  return;
+                }
+                await handleMultiRefGenerate(finalPrompt);
+              }}
+              isSubmittingGeneration={multiRefSubmitting}
             />
           </div>
           <div className="text-[10px] text-text-tertiary leading-relaxed">
