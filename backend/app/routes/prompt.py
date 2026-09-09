@@ -5,7 +5,7 @@ import json
 import re
 import time
 import logging
-from typing import AsyncIterator, Optional
+from typing import AsyncIterator, List, Optional
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import StreamingResponse
@@ -7099,10 +7099,80 @@ def _build_h3_dna_system_prompt(erotic_level: str) -> str:
 
 
 # ════════════════════════════════════════════════════════════════════════════════
-# 场景 → 姿势映射规则库（参考 195+ 姿势库）
+# H3 专用输出模板（subject_definitions / summary / retention_analysis / detailed_description）
 # ════════════════════════════════════════════════════════════════════════════════
-# 关键词 → 姿势集合（KEY: 场景关键词，VALUE: 该场景下合适的起始动作列表）
-# 每个姿势按「体位大类 + 具体动作 + 环境适配」结构化描述
+
+# ── 分镜数规则 ──
+# 15 秒视频 → 4-6 个分镜
+# 30 秒视频 → 9 个分镜
+# 60 秒视频 → 9-12 个分镜
+DEFAULT_SHOT_COUNT_BY_DURATION = {
+    15: 5,   # 4-6 范围内取 5
+    30: 9,   # 9 固定
+    60: 11,  # 9-12 范围内取 11
+}
+
+
+def _calc_default_shot_count(duration: int) -> int:
+    """根据视频时长返回默认分镜数（15s→5, 30s→9, 60s→11）"""
+    if duration <= 15:
+        return DEFAULT_SHOT_COUNT_BY_DURATION[15]
+    elif duration <= 30:
+        return DEFAULT_SHOT_COUNT_BY_DURATION[30]
+    else:
+        return DEFAULT_SHOT_COUNT_BY_DURATION[60]
+
+
+# ── 镜头/分镜景别池（保证分镜多样化） ──
+SHOT_FRAME_TYPES = [
+    "全景",
+    "远景",
+    "中全景",
+    "中景",
+    "中景侧面",
+    "中景正面",
+    "中景背面",
+    "近景",
+    "近景侧面",
+    "近景特写",
+    "半身特写",
+    "胸部特写",
+    "腰腹特写",
+    "臀部特写",
+    "面部特写",
+    "私处特写",
+    "交合处特写",
+    "极端特写",
+    "俯拍中景",
+    "仰拍中景",
+    "低角度中景",
+    "手持微晃中景",
+    "侧面过肩镜头",
+    "主观视角镜头",
+]
+
+
+# ── 服装/脱衣阶段模板（生成中必须显式经历） ──
+# 适用于 normal/sm 模式，每条 H3 提示词必须经过：
+# 阶段 1: 初始着装（参考图一致）
+# 阶段 2: 前戏挑逗（男伴或自己开始脱/拨开衣物）
+# 阶段 3: 性交过程（衣物已脱落/拨开，关键部位暴露）
+# 阶段 4: 高潮/射精
+# 阶段 5: 事后（精液流淌/身体痕迹）
+DESCRIPTIVE_PHASES = {
+    "setup": "初始着装阶段",
+    "strip_tease": "前戏挑逗脱衣",
+    "penetration": "性交插入",
+    "climax": "高潮射精",
+    "aftermath": "事后流淌",
+}
+
+
+# ════════════════════════════════════════════════════════════════════════════════
+# 场景 → 姿势映射规则库（参考 195+ 姿势库 + DNA 动作预判）
+# ════════════════════════════════════════════════════════════════════════════════
+# 根据 DNA 的 scene_type / scene_description / action_prediction 自动匹配
+# 适合该场景和动作的姿势集合。
 
 _OUTDOOR_SCENE_KEYWORDS = [
     "outdoor", "outside", "野外", "户外", "庭院", "院子", "garden", "courtyard",
@@ -7285,52 +7355,107 @@ ORAL_POSES = [
 
 def _build_scene_aware_action_presets(dna) -> List[str]:
     """
-    根据 DNA 场景信息，智能返回适合该场景的多样化起始动作列表。
-    整合 195+ 姿势库的分类知识，按场景关键词匹配姿势池，
-    确保每条提示词的姿势与环境设定保持一致且互不重复。
+    根据 DNA 场景信息 + 动作预判，智能返回适合该场景的多样化起始动作列表。
+
+    整合 195+ 姿势库的分类知识，按以下顺序匹配：
+      1. 场景关键词（户外/室内/水边/夜间）
+      2. 动作预判关键词（站立/趴/跪/坐/抱起/高举等）
+      3. 服装类型关键词（泳衣/衬衫/瑜伽裤/束缚衣等）
+    确保每条提示词的姿势与「DNA 场景 + DNA 动作 + DNA 服装」三者匹配，
+    避免出现「泳衣却跪在床上」「户外却用椅子姿势」之类的环境错配。
     """
     scene_type = (dna.scene_type or "").lower()
     scene_desc = (dna.scene_description or "").lower()
+    action_pred = (dna.action_prediction or "").lower()
 
-    # 合并所有场景文本
+    # 合并场景文本
     full_scene = f"{scene_type} {scene_desc}"
 
-    # 检测场景类型
+    # ── 1. 动作预判关键词检测（DNA 提取的"接下来1-3秒动作"） ──
+    # 这些关键词用于加权相应姿势池
+    action_kw = {
+        "standing": ["站立", "站姿", "站", "standing", "扶", "拍照"],
+        "kneeling_prone": ["跪", "趴", "kneel", "跪下", "趴下", "四肢着地"],
+        "sitting": ["坐", "坐在", "坐在椅子上", "坐姿", "sitting"],
+        "carrying": ["抱起", "抱", "举起", "lift", "carry", "举"],
+        "walking": ["走", "走进", "走近", "walking"],
+        "kissing": ["亲吻", "接吻", "kiss", "热吻", "深吻"],
+        "oral": ["口交", "舔", "深喉", "oral", "口交前"],
+        "hand": ["抚摸", "揉捏", "揉", "fingering", "手指"],
+    }
+    detected_actions = set()
+    for cat, kws in action_kw.items():
+        for kw in kws:
+            if kw in action_pred:
+                detected_actions.add(cat)
+                break
+
+    # ── 2. 服装类型检测（影响姿势可选性） ──
+    # 泳衣/瑜伽裤/束缚衣 → 更适合户外/站立/后入姿势
+    # 衬衫/连衣裙/睡衣 → 适合室内/坐姿/趴姿
+    clothing_names = []
+    if hasattr(dna, "clothing_list") and dna.clothing_list:
+        for c in dna.clothing_list:
+            cname = (getattr(c, "name", "") or "").lower()
+            clothing_names.append(cname)
+    clothing_text = " ".join(clothing_names)
+
+    is_swimwear = any(kw in clothing_text for kw in ["泳衣", "泳装", "比基尼", "bikini", "swimsuit"])
+    is_yoga_pants = any(kw in clothing_text for kw in ["瑜伽裤", "yoga", "leggings"])
+    is_uniform = any(kw in clothing_text for kw in ["制服", "套装", "西装", "校服", "ol"])
+    is_bondage = any(kw in clothing_text for kw in ["束缚", "皮革", "乳胶", "bondage"])
+
+    # ── 3. 场景分类 ──
     is_outdoor = any(kw in full_scene for kw in _OUTDOOR_SCENE_KEYWORDS)
     is_water = any(kw in full_scene for kw in _WATER_SCENE_KEYWORDS)
     is_night = any(kw in full_scene for kw in _NIGHT_SCENE_KEYWORDS)
     is_indoor = any(kw in full_scene for kw in _INDOOR_SCENE_KEYWORDS)
 
+    # ── 4. 姿势池构建（按权重） ──
     pool: List[str] = []
 
-    # 场景权重分配：户外优先户外姿势，室内优先室内姿势
+    # 基础权重：场景决定主姿势池
     if is_outdoor:
-        pool += OUTDOOR_STANDING_POSES      # 户外站立 40+
-        pool += PRONE_KNEELING_POSES        # 趴地/跪姿 15+
-        pool += ORAL_POSES[:5]              # 口交 5
-        pool += GENERAL_STANDING_POSES      # 通用站立 30+
-        pool += WATER_POSES[:5]              # 水边 5
+        # 户外：站立姿势为主（结合 DNA 动作预判「扶/站/抱起/拍照」）
+        pool += OUTDOOR_STANDING_POSES * 3     # 户外站立 120+ 条（重复权重）
+        if is_swimwear:
+            # 泳衣 + 户外：站立后入/单腿高抬/抱起更常见
+            pool += OUTDOOR_STANDING_POSES[:20] * 2
+        if is_yoga_pants:
+            # 瑜伽裤 + 户外：站立单腿高抬/后入变体
+            pool += OUTDOOR_STANDING_POSES[5:25] * 2
+        pool += PRONE_KNEELING_POSES          # 趴地/跪姿 15+
+        pool += GENERAL_STANDING_POSES        # 通用站立 30+
+        if is_water:
+            pool += WATER_POSES               # 水边 10+
         if is_night:
-            pool += NIGHT_ROMANCE_POSES[:5]  # 夜间 5
+            pool += NIGHT_ROMANCE_POSES       # 夜间 10+
+        pool += ORAL_POSES[:5]
     elif is_water:
-        pool += WATER_POSES                  # 泳池/温泉 10+
-        pool += OUTDOOR_STANDING_POSES[:10]  # 户外站立 10
-        pool += ORAL_POSES[:5]              # 口交 5
-        pool += CHAIR_DESK_BED_POSES[:5]    # 床/椅子 5
+        pool += WATER_POSES * 2              # 泳池/温泉 20+
+        pool += OUTDOOR_STANDING_POSES[:15]   # 户外站立
+        pool += ORAL_POSES[:5]
+        pool += CHAIR_DESK_BED_POSES[:5]
     elif is_night:
-        pool += NIGHT_ROMANCE_POSES          # 夜间 10+
-        pool += OUTDOOR_STANDING_POSES[:10]  # 户外站立 10
-        pool += INDOOR_STANDING_POSES[:10]   # 室内站立 10
-        pool += ORAL_POSES[:5]              # 口交 5
-        pool += GENERAL_STANDING_POSES[:10]  # 通用站立 10
+        pool += NIGHT_ROMANCE_POSES * 2
+        pool += OUTDOOR_STANDING_POSES[:10]
+        pool += INDOOR_STANDING_POSES[:10]
+        pool += ORAL_POSES[:5]
+        pool += GENERAL_STANDING_POSES[:10]
     elif is_indoor:
-        pool += INDOOR_STANDING_POSES        # 室内站立 20+
-        pool += CHAIR_DESK_BED_POSES         # 椅子/桌子/床沿 15+
-        pool += PRONE_KNEELING_POSES         # 趴地/跪姿 15+
-        pool += ORAL_POSES                   # 口交 15+
-        pool += GENERAL_STANDING_POSES       # 通用站立 30+
+        if is_bondage:
+            # SM室内：趴/跪/束缚姿势优先
+            pool += PRONE_KNEELING_POSES * 2
+            pool += CHAIR_DESK_BED_POSES[:10]
+            pool += ORAL_POSES
+        else:
+            pool += INDOOR_STANDING_POSES
+            pool += CHAIR_DESK_BED_POSES
+            pool += PRONE_KNEELING_POSES
+            pool += ORAL_POSES
+        pool += GENERAL_STANDING_POSES
     else:
-        # 未知场景：综合所有姿势池
+        # 未知场景：综合所有姿势池（DNA 提取失败时的兜底）
         pool += OUTDOOR_STANDING_POSES[:15]
         pool += INDOOR_STANDING_POSES[:10]
         pool += PRONE_KNEELING_POSES[:8]
@@ -7340,12 +7465,38 @@ def _build_scene_aware_action_presets(dna) -> List[str]:
         pool += WATER_POSES[:5]
         pool += NIGHT_ROMANCE_POSES[:5]
 
+    # ── 5. 动作预判加权 ──
+    # 如果 DNA 提取的动作预判明确指向站立，则 outdoor/general standing 进一步加权
+    if "standing" in detected_actions or "carrying" in detected_actions:
+        # 站立/抱起主导：优先 outdoor/general standing
+        pool = OUTDOOR_STANDING_POSES * 2 + GENERAL_STANDING_POSES + pool
+    if "kneeling_prone" in detected_actions:
+        pool = PRONE_KNEELING_POSES * 2 + pool
+    if "sitting" in detected_actions:
+        pool = CHAIR_DESK_BED_POSES * 2 + pool
+    if "oral" in detected_actions:
+        pool = ORAL_POSES * 2 + pool
+    if "kissing" in detected_actions:
+        # 接吻前戏多以站立/传教士姿势起手
+        pool = GENERAL_STANDING_POSES + OUTDOOR_STANDING_POSES + pool
+    if "walking" in detected_actions:
+        # 走近/走进来：后入站立姿势
+        pool = OUTDOOR_STANDING_POSES + pool
+
     # 打乱顺序，避免前几条总是相同类型的姿势
     import random
     random.shuffle(pool)
 
+    # 去重（保留顺序）
+    seen = set()
+    unique_pool = []
+    for p in pool:
+        if p not in seen:
+            seen.add(p)
+            unique_pool.append(p)
+
     # 返回至少 40 条（如果 pool 不够 40 条就全部返回）
-    return pool[:max(40, len(pool))]
+    return unique_pool[:max(40, len(unique_pool))]
 
 
 def _build_h3_dna_user_prompt(
@@ -7456,6 +7607,47 @@ F. 借助场景元素站立：
 
 【严格要求】：当场景为户外/庭院/野外时，必须从上述 A-F 各类中选择完全不同的站立姿势，每条提示词的站立姿势不能重复（即使抽卡数量为 2 条也要确保 2 条姿势不同）。禁止连续生成"后入"×"后入"或"传教士"×"传教士"的重复组合。
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+━━━ 👗 服装状态渐进式脱衣/暴露规则（强制 — 避免"穿着衣服做爱"的逻辑错误）━━━
+**绝对禁止**：在性交/插入/口交/射精时女性仍穿着完整的衣物（如完整衬衫、完整上衣、完整下装）。这是致命的逻辑错误，会导致图像崩坏。
+
+【必须经历的 5 个阶段】（在分镜中必须按时间顺序显式经历）：
+
+阶段 1 — 初始着装（前 1-2 个分镜）：
+  完整穿着参考图中的服装（如「白色衬衫」「白色深V镂空连体泳衣」「黑色紧身瑜伽裤」等）。
+  描写女性的初始静态站姿/坐姿/拍照姿态。
+
+阶段 2 — 前戏挑逗脱衣（紧接着的 1-2 个分镜）：
+  **必须显式描写衣物被部分脱去、拨开、推上、拉下**：
+  - 上装脱法（任选）：
+    * 「解开衬衫最上面的扣子露出锁骨」→「解开中间扣子露出胸部内衣或乳沟」→「完全脱去衬衫只剩内衣」
+    * 「拨开泳衣深V镂空处露出乳房乳头」→「将泳衣肩带拉下露出肩膀和胸部」
+    * 「掀起背心露出乳房」
+  - 下装脱法（任选）：
+    * 「将裤子/瑜伽裤连同内裤褪至大腿根」→「拉至膝弯」
+    * 「拨开泳衣裆部布料露出湿润阴唇」
+    * 「将裙子撩起到腰际」
+  - 关键：脱衣动作必须是【男伴主动拨开/她自己解开/主动褪下】，不是瞬间消失。
+
+阶段 3 — 性交过程（中段分镜）：
+  描写插入/抽插/口交时，**必须明确指出当前衣物状态**：
+  - 「乳房完全裸露，泳衣裆部已拨开露出湿润阴唇」
+  - 「上身赤裸，下身只剩褪到膝弯的瑜伽裤」
+  - 「衬衫完全脱去，下身只剩内裤半褪」
+  - **绝对禁止**在性交时说「她穿着完整衣服」「衣服完整」。
+
+阶段 4 — 高潮/射精（高潮分镜）：
+  - 持续暴露状态 + 精液喷出/流淌描写。
+
+阶段 5 — 事后（最后分镜）：
+  - 衣衫不整、半裸或全裸状态 + 精液流淌/身体痕迹。
+
+【阶段描写硬性要求】：
+✓ 每个阶段必须出现至少 1 次（不可跳过阶段 2 的脱衣描写）
+✓ 性交开始时（阶段 3 及之后）必须显式描写关键部位已暴露（乳房/乳头/阴唇/阴蒂/臀部下体）
+✓ 「衣衫完整」或「衣着完整」严禁出现在插入/抽插/口交/射精相关句子里
+✓ 露出的皮肤描述必须出现：乳房、臀部、大腿内侧、阴唇、肚脐、锁骨、腰部线条等
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """
         normal_reference_example = """例（带性爱专属，**仅作叙事风格与节拍结构的参考，不要照搬人物与场景**）：中景侧面，建置：卧室暖色台灯下，一位皮肤白皙的东亚女性身穿半透明黑色蕾丝吊带睡裙跪在床沿，身后一位肌肉魁梧的男性正解开裤链释放出完全勃起的阴茎，龟头充血、柱身青筋可见。递进：男性从身后环抱她，一只手托起她的乳房揉捏乳头，另一只手顺着她的腰身滑入裙底分开湿润的阴唇，手指在她阴道口挑逗、按压阴蒂，唤醒她的呻吟。接着男性扶住她的胯部将她转向床沿，分开她的双腿，龟头抵住阴道口缓缓推入，开始缓慢抽插，交合处湿润发出咕叽声，她的乳房随抽插节律晃动。高潮：抽插加速，男性双手掐住她的胯部猛烈冲撞数十次后抽出，快速撸动数下，在她仰起的脸上和乳房上射出浓稠的白色精液，精液挂在她睫毛和乳尖缓缓滴落。最终：女性双腿发软瘫软在床沿，男性从身后拥抱她，手指滑过她布满汗水的脊背。镜头从中景侧面 → 推进到交合处特写 → 极端特写龟头插入瞬间 → 慢动作特写精液喷射在脸上的拉丝与流淌。皮肤撞击声、湿滑的抽插声、女性高亢呻吟、男性粗重喘息交织。动作流畅，60fps，无肢体畸形，正确人体解剖，五指完整，双腿完整，面部特征一致，无抖动，无跳帧，流畅连续动作。"""
         # 使用场景感知的姿势池（参考 195+ 姿势库，自动按场景匹配姿势种类）
@@ -7564,6 +7756,56 @@ F. 借助场景元素站立：
     # 合并 hard requirement block（normal + sm 各自独立追加到 user prompt 头部）
     hard_requirement_block = (sm_hard_requirement_block or "") + (normal_hard_requirement_block or "")
 
+    # ── H3 专用模板变量填充 ──
+    default_shot_count = _calc_default_shot_count(duration)
+    shot_duration = duration / default_shot_count
+
+    scene_type = dna.scene_type or "未知场景"
+    scene_activity_map = {
+        "normal": "亲密爱爱与极致高潮",
+        "sm": "SM主导调教与极致控制",
+        "soft": "性感自慰与身体展示",
+    }
+    scene_activity_zh = scene_activity_map.get(erotic_level, "亲密爱爱")
+
+    clothing_setup_zh = "DNA 检测出的初始服装：" + (clothing_str or "无可见服装") + "，参考图中保持完整穿着"
+
+    scene_summary_zh = f"{dna.scene_description or 'DNA场景'}，结合服装{dna.action_prediction or '人物动作'}"
+
+    if erotic_level == "soft":
+        retention_clothing_zh = (
+            f"女性服装在出场时保留参考图样式（{clothing_str or '白色衬衫'}），"
+            "自慰/抚摸过程中逐渐被自己主动解开并脱去；自慰阶段女性全裸。"
+        )
+    elif erotic_level == "sm":
+        retention_clothing_zh = (
+            f"女性服装在出场时保留参考图样式（{clothing_str or '束缚衣/皮衣'}），"
+            "SM过程中被男性主强制脱去束缚衣/解开绳索/扯开衣物露出关键部位；"
+            "插入/射精阶段女性关键部位（乳房/臀部/下体）完全暴露。"
+        )
+    else:
+        retention_clothing_zh = (
+            f"女性服装在出场时完整保留参考图样式（{clothing_str or '泳衣/衬衫/瑜伽裤'}），"
+            "前戏过程中逐渐被自己或男伴解开、脱去、拨开（衬衫扣子被解→泳衣裆部被拨开→瑜伽裤被褪下至大腿根）；"
+            "插入/性交/射精阶段女性关键部位（乳房/乳头/阴唇/臀部）完全暴露。"
+        )
+
+    scene_atmosphere_zh = (
+        f"{scene_type}主题场景：{dna.scene_description or 'DNA场景'}，"
+        f"{dna.overall_style or '电影级'}风格，光影氛围真实自然"
+    )
+
+    shot_count_zh = f"视频总时长 {duration} 秒，分为 {default_shot_count} 个分镜，每镜约 {shot_duration:.1f} 秒。"
+
+    if erotic_level == "sm":
+        soundscape_zh = "锁链叮当、皮革摩擦、皮肤撞击、深喉干呕、呜咽呻吟、男性低沉命令、女性哀求与高潮叫声、场景环境音交织。"
+    elif erotic_level == "normal":
+        soundscape_zh = "皮肤拍打的啪啪声、湿滑抽插的水声、女性急促喘息与高亢呻吟、男性粗重喘息、热带微风/海浪/鸟鸣等环境音交织。"
+    else:
+        soundscape_zh = "环境氛围音、自然呼吸声、手指与身体的湿润摩擦声、女性轻声呻吟与高潮时的短促叫声交织。"
+
+    shot_frame_types_str = "、".join(SHOT_FRAME_TYPES)
+
     return f"""Based on the DNA information extracted from the uploaded reference image, generate {count} creative and cinematic MiniMax H3 video prompts in Chinese.
 {hard_requirement_block}
 ━━━ DNA Reference ━━━━━━━━━━━━━━━━━━━
@@ -7580,23 +7822,73 @@ F. 借助场景元素站立：
 
 ━━━ Output Requirements (for EACH prompt) ━━━━━━━━━━━━━━━━━━
 1. 时长: {duration}秒 → {duration_hint}
-2. 必须引用参考图主体: 引用参考图主体：<Picture 1>
-3. 必须基于 action_prediction 推断人物的连贯动作，以「她/他正在...」开头，描述接下来{duration}秒内的完整动作链
-4. 必须结合服装信息（脱衣/穿衣状态）和场景
-5. 必须有镜头运动描述（推近/拉远/横移/特写/手持等）
-6. 必须有表情/眼神/情绪变化
-7. 必须以质量说明结尾：动作流畅，60fps，无肢体畸形，正确人体解剖，五指完整，双腿完整，面部特征一致，无抖动，无跳帧，流畅连续动作
-8. {duration}秒视频不要在结尾标注时长{user_hint_block}
+2. **必须使用 H3 专用模板输出格式**（subject_definitions / summary / retention_analysis / detailed_description）— 见下方「Output Format」
+3. **分镜数量硬性要求**：{duration}秒视频默认 {default_shot_count} 个分镜（15秒→4-6镜、30秒→9镜、60秒→9-12镜）
+4. **必须引用参考图主体**: 引用参考图主体：<Picture 1>
+5. 必须基于 action_prediction 推断人物的连贯动作，**经历 5 个阶段**：
+   - 阶段 1（开场 1-2 镜）：静态初始姿态，完整穿着参考图中的服装
+   - 阶段 2（中间 1-2 镜）：前戏挑逗 + 显式脱衣/拨开衣物（【强制】必须写出衣物被脱/拨开的过程）
+   - 阶段 3（中段多镜）：性交/插入过程，**必须描写当前身体部位已暴露**（乳房/乳头/阴唇/臀部等）
+   - 阶段 4（高潮镜）：男性射精 + 女性高潮表情/身体反应
+   - 阶段 5（收尾 1-2 镜）：事后状态（衣衫不整/半裸/全裸 + 精液流淌）
+6. 必须结合服装信息（脱衣/穿衣状态）和场景
+7. 必须有镜头运动描述（推近/拉远/横移/特写/手持等）
+8. 必须有表情/眼神/情绪变化
+9. 必须以质量说明结尾：动作流畅，60fps，无肢体畸形，正确人体解剖，五指完整，双腿完整，面部特征一致，无抖动，无跳帧，流畅连续动作
+10. {duration}秒视频不要在结尾标注时长{user_hint_block}
 {diversity_block}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-━━━ Output Format (MUST follow exactly) ━━━━━━━━━━━━━━━━━━
-[镜头景别]，[引用参考图主体：<Picture 1>]，[她/他正在...]，[具体连贯动作链：从当前action_prediction出发，描述身体部位、方向、力度、节奏的身体动作]，[表情/眼神/情绪变化]，[镜头运动]，[声音（呼吸/呻吟/环境音）]，[动作流畅，60fps，无肢体畸形，正确人体解剖，五指完整，双腿完整，面部特征一致，无抖动，无跳帧，流畅连续动作]
+━━━ Output Format (MUST follow EXACTLY — H3 专用模板) ━━━━━━━━━━━━━━━━━━
+⚠️ 每条提示词必须使用下方完整 4 段式模板输出，禁止只用一段详细描述。
+
+```
+subject_definitions:
+<Picture 1> 是视频主角的参考图，由用户上传，图中女性作为目标视频的核心角色，全程面部、发型、妆容、身材比例完全保留。
+
+summary:
+目标视频展示<Picture 1>中的女性在「{scene_type}」主题下进行{scene_activity_zh}。
+主题场景：{scene_summary_zh}。
+服装设定：{clothing_setup_zh}。
+视频采用真实感、电影级成人片风格，第三人称与近景交替，镜头稳定略带手持轻微晃动，全程女性最终身体关键部位完全暴露，所有性动作真实描写，无打码无马赛克。
+
+retention_analysis:
+<Picture 1>中的女性在所有镜头中 fully_preserved（面部 / 发型 / 妆容 / 身材比例完全保留）。{retention_clothing_zh}
+
+detailed_description:
+视频采用真实感、电影级风格，{scene_atmosphere_zh}，电影级光影氛围。
+{shot_count_zh}
+
+[Shot 1] 00:00.000
+中景镜头，<Picture 1>穿着参考图中的初始服装站在场景中，摆出初始拍照姿态，电影级光影氛围，电影实拍质感，高清8K，HDR，细节丰富，稳定镜头
+
+[Shot 2] 00:02.500
+近景镜头，<Picture 1>男伴走近开始前戏，男性主动拨开/解开衣物露出乳房乳头/阴唇，电影级光影氛围，高清8K，HDR，稳定镜头
+
+[Shot 3] ...（按时间戳依次生成所有分镜，必须显式经历 5 阶段）
+
+overall_soundscape:
+真实的环境氛围音、{soundscape_zh}
+
+non_diegetic_music: N/A
+```
+
+【模板填写规则】：
+- subject_definitions：固定模板，将<Picture 1>作为参考图核心角色。
+- summary：必须填入 DNA 的 scene_type（场景主题）+ action_prediction（动作预判）+ clothing_list（服装初始状态）。
+- retention_analysis：必须明确女性全程面部/发型/身材 fully_preserved，并说明脱衣过程（衬衫/泳衣/裤子如何被脱去，最终全裸或半裸）。
+- detailed_description：是核心，**必须按时间戳 [Shot 1] → [Shot {default_shot_count}]** 生成 {default_shot_count} 个分镜。
+- 每个分镜的时间戳递增规则：{duration}秒 / {default_shot_count} 镜 = 每个分镜约 {shot_duration:.1f}s。
+- overall_soundscape：真实声音（环境音、呼吸、呻吟、撞击声、水声），不写背景音乐。
+
+【分镜景别池（必须从中选不同景别以保证多样性）】：
+{shot_frame_types_str}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ━━━ Reference Example (follow this narrative style) ━━━━━━━━━━━━━━━━━━
 {reference_example}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Now generate the H3 video prompt(s) based on the DNA information above. {"Output ONLY the Chinese prompt paragraph(s) separated by =====, " if count > 1 else "Output ONLY the Chinese prompt paragraph, "}no explanations, no markdown, no bullet points."""
+Now generate the H3 video prompt(s) based on the DNA information above. {"Output ONLY the Chinese prompt(s) separated by =====, " if count > 1 else "Output ONLY the Chinese prompt, "}no explanations, no markdown, no bullet points. Each prompt MUST be in the H3 4-segment template format (subject_definitions / summary / retention_analysis / detailed_description / overall_soundscape)."""
 
 
 async def _generate_single_h3_prompt(api_key: str, system_prompt: str, user_prompt: str) -> str:
