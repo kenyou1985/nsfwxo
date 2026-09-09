@@ -13,9 +13,10 @@ from openai import AsyncOpenAI, APIError, AuthenticationError, RateLimitError
 logger = logging.getLogger(__name__)
 
 OPENLUX_BASE_URL = "https://api.openlux.ai/v1"
-# 优化模型顺序：优先 grok-4.6，失败时切换 grok-4.5（内容过滤比 4.3 更宽松）
+# 优化模型顺序：grok-4.6（优先）→ grok-4.3（第二，内容过滤较宽松）→ grok-4.5（第三兜底）
 MODEL_NAME = "grok-4.6"
-MODEL_FALLBACK = "grok-4.5"
+MODEL_FALLBACK = "grok-4.3"
+MODEL_FALLBACK_2 = "grok-4.5"
 # 优化超时：增加超时时间以处理大输出（主题大纲/分镜的 system prompt ~9KB，
 # 输出 ~4-9KB JSON，加上多主题并行时的并发抢占，需要更宽松的客户端超时）。
 # 60 秒在多主题并行（3 个主题 × 6 个分镜 × 4 并发信号量）下频繁被 httpx
@@ -295,7 +296,7 @@ async def call_grok(
     Tries models in order. If primary model fails (API error, parse error,
     timeout, content filter, etc.), switches to fallback model and retries.
     """
-    models_to_try = model_order or [MODEL_NAME, MODEL_FALLBACK]
+    models_to_try = model_order or [MODEL_NAME, MODEL_FALLBACK, MODEL_FALLBACK_2]
 
     for model_idx, model_name in enumerate(models_to_try):
         logger.info(f"[LLM] trying model={model_name} (model_idx={model_idx})")
@@ -314,7 +315,7 @@ async def call_grok(
             if model_idx == len(models_to_try) - 1:
                 # Last model — propagate the error
                 raise OpenLuxAPIError(
-                    f"所有模型均不可用（{MODEL_NAME} 和 {MODEL_FALLBACK} 都已失败）: {type(e).__name__}: {e}"
+                    f"所有模型均不可用（{'、'.join(models_to_try)} 都已失败）: {type(e).__name__}: {e}"
                 )
             # More models available — continue to next
             continue
@@ -474,7 +475,7 @@ async def stream_grok(
     scratch (no mid-stream model swap to keep semantics consistent with
     non-streaming call_grok).
     """
-    models_to_try = model_order or [MODEL_NAME, MODEL_FALLBACK]
+    models_to_try = model_order or [MODEL_NAME, MODEL_FALLBACK, MODEL_FALLBACK_2]
 
     for model_idx, model_name in enumerate(models_to_try):
         logger.info(f"[LLM stream] trying model={model_name} (idx={model_idx})")

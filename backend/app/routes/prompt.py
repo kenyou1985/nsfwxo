@@ -8164,6 +8164,8 @@ async def generate_h3_dna_stream(req: GenerateH3DnaRequest, api_key: str = Depen
                 "index": idx,
                 "prompt": result_clean,
             })
+            # 独立事件用于计数（_merge_streams 收到后累加 successful）
+            yield _ndjson_event({"event": "slot_success", "index": idx})
         except ContentSafetyError as e:
             yield _ndjson_event({"event": "error", "index": idx, "message": f"内容安全拒绝: {e}", "fatal": True})
         except OpenLuxAPIError as e:
@@ -8196,6 +8198,15 @@ async def generate_h3_dna_stream(req: GenerateH3DnaRequest, api_key: str = Depen
             if line is None:
                 finished.add(idx)
                 continue
+            # 解析事件：slot_success → 累加 successful 计数
+            try:
+                evt = json.loads(line)
+                if evt.get("event") == "slot_success":
+                    async with lock:
+                        done_count["success"] += 1
+                    continue  # slot_success 不推给前端
+            except Exception:
+                pass  # 非 JSON 行直接透传
             yield line
             # 检查是否全部结束
             async with lock:
