@@ -6683,7 +6683,38 @@ CRITICAL RULES:
 
 # ─── Clothing Extraction System Prompt ─────────────────────────────────────────
 def _is_base64_image(url: str) -> bool:
-    return url.startswith("data:image/")
+    """判断是否为 base64 data URL（仅支持 JPEG / PNG / WebP / GIF）。
+    HEIC/HEIF 排除：Gemini 不支持，移动端 Safari canvas 也不能解码，
+    强行接收会浪费带宽并返回模糊错误。这里直接拒绝并提示用户转 JPEG。
+    """
+    lower = url[:64].lower()
+    if not lower.startswith("data:image/"):
+        return False
+    # HEIC/HEIF 显式排除（iPhone 14 PM 等高像素设备默认格式）
+    if "heic" in lower or "heif" in lower:
+        return False
+    return True
+
+
+def _detect_image_format_from_data_url(url: str) -> str:
+    """从 data URL 前缀推断格式（用于日志和错误信息）"""
+    if not url.startswith("data:image/"):
+        return "http"
+    # data:image/jpeg;base64,... → jpeg
+    prefix = url.split(",", 1)[0]
+    # data:image/jpeg;base64
+    parts = prefix.split(";")[0].split("/")
+    if len(parts) >= 2:
+        return parts[1].lower()
+    return "unknown"
+
+
+def _is_heic_image(url: str) -> bool:
+    """检测是否为 HEIC/HEIF 图片（移动端 Safari 上传常见）"""
+    if not url.startswith("data:image/"):
+        return False
+    lower = url[:80].lower()
+    return "heic" in lower or "heif" in lower or "codecs=heic" in lower or "codecs=heif" in lower
 
 
 # RunningHub 图片存储基础 URL（用于补全相对路径）
@@ -6698,9 +6729,22 @@ def _normalize_image_url(url: str) -> str:
     - http://... / https://...   (直接返回)
     - openapi/xxx.jpg            (添加 RunningHub CDN 基础 URL)
     - 其他相对路径                (添加 RunningHub CDN 基础 URL)
+
+    HEIC/HEIF 格式会被显式拒绝（iPhone 14 PM 等高像素设备默认格式）：
+    Safari canvas 无法解码 HEIC，移动端上传的 HEIC 通常是损坏/空白图片，
+    Gemini 也不接受 HEIC。让用户先转 JPEG 再传，避免后端模糊 422。
     """
     if not url:
         raise HTTPException(status_code=400, detail="图片 URL 不能为空")
+    if _is_heic_image(url):
+        fmt = _detect_image_format_from_data_url(url)
+        raise HTTPException(
+            status_code=415,
+            detail=(
+                f'不支持的 HEIC/HEIF 格式（{fmt}）。请在 iPhone 设置 → 相机 → 格式中'
+                '改为"兼容性最佳"（自动转 JPEG），或在电脑上用 Preview/Photoshop 转 JPEG 后再上传。'
+            ),
+        )
     if _is_base64_image(url):
         return url
     if url.startswith("http://") or url.startswith("https://"):

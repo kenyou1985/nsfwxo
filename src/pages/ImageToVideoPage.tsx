@@ -10,6 +10,7 @@ import { uploadImage, WORKFLOW } from '../services/runninghub';
 import { expandVideoFromImage, streamExpandPrompt, streamRandomPrompt, extractImageDna, generateH3DnaPrompt, type ImageDnaResult } from '../services/promptApi';
 import { parseStoryboardScript, toVideoScriptPanels, type ParsedScriptPanel } from '../utils/scriptParser';
 import { getYunwuKey } from '../services/storage';
+import { compressDataUrlIfNeeded, compressImageFile, isHeicDataUrl } from '../utils/imagePreprocess';
 import { getRecords, deleteRecord, clearAllHistory, type HistoryRecord } from '../services/historyService';
 import { extractImagesFromZipAsDataUrls } from '../services/runninghub';
 import type { NodeInfo } from '../types';
@@ -1334,13 +1335,31 @@ function MiniMaxH3Panel({
   }, [apiKey, mmImages, mmSelectedGirlfriends, findSlotByGirlfriendId, setMmImages, setMmSelectedGirlfriends, setSelectedGirlfriend, onSuccess, onError, setGirlfriendUploading]);
 
   const handleImageUpload = async (file: File, index: number) => {
+    // ── HEIC 警告 ──
+    // iPhone 14 PM 等高像素设备默认用 HEIC 格式，Safari canvas 无法解码，
+    // RunningHub 也可能拒绝。提示用户转换格式。
+    const fileMime = (file.type || '').toLowerCase();
+    if (fileMime === 'image/heic' || fileMime === 'image/heif') {
+      onError(
+        `检测到 HEIC/HEIF 格式（iPhone 14 PM 默认相机格式）。` +
+        `请在 iPhone 设置 → 相机 → 格式中改为"兼容性最佳"，然后重新上传。`,
+      );
+      return;
+    }
+
+    // ── 上传前压缩（移动端大图友好） ──
+    // iPhone 14 PM 48MP 原图可超过 10MB，直接上传到 RunningHub 常超时。
+    // 先压缩再上传：既能加快上传速度，也能减少后端处理压力。
+    const fileToUpload = await compressImageFile(file);
+
     // iOS 17.4.1+ 兼容性：URL.createObjectURL(file) 在某些情况下会失效导致预览是空白，
     // 改用 FileReader 读取为 data URL 当预览，跨所有浏览器稳定。
+    // 使用压缩后的 fileToUpload 作为预览源，保证预览和上传内容一致。
     const dataUrl: string = await new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result as string);
       reader.onerror = () => reject(new Error('图片读取失败'));
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(fileToUpload);
     });
     // 乐观更新：立即用本地预览显示图片，不阻塞其他槽位
     setMmImages(prev => {
@@ -1356,13 +1375,17 @@ function MiniMaxH3Panel({
     });
     setMmUploading(true);
     try {
-      const { imagePath } = await uploadImage(apiKey, file);
+      // 上传压缩后的文件（而非原文件）
+      const { imagePath } = await uploadImage(apiKey, fileToUpload);
       setMmImages(prev => {
         const updated = [...prev];
         updated[index] = { path: imagePath, preview: dataUrl };
         return updated;
       });
-      onSuccess(`参考图 ${index + 1} 上传成功`);
+      const saved = fileToUpload.size < file.size
+        ? `（已压缩 ${(file.size / 1024).toFixed(0)}KB → ${(fileToUpload.size / 1024).toFixed(0)}KB）`
+        : '';
+      onSuccess(`参考图 ${index + 1} 上传成功${saved}`);
     } catch (err) {
       setMmImages(prev => {
         const updated = [...prev];
@@ -2611,72 +2634,6 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
 
     if (mmImageDna && (mmImageDna as any)._imageHash === currentHash) return;
 
-    /**
-     * 把过大的 data URL 压缩到合理大小。
-     * 移动端相机原图 base64 后通常 2-7MB，直接发到后端会被 Pydantic 422 拒掉
-     * （虽然我们已经把 max_length 放宽到 50MB，但请求体太大也会拖慢响应、占用
-     * Railway 内存、甚至触发网关层 body size 限制）。
-     * 压缩目标：最长边 1280px，JPEG 质量 0.82，base64 后通常 ≤ 600KB 字符。
-     */
-    const compressDataUrlIfNeeded = async (
-      srcDataUrl: string,
-      maxEdge = 1280,
-      quality = 0.82,
-      maxBytes = 900_000,
-    ): Promise<string> => {
-      // 只压缩 data URL，HTTP/CDN 路径不在浏览器里压缩
-      if (!srcDataUrl.startsWith('data:image/')) return srcDataUrl;
-      // 已经够小就直接返回
-      if (srcDataUrl.length <= maxBytes) return srcDataUrl;
-
-      try {
-        const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-          const i = new Image();
-          i.onload = () => resolve(i);
-          i.onerror = () => reject(new Error('图片解码失败'));
-          i.src = srcDataUrl;
-        });
-        let { width, height } = img;
-        if (width > maxEdge || height > maxEdge) {
-          if (width >= height) {
-            height = Math.round((maxEdge / width) * height);
-            width = maxEdge;
-          } else {
-            width = Math.round((maxEdge / height) * width);
-            height = maxEdge;
-          }
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) throw new Error('Canvas 2D context 不可用');
-        ctx.drawImage(img, 0, 0, width, height);
-        const blob = await new Promise<Blob | null>((resolve, reject) => {
-          canvas.toBlob(
-            (b) => resolve(b),
-            'image/jpeg',
-            quality,
-          );
-        });
-        if (!blob) throw new Error('Canvas toBlob 失败');
-        const compressed = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = () => reject(new Error('FileReader 读取失败'));
-          reader.readAsDataURL(blob);
-        });
-        console.log(
-          `[DNA] compressed data URL: ${(srcDataUrl.length / 1024).toFixed(0)}KB → ${(compressed.length / 1024).toFixed(0)}KB` +
-          ` (${width}×${height}, q=${quality})`,
-        );
-        return compressed;
-      } catch (compressErr) {
-        console.warn('[DNA] 压缩失败，使用原图:', compressErr);
-        return srcDataUrl;
-      }
-    };
-
     const doExtract = async () => {
       setMmDnaLoading(true);
       setMmDnaError(null);
@@ -2720,6 +2677,16 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
         // 后端 Pydantic schema max_length 已放宽到 50MB，所以理论上不会再 422，
         // 但请求体过大会拖慢响应并占用内存。在发送前压缩到 ≤ 900KB 字符。
         imageDataUrl = await compressDataUrlIfNeeded(imageDataUrl);
+
+        // ── HEIC 友好提示 ──
+        // 如果原图就是 HEIC，压缩函数会跳过 canvas。直接告知用户，而不是让他们面对模糊的 415 错误。
+        if (isHeicDataUrl(imageDataUrl)) {
+          throw new Error(
+            '检测到 HEIC/HEIF 格式图片。Safari canvas 无法解码此格式，AI 也无法识别。\n' +
+            '请在 iPhone 设置 → 相机 → 格式中改为"兼容性最佳"（自动转 JPEG），' +
+            '然后重新上传图片。',
+          );
+        }
 
         if (!imageDataUrl.startsWith('data:image/') && !imageDataUrl.startsWith('http')) {
           // 非 data URL 也非 http URL（可能是 RunningHub CDN 相对路径如 openapi/xxx.jpg）：

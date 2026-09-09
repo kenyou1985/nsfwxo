@@ -130,13 +130,44 @@ export function getMaleCharacterPrompt(id: MaleCharacterId): string {
 // ─── Backend URL ─────────────────────────────────────────────────────────────
 
 const DEFAULT_BACKEND_URL = 'http://localhost:8000';
+// 生产环境域名（移动端 H5 访问时优先匹配）
+const PRODUCTION_BACKEND_HOSTS = ['.onrender.com', '.railway.app', '.fly.dev', '.vercel.app'];
 
 export function getBackendUrl(): string {
   try {
-    return localStorage.getItem(BACKEND_URL_KEY) || DEFAULT_BACKEND_URL;
+    const stored = localStorage.getItem(BACKEND_URL_KEY);
+    if (stored && stored.trim()) return stored;
   } catch {
-    return DEFAULT_BACKEND_URL;
+    // localStorage 不可用时降级
   }
+
+  // 移动端 H5 自动检测：如果当前页面不是 localhost，自动使用同源作为后端 URL
+  try {
+    if (typeof window !== 'undefined' && window.location) {
+      const { hostname, protocol, port } = window.location;
+      // 桌面开发时：localhost / 127.0.0.1 → 用默认 8000 端口
+      const isLocal =
+        hostname === 'localhost' ||
+        hostname === '127.0.0.1' ||
+        hostname === '0.0.0.0' ||
+        hostname.endsWith('.local');
+      // 移动端 H5 / 生产域名 → 用同源（同源部署）
+      if (!isLocal && (protocol === 'https:' || protocol === 'http:')) {
+        const origin = window.location.origin;
+        console.log(`[storage] auto-detected backend URL from window.location: ${origin}`);
+        return origin;
+      }
+      // 同源但端口非 80/443 → 同源反代
+      if (!isLocal && port && port !== '80' && port !== '443') {
+        const origin = window.location.origin;
+        return origin;
+      }
+    }
+  } catch {
+    // window 不可用时降级到默认
+  }
+
+  return DEFAULT_BACKEND_URL;
 }
 
 export function setBackendUrl(url: string): void {

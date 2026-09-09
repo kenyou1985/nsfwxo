@@ -13,6 +13,7 @@ import ThemeLibraryPanel from '../components/ThemeLibraryPanel';
 import { THEME_LIBRARY, THEME_CATEGORIES, 主题转视频提示词 } from '../data/themeLibrary';
 import type { ThemeEntry } from '../data/themeLibrary';
 import { ImageDnaPanel } from '../components/ImageDnaPanel';
+import { compressDataUrlIfNeeded, isHeicDataUrl } from '../utils/imagePreprocess';
 
 /** 提交视频任务到共享 VideoTaskList 的函数签名 */
 export type SubmitVideoTaskFn = (
@@ -384,6 +385,16 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
               reader.readAsDataURL(blob);
             });
           } catch { /* use original path */ }
+        }
+        if (cancelled) return;
+        // 压缩以适配移动端大图 + 避免 Pydantic 422
+        imageDataUrl = await compressDataUrlIfNeeded(imageDataUrl);
+        // HEIC 早返回，避免后端 415
+        if (isHeicDataUrl(imageDataUrl)) {
+          throw new Error(
+            '检测到 HEIC/HEIF 格式图片。Safari canvas 无法解码此格式，AI 也无法识别。\n' +
+            '请在 iPhone 设置 → 相机 → 格式中改为"兼容性最佳"（自动转 JPEG），然后重新上传图片。',
+          );
         }
         if (cancelled) return;
         const result = await extractImageDna(imageDataUrl);

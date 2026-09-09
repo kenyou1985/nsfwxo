@@ -1053,8 +1053,17 @@ export async function generateH3DnaPrompt(params: GenerateH3DnaParams): Promise<
 /**
  * 调用后端 /api/prompt/extract-image-dna 端点
  * 由 Gemini-3.8-flash 提取图片 DNA（人物/场景/服装信息）
+ *
+ * 移动端兼容性：
+ * - iOS Safari 的 fetch 在网络抖动时偶发 "Load failed"（TypeError），自动重试 1 次
+ * - 超时从 60s 延长到 90s（移动网络 + 大图慢）
+ * - 错误信息针对移动端常见问题给具体提示（HEIC/网络/格式）
  */
-export async function extractImageDna(imageUrl: string): Promise<ImageDnaResult> {
+export async function extractImageDna(
+  imageUrl: string,
+  options: { retries?: number; timeoutMs?: number } = {},
+): Promise<ImageDnaResult> {
+  const { retries = 1, timeoutMs = 90_000 } = options;
   const yunwuKey = getYunwuKey();
   if (!yunwuKey) {
     throw new Error('OpenLux API Key 未设置');
@@ -1062,35 +1071,74 @@ export async function extractImageDna(imageUrl: string): Promise<ImageDnaResult>
 
   const base = getBackendUrl();
   const url = `${base}/api/prompt/extract-image-dna`;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 60000); // 60s timeout
 
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${yunwuKey}`,
-      },
-      body: JSON.stringify({ image_url: imageUrl }),
-    });
-
-    if (!response.ok) {
-      const bodyText = await response.text().catch(() => '');
-      throw new Error(`DNA 提取失败 ${response.status}: ${bodyText}`);
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    if (attempt > 0) {
+      // 指数退避：第 1 次重试前等 1s，第 2 次等 2s
+      await new Promise((r) => setTimeout(r, 800 * attempt));
+      console.log(`[extractImageDna] retry attempt ${attempt + 1}/${retries + 1}`);
     }
 
-    const data = await response.json() as ImageDnaResult;
-    return data;
-  } catch (err) {
-    if (err instanceof Error && err.name === 'AbortError') {
-      throw new Error('DNA 提取超时（60秒），请重试');
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${yunwuKey}`,
+        },
+        body: JSON.stringify({ image_url: imageUrl }),
+      });
+
+      if (!response.ok) {
+        const bodyText = await response.text().catch(() => '');
+        // 422: Pydantic 校验失败（image_url 太长 / 格式错）
+        if (response.status === 422) {
+          throw new Error(
+            `DNA 提取失败 (422): ${bodyText.slice(0, 200)}。` +
+            '图片格式可能不被后端接受，请尝试用普通 JPEG/PNG 重传。',
+          );
+        }
+        throw new Error(`DNA 提取失败 ${response.status}: ${bodyText.slice(0, 200)}`);
+      }
+
+      const data = await response.json() as ImageDnaResult;
+      return data;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      // 移动端 Safari 已知 bug: fetch 在网络不稳时会抛 TypeError("Load failed")
+      // 不要立即放弃，自动重试一次
+      const isSafariLoadFailed =
+        lastError.name === 'TypeError' &&
+        /load failed/i.test(lastError.message);
+      if (isSafariLoadFailed && attempt < retries) {
+        console.warn('[extractImageDna] Safari Load failed, will retry');
+        continue;
+      }
+      if (lastError.name === 'AbortError') {
+        throw new Error(`DNA 提取超时（${timeoutMs / 1000}秒），请尝试较小的图片或检查网络`);
+      }
+      // 重试已用完或非网络错误
+      if (attempt >= retries) {
+        // 把 Safari "Load failed" 转成用户友好提示
+        if (isSafariLoadFailed) {
+          throw new Error(
+            '网络请求失败（Safari Load failed）。可能原因：① 网络不稳定；② 后端服务暂不可用；' +
+            '③ 图片格式不被接受（iPhone HEIC 格式请在系统设置 → 相机 → 格式中改为"兼容性最佳"）。请稍后重试。',
+          );
+        }
+        throw lastError;
+      }
+    } finally {
+      clearTimeout(timeout);
     }
-    throw err;
-  } finally {
-    clearTimeout(timeout);
   }
+
+  throw lastError || new Error('DNA 提取失败');
 }
 
 /**
