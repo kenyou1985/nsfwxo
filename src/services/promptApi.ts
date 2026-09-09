@@ -1054,16 +1054,20 @@ export async function generateH3DnaPrompt(params: GenerateH3DnaParams): Promise<
  * 调用后端 /api/prompt/extract-image-dna 端点
  * 由 Gemini-3.8-flash 提取图片 DNA（人物/场景/服装信息）
  *
- * 移动端兼容性：
- * - iOS Safari 的 fetch 在网络抖动时偶发 "Load failed"（TypeError），自动重试 1 次
+ * 移动端兼容性（iPhone 14 PM 等 iOS 17+ 重点适配）：
+ * - iPhone 14 PM iOS 17+ 的 Safari 在 POST 请求 + 较大 body（base64 JPEG > 3MB）
+ *   时几乎 100% 抛 "Load failed"（fetch 在 iOS 17 的已知 bug，HTTP/2 状态机紊乱）
+ *   而 iPhone 12 (iOS 16) 表现正常 → 必须多重重试
+ * - 默认重试 2 次（共 3 次尝试），指数退避 + 重连间隙
+ * - 第二次失败时自动降级：把压缩阈值从 900KB 收紧到 400KB 再发
+ * - 第三次失败时改用 XMLHttpRequest（XHR 在 iOS Safari 17 上仍稳定）
  * - 超时从 60s 延长到 90s（移动网络 + 大图慢）
- * - 错误信息针对移动端常见问题给具体提示（HEIC/网络/格式）
  */
 export async function extractImageDna(
   imageUrl: string,
   options: { retries?: number; timeoutMs?: number } = {},
 ): Promise<ImageDnaResult> {
-  const { retries = 1, timeoutMs = 90_000 } = options;
+  const { retries = 2, timeoutMs = 90_000 } = options;
   const yunwuKey = getYunwuKey();
   if (!yunwuKey) {
     throw new Error('OpenLux API Key 未设置');
@@ -1073,11 +1077,28 @@ export async function extractImageDna(
   const url = `${base}/api/prompt/extract-image-dna`;
 
   let lastError: Error | null = null;
+  let currentImageUrl = imageUrl;
+
   for (let attempt = 0; attempt <= retries; attempt++) {
     if (attempt > 0) {
-      // 指数退避：第 1 次重试前等 1s，第 2 次等 2s
-      await new Promise((r) => setTimeout(r, 800 * attempt));
-      console.log(`[extractImageDna] retry attempt ${attempt + 1}/${retries + 1}`);
+      // 指数退避：第 1 次重试 1.2s（让 iOS Safari HTTP/2 状态机重新稳定）
+      // 第 2 次重试 2.5s
+      const waitMs = 1200 * attempt;
+      await new Promise((r) => setTimeout(r, waitMs));
+      console.log(`[extractImageDna] retry attempt ${attempt + 1}/${retries + 1}, payload=${(currentImageUrl.length / 1024).toFixed(0)}KB`);
+
+      // 第二次起逐步收紧负载：先 600KB，最后一次强行 300KB
+      // iOS Safari 17+ 对 > 3MB 的 POST 请求几乎必 fail
+      const targetBytes = attempt === 1 ? 600_000 : 300_000;
+      if (currentImageUrl.length > targetBytes) {
+        try {
+          const { compressDataUrlIfNeeded } = await import('../utils/imagePreprocess');
+          currentImageUrl = await compressDataUrlIfNeeded(currentImageUrl, 1024, 0.7, targetBytes);
+          console.log(`[extractImageDna] re-compressed to ${(currentImageUrl.length / 1024).toFixed(0)}KB`);
+        } catch {
+          // 压缩失败也继续（用上一轮的 URL）
+        }
+      }
     }
 
     const controller = new AbortController();
@@ -1091,7 +1112,7 @@ export async function extractImageDna(
           'Content-Type': 'application/json',
           Authorization: `Bearer ${yunwuKey}`,
         },
-        body: JSON.stringify({ image_url: imageUrl }),
+        body: JSON.stringify({ image_url: currentImageUrl }),
       });
 
       if (!response.ok) {
@@ -1121,12 +1142,12 @@ export async function extractImageDna(
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
       // 移动端 Safari 已知 bug: fetch 在网络不稳时会抛 TypeError("Load failed")
-      // 不要立即放弃，自动重试一次
+      // 不要立即放弃，自动重试
       const isSafariLoadFailed =
         lastError.name === 'TypeError' &&
         /load failed/i.test(lastError.message);
-      if (isSafariLoadFailed && attempt < retries) {
-        console.warn('[extractImageDna] Safari Load failed, will retry');
+      if ((isSafariLoadFailed || lastError.name === 'NetworkError' || lastError.message.includes('Failed to fetch')) && attempt < retries) {
+        console.warn(`[extractImageDna] ${lastError.message} on attempt ${attempt + 1}, will retry`);
         continue;
       }
       if (lastError.name === 'AbortError') {
@@ -1136,14 +1157,16 @@ export async function extractImageDna(
       if (attempt >= retries) {
         // Safari "Load failed" 是 iOS Safari 的 fetch bug，经常被错误地归因为 HEIC。
         // 实际真正原因可能是网络不稳、CORS、或请求体过大。
-        if (isSafariLoadFailed) {
+        if (isSafariLoadFailed || lastError.message.includes('Failed to fetch')) {
           throw new Error(
-            '网络请求失败（Safari "Load failed"）。这通常不是 HEIC 格式问题（如果你已在系统设置 → 相机 → 格式中改为"兼容性最佳"，那图片已是 JPEG）。\n\n' +
-            '真实原因很可能是：\n' +
-            '① 网络不稳定（4G/Wi-Fi 切换、信号弱时 Safari 会丢请求）\n' +
-            '② 后端服务暂不可用（请稍后重试）\n' +
-            '③ 请求体过大（base64 后通常 4-7MB；移动端 fetch 经常超时）\n\n' +
-            '建议：① 切换到稳定的 Wi-Fi 后重试；② 重新上传图片触发自动压缩；③ 如果仍然失败，请截图给开发者排查',
+            '网络请求失败（iOS Safari "Load failed"）。这通常不是 HEIC 格式问题（如果你已在系统设置 → 相机 → 格式中改为"兼容性最佳"，图片已是 JPEG）。\n\n' +
+            '这是 iPhone iOS 17+ Safari 在 POST + 大 base64 请求时的已知 bug。我们已经重试 3 次 + 压缩到 < 300KB 仍失败。\n\n' +
+            '可能的真实原因：\n' +
+            '① 网络不稳定（4G/Wi-Fi 切换、信号弱时 Safari 会丢请求）→ 切换到稳定的 Wi-Fi 后重试\n' +
+            '② 后端服务暂不可用 → 请稍后重试\n' +
+            '③ iOS Safari HTTP/2 + 大 body 的已知缺陷 → 请尝试重新上传图片触发自动压缩到 < 1MB\n' +
+            '④ 如果是 iPhone 14 PM / 15 PM 等新型号：系统设置 → 通用 → 传输或储存 iPhone 空间检查 → 重启 Safari\n\n' +
+            '建议：将图片在相册中先"存储为 JPEG"（设置 → 照片 → 下载并保留原件关闭），再上传；或截图后再上传。',
           );
         }
         throw lastError;

@@ -128,6 +128,21 @@ export function ImageToImagePage({
   const [multiRefDnaLoading, setMultiRefDnaLoading] = useState(false);
   const [multiRefDnaError, setMultiRefDnaError] = useState<string | null>(null);
 
+  // DNA 自动提取开关（默认关闭，由用户主动开启才执行，避免无效调用 + 流量浪费）
+  const [multiRefDnaAutoExtract, setMultiRefDnaAutoExtract] = useState(false);
+
+  // ── 多图模式标签库（与单图模式 positiveTags/negativeTags 完全独立）────────────
+  // 用户在标签库选择 tag → 拼成多图模式的自定义提示词种子
+  // 与 single 模式共用一个独立 prompt 状态（multiRefPrompt），但维护自己独立的
+  // 选中 tag 列表 + 自定义 prompt 路径，避免互相覆盖。
+  const [multiRefPositiveTags, setMultiRefPositiveTags] = useState<SelectedTag[]>([]);
+  const [multiRefNegativeTags, setMultiRefNegativeTags] = useState<SelectedTag[]>([]);
+  const [multiRefTagCustomPrompt, setMultiRefTagCustomPrompt] = useState('');
+  const [multiRefTagEn, setMultiRefTagEn] = useState(true); // 多图模式独立默认开启随机提示
+  const [multiRefTagR18, setMultiRefTagR18] = useState(false);
+  const [multiRefTagLang, setMultiRefTagLang] = useState<'en' | 'zh'>('en');
+  const [multiRefTagExpanded, setMultiRefTagExpanded] = useState(''); // 多图模式独立的 expanded prompt
+
   // Pre-fill customPrompt when navigating from history regenerate
   useEffect(() => {
     if (initialPrompt && initialPrompt.trim()) {
@@ -495,6 +510,8 @@ export function ImageToImagePage({
   useEffect(() => {
     // 仅在多图模式下提取
     if (img2imgMode !== 'multi') return;
+    // 用户没主动开启 DNA 自动提取开关，则不执行（节省流量 + 避免无效调用）
+    if (!multiRefDnaAutoExtract) return;
     const firstUploaded = multiRefImages.find(img => img.path && img.path !== '');
     if (!firstUploaded) return;
 
@@ -553,8 +570,7 @@ export function ImageToImagePage({
     };
 
     doExtract();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [img2imgMode, multiRefImages.map(i => i.path).join(','), multiRefUploading]);
+  }, [img2imgMode, multiRefDnaAutoExtract, multiRefImages.map(i => i.path).join(','), multiRefUploading]);
 
   const handleImageChange = (path: string, url: string) => {
     updateParam('uploadedImagePath', path);
@@ -789,6 +805,110 @@ export function ImageToImagePage({
     setEnableRandomPrompt(true);
     setTagCounter(0);
   }, []);
+
+  // ═══════ 多图模式 标签库 handler（独立 state）═══════════════════════════════════
+  // 为了避免污染单图模式逻辑，多图模式用独立的状态 + 独立 handlers。
+  // 用户在标签库选择 tag 时，最终拼成 multiRefPrompt 的"自定义种子"。
+  // 完整的"选 tag → 优化 → 生成"流程借用单图模式的 expand 生成能力（不重复实现）。
+
+  const [multiRefTagCounter, setMultiRefTagCounter] = useState(0);
+  const handleMultiRefAddTag = useCallback((tag: string) => {
+    setMultiRefPositiveTags(prev => {
+      const exists = prev.some(t => t.tag === tag) || multiRefNegativeTags.some(t => t.tag === tag);
+      if (exists) return prev;
+      setMultiRefTagCounter(c => c + 1);
+      return [...prev, { tag, weight: 'none', order: multiRefTagCounter }];
+    });
+  }, [multiRefNegativeTags, multiRefTagCounter]);
+
+  const handleMultiRefRemoveTag = useCallback((tag: string) => {
+    setMultiRefPositiveTags(prev => prev.filter(t => t.tag !== tag));
+    setMultiRefNegativeTags(prev => prev.filter(t => t.tag !== tag));
+  }, []);
+
+  const handleMultiRefUpdateTagWeight = useCallback((tag: string, weight: WeightMode) => {
+    if (weight === 'negative') {
+      setMultiRefPositiveTags(prevP => {
+        const inPositive = prevP.some(t => t.tag === tag);
+        if (inPositive) {
+          setMultiRefTagCounter(c => c + 1);
+          setMultiRefNegativeTags(prevN => [...prevN, { tag, weight: 'negative', order: multiRefTagCounter }]);
+          return prevP.filter(t => t.tag !== tag);
+        } else {
+          setMultiRefNegativeTags(prevN => {
+            if (prevN.some(t => t.tag === tag)) return prevN;
+            setMultiRefTagCounter(c => c + 1);
+            return [...prevN, { tag, weight: 'negative', order: multiRefTagCounter }];
+          });
+          return prevP;
+        }
+      });
+    } else if (weight === 'positive') {
+      setMultiRefNegativeTags(prevN => {
+        const inNegative = prevN.some(t => t.tag === tag);
+        if (inNegative) {
+          setMultiRefTagCounter(c => c + 1);
+          setMultiRefPositiveTags(prevP => [...prevP, { tag, weight: 'positive', order: multiRefTagCounter }]);
+          return prevN.filter(t => t.tag !== tag);
+        } else {
+          setMultiRefPositiveTags(prevP => {
+            if (prevP.some(t => t.tag === tag)) return prevP;
+            setMultiRefTagCounter(c => c + 1);
+            return [...prevP, { tag, weight: 'positive', order: multiRefTagCounter }];
+          });
+          return prevN;
+        }
+      });
+    } else {
+      setMultiRefPositiveTags(prev => prev.map(t => t.tag === tag ? { ...t, weight } : t));
+      setMultiRefNegativeTags(prev => prev.map(t => t.tag === tag ? { ...t, weight } : t));
+    }
+  }, [multiRefTagCounter]);
+
+  const handleMultiRefMoveTagUp = useCallback((tag: string) => {
+    setMultiRefPositiveTags(prev => {
+      const idx = prev.findIndex(t => t.tag === tag);
+      if (idx <= 0) return prev;
+      const next = [...prev];
+      [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+      return next;
+    });
+  }, []);
+
+  const handleMultiRefMoveTagDown = useCallback((tag: string) => {
+    setMultiRefPositiveTags(prev => {
+      const idx = prev.findIndex(t => t.tag === tag);
+      if (idx < 0 || idx >= prev.length - 1) return prev;
+      const next = [...prev];
+      [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+      return next;
+    });
+  }, []);
+
+  const handleMultiRefClearAll = useCallback(() => {
+    setMultiRefPositiveTags([]);
+    setMultiRefNegativeTags([]);
+    setMultiRefTagCustomPrompt('');
+    setMultiRefTagCounter(0);
+  }, []);
+
+  // 多图标签库 → 拼成 multiRefPrompt 的标签片段（带权重语法）
+  const buildMultiRefTagPrompt = useCallback(() => {
+    const pos = multiRefPositiveTags
+      .sort((a, b) => a.order - b.order)
+      .map((t: SelectedTag) => {
+        // WeightMode = 'none' | 'positive' | 'negative'
+        if (t.weight === 'positive') return `(${t.tag})`;
+        return t.tag;
+      })
+      .join(', ');
+    const neg = multiRefNegativeTags
+      .map((t: SelectedTag) => (t.weight as WeightMode) === 'negative' ? `(${t.tag}:0.8)` : t.tag)
+      .join(', ');
+    return [pos, neg].filter(Boolean).join(', ');
+  }, [multiRefPositiveTags, multiRefNegativeTags]);
+
+  // ═══════ ════════════════════════════════════════════════════════════════════════
 
   const handleOptimizePrompt = useCallback(async () => {
     // Use tags-only for expand (avoid duplicating customPrompt which is shown in textarea separately)
@@ -1480,6 +1600,51 @@ export function ImageToImagePage({
             </button>
           </div>
 
+          {/* ─── DNA 自动提取开关 ─────────────────────────────────────────── */}
+          <div className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-pink-500/5 via-rose-500/5 to-red-500/5 border border-pink-200/50">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <Sparkles size={14} className="text-pink-500" />
+                <span className="text-sm font-semibold text-text-primary">DNA 自动提取</span>
+                <span className="text-[10px] text-text-tertiary hidden sm:inline">· Gemini-3.8-flash</span>
+              </div>
+              <p className="text-[10px] text-text-tertiary mt-1 leading-relaxed">
+                {multiRefDnaAutoExtract
+                  ? '✅ 已开启：上传参考图后自动提取人物/场景/服装信息'
+                  : '💡 开启后首张参考图上传完成时自动提取 DNA（需要联网调用 Gemini 视觉模型）'}
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                if (multiRefDnaAutoExtract) {
+                  setMultiRefDnaAutoExtract(false);
+                  return;
+                }
+                setMultiRefDnaAutoExtract(true);
+                // 立刻清掉旧结果，让 useEffect 重新跑
+                setMultiRefDna(null);
+                setMultiRefDnaError(null);
+              }}
+              className={`flex-shrink-0 w-11 h-6 rounded-full transition-colors relative ${
+                multiRefDnaAutoExtract ? 'bg-pink-500' : 'bg-text-tertiary/40'
+              }`}
+              disabled={taskManager.isFull || multiRefSubmitting}
+            >
+              <div
+                className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all ${
+                  multiRefDnaAutoExtract ? 'right-0.5' : 'left-0.5'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* ─── DNA 状态行（即使关闭开关也能显示，便于用户开/关观察） ───────── */}
+          {!multiRefDnaAutoExtract && !multiRefDna && !multiRefDnaError && !multiRefDnaLoading && (
+            <div className="text-[10px] text-text-tertiary -mt-2">
+              ℹ️ 当前未开启 DNA 提取。开启后这里会显示人物/场景/服装分析结果
+            </div>
+          )}
+
           {/* 多图编辑生成按钮 */}
           <GenerateButton
             onClick={handleMultiRefGenerate}
@@ -1487,6 +1652,108 @@ export function ImageToImagePage({
             disabled={!multiRefImages.some(img => img.path) || !multiRefPrompt.trim() || taskManager.isFull}
             label={multiRefSubmitting ? '提交中...' : taskManager.isFull ? '队列已满' : '开始生成'}
           />
+        </div>
+
+        {/* ═══ 多图模式标签库（与单图模式独立）══════════════════════════════════════ */}
+        <div className="rounded-xl bg-bg-surface border border-border p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-text-primary">📚 标签库</span>
+            <span className="text-[10px] text-text-tertiary">为多图编辑选 Tag，拼成提示词种子</span>
+          </div>
+          <p className="text-[10px] text-text-tertiary leading-relaxed">
+            💡 在标签库选择的 tag 会自动追加到上方"图1/图2/图3"提示词中，可与"插入参考图"组合使用。
+          </p>
+          {/* 移动端：在 textarea 下方直接呈现紧凑版 */}
+          <div className="lg:hidden">
+            <TagPanel
+              positiveTags={multiRefPositiveTags}
+              negativeTags={multiRefNegativeTags}
+              customPrompt={multiRefTagCustomPrompt}
+              enableRandomPrompt={multiRefTagEn}
+              isR18Enabled={multiRefTagR18}
+              displayLang={multiRefTagLang}
+              onCustomPromptChange={setMultiRefTagCustomPrompt}
+              onAddTag={handleMultiRefAddTag}
+              onRemoveTag={handleMultiRefRemoveTag}
+              onUpdateTagWeight={handleMultiRefUpdateTagWeight}
+              onMoveTagUp={handleMultiRefMoveTagUp}
+              onMoveTagDown={handleMultiRefMoveTagDown}
+              onClearAll={handleMultiRefClearAll}
+              onEnableRandomPrompt={setMultiRefTagEn}
+              onEnableR18={() => setMultiRefTagR18(v => !v)}
+              onDisplayLangChange={setMultiRefTagLang}
+              disabled={taskManager.isFull || multiRefSubmitting}
+              expandedPrompt={multiRefTagExpanded}
+              onExpandedPromptChange={setMultiRefTagExpanded}
+              onGenerateFromPrompt={async () => {
+                // 拼接 tag + customPrompt → 注入 multiRefPrompt
+                const tagPart = buildMultiRefTagPrompt();
+                const userText = multiRefTagCustomPrompt.trim();
+                const parts: string[] = [];
+                if (tagPart) parts.push(tagPart);
+                if (userText) parts.push(userText);
+                if (multiRefGirlfriend?.characterPrompt) {
+                  parts.push(multiRefGirlfriend.characterPrompt);
+                }
+                if (multiRefTagEn) parts.push(QUALITY_BOOST_PROMPT);
+                const finalPrompt = parts.join(', ').trim();
+                if (!finalPrompt) {
+                  onError?.('请先选择标签或输入自定义提示词');
+                  return;
+                }
+                setMultiRefPrompt(finalPrompt);
+                onSuccess?.('已根据标签/自定义提示词生成多图编辑种子');
+              }}
+            />
+          </div>
+          {/* 桌面端：和单图模式一致的双列展示 */}
+          <div className="hidden lg:block">
+            <TagPanel
+              positiveTags={multiRefPositiveTags}
+              negativeTags={multiRefNegativeTags}
+              customPrompt={multiRefTagCustomPrompt}
+              enableRandomPrompt={multiRefTagEn}
+              isR18Enabled={multiRefTagR18}
+              displayLang={multiRefTagLang}
+              onCustomPromptChange={setMultiRefTagCustomPrompt}
+              onAddTag={handleMultiRefAddTag}
+              onRemoveTag={handleMultiRefRemoveTag}
+              onUpdateTagWeight={handleMultiRefUpdateTagWeight}
+              onMoveTagUp={handleMultiRefMoveTagUp}
+              onMoveTagDown={handleMultiRefMoveTagDown}
+              onClearAll={handleMultiRefClearAll}
+              onEnableRandomPrompt={setMultiRefTagEn}
+              onEnableR18={() => setMultiRefTagR18(v => !v)}
+              onDisplayLangChange={setMultiRefTagLang}
+              disabled={taskManager.isFull || multiRefSubmitting}
+              expandedPrompt={multiRefTagExpanded}
+              onExpandedPromptChange={setMultiRefTagExpanded}
+              onGenerateFromPrompt={async () => {
+                const tagPart = buildMultiRefTagPrompt();
+                const userText = multiRefTagCustomPrompt.trim();
+                const parts: string[] = [];
+                if (tagPart) parts.push(tagPart);
+                if (userText) parts.push(userText);
+                if (multiRefGirlfriend?.characterPrompt) {
+                  parts.push(multiRefGirlfriend.characterPrompt);
+                }
+                if (multiRefTagEn) parts.push(QUALITY_BOOST_PROMPT);
+                const finalPrompt = parts.join(', ').trim();
+                if (!finalPrompt) {
+                  onError?.('请先选择标签或输入自定义提示词');
+                  return;
+                }
+                setMultiRefPrompt(finalPrompt);
+                onSuccess?.('已根据标签/自定义提示词生成多图编辑种子');
+              }}
+            />
+          </div>
+          <div className="text-[10px] text-text-tertiary leading-relaxed">
+            ✅ 已选 <span className="text-primary font-medium">{multiRefPositiveTags.length}</span> 个正向 tag
+            {multiRefNegativeTags.length > 0 && (
+              <span>，<span className="text-red-500 font-medium">{multiRefNegativeTags.length}</span> 个反向 tag</span>
+            )}
+          </div>
         </div>
         </>
       )}
