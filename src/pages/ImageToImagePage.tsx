@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { ImagePlus, Sparkles } from 'lucide-react';
+import { ImagePlus, Sparkles, User, Shirt, MapPin, Plus } from 'lucide-react';
 import { ImageUploader } from '../components/ImageUploader';
 import { GirlfriendSelector } from '../components/GirlfriendSelector';
 import { ParameterSlider } from '../components/ParameterSlider';
@@ -9,7 +9,7 @@ import { TagPanel } from '../components/TagPanel';
 import { StoryboardSection } from '../components/StoryboardSection';
 import { ImageGrid } from '../components/ImageGrid';
 import { uploadImage, WORKFLOW } from '../services/runninghub';
-import { expandPrompt, streamRandomPrompt } from '../services/promptApi';
+import { expandPrompt, streamRandomPrompt, extractImageDna, type ImageDnaResult } from '../services/promptApi';
 import { addFavorite, removeFavorite, getFavorites } from '../services/storage';
 import type { ImageToImageParams, QueuedTask } from '../types';
 import { MAX_TASKS, type TaskManagerReturn } from '../hooks/useTaskManager';
@@ -18,6 +18,8 @@ import { DEFAULT_GIRLFRIEND_PRESETS, type GirlfriendPreset } from '../data/girlf
 import { PosePresetSelector } from '../components/PosePresetSelector';
 import { QUALITY_BOOST_PROMPT } from '../constants';
 import type { StoryboardPanel } from '../services/storyboardGenerator';
+import { ImageDnaPanel } from '../components/ImageDnaPanel';
+import { compressDataUrlIfNeeded, isHeicDataUrl, isIOSSafari } from '../utils/imagePreprocess';
 
 function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -106,10 +108,11 @@ export function ImageToImagePage({
 
   const [multiRefImages, setMultiRefImages] = useState<MultiRefImage[]>([EMPTY_MULTI(), EMPTY_MULTI(), EMPTY_MULTI()]);
   const [multiRefUploading, setMultiRefUploading] = useState(false); // 全局上传中标志
-  const [multiRefAspectRatio, setMultiRefAspectRatio] = useState('3:4');
+  // 默认 1024px（用户要求，避免移动端流量浪费）；9:16 竖屏适合人物/服装类创作
+  const [multiRefAspectRatio, setMultiRefAspectRatio] = useState('9:16');
   const [multiRefPrompt, setMultiRefPrompt] = useState('');
   const [multiRefEnhance, setMultiRefEnhance] = useState(false); // 188: 文生图开关
-  const [multiRefResolution, setMultiRefResolution] = useState(2048); // 186: 分辨率
+  const [multiRefResolution, setMultiRefResolution] = useState(1024); // 186: 默认 1024
   const [multiRefCount, setMultiRefCount] = useState(2); // 187: 抽卡数（默认2）
   const [multiRefSubmitting, setMultiRefSubmitting] = useState(false);
   const [multiRefUploadErrors, setMultiRefUploadErrors] = useState<(string | null)[]>([null, null, null]);
@@ -117,6 +120,13 @@ export function ImageToImagePage({
   // 锚定数字人：选中的数字人预设会占据参考图1（nodeId 154）
   const [multiRefGirlfriend, setMultiRefGirlfriend] = useState<GirlfriendPreset | null>(null);
   const [multiRefGirlfriendUploading, setMultiRefGirlfriendUploading] = useState(false);
+
+  // ── 多图模式 DNA 自动提取（与图生视频情色模式保持一致）─────────────────────────
+  // 当首张参考图（图1）上传成功时，自动调用 extractImageDna 提取人物/场景/服装信息。
+  // DNA 结果可作为多图编辑的"锚定角色"信息，辅助生成更有针对性的多图融合结果。
+  const [multiRefDna, setMultiRefDna] = useState<ImageDnaResult | null>(null);
+  const [multiRefDnaLoading, setMultiRefDnaLoading] = useState(false);
+  const [multiRefDnaError, setMultiRefDnaError] = useState<string | null>(null);
 
   // Pre-fill customPrompt when navigating from history regenerate
   useEffect(() => {
@@ -476,6 +486,75 @@ export function ImageToImagePage({
     setMultiRefPrompt(newPrompt);
     onSuccess?.(`多图编辑已添加姿势: ${poseName}`);
   }, [multiRefPrompt, onSuccess]);
+
+  // ─── 多图编辑模式 DNA 自动提取 ────────────────────────────────────────
+  // 当模式切到「多图编辑」 + 首张参考图（图1）上传完成时，自动调用 Gemini 提取 DNA。
+  // DNA 信息可用于：
+  // 1. 一键复制人物/场景/服装描述到多图提示词区（"图1 + 人物描述 + 服装 + 姿势"）
+  // 2. 把提取出的服装图插入到参考图2/3 槽位，引导 AI 融合多图元素
+  useEffect(() => {
+    // 仅在多图模式下提取
+    if (img2imgMode !== 'multi') return;
+    const firstUploaded = multiRefImages.find(img => img.path && img.path !== '');
+    if (!firstUploaded) return;
+
+    // 避免重复提取：用 path 作为 hash 标识
+    const currentHash = firstUploaded.path;
+    if (multiRefDna && (multiRefDna as any)._imageHash === currentHash) return;
+
+    const doExtract = async () => {
+      setMultiRefDnaLoading(true);
+      setMultiRefDnaError(null);
+      try {
+        // 优先使用 preview（浏览器本地 data URL，无网络依赖）
+        let imageDataUrl: string = firstUploaded.preview;
+        if (!imageDataUrl) {
+          // 回退：尝试 fetch path 转 base64（移动端可能失败）
+          if (firstUploaded.path.startsWith('http://') ||
+              firstUploaded.path.startsWith('https://') ||
+              firstUploaded.path.startsWith('blob:')) {
+            const resp = await fetch(firstUploaded.path);
+            const blob = await resp.blob();
+            imageDataUrl = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result as string);
+              reader.onerror = () => reject(new Error('FileReader 读取失败'));
+              reader.readAsDataURL(blob);
+            });
+          } else {
+            // RunningHub CDN 相对路径：交给后端处理
+            imageDataUrl = firstUploaded.path;
+          }
+        }
+
+        // 移动端原图压缩（iPhone 14 PM 48MP 上传后 base64 可能 5-15MB）
+        imageDataUrl = await compressDataUrlIfNeeded(imageDataUrl);
+
+        // HEIC 早返回，避免后端 415
+        if (isHeicDataUrl(imageDataUrl)) {
+          throw new Error(
+            '检测到 HEIC/HEIF 格式图片。Safari canvas 无法解码此格式，AI 也无法识别。\n' +
+            '请在 iPhone 设置 → 相机 → 格式中改为"兼容性最佳"，然后重新上传图片。',
+          );
+        }
+
+        console.log(
+          `[multiDNA] calling extractImageDna with image (${(imageDataUrl.length / 1024).toFixed(0)}KB)`,
+        );
+        const result = await extractImageDna(imageDataUrl);
+        (result as any)._imageHash = currentHash;
+        setMultiRefDna(result);
+      } catch (err) {
+        console.error('[multiDNA] extraction FAILED:', err);
+        setMultiRefDnaError(err instanceof Error ? err.message : 'DNA 提取失败');
+      } finally {
+        setMultiRefDnaLoading(false);
+      }
+    };
+
+    doExtract();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [img2imgMode, multiRefImages.map(i => i.path).join(','), multiRefUploading]);
 
   const handleImageChange = (path: string, url: string) => {
     updateParam('uploadedImagePath', path);
@@ -1217,6 +1296,159 @@ export function ImageToImagePage({
               disabled={taskManager.isFull || multiRefSubmitting}
               className="w-full px-3 py-2 rounded-lg bg-bg-elevated text-text-primary text-sm border border-border focus:outline-none focus:ring-1 focus:ring-primary resize-none disabled:opacity-50 placeholder:text-text-tertiary"
             />
+
+            {/* 参考图快捷插入按钮（对应"图1/图2/图3"占位符） */}
+            <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] text-text-tertiary">插入参考图引用:</span>
+              {[0, 1, 2].map(idx => {
+                const hasImage = !!multiRefImages[idx]?.path;
+                const isLocked = idx === 0 && !!multiRefGirlfriend;
+                const label = `图${idx + 1}`;
+                return (
+                  <button
+                    key={idx}
+                    onClick={() => {
+                      const current = multiRefPrompt.trim();
+                      const newPrompt = current ? `${current} ${label}` : label;
+                      setMultiRefPrompt(newPrompt);
+                    }}
+                    disabled={!hasImage || taskManager.isFull || multiRefSubmitting}
+                    title={hasImage
+                      ? `插入"${label}"到提示词开头（参考图 ${idx + 1} 已上传${isLocked ? '· 锚定数字人' : ''}）`
+                      : `请先上传参考图 ${idx + 1}（未上传时按钮置灰）`}
+                    className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition-all ${
+                      hasImage
+                        ? 'bg-primary/10 text-primary border border-primary/30 hover:bg-primary/20 cursor-pointer'
+                        : 'bg-bg-elevated text-text-tertiary border border-border cursor-not-allowed opacity-50'
+                    }`}
+                  >
+                    <Plus size={10} />
+                    {label}
+                    {isLocked && <span className="text-red-500 ml-0.5">●</span>}
+                  </button>
+                );
+              })}
+              {/* DNA 描述快捷插入 */}
+              {multiRefDna && multiRefDna.character_description && (
+                <button
+                  onClick={() => {
+                    const desc = multiRefDna.character_description || '';
+                    const current = multiRefPrompt.trim();
+                    const newPrompt = current
+                      ? `${current}，${desc}`
+                      : desc;
+                    setMultiRefPrompt(newPrompt);
+                  }}
+                  disabled={taskManager.isFull || multiRefSubmitting}
+                  title="插入 DNA 提取的人物描述到提示词"
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-pink-500/10 text-pink-600 border border-pink-300/40 hover:bg-pink-500/20 transition-all"
+                >
+                  <User size={10} />
+                  人物
+                </button>
+              )}
+              {multiRefDna && multiRefDna.clothing_list && multiRefDna.clothing_list.length > 0 && (
+                <button
+                  onClick={() => {
+                    const clothings = (multiRefDna.clothing_list || [])
+                      .map((c: any) => c.name)
+                      .filter(Boolean)
+                      .join('，');
+                    const current = multiRefPrompt.trim();
+                    const newPrompt = current
+                      ? `${current}，穿${clothings}`
+                      : `穿${clothings}`;
+                    setMultiRefPrompt(newPrompt);
+                  }}
+                  disabled={taskManager.isFull || multiRefSubmitting}
+                  title="插入 DNA 提取的服装列表"
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-amber-500/10 text-amber-700 border border-amber-300/40 hover:bg-amber-500/20 transition-all"
+                >
+                  <Shirt size={10} />
+                  服装
+                </button>
+              )}
+              {multiRefDna && multiRefDna.scene_description && (
+                <button
+                  onClick={() => {
+                    const desc = multiRefDna.scene_description || '';
+                    const current = multiRefPrompt.trim();
+                    const newPrompt = current
+                      ? `${current}，场景：${desc}`
+                      : `场景：${desc}`;
+                    setMultiRefPrompt(newPrompt);
+                  }}
+                  disabled={taskManager.isFull || multiRefSubmitting}
+                  title="插入 DNA 提取的场景描述"
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-blue-500/10 text-blue-700 border border-blue-300/40 hover:bg-blue-500/20 transition-all"
+                >
+                  <MapPin size={10} />
+                  场景
+                </button>
+              )}
+            </div>
+
+            {/* 多图模式 DNA 面板（图片DNA自动提取结果，与图生视频情色模式一致） */}
+            {(multiRefDna || multiRefDnaLoading || multiRefDnaError) && (
+              <div className="mt-3">
+                <ImageDnaPanel
+                  dna={multiRefDna}
+                  loading={multiRefDnaLoading}
+                  error={multiRefDnaError}
+                  imageUrl={multiRefImages[0]?.preview || multiRefImages[0]?.path}
+                  additionalImageUrls={multiRefImages.slice(1, 6).map(img => img.preview || img.path).filter(Boolean)}
+                  onReExtract={() => {
+                    setMultiRefDna(null);
+                    setMultiRefDnaError(null);
+                  }}
+                  onCopyClothing={(clothing) => {
+                    const text = `${clothing.name}${clothing.color ? ' ' + clothing.color : ''}${clothing.style ? ' ' + clothing.style : ''}`;
+                    const current = multiRefPrompt.trim();
+                    setMultiRefPrompt(current ? `${current}，${text}` : text);
+                    onSuccess?.(`已插入服装: ${clothing.name}`);
+                  }}
+                  onCopyCharacter={() => {
+                    const desc = multiRefDna?.character_description || '';
+                    if (!desc) return;
+                    const current = multiRefPrompt.trim();
+                    setMultiRefPrompt(current ? `${current}，${desc}` : desc);
+                  }}
+                  onCopyScene={() => {
+                    const desc = multiRefDna?.scene_description || '';
+                    if (!desc) return;
+                    const current = multiRefPrompt.trim();
+                    setMultiRefPrompt(current ? `${current}，场景：${desc}` : `场景：${desc}`);
+                  }}
+                  onInsertAsReference={(dataUrl, clothingName) => {
+                    // 找到第一个空槽位（不是用户锚定的数字人）插入服装图
+                    const targetIdx = multiRefImages.findIndex((img, idx) =>
+                      !img.path && !(idx === 0 && multiRefGirlfriend)
+                    );
+                    if (targetIdx < 0) {
+                      onError?.('没有空的参考图槽位，请先删除一些图片');
+                      return;
+                    }
+                    // 上传到 RunningHub
+                    (async () => {
+                      try {
+                        const blob = await (await fetch(dataUrl)).blob();
+                        const file = new File([blob], `${clothingName}.png`, { type: 'image/png' });
+                        const { imagePath, downloadUrl } = await uploadImage(apiKey, file);
+                        setMultiRefImages(prev => {
+                          const updated = [...prev];
+                          updated[targetIdx] = { path: imagePath, preview: downloadUrl || dataUrl };
+                          return updated;
+                        });
+                        onSuccess?.(`已插入"${clothingName}"到参考图 ${targetIdx + 1}`);
+                      } catch (err) {
+                        onError?.(`服装图插入失败: ${err instanceof Error ? err.message : '未知错误'}`);
+                      }
+                    })();
+                  }}
+                />
+              </div>
+            )}
+
             {/* 多图模式姿势预设（同步到 multiRefPrompt） */}
             <div className="mt-3">
               <PosePresetSelector

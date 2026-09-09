@@ -1096,14 +1096,24 @@ export async function extractImageDna(
 
       if (!response.ok) {
         const bodyText = await response.text().catch(() => '');
+        // 415: 后端显式拒绝 HEIC/HEIF 格式
+        if (response.status === 415) {
+          throw new Error(
+            `DNA 提取失败 (415): ${bodyText.slice(0, 200)}\n\n` +
+            '后端拒绝接收此图片。常见原因：\n' +
+            '① 文件虽然是 .heic 命名但 iPhone 设置已改为"兼容性最佳"的话文件名可能仍是 .heic → 上传前先把后缀改成 .jpg\n' +
+            '② 或在 iPhone 相册里选"存储图像"为 JPEG 后再上传\n' +
+            '③ 部分旧照片在 iCloud 上保留原始 HEIC 编码，需手动下载为 JPEG',
+          );
+        }
         // 422: Pydantic 校验失败（image_url 太长 / 格式错）
         if (response.status === 422) {
           throw new Error(
-            `DNA 提取失败 (422): ${bodyText.slice(0, 200)}。` +
-            '图片格式可能不被后端接受，请尝试用普通 JPEG/PNG 重传。',
+            `DNA 提取失败 (422): ${bodyText.slice(0, 200)}。\n\n` +
+            '可能原因：① 图片太大（请确保 < 10MB）；② base64 中含特殊字符；③ 图片 MIME 类型不被后端接受（请尝试用普通 JPEG/PNG 重传）。',
           );
         }
-        throw new Error(`DNA 提取失败 ${response.status}: ${bodyText.slice(0, 200)}`);
+        throw new Error(`DNA 提取失败 (${response.status}): ${bodyText.slice(0, 300)}`);
       }
 
       const data = await response.json() as ImageDnaResult;
@@ -1124,11 +1134,16 @@ export async function extractImageDna(
       }
       // 重试已用完或非网络错误
       if (attempt >= retries) {
-        // 把 Safari "Load failed" 转成用户友好提示
+        // Safari "Load failed" 是 iOS Safari 的 fetch bug，经常被错误地归因为 HEIC。
+        // 实际真正原因可能是网络不稳、CORS、或请求体过大。
         if (isSafariLoadFailed) {
           throw new Error(
-            '网络请求失败（Safari Load failed）。可能原因：① 网络不稳定；② 后端服务暂不可用；' +
-            '③ 图片格式不被接受（iPhone HEIC 格式请在系统设置 → 相机 → 格式中改为"兼容性最佳"）。请稍后重试。',
+            '网络请求失败（Safari "Load failed"）。这通常不是 HEIC 格式问题（如果你已在系统设置 → 相机 → 格式中改为"兼容性最佳"，那图片已是 JPEG）。\n\n' +
+            '真实原因很可能是：\n' +
+            '① 网络不稳定（4G/Wi-Fi 切换、信号弱时 Safari 会丢请求）\n' +
+            '② 后端服务暂不可用（请稍后重试）\n' +
+            '③ 请求体过大（base64 后通常 4-7MB；移动端 fetch 经常超时）\n\n' +
+            '建议：① 切换到稳定的 Wi-Fi 后重试；② 重新上传图片触发自动压缩；③ 如果仍然失败，请截图给开发者排查',
           );
         }
         throw lastError;

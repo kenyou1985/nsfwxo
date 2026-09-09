@@ -35,6 +35,70 @@ export function detectImageFormat(dataUrl: string): string {
   return 'unknown';
 }
 
+/**
+ * 尝试用 canvas 解码 HEIC/HEIF 并转码为 JPEG data URL。
+ * 浏览器对 HEIC 的支持差：
+ * - Chrome 桌面（带 heif/libheif）：✅ 可解码
+ * - Firefox（带 system HEIF support）：✅ 取决于系统
+ * - macOS Safari（带系统框架）：✅ 通常可解码
+ * - iOS Safari：<img> tag 能显示但 canvas.drawImage 返回黑色（不支持解码）
+ *
+ * 失败返回 null，调用方应保留原 HEIC data URL 并交给后端 415 错误处理。
+ */
+export async function tryDecodeHeic(srcHeicDataUrl: string): Promise<string | null> {
+  // 二维码兜底（Safari HEIC 有时会被显示但 canvas 拿到 0×0 或全黑）
+  let imgWidth = 0;
+  let imgHeight = 0;
+
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error('image load failed'));
+      // 4s 超时（HEIC 在不支持的浏览器上会 hang）
+      setTimeout(() => reject(new Error('HEIC decode timeout (4s)')), 4000);
+      i.src = srcHeicDataUrl;
+    });
+    imgWidth = img.naturalWidth || img.width;
+    imgHeight = img.naturalHeight || img.height;
+    if (!imgWidth || !imgHeight) return null;
+
+    // 解码到 canvas 再导出 JPEG（Safari HEIC 这里会得到全黑图，需要再检测一次）
+    const canvas = document.createElement('canvas');
+    canvas.width = imgWidth;
+    canvas.height = imgHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.drawImage(img, 0, 0);
+
+    // 抠边：检测 canvas 是否真的解码到了内容（避免 iOS Safari 的"黑色 canvas"陷阱）
+    const sampleData = ctx.getImageData(0, 0, 1, 1).data;
+    // iOS Safari 全黑 canvas 的 corner pixel 一般是 (0,0,0,0)，正常解码是 (R,G,B,255)
+    if (sampleData[3] === 0 || (sampleData[0] === 0 && sampleData[1] === 0 && sampleData[2] === 0 && sampleData[3] < 250)) {
+      console.warn(
+        '[imagePreprocess] HEIC canvas decode returned blank/transparent image, ' +
+        'likely iOS Safari black-canvas bug',
+      );
+      return null;
+    }
+
+    const blob = await new Promise<Blob | null>((resolve, reject) => {
+      canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.85);
+    });
+    if (!blob) return null;
+    if (blob.size < 100) return null;
+
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(new Error('FileReader 失败'));
+      reader.readAsDataURL(blob);
+    });
+  } catch (e) {
+    return null;
+  }
+}
+
 /** 是否为移动端（iOS Safari / Android Chrome 等） */
 export function isMobileDevice(): boolean {
   if (typeof navigator === 'undefined') return false;
@@ -72,10 +136,20 @@ export async function compressDataUrlIfNeeded(
   if (!srcDataUrl.startsWith('data:image/')) return srcDataUrl;
 
   // HEIC / HEIF：Safari canvas 不能解码，强行压缩会产生空白图
+  // 但部分浏览器（Chrome 桌面 / Firefox / 现代 Safari on macOS）能解码 HEIC
+  // 尝试一次 canvas 解码，失败后才放弃
   if (isHeicDataUrl(srcDataUrl)) {
     console.warn(
-      '[imagePreprocess] HEIC/HEIF detected, skipping canvas compression ' +
-      '(Safari canvas cannot decode HEIC)',
+      '[imagePreprocess] HEIC/HEIF detected, attempting canvas decode (may produce blank on Safari)',
+    );
+    const decoded = await tryDecodeHeic(srcDataUrl);
+    if (decoded) {
+      console.log('[imagePreprocess] HEIC canvas decode succeeded, returning as JPEG');
+      return decoded;
+    }
+    console.warn(
+      '[imagePreprocess] HEIC canvas decode failed, returning original HEIC data URL ' +
+      '(backend will return 415 with clear instructions)',
     );
     return srcDataUrl;
   }
