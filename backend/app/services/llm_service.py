@@ -346,6 +346,7 @@ async def _stream_model_single(
     model_name: str,
     system_prompt: str,
     user_prompt: str,
+    max_tokens: Optional[int] = None,
 ) -> AsyncIterator[str]:
     """Stream a single model. Yields text deltas. Raises on terminal failure."""
     client = AsyncOpenAI(
@@ -365,7 +366,7 @@ async def _stream_model_single(
                 model=model_name,
                 messages=messages,
                 temperature=0.7,
-                max_completion_tokens=MAX_COMPLETION_TOKENS,
+                max_completion_tokens=max_tokens if max_tokens is not None else MAX_COMPLETION_TOKENS,
                 stream=True,
             )
             collected_parts: List[str] = []
@@ -466,6 +467,7 @@ async def stream_grok(
     system_prompt: str,
     user_prompt: str,
     model_order: Optional[List[str]] = None,
+    max_tokens: Optional[int] = None,
 ) -> AsyncIterator[str]:
     """Streaming version of call_grok. Yields text deltas as they arrive.
 
@@ -481,7 +483,7 @@ async def stream_grok(
         logger.info(f"[LLM stream] trying model={model_name} (idx={model_idx})")
         emitted_any = False
         try:
-            gen = _stream_model_single(api_key, model_name, system_prompt, user_prompt)
+            gen = _stream_model_single(api_key, model_name, system_prompt, user_prompt, max_tokens=max_tokens)
             async for piece in gen:
                 emitted_any = True
                 yield piece
