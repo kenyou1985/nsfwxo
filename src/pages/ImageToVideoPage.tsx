@@ -26,6 +26,7 @@ import { MiniMaxLongVideoV2Page } from './MiniMaxLongVideoV2Page';
 import { generateH3Prompt } from '../services/h3PromptService';
 import { resolveImageRef } from '../services/imageCacheService';
 import { ImageDnaPanel } from '../components/ImageDnaPanel';
+import { enforceEroticDiversity, replaceLastShotEjaculation } from '../utils/h3EroticPostProcess';
 
 const DURATION_OPTIONS = [
   { value: '5', label: '5秒' },
@@ -972,8 +973,26 @@ function EroticPromptCard({
             {duration}秒 · {editingPrompt.slice(0, 32).replace(/\n/g, ' ')}{editingPrompt.length > 32 ? '...' : ''}
           </span>
         </div>
-        <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-          {/* 折叠态：保留「生成视频」+「复制」两个高频按钮，其他操作进入展开态 */}
+        <div className="flex items-center gap-0.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+          {/* 折叠态：显示全部视频生成按钮（当前模型 + 长视频v1.1 + 长视频v2） */}
+          <button
+            onClick={() => onSendToLongVideo(editingPrompt)}
+            title="发送至长视频 v1.1"
+            className="flex items-center gap-0.5 px-1.5 py-1 rounded-lg bg-violet-100 text-violet-600 text-[9px] font-medium hover:bg-violet-200 transition-colors"
+          >
+            <Video size={9} />
+            长视频
+          </button>
+          {onSendToLongVideoV2 && (
+            <button
+              onClick={() => onSendToLongVideoV2(editingPrompt)}
+              title="发送至长视频 V2"
+              className="flex items-center gap-0.5 px-1.5 py-1 rounded-lg bg-cyan-100 text-cyan-600 text-[9px] font-medium hover:bg-cyan-200 transition-colors"
+            >
+              <Video size={9} />
+              长视频V2
+            </button>
+          )}
           <button
             onClick={() => onGenerateVideo(editingPrompt)}
             title="一键生成视频"
@@ -985,13 +1004,13 @@ function EroticPromptCard({
           <button
             onClick={handleCopy}
             title={copied ? '已复制' : '复制提示词到剪贴板'}
-            className={`flex items-center gap-0.5 px-2 py-1 rounded-lg text-[10px] font-medium transition-colors ${
+            className={`flex items-center gap-0.5 px-1.5 py-1 rounded-lg text-[9px] font-medium transition-colors ${
               copied
                 ? 'bg-emerald-500 text-white'
                 : 'bg-white/80 text-pink-600 border border-pink-200 hover:bg-white'
             }`}
           >
-            {copied ? <><Check size={10} />已复制</> : <><Copy size={10} />复制</>}
+            {copied ? <><Check size={9} />已复制</> : <><Copy size={9} />复制</>}
           </button>
           {collapsed ? (
             <ChevronDown size={14} className="text-pink-500 ml-0.5" />
@@ -1216,12 +1235,28 @@ function MiniMaxH3Panel({
       }
     }
 
-    const userHint = mmPrompt.trim() || undefined;
+    const userHintRaw = mmPrompt.trim() || undefined;
     const duration = parseInt(mmDuration, 10) as 15 | 30 | 60;
 
     // ── 流式并行生成：单次请求，多条并行流式输出 ───────────────────────────
     // 1. 立即显示 N 个空 loading 占位槽（流式用户体验的关键）
     const count = mmEroticCount;
+
+    // ── 多样性约束：当一次性生成多条（count ≥ 2）时，向后端注入强约束提示
+    // 解决「3条提示词姿势雷同」「道具权重过高（椅子）」「射精方式单一」
+    // 「最后一镜事后展示而非射精收尾」等结构性问题
+    const DIVERSITY_CONSTRAINT = `【多样性约束 - 必须严格执行】
+1. 姿势多样性：每条提示词必须从不同角度/不同姿势切入，禁止所有镜头都围绕同一道具（如椅子）。同一房间内可以站立、跪、趴、坐、侧卧等多种体位切换。
+2. 道具多样化使用：椅子作为道具可以有很多花样 —— 跪在椅子上、趴在椅子上、单腿踩着椅子后入、双手扶着椅背后入、坐在椅子上面对/背对伴侣、坐在椅面一侧腿搭扶手传教士变体。把椅子当作姿势变换的辅助物而非核心场景。
+3. 道具权重 = 环境权重：禁止道具（椅子、玩偶、台灯等）锁定场景主导地位，环境与道具各占一半权重。每条提示词应允许不同的姿势起始位（不一定坐在椅子上，可以站立/跪在地板/床沿/窗边等）。
+4. 5种射精方式轮换 + 后入射臀部权重提升：必须在 5 种射精方式中至少出现 3 种 —— (a) 口爆 (b) 内射 creampie (c) 后入射臀部（背部深弓臀部高举时精液从交合处溢出，镜头从后方捕捉插入与臀部闪烁） (d) 射胸部 (e) 颜射 facial。每条提示词随机抽取一种作为唯一射精，5 种之间均匀分布，后入射臀部权重提到 35%（与口爆、内射并列最高）。
+5. 最后一个镜头统一为射精收尾：最后一个 [Shot N] 必须是射精瞬间（男性在女性体内/口腔/臀部/胸部/面部射出精液）+ 女性高潮反应的合并镜头。严禁单独出现「事后展示/衣衫不整/精液残留/半裸靠椅背/餍足表情」这种收尾镜头 —— 这些可以融入射精镜头内（如精液从交合处溢出、脸颊残留），但不能作为单独的 last shot 存在。
+6. 分镜结构：倒数第二个镜头是持续抽插/高潮前奏，最后一个镜头立即转入射精收尾（高潮 → 射精 → 精液溢出/覆盖），不允许中间插入事后状态。`;
+
+    const userHint = userHintRaw
+      ? `${userHintRaw}\n\n${DIVERSITY_CONSTRAINT}`
+      : (count > 1 ? DIVERSITY_CONSTRAINT : undefined);
+
     setMmEroticPrompts(Array(count).fill('')); // 空字符串 = 正在生成
 
     // 用 ref 保存每条提示词的累加文本（避免 setState 闭包问题）
@@ -1251,11 +1286,14 @@ function MiniMaxH3Panel({
           });
         },
         onEnd: ({ index, prompt }) => {
-          accumulated[index] = prompt;
+          // 单条提示词完成 → 立即应用"最后一段必须为射精收尾"的兜底后处理
+          // 解决后端 LLM 经常把最后一镜写成"事后展示/餍足靠椅背/半裸整理"等问题
+          const repaired = replaceLastShotEjaculation(prompt, 'creampie');
+          accumulated[index] = repaired;
           setMmEroticPrompts(prev => {
             const updated = [...prev];
             while (updated.length <= index) updated.push('');
-            updated[index] = prompt;
+            updated[index] = repaired;
             return updated;
           });
         },
@@ -1271,11 +1309,30 @@ function MiniMaxH3Panel({
         },
         onDone: ({ successful }) => {
           setMmEroticAnalyzing(false);
+
+          // ── 跨条多样化后处理 ─────────────────────────────────
+          // 等所有提示词生成完毕后，对成功生成的提示词重新分配不同的射精方式
+          // 确保 3 条提示词分别使用 3 种不同的射精方式（后入射臀部权重最高 35%）
           setMmEroticPrompts(prev => {
+            const completed = prev
+              .map((p, i) => ({ p, i }))
+              .filter(({ p }) => p && !p.startsWith('[生成失败'));
+
+            if (completed.length >= 2) {
+              const completedPrompts = completed.map(c => c.p);
+              const diversified = enforceEroticDiversity(completedPrompts);
+              const updated = [...prev];
+              completed.forEach((c, k) => { updated[c.i] = diversified[k]; });
+              const first = updated.find(p => p && !p.startsWith('[生成失败'));
+              if (first) setMmPrompt(first);
+              return updated;
+            }
+
             const first = prev.find(p => p && !p.startsWith('[生成失败'));
             if (first) setMmPrompt(first);
             return prev;
           });
+
           if (successful > 0) {
             onSuccess(`已生成 ${successful} 条 H3 提示词`);
           } else {
