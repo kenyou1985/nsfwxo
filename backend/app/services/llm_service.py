@@ -13,9 +13,9 @@ from openai import AsyncOpenAI, APIError, AuthenticationError, RateLimitError
 logger = logging.getLogger(__name__)
 
 OPENLUX_BASE_URL = "https://api.openlux.ai/v1"
-# 优化模型顺序：优先 grok-4.6（更快更强），失败时快速切换到 grok-4.3
+# 优化模型顺序：优先 grok-4.6，失败时切换 grok-4.5（内容过滤比 4.3 更宽松）
 MODEL_NAME = "grok-4.6"
-MODEL_FALLBACK = "grok-4.3"
+MODEL_FALLBACK = "grok-4.5"
 # 优化超时：增加超时时间以处理大输出（主题大纲/分镜的 system prompt ~9KB，
 # 输出 ~4-9KB JSON，加上多主题并行时的并发抢占，需要更宽松的客户端超时）。
 # 60 秒在多主题并行（3 个主题 × 6 个分镜 × 4 并发信号量）下频繁被 httpx

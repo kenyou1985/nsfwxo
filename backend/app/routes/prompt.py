@@ -8049,13 +8049,12 @@ async def _generate_single_h3_prompt(api_key: str, system_prompt: str, user_prom
     """调用一次 Grok，返回清洗过的提示词字符串
 
     使用 grok-4.6 + max_tokens=32768 以支持 H3 模板格式的较长输出。
-    注意：grok-4.3 会拒绝 NSFW 内容，不加入 fallback 列表。
+    失败时 fallback 到 grok-4.5（比 grok-4.3 对 NSFW 内容更宽松）。
     """
     raw = await call_grok(
         api_key,
         system_prompt,
         user_prompt,
-        model_order=["grok-4.6"],
         max_tokens=32768,
     )
     return raw.strip()
