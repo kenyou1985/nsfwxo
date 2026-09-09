@@ -140,6 +140,7 @@ async def _call_model_single(
     model_name: str,
     system_prompt: str,
     user_prompt: str,
+    max_completion_tokens: int = 16384,
 ) -> str:
     """
     Make a single request to the specified model with built-in retries.
@@ -287,6 +288,7 @@ async def call_grok(
     system_prompt: str,
     user_prompt: str,
     model_order: Optional[List[str]] = None,
+    max_tokens: Optional[int] = None,
 ) -> str:
     """
     Call Grok models with automatic model switching on ANY failure.
@@ -298,7 +300,8 @@ async def call_grok(
     for model_idx, model_name in enumerate(models_to_try):
         logger.info(f"[LLM] trying model={model_name} (model_idx={model_idx})")
         try:
-            return await _call_model_single(api_key, model_name, system_prompt, user_prompt)
+            effective_max = max_tokens if max_tokens is not None else MAX_COMPLETION_TOKENS
+            return await _call_model_single(api_key, model_name, system_prompt, user_prompt, max_completion_tokens=effective_max)
         except OpenLuxAuthError:
             # Auth errors should not fall back to another model
             raise
