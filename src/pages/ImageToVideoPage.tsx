@@ -898,8 +898,10 @@ interface EroticPromptCardProps {
   index: number;
   prompt: string;
   duration: 15 | 30 | 60;
-  imagePreview: string;
-  imagePath: string;
+  /** 参考图预览（折叠态不再展示；保留以兼容外部调用） */
+  imagePreview?: string;
+  /** 参考图路径（保留以兼容外部调用） */
+  imagePath?: string;
   onUse: (prompt: string) => void;
   onSendToLongVideo: (prompt: string) => void;
   /** 发送到长视频 V2 */
@@ -921,7 +923,7 @@ function EroticPromptCard({
   const [editingPrompt, setEditingPrompt] = useState(prompt);
   const [isEditing, setIsEditing] = useState(false);
   const [copied, setCopied] = useState(false);
-  // 卡片整体默认折叠：长提示词默认收起为单行，提升多主题浏览体验
+  // 卡片整体默认折叠：长提示词默认收起为单行，与电脑端展示逻辑一致
   const [collapsed, setCollapsed] = useState(true);
 
   // 当外部 prompt 变化时同步到编辑状态和折叠状态（新建/更新时重置折叠）
@@ -956,55 +958,52 @@ function EroticPromptCard({
 
   return (
     <div className="rounded-xl border border-pink-200 bg-white overflow-hidden">
-      {/* 折叠态：单行紧凑头部（序号 + 时长 + 预览 + 切换箭头） */}
+      {/* 折叠态：单行紧凑菜单（序号 + 时长 + 摘要 + 「生成视频」+「复制」+ 切换箭头） */}
       <div
         onClick={() => setCollapsed(c => !c)}
-        className="flex items-center justify-between px-3 py-2 bg-gradient-to-r from-pink-50 to-rose-50 cursor-pointer hover:from-pink-100 hover:to-rose-100 transition-colors"
+        className="flex items-center justify-between gap-2 px-3 py-2 bg-gradient-to-r from-pink-50 to-rose-50 cursor-pointer hover:from-pink-100 hover:to-rose-100 transition-colors"
         role="button"
       >
         <div className="flex items-center gap-2 min-w-0 flex-1">
           <span className="flex-shrink-0 flex items-center justify-center w-5 h-5 rounded-full bg-pink-500 text-white text-[10px] font-bold">
             {index + 1}
           </span>
-          <span className="text-[10px] font-medium text-pink-600 truncate">
-            {duration}秒 · {editingPrompt.slice(0, 40).replace(/\n/g, ' ')}{editingPrompt.length > 40 ? '...' : ''}
+          <span className="text-[10px] font-medium text-pink-600 truncate min-w-0">
+            {duration}秒 · {editingPrompt.slice(0, 32).replace(/\n/g, ' ')}{editingPrompt.length > 32 ? '...' : ''}
           </span>
         </div>
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          {/* 折叠态：保留高频快捷操作（使用 + 生成视频），其他操作进入展开态 */}
+        <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+          {/* 折叠态：保留「生成视频」+「复制」两个高频按钮，其他操作进入展开态 */}
           <button
-            onClick={(e) => { e.stopPropagation(); onUse(editingPrompt); }}
-            title="使用此提示词"
-            className="px-2 py-0.5 rounded-lg bg-pink-500 text-white text-[9px] font-medium hover:bg-pink-600 transition-colors"
+            onClick={() => onGenerateVideo(editingPrompt)}
+            title="一键生成视频"
+            className="flex items-center gap-0.5 px-2 py-1 rounded-lg bg-gradient-to-r from-rose-500 to-pink-500 text-white text-[10px] font-bold hover:opacity-90 transition-opacity shadow-sm"
           >
-            使用
+            <Play size={10} />
+            生成视频
           </button>
           <button
-            onClick={(e) => { e.stopPropagation(); onGenerateVideo(editingPrompt); }}
-            title="一键生成视频"
-            className="flex items-center gap-0.5 px-2 py-0.5 rounded-lg bg-gradient-to-r from-rose-500 to-pink-500 text-white text-[9px] font-bold hover:opacity-90 transition-opacity"
+            onClick={handleCopy}
+            title={copied ? '已复制' : '复制提示词到剪贴板'}
+            className={`flex items-center gap-0.5 px-2 py-1 rounded-lg text-[10px] font-medium transition-colors ${
+              copied
+                ? 'bg-emerald-500 text-white'
+                : 'bg-white/80 text-pink-600 border border-pink-200 hover:bg-white'
+            }`}
           >
-            <Play size={8} />
-            生成
+            {copied ? <><Check size={10} />已复制</> : <><Copy size={10} />复制</>}
           </button>
           {collapsed ? (
-            <ChevronDown size={14} className="text-pink-500" />
+            <ChevronDown size={14} className="text-pink-500 ml-0.5" />
           ) : (
-            <ChevronUp size={14} className="text-pink-500" />
+            <ChevronUp size={14} className="text-pink-500 ml-0.5" />
           )}
         </div>
       </div>
 
-      {/* 展开态：参考图 + 完整提示词 + 全部操作按钮 */}
+      {/* 展开态：完整提示词 + 全部操作按钮（编辑/复制/长视频/长视频V2） */}
       {!collapsed && (
         <>
-          {/* 参考图缩略图（如果有） */}
-          {imagePreview && (
-            <div className="px-3 pt-2">
-              <img src={imagePreview} alt="参考图" className="w-12 h-12 rounded-lg object-cover border border-pink-100" />
-            </div>
-          )}
-
           {/* 提示词内容 */}
           <div className="px-3 py-2">
             {isEditing ? (
@@ -1021,7 +1020,7 @@ function EroticPromptCard({
             )}
           </div>
 
-          {/* 完整操作按钮组（编辑、复制、长视频、长视频V2） */}
+          {/* 完整操作按钮组（编辑、复制、使用、长视频、长视频V2） */}
           <div className="flex items-center gap-1 px-3 pb-2 flex-wrap">
             <button
               onClick={() => {
@@ -1050,6 +1049,12 @@ function EroticPromptCard({
               }`}
             >
               {copied ? <><Check size={9} /> 已复制</> : <><Copy size={9} /> 复制</>}
+            </button>
+            <button
+              onClick={() => onUse(editingPrompt)}
+              className="px-2 py-0.5 rounded-lg bg-pink-100 text-pink-600 text-[9px] font-medium hover:bg-pink-200 transition-colors"
+            >
+              使用
             </button>
             <button
               onClick={() => onSendToLongVideo(editingPrompt)}
@@ -1887,7 +1892,7 @@ function MiniMaxH3Panel({
                       <span className="text-[9px] text-pink-400/60">点击「生成视频」可一键提交任务</span>
                     )}
                   </div>
-                  <div className="space-y-3 max-h-96 overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin' }}>
+                  <div className="space-y-3 max-h-[28rem] overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin' }}>
                     {mmEroticPrompts.map((prompt, idx) => {
                       const isLoading = prompt === null;
                       const isError = typeof prompt === 'string' && prompt.startsWith('[');

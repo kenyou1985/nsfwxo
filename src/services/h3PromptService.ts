@@ -338,6 +338,10 @@ function buildShotsFromImagePrompt(
   if (sceneDescription && consistent) {
     // 有场景描述且与主题一致：使用场景描述
     segments = splitSceneIntoSegments(sceneDescription, shotCount);
+    // R18 内容需要规范化：解决重复射精、冲突动作等问题
+    if (r18) {
+      segments = normalizeEroticSegments(segments, shotCount);
+    }
   } else if (r18) {
     // R18 内容且无有效场景描述：使用 R18 预设模板
     segments = R18_SIX_SEGMENT_TEMPLATES.slice(0, shotCount).map(t => t.description);
@@ -384,14 +388,35 @@ function buildShotsFromImagePrompt(
 }
 
 /** 把 sceneDescription 按镜头数切分成段。
- *  - 优先按句号 "。" / ". " 切分；
- *  - 段数不足时，把首段复制给后面的镜头以保留完整动作链；
+ *  - 优先按 "[Shot N]" / "[镜头 N]" 标记分割（LLM 生成的完整分镜描述）
+ *  - 回退：按句号 "。" / ". " 切分
+ *  - 段数不足时，把末段复制给后面的镜头以保留完整动作链
  *  - 如果 sceneDescription 为空，返回 subjectText 作为兜底。 */
 function splitSceneIntoSegments(sceneDescription: string, shotCount: number): string[] {
   const cleaned = sceneDescription.trim();
   if (!cleaned) return Array(shotCount).fill('角色以流畅、连贯的动作表演描述的亲密场景。');
 
-  // 拆句，保留完整句子
+  // 优先：按 [Shot N] / [镜头 N] 标记分割
+  const shotPattern = /\[(?:Shot|镜头)\s*\d+\]/gi;
+  const hasShotMarkers = shotPattern.test(cleaned);
+
+  if (hasShotMarkers) {
+    // 按 [Shot N] 标记分割
+    const parts = cleaned.split(shotPattern).filter(s => s.trim().length > 0);
+    if (parts.length >= shotCount) {
+      // 有足够的分镜，取前 shotCount 个
+      return parts.slice(0, shotCount);
+    } else if (parts.length > 0) {
+      // 分镜数不足，补齐
+      const segments = [...parts];
+      while (segments.length < shotCount) {
+        segments.push(segments[segments.length - 1]);
+      }
+      return segments.slice(0, shotCount);
+    }
+  }
+
+  // 回退：按句号拆分，保留完整句子
   const sentences = cleaned
     .split(/(?<=[.!?])\s+/)
     .map((s) => s.trim())
@@ -413,6 +438,144 @@ function splitSceneIntoSegments(sceneDescription: string, shotCount: number): st
       segments.push(base[idx]);
     }
   }
+  return segments;
+}
+
+/**
+ * 规范化 R18 分镜描述，解决逻辑冲突和重复问题：
+ * 1. 射精只保留一次（在最后一个分镜）
+ * 2. 移除冲突动作（如"射臀部"和"拥抱深吻"同时出现）
+ * 3. 一个分镜中只保留一个主要的射精动作
+ * 4. 避免多个连续性爱动作铆钉在同一分镜
+ * 5. 口爆后的分镜不能再有其他射精
+ *
+ * @param segments 原始分镜描述数组
+ * @param shotCount 分镜数量
+ * @returns 规范化后的分镜描述数组
+ */
+function normalizeEroticSegments(segments: string[], shotCount: number): string[] {
+  if (shotCount < 2 || segments.length < 2) return segments;
+
+  // 检测射精类型的关键词（更全面的列表）
+  const ejaculationKeywords = [
+    '射精', '射入', '精液', '浓精', '射在', '射向', '口爆',
+    '颜射', '内射', 'creampie', 'cum', '射臀部', '射大腿', '射胸部', '射乳房',
+    '外射', '喷洒', '射出', '射满', '射嘴巴'
+  ];
+
+  // 需要移除或降级的冲突动作关键词
+  const conflictingActions = ['拥抱', '深吻', '接吻', '回吻', '依偎'];
+  // 射臀部/外射关键词
+  const externalEjaculationKeywords = ['射臀部', '射大腿', '射胸部', '射乳房', '外射', '颜射'];
+  // 口爆关键词
+  const oralEjaculationKeywords = ['口爆', '射嘴巴', 'facial'];
+
+  // 检测分镜中是否包含射精
+  const hasEjaculation = (text: string): boolean => {
+    return ejaculationKeywords.some(kw => text.includes(kw));
+  };
+
+  // 检测是否是外部射精（非体内射精）
+  const hasExternalEjaculation = (text: string): boolean => {
+    return externalEjaculationKeywords.some(kw => text.includes(kw));
+  };
+
+  // 检测是否有口爆
+  const hasOralEjaculation = (text: string): boolean => {
+    return oralEjaculationKeywords.some(kw => text.includes(kw)) ||
+           (text.includes('口腔') && text.includes('精液')) ||
+           (text.includes('嘴里') && hasEjaculation(text));
+  };
+
+  // 检测是否有冲突动作
+  const hasConflictingAction = (text: string): boolean => {
+    return conflictingActions.some(kw => text.includes(kw));
+  };
+
+  // 第一遍：找出所有包含射精的分镜索引
+  const ejaculationShots: number[] = [];
+  const externalEjaculationShots: number[] = [];
+  const oralEjaculationShots: number[] = [];
+
+  for (let i = 0; i < segments.length; i++) {
+    if (hasEjaculation(segments[i])) {
+      ejaculationShots.push(i);
+      if (hasExternalEjaculation(segments[i])) {
+        externalEjaculationShots.push(i);
+      }
+      if (hasOralEjaculation(segments[i])) {
+        oralEjaculationShots.push(i);
+      }
+    }
+  }
+
+  // 找到最后一个射精分镜
+  const lastEjacIdx = ejaculationShots.length > 0
+    ? ejaculationShots[ejaculationShots.length - 1]
+    : -1;
+
+  // 找到最后一个口爆分镜
+  const lastOralIdx = oralEjaculationShots.length > 0
+    ? oralEjaculationShots[oralEjaculationShots.length - 1]
+    : -1;
+
+  // 遍历所有分镜，移除非最后分镜的射精描述
+  for (let i = 0; i < segments.length; i++) {
+    if (!hasEjaculation(segments[i])) continue;
+
+    const isLast = i === lastEjacIdx;
+    const isLastOral = i === lastOralIdx;
+
+    if (isLast) {
+      // 最后一个分镜：保留射精，但移除冲突动作
+      if (hasExternalEjaculation(segments[i]) && hasConflictingAction(segments[i])) {
+        segments[i] = segments[i]
+          .replace(/，?两人?[^\n，。]*(?:拥抱|深吻|接吻|回吻|依偎)[^\n，。]*[，。]?/g, '，')
+          .replace(/她?回头深吻[^\n，。]*[，。]?/g, '')
+          .replace(/眼神餍足[^\n，。]*[，。]?/g, '表情满足');
+      }
+    } else {
+      // 非最后分镜：完全移除射精相关描述
+      // 移除体内射精
+      segments[i] = segments[i]
+        .replace(/在[^\n，。]*(?:阴道|体内|最深处)[^\n，。]*(?:射精|射入|喷出|形成体内射精)/g, '持续深入抽插')
+        .replace(/形成体内射精creampie[^\n，。]*/g, '')
+        .replace(/体内射精[^\n，。]*/g, '')
+        // 移除外部射精动作
+        .replace(/对准[^\n，。]*(?:臀部|腰窝|臀瓣|乳房|胸部|腹部|大腿|嘴巴|口腔|面部)[^\n，。]*(?:射出|喷洒|射满|留下|外射)/g, '持续深入抽插')
+        .replace(/射出最后一股浓稠精液[^\n，。]*(?:覆盖|流淌|滴落|形成)/g, '持续深入抽插')
+        .replace(/射出[^\n，。]*(?:精液|浓精|白浊|最后一股)[^\n，。]*/g, '持续深入抽插')
+        .replace(/随即[^\n，。]*(?:抽出|对准)[^\n，。]*(?:外射|射出)/g, '持续抽插')
+        .replace(/随后[^\n，。]*(?:将阴茎抽出|抽出阴茎)[^\n，。]*对准[^\n，。]*/g, '继续抽插')
+        .replace(/外射[^\n，。]*(?:第二股|更多|浓稠)?[^\n，。]*(?:精液|浓精|白浊)?[^\n，。]*/g, '持续抽插')
+        .replace(/外射[^\n，。]*/g, '')
+        // 移除口爆相关
+        .replace(/进行口爆射嘴巴[^\n，。]*/g, '继续含住阴茎')
+        .replace(/射嘴巴[^\n，。]*/g, '继续口交')
+        .replace(/射精口爆[^\n，。]*/g, '含住阴茎')
+        .replace(/射满[^\n，。]*(?:口腔|嘴巴|面部|脸颊|下巴)/g, '含住龟头')
+        .replace(/精液[^\n，。]*(?:充满|溢出|射满)[^\n，。]*/g, '含着龟头')
+        .replace(/facial[^\n，。]*/g, '')
+        .replace(/用舌尖[^\n，。]*(?:舔食|舔干净|舔舐)[^\n，。]*(?:精液|白浊|液体)/g, '继续舔舐龟头')
+        .replace(/吞下[^\n，。]*(?:部分|大部分)?[^\n，。]*(?:精液|白浊)/g, '继续吮吸')
+        // 移除精液流淌/滴落描述
+        .replace(/精液[^\n，。]*(?:从[^\n，。]*)?(?:溢出|流淌|滴落|覆盖|溅落|顺着|沿着|射向)/g, '')
+        .replace(/白浊精液[^\n，。]*(?:顺着|沿着|从|随)/g, '')
+        .replace(/，精[液精][^\n，。]*/g, '，')
+        .replace(/精[液精][^\n，。]*(?:在她|从嘴角|沿着|顺着|滴落|溅落)[^\n，。]*/g, '');
+    }
+  }
+
+  // 清理可能残留的多余标点和空格
+  for (let i = 0; i < segments.length; i++) {
+    segments[i] = segments[i]
+      .replace(/，+/g, '，')
+      .replace(/，+$/g, '')
+      .replace(/^，/, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   return segments;
 }
 

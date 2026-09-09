@@ -2799,6 +2799,12 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
   const totalTags = Object.values(result.tags_used || {}).flat().length;
   const accentColor = r18Mode ? 'border-red-200' : 'border-border';
   const headerBg = r18Mode ? 'bg-red-50/60' : 'bg-bg-elevated';
+  // H3 视频提示词折叠状态：默认折叠（与电脑端展示逻辑一致，避免 mobile 端长提示词撑爆卡片）
+  const [h3Expanded, setH3Expanded] = useState(false);
+  // 切换图片提示词重新生成时，重置 H3 折叠状态为折叠
+  useEffect(() => {
+    setH3Expanded(false);
+  }, [h3Prompt]);
   const badgeBg = isPromptLoading
     ? 'bg-gradient-to-r from-slate-400 to-slate-500'
     : r18Mode
@@ -2934,45 +2940,72 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
             </div>
           </div>
 
-          {/* H3 视频提示词（来自一键批量视频提示词按钮） */}
+          {/* H3 视频提示词（来自一键批量视频提示词按钮） —— 默认折叠，与电脑端展示一致 */}
           {(h3Prompt || h3Generating) && (
             <div className="mb-3">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-xs font-medium flex items-center gap-1.5 text-indigo-500">
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => h3Prompt && setH3Expanded(v => !v)}
+                onKeyDown={(e) => { if (h3Prompt && (e.key === 'Enter' || e.key === ' ')) setH3Expanded(v => !v); }}
+                className={`flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer transition-colors ${
+                  h3Expanded
+                    ? (r18Mode ? 'bg-indigo-50/30 border border-indigo-100' : 'bg-indigo-50/30 border border-indigo-100')
+                    : (r18Mode ? 'bg-indigo-50/30 border border-indigo-100 hover:bg-indigo-50/50' : 'bg-indigo-50/30 border border-indigo-100 hover:bg-indigo-50/50')
+                }`}
+              >
+                <span className="text-xs font-medium flex items-center gap-1.5 text-indigo-500 min-w-0 flex-1">
                   <Sparkles size={11} />
                   H3 视频提示词
                   {h3Generating && <span className="ml-1 flex items-center gap-1"><Loader2 size={10} className="animate-spin" />生成中...</span>}
                   {sceneLabel && <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-indigo-500/10 text-indigo-500">{sceneLabel}</span>}
+                  {/* 折叠态下显示提示词摘要（仅取前 60 个字符） */}
+                  {!h3Expanded && h3Prompt && (
+                    <span className="ml-2 text-[10px] text-text-tertiary truncate min-w-0 flex-1 hidden sm:inline">
+                      · {h3Prompt.replace(/\n/g, ' ').replace(/\s+/g, ' ').slice(0, 60)}{h3Prompt.length > 60 ? '...' : ''}
+                    </span>
+                  )}
                 </span>
-                {h3Prompt && (
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(h3Prompt).catch(() => {}); }}
-                      className="p-1 rounded-md text-text-tertiary hover:bg-bg-hover transition-colors"
-                      title="复制 H3 提示词"
-                    >
-                      <Copy size={12} />
-                    </button>
-                    {allDisplayImages.length > 0 && onGotoLongVideoWithH3 && (
+                <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                  {h3Prompt && (
+                    <>
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const imageToUse = selectedImageIndex !== undefined && allDisplayImages[selectedImageIndex]
-                            ? allDisplayImages[selectedImageIndex]
-                            : allDisplayImages[0];
-                          onGotoLongVideoWithH3(imageToUse, h3Prompt);
-                        }}
-                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90 transition-all"
-                        title={selectedImageIndex !== undefined ? '用已选中的图片生成视频' : '点击图片选中后再生成视频（默认使用第一张）'}
+                        onClick={() => navigator.clipboard.writeText(h3Prompt).catch(() => {})}
+                        className="p-1 rounded-md text-text-tertiary hover:bg-bg-hover transition-colors"
+                        title="复制 H3 提示词"
                       >
-                        <Video size={11} />长视频 1.1
+                        <Copy size={12} />
                       </button>
-                    )}
-                  </div>
-                )}
+                      {allDisplayImages.length > 0 && onGotoLongVideoWithH3 && (
+                        <button
+                          onClick={() => {
+                            const imageToUse = selectedImageIndex !== undefined && allDisplayImages[selectedImageIndex]
+                              ? allDisplayImages[selectedImageIndex]
+                              : allDisplayImages[0];
+                            onGotoLongVideoWithH3(imageToUse, h3Prompt);
+                          }}
+                          className="hidden sm:flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90 transition-all"
+                          title={selectedImageIndex !== undefined ? '用已选中的图片生成视频' : '点击图片选中后再生成视频（默认使用第一张）'}
+                        >
+                          <Video size={11} />长视频 1.1
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setH3Expanded(v => !v)}
+                        className="p-1 rounded-md text-text-tertiary hover:bg-bg-hover transition-colors"
+                        title={h3Expanded ? '折叠 H3 提示词' : '展开 H3 提示词'}
+                      >
+                        <span className={`inline-block transition-transform ${h3Expanded ? 'rotate-180' : ''}`}>
+                          <ChevronDown size={14} />
+                        </span>
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
-              {h3Generating ? (
-                <div className="rounded-xl px-4 py-3 text-xs leading-relaxed animate-pulse">
+              {h3Expanded && (h3Generating ? (
+                <div className="mt-2 rounded-xl px-4 py-3 text-xs leading-relaxed animate-pulse">
                   <div className="space-y-2">
                     <div className="h-2.5 rounded w-[90%] bg-indigo-200/60" />
                     <div className="h-2.5 rounded w-[75%] bg-indigo-200/60" />
@@ -2981,7 +3014,7 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
                   </div>
                 </div>
               ) : h3Prompt ? (
-                <div>
+                <div className="mt-2">
                   <div className={`rounded-xl px-4 py-3 text-xs leading-relaxed whitespace-pre-wrap max-h-[28rem] overflow-y-auto font-mono ${r18Mode ? 'bg-indigo-50/40 text-indigo-900 border border-indigo-100' : 'bg-indigo-50/40 text-text-secondary border border-indigo-100'}`}>
                     {h3Prompt}
                   </div>
@@ -2994,8 +3027,25 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
                       {generateH3Summary(h3Prompt)}
                     </p>
                   </div>
+                  {/* 移动端长视频 1.1 按钮：折叠态隐藏，展开态可见（电脑端在折叠态也显示一份在头部） */}
+                  {allDisplayImages.length > 0 && onGotoLongVideoWithH3 && (
+                    <div className="sm:hidden mt-2 flex justify-end">
+                      <button
+                        onClick={() => {
+                          const imageToUse = selectedImageIndex !== undefined && allDisplayImages[selectedImageIndex]
+                            ? allDisplayImages[selectedImageIndex]
+                            : allDisplayImages[0];
+                          onGotoLongVideoWithH3(imageToUse, h3Prompt);
+                        }}
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90 transition-all"
+                        title={selectedImageIndex !== undefined ? '用已选中的图片生成视频' : '点击图片选中后再生成视频（默认使用第一张）'}
+                      >
+                        <Video size={11} />长视频 1.1
+                      </button>
+                    </div>
+                  )}
                 </div>
-              ) : null}
+              ) : null)}
             </div>
           )}
 
