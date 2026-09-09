@@ -38,6 +38,8 @@ interface PromptEditorProps {
   isGachaLoading?: boolean;
   gachaPrompt?: string;
   onGachaPromptChange?: (v: string) => void;
+  /** 文本框下方插入的自定义按钮组（如"插入参考图引用"）— 仅在多图模式使用 */
+  extraTextareaActions?: React.ReactNode;
 }
 
 export function PromptEditor({
@@ -67,6 +69,7 @@ export function PromptEditor({
   isGachaLoading = false,
   gachaPrompt,
   onGachaPromptChange,
+  extraTextareaActions,
 }: PromptEditorProps) {
   const [showNegative, setShowNegative] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -361,6 +364,12 @@ export function PromptEditor({
             disabled={disabled}
             className="w-full bg-bg-elevated border border-border rounded-xl px-4 py-2.5 pr-20 text-xs text-text-primary placeholder:text-text-tertiary/50 focus:outline-none focus:border-primary/60 transition-colors resize-none overflow-hidden leading-relaxed"
           />
+          {/* 自定义按钮组（多图模式：插入参考图引用） */}
+          {extraTextareaActions && (
+            <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+              {extraTextareaActions}
+            </div>
+          )}
         </div>
 
         {/* Gacha prompt output — only show when gacha result exists */}

@@ -817,6 +817,16 @@ export function ImageToImagePage({
       const exists = prev.some(t => t.tag === tag) || multiRefNegativeTags.some(t => t.tag === tag);
       if (exists) return prev;
       setMultiRefTagCounter(c => c + 1);
+      // ★ 同步把新正向标签注入"描述提示词"编辑框（截图2位置）
+      // 写入方式：在 multiRefPrompt 末尾追加 ", tag"（避免覆盖用户已输入的内容）
+      // 已存在的 tag 不会重复添加（if exists check 在这里完成）
+      setMultiRefPrompt(current => {
+        const cur = current.trim();
+        // 如果当前 prompt 里已经包含这个 tag，跳过
+        const tagRegex = new RegExp(`(^|,\\s*)${tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s*,|$)`, 'i');
+        if (cur && tagRegex.test(cur)) return current;
+        return cur ? `${current.trimEnd()}, ${tag}` : tag;
+      });
       return [...prev, { tag, weight: 'none', order: multiRefTagCounter }];
     });
   }, [multiRefNegativeTags, multiRefTagCounter]);
@@ -1193,6 +1203,46 @@ export function ImageToImagePage({
   );
   const allImages = img2imgTasks.flatMap((t: QueuedTask) => t.images);
   const totalSelected = positiveTags.length + negativeTags.length;
+
+  // ── 多图模式「插入参考图引用」按钮组（TagPanel 内部 textarea 下方使用）──────────
+  // 作用：点击图1/图2/图3 直接在 TagPanel 的多图种子 textarea 内追加占位符
+  // 与描述提示词（multiRefPrompt）下方的同名按钮完全一致；图1 默认是锚定数字人
+  const renderMultiRefTagPanelImageButtons = () => (
+    <>
+      <span className="text-[10px] text-text-tertiary">插入参考图:</span>
+      {[0, 1, 2].map(idx => {
+        const hasImage = !!multiRefImages[idx]?.path;
+        const isLocked = idx === 0 && !!multiRefGirlfriend;
+        const label = `图${idx + 1}`;
+        return (
+          <button
+            key={idx}
+            onClick={() => {
+              // 写入 TagPanel 自己的种子 textarea（multiRefTagCustomPrompt）
+              // 选中正向标签后同步注入 multiRefPrompt 的逻辑见 handleMultiRefAddTag
+              setMultiRefTagCustomPrompt(prev => {
+                const cur = prev.trim();
+                return cur ? `${cur} ${label}` : label;
+              });
+            }}
+            disabled={!hasImage || taskManager.isFull || multiRefSubmitting}
+            title={hasImage
+              ? `在标签库编辑框插入"${label}"占位符${isLocked ? '（锚定数字人）' : ''}`
+              : `请先上传参考图 ${idx + 1}`}
+            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition-all ${
+              hasImage
+                ? 'bg-primary/10 text-primary border border-primary/30 hover:bg-primary/20 cursor-pointer'
+                : 'bg-bg-elevated text-text-tertiary border border-border cursor-not-allowed opacity-50'
+            }`}
+          >
+            <Plus size={10} />
+            {label}
+            {isLocked && <span className="text-red-500 ml-0.5">●</span>}
+          </button>
+        );
+      })}
+    </>
+  );
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -1685,6 +1735,7 @@ export function ImageToImagePage({
               disabled={taskManager.isFull || multiRefSubmitting}
               expandedPrompt={multiRefTagExpanded}
               onExpandedPromptChange={setMultiRefTagExpanded}
+              extraTextareaActions={renderMultiRefTagPanelImageButtons()}
               onGenerateFromPrompt={async () => {
                 // 拼接 tag + customPrompt → 注入 multiRefPrompt
                 const tagPart = buildMultiRefTagPrompt();
@@ -1728,6 +1779,7 @@ export function ImageToImagePage({
               disabled={taskManager.isFull || multiRefSubmitting}
               expandedPrompt={multiRefTagExpanded}
               onExpandedPromptChange={setMultiRefTagExpanded}
+              extraTextareaActions={renderMultiRefTagPanelImageButtons()}
               onGenerateFromPrompt={async () => {
                 const tagPart = buildMultiRefTagPrompt();
                 const userText = multiRefTagCustomPrompt.trim();

@@ -31,6 +31,8 @@ interface TagPanelProps {
   isGachaLoading?: boolean;
   gachaPrompt?: string;
   onGachaPromptChange?: (v: string) => void;
+  /** 文本框下方插入的自定义按钮组（如"插入参考图引用"）— 仅在多图模式使用 */
+  extraTextareaActions?: React.ReactNode;
 }
 
 export function TagPanel({
@@ -61,6 +63,7 @@ export function TagPanel({
   isGachaLoading,
   gachaPrompt,
   onGachaPromptChange,
+  extraTextareaActions,
 }: TagPanelProps) {
   return (
     <div>
@@ -126,6 +129,7 @@ export function TagPanel({
             isGachaLoading={isGachaLoading}
             gachaPrompt={gachaPrompt}
             onGachaPromptChange={onGachaPromptChange}
+            extraTextareaActions={extraTextareaActions}
           />
         </div>
       </div>
@@ -185,6 +189,7 @@ export function TagPanel({
               isGachaLoading={isGachaLoading}
               gachaPrompt={gachaPrompt}
               onGachaPromptChange={onGachaPromptChange}
+              extraTextareaActions={extraTextareaActions}
             />
           </div>
         </div>
