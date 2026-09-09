@@ -7463,6 +7463,13 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
   const failedTaskError = panelRelatedTasks.find((t: QueuedTask) => t.status === 'FAILED')?.error || '';
   const showLoadingState = !hasImages && (isGenLoading || isQueued || isGenerating);
 
+  // H3 视频提示词折叠状态：默认折叠（与电脑端展示逻辑一致）
+  const [panelH3Expanded, setPanelH3Expanded] = useState(false);
+  // H3 提示词变化时重置折叠状态
+  useEffect(() => {
+    setPanelH3Expanded(false);
+  }, [panelH3Prompt]);
+
   return (
     <div className={`rounded-2xl overflow-hidden shadow-card ${r18Mode ? 'border border-red-200 bg-white' : 'bg-white border border-border'}`}>
       <button onClick={onToggle}
@@ -7824,59 +7831,82 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
               ) : (
                 <div className="text-xs text-text-tertiary">生成图片后将自动生成动画提示词，或点击「智能扩写」生成</div>
               )}
-              {/* H3 提示词预览（可编辑） */}
+              {/* H3 提示词预览（可折叠，折叠态显示摘要 + 复制按钮） */}
               {panelH3Prompt && (
-                <div className="mt-2">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] text-indigo-600 font-medium flex items-center gap-0.5">
+                <div className="mt-2 rounded-xl border border-indigo-200 bg-indigo-50/20 overflow-hidden">
+                  {/* 可折叠 H3 header */}
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setPanelH3Expanded(v => !v)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setPanelH3Expanded(v => !v); }}
+                    className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-indigo-100/40 transition-colors"
+                  >
+                    <span className="text-[10px] text-indigo-600 font-medium flex items-center gap-0.5 min-w-0 flex-1">
                       <Sparkles size={10} />
-                      H3 视频提示词（{panelH3Duration}秒，可编辑）
+                      H3 视频提示词（{panelH3Duration}秒）
+                      {/* 折叠态下显示摘要 */}
+                      {!panelH3Expanded && (
+                        <span className="ml-2 text-[10px] text-text-tertiary truncate min-w-0 flex-1">
+                          · {panelH3Prompt.replace(/\n/g, ' ').replace(/\s+/g, ' ').slice(0, 60)}{panelH3Prompt.length > 60 ? '...' : ''}
+                        </span>
+                      )}
                     </span>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"
                         onClick={() => { navigator.clipboard?.writeText(panelH3Prompt); }}
-                        className="text-[10px] text-indigo-500 hover:text-indigo-700 flex items-center gap-0.5"
+                        className="text-[10px] text-indigo-500 hover:text-indigo-700 flex items-center gap-0.5 px-1 py-0.5 rounded hover:bg-indigo-100 transition-colors"
                       >
                         <Copy size={10} /> 复制
                       </button>
+                      <span className={`inline-block transition-transform ${panelH3Expanded ? '' : ''}`}>
+                        {panelH3Expanded ? <ChevronUp size={12} className="text-indigo-400" /> : <ChevronDown size={12} className="text-indigo-400" />}
+                      </span>
                     </div>
                   </div>
-                  {/* 强制约束开关 */}
-                  <div className="flex items-center gap-2 mb-2">
-                    <button
-                      type="button"
-                      onClick={onTogglePanelH3Constraint}
-                      className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-medium transition-all ${
-                        panelH3ConstraintEnabled
-                          ? 'bg-indigo-500 text-white border border-indigo-600 hover:bg-indigo-600'
-                          : 'bg-indigo-50 border border-indigo-200 text-indigo-600 hover:bg-indigo-100'
-                      }`}
-                      title="开启后将追加严格约束文本到提示词开头"
-                    >
-                      <ShieldCheck size={11} />
-                      强制约束 {panelH3ConstraintEnabled ? '已开启' : '已关闭'}
-                    </button>
-                    <span className="text-[9px] text-indigo-400">
-                      提示：提示词中可用 &lt;Picture 1&gt;, &lt;Picture 2&gt; 等引用参考图
-                    </span>
-                  </div>
-                  {onPanelH3PromptChange ? (
-                    <textarea
-                      value={panelH3Prompt}
-                      onChange={(e) => onPanelH3PromptChange(e.target.value)}
-                      rows={4}
-                      placeholder={"H3 Ref2VA 六段式提示词...\n\n提示：\n- 可用 <Picture 1> 引用第一张参考图\n- 可用 <Picture 2> 引用第二张参考图\n- 格式：Subject + Detailed Description + Camera + Lighting + Style + Music"}
-                      className="w-full px-2 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 text-[10px] text-indigo-800 font-mono focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-300 resize-y"
-                    />
-                  ) : (
-                    <textarea
-                      value={panelH3Prompt}
-                      rows={4}
-                      readOnly
-                      className="w-full px-2 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 text-[10px] text-indigo-800 font-mono focus:outline-none resize-none"
-                      placeholder={"H3 Ref2VA 六段式提示词...\n\n提示：\n- 可用 <Picture 1> 引用第一张参考图\n- 可用 <Picture 2> 引用第二张参考图\n- 格式：Subject + Detailed Description + Camera + Lighting + Style + Music"}
-                    />
+                  {/* 展开态：强制约束开关 + textarea */}
+                  {panelH3Expanded && (
+                    <>
+                      {/* 强制约束开关 */}
+                      <div className="flex items-center gap-2 px-3 pb-2">
+                        <button
+                          type="button"
+                          onClick={onTogglePanelH3Constraint}
+                          className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-medium transition-all ${
+                            panelH3ConstraintEnabled
+                              ? 'bg-indigo-500 text-white border border-indigo-600 hover:bg-indigo-600'
+                              : 'bg-indigo-50 border border-indigo-200 text-indigo-600 hover:bg-indigo-100'
+                          }`}
+                          title="开启后将追加严格约束文本到提示词开头"
+                        >
+                          <ShieldCheck size={11} />
+                          强制约束 {panelH3ConstraintEnabled ? '已开启' : '已关闭'}
+                        </button>
+                        <span className="text-[9px] text-indigo-400">
+                          提示：提示词中可用 &lt;Picture 1&gt;, &lt;Picture 2&gt; 等引用参考图
+                        </span>
+                      </div>
+                      <div className="px-3 pb-3">
+                        {onPanelH3PromptChange ? (
+                          <textarea
+                            value={panelH3Prompt}
+                            onChange={(e) => onPanelH3PromptChange(e.target.value)}
+                            rows={4}
+                            placeholder={"H3 Ref2VA 六段式提示词...\n\n提示：\n- 可用 <Picture 1> 引用第一张参考图\n- 可用 <Picture 2> 引用第二张参考图\n- 格式：Subject + Detailed Description + Camera + Lighting + Style + Music"}
+                            className="w-full px-2 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 text-[10px] text-indigo-800 font-mono focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-300 resize-y"
+                          />
+                        ) : (
+                          <textarea
+                            value={panelH3Prompt}
+                            rows={4}
+                            readOnly
+                            className="w-full px-2 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 text-[10px] text-indigo-800 font-mono focus:outline-none resize-none"
+                            placeholder={"H3 Ref2VA 六段式提示词...\n\n提示：\n- 可用 <Picture 1> 引用第一张参考图\n- 可用 <Picture 2> 引用第二张参考图\n- 格式：Subject + Detailed Description + Camera + Lighting + Style + Music"}
+                          />
+                        )}
+                      </div>
+                    </>
                   )}
                 </div>
               )}
