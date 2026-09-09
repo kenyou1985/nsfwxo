@@ -921,10 +921,13 @@ function EroticPromptCard({
   const [editingPrompt, setEditingPrompt] = useState(prompt);
   const [isEditing, setIsEditing] = useState(false);
   const [copied, setCopied] = useState(false);
+  // 提示词自动折叠（超过 300 字符默认折叠）
+  const [collapsed, setCollapsed] = useState(prompt.length > 300);
 
-  // 当外部 prompt 变化时同步到编辑状态
+  // 当外部 prompt 变化时同步到编辑状态和折叠状态
   useEffect(() => {
     if (!isEditing) setEditingPrompt(prompt);
+    setCollapsed(prompt.length > 300);
   }, [prompt, isEditing]);
 
   const handleCopy = async () => {
@@ -1045,9 +1048,23 @@ function EroticPromptCard({
             placeholder="编辑提示词内容..."
           />
         ) : (
-          <p className="text-[10px] text-text-primary leading-relaxed whitespace-pre-wrap">
-            {editingPrompt}
-          </p>
+          <div>
+            <p className="text-[10px] text-text-primary leading-relaxed whitespace-pre-wrap">
+              {collapsed ? editingPrompt.slice(0, 300) + (editingPrompt.length > 300 ? '\n…' : '') : editingPrompt}
+            </p>
+            {editingPrompt.length > 300 && (
+              <button
+                onClick={() => setCollapsed(c => !c)}
+                className="mt-1 flex items-center gap-1 text-[9px] text-pink-500 hover:text-pink-600 font-medium transition-colors"
+              >
+                {collapsed ? (
+                  <><ChevronDown size={10} /> 展开全部 ({editingPrompt.length}字)</>
+                ) : (
+                  <><ChevronUp size={10} /> 收起</>
+                )}
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>
@@ -2706,11 +2723,16 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
     if (!mmEroticMode) return;
     const uploadedImages = mmImages.filter(img => img.path && img.path !== 'None');
     if (uploadedImages.length === 0) return;
-    // 避免重复提取（只有图片变化时才重新提取）
+    // 避免重复提取（只有图片变化或 DNA 不存在时才重新提取）
     const firstImage = uploadedImages[0];
     const currentHash = firstImage.path;
 
+    // 正在提取中 → 跳过，避免重复请求导致旧请求超时报错覆盖成功结果
+    if (mmDnaLoading) return;
+    // 当前图片的 DNA 已存在（hash 匹配）→ 跳过
     if (mmImageDna && (mmImageDna as any)._imageHash === currentHash) return;
+    // 已有错误但图片未变 → 跳过（避免重复触发同一错误）
+    if (mmDnaError && mmImageDna && (mmImageDna as any)._imageHash === currentHash) return;
 
     const doExtract = async () => {
       setMmDnaLoading(true);
