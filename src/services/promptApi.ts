@@ -1093,11 +1093,8 @@ export async function streamGenerateH3DnaPrompt(
     return { abort: () => {} };
   }
 
-  const base = getBackendUrl();
-  const url = `${base}/api/prompt/generate/h3-dna/stream`;
-
   return openNdjsonStream(
-    url,
+    '/api/prompt/generate/h3-dna/stream',
     {
       image_url: params.imageUrl,
       dna: params.dna,
