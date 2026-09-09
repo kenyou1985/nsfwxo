@@ -1731,7 +1731,7 @@ export function ImageToImagePage({
 
           {/* 多图编辑生成按钮 */}
           <GenerateButton
-            onClick={handleMultiRefGenerate}
+            onClick={() => handleMultiRefGenerate()}
             isLoading={multiRefSubmitting}
             disabled={!multiRefImages.some(img => img.path) || !multiRefPrompt.trim() || taskManager.isFull}
             label={multiRefSubmitting ? '提交中...' : taskManager.isFull ? '队列已满' : '开始生成'}
