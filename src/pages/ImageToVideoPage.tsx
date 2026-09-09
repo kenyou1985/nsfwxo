@@ -921,13 +921,14 @@ function EroticPromptCard({
   const [editingPrompt, setEditingPrompt] = useState(prompt);
   const [isEditing, setIsEditing] = useState(false);
   const [copied, setCopied] = useState(false);
-  // 提示词自动折叠（超过 300 字符默认折叠）
-  const [collapsed, setCollapsed] = useState(prompt.length > 300);
+  // 卡片整体默认折叠：长提示词默认收起为单行，提升多主题浏览体验
+  const [collapsed, setCollapsed] = useState(true);
 
-  // 当外部 prompt 变化时同步到编辑状态和折叠状态
+  // 当外部 prompt 变化时同步到编辑状态和折叠状态（新建/更新时重置折叠）
   useEffect(() => {
     if (!isEditing) setEditingPrompt(prompt);
-    setCollapsed(prompt.length > 300);
+    // 收到新的提示词（流式到达或初次加载）→ 折叠
+    setCollapsed(true);
   }, [prompt, isEditing]);
 
   const handleCopy = async () => {
@@ -955,118 +956,118 @@ function EroticPromptCard({
 
   return (
     <div className="rounded-xl border border-pink-200 bg-white overflow-hidden">
-      {/* 卡片头部 */}
-      <div className="flex items-center justify-between px-3 py-2 bg-gradient-to-r from-pink-50 to-rose-50 border-b border-pink-100">
-        <div className="flex items-center gap-2">
-          <span className="flex items-center justify-center w-5 h-5 rounded-full bg-pink-500 text-white text-[10px] font-bold">
+      {/* 折叠态：单行紧凑头部（序号 + 时长 + 预览 + 切换箭头） */}
+      <div
+        onClick={() => setCollapsed(c => !c)}
+        className="flex items-center justify-between px-3 py-2 bg-gradient-to-r from-pink-50 to-rose-50 cursor-pointer hover:from-pink-100 hover:to-rose-100 transition-colors"
+        role="button"
+      >
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <span className="flex-shrink-0 flex items-center justify-center w-5 h-5 rounded-full bg-pink-500 text-white text-[10px] font-bold">
             {index + 1}
           </span>
-          <span className="text-[10px] font-medium text-pink-600">
-            {duration}秒 · {editingPrompt.length > 20 ? editingPrompt.slice(0, 20) + '...' : editingPrompt}
+          <span className="text-[10px] font-medium text-pink-600 truncate">
+            {duration}秒 · {editingPrompt.slice(0, 40).replace(/\n/g, ' ')}{editingPrompt.length > 40 ? '...' : ''}
           </span>
         </div>
-        {/* 操作按钮组 */}
-        <div className="flex items-center gap-1">
-          {/* 二次编辑开关 */}
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {/* 折叠态：保留高频快捷操作（使用 + 生成视频），其他操作进入展开态 */}
           <button
-            onClick={() => {
-              if (isEditing) {
-                onUse(editingPrompt);
-                setIsEditing(false);
-              } else {
-                setIsEditing(true);
-              }
-            }}
-            className={`px-2 py-0.5 rounded-lg text-[9px] font-medium transition-colors ${
-              isEditing
-                ? 'bg-amber-500 text-white'
-                : 'bg-amber-100 text-amber-600 hover:bg-amber-200'
-            }`}
-          >
-            {isEditing ? '✓ 确认' : '✎ 编辑'}
-          </button>
-          {/* 使用按钮 */}
-          <button
-            onClick={() => onUse(editingPrompt)}
-            className="px-2 py-0.5 rounded-lg bg-pink-100 text-pink-600 text-[9px] font-medium hover:bg-pink-200 transition-colors"
+            onClick={(e) => { e.stopPropagation(); onUse(editingPrompt); }}
+            title="使用此提示词"
+            className="px-2 py-0.5 rounded-lg bg-pink-500 text-white text-[9px] font-medium hover:bg-pink-600 transition-colors"
           >
             使用
           </button>
-          {/* 复制提示词 */}
           <button
-            onClick={handleCopy}
-            title="复制提示词到剪贴板"
-            className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[9px] font-medium transition-colors ${
-              copied
-                ? 'bg-emerald-100 text-emerald-600'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            {copied ? <><Check size={9} /> 已复制</> : <><Copy size={9} /> 复制</>}
-          </button>
-          {/* 发送到长视频 */}
-          <button
-            onClick={() => onSendToLongVideo(editingPrompt)}
-            className="px-2 py-0.5 rounded-lg bg-violet-100 text-violet-600 text-[9px] font-medium hover:bg-violet-200 transition-colors"
-          >
-            长视频
-          </button>
-          {/* 发送到长视频 V2 */}
-          {onSendToLongVideoV2 && (
-            <button
-              onClick={() => onSendToLongVideoV2(editingPrompt)}
-              className="px-2 py-0.5 rounded-lg bg-cyan-100 text-cyan-600 text-[9px] font-medium hover:bg-cyan-200 transition-colors"
-            >
-              长视频V2
-            </button>
-          )}
-          {/* 一键生成视频 */}
-          <button
-            onClick={() => onGenerateVideo(editingPrompt)}
-            className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-gradient-to-r from-rose-500 to-pink-500 text-white text-[9px] font-bold hover:opacity-90 transition-opacity"
+            onClick={(e) => { e.stopPropagation(); onGenerateVideo(editingPrompt); }}
+            title="一键生成视频"
+            className="flex items-center gap-0.5 px-2 py-0.5 rounded-lg bg-gradient-to-r from-rose-500 to-pink-500 text-white text-[9px] font-bold hover:opacity-90 transition-opacity"
           >
             <Play size={8} />
             生成
           </button>
+          {collapsed ? (
+            <ChevronDown size={14} className="text-pink-500" />
+          ) : (
+            <ChevronUp size={14} className="text-pink-500" />
+          )}
         </div>
       </div>
 
-      {/* 参考图缩略图（如果有） */}
-      {imagePreview && (
-        <div className="px-3 pt-2">
-          <img src={imagePreview} alt="参考图" className="w-12 h-12 rounded-lg object-cover border border-pink-100" />
-        </div>
-      )}
+      {/* 展开态：参考图 + 完整提示词 + 全部操作按钮 */}
+      {!collapsed && (
+        <>
+          {/* 参考图缩略图（如果有） */}
+          {imagePreview && (
+            <div className="px-3 pt-2">
+              <img src={imagePreview} alt="参考图" className="w-12 h-12 rounded-lg object-cover border border-pink-100" />
+            </div>
+          )}
 
-      {/* 提示词内容 */}
-      <div className="px-3 py-2">
-        {isEditing ? (
-          <textarea
-            value={editingPrompt}
-            onChange={(e) => setEditingPrompt(e.target.value)}
-            className="w-full min-h-[80px] p-2 rounded-lg border border-amber-300 bg-amber-50 text-[10px] text-text-primary resize-y focus:outline-none focus:ring-2 focus:ring-amber-400"
-            placeholder="编辑提示词内容..."
-          />
-        ) : (
-          <div>
-            <p className="text-[10px] text-text-primary leading-relaxed whitespace-pre-wrap">
-              {collapsed ? editingPrompt.slice(0, 300) + (editingPrompt.length > 300 ? '\n…' : '') : editingPrompt}
-            </p>
-            {editingPrompt.length > 300 && (
+          {/* 提示词内容 */}
+          <div className="px-3 py-2">
+            {isEditing ? (
+              <textarea
+                value={editingPrompt}
+                onChange={(e) => setEditingPrompt(e.target.value)}
+                className="w-full min-h-[80px] p-2 rounded-lg border border-amber-300 bg-amber-50 text-[10px] text-text-primary resize-y focus:outline-none focus:ring-2 focus:ring-amber-400"
+                placeholder="编辑提示词内容..."
+              />
+            ) : (
+              <p className="text-[10px] text-text-primary leading-relaxed whitespace-pre-wrap">
+                {editingPrompt}
+              </p>
+            )}
+          </div>
+
+          {/* 完整操作按钮组（编辑、复制、长视频、长视频V2） */}
+          <div className="flex items-center gap-1 px-3 pb-2 flex-wrap">
+            <button
+              onClick={() => {
+                if (isEditing) {
+                  onUse(editingPrompt);
+                  setIsEditing(false);
+                } else {
+                  setIsEditing(true);
+                }
+              }}
+              className={`px-2 py-0.5 rounded-lg text-[9px] font-medium transition-colors ${
+                isEditing
+                  ? 'bg-amber-500 text-white'
+                  : 'bg-amber-100 text-amber-600 hover:bg-amber-200'
+              }`}
+            >
+              {isEditing ? '✓ 确认' : '✎ 编辑'}
+            </button>
+            <button
+              onClick={handleCopy}
+              title="复制提示词到剪贴板"
+              className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[9px] font-medium transition-colors ${
+                copied
+                  ? 'bg-emerald-100 text-emerald-600'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              {copied ? <><Check size={9} /> 已复制</> : <><Copy size={9} /> 复制</>}
+            </button>
+            <button
+              onClick={() => onSendToLongVideo(editingPrompt)}
+              className="px-2 py-0.5 rounded-lg bg-violet-100 text-violet-600 text-[9px] font-medium hover:bg-violet-200 transition-colors"
+            >
+              长视频
+            </button>
+            {onSendToLongVideoV2 && (
               <button
-                onClick={() => setCollapsed(c => !c)}
-                className="mt-1 flex items-center gap-1 text-[9px] text-pink-500 hover:text-pink-600 font-medium transition-colors"
+                onClick={() => onSendToLongVideoV2(editingPrompt)}
+                className="px-2 py-0.5 rounded-lg bg-cyan-100 text-cyan-600 text-[9px] font-medium hover:bg-cyan-200 transition-colors"
               >
-                {collapsed ? (
-                  <><ChevronDown size={10} /> 展开全部 ({editingPrompt.length}字)</>
-                ) : (
-                  <><ChevronUp size={10} /> 收起</>
-                )}
+                长视频V2
               </button>
             )}
           </div>
-        )}
-      </div>
+        </>
+      )}
     </div>
   );
 }
