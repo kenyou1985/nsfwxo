@@ -1109,9 +1109,9 @@ interface MiniMaxH3PanelProps {
   /** 生成条数（默认3） */
   mmEroticCount: number;
   setMmEroticCount: (v: number) => void;
-  /** 批量生成的提示词列表 */
-  mmEroticPrompts: string[];
-  setMmEroticPrompts: React.Dispatch<React.SetStateAction<string[]>>;
+  /** 批量生成的提示词列表（流式模式支持 null = 加载中） */
+  mmEroticPrompts: (string | null)[];
+  setMmEroticPrompts: React.Dispatch<React.SetStateAction<(string | null)[]>>;
   /** 发送到长视频的函数 */
   setVideoModel: (v: VideoModel) => void;
   setNlInitialImage: (v: { path: string; preview: string } | null) => void;
@@ -1174,10 +1174,16 @@ function MiniMaxH3Panel({
       return;
     }
     setMmEroticAnalyzing(true);
+
+    // ── 流式并行生成：每条提示词独立请求，完成一条立即显示一条 ──────────────
+    // 1. 立即显示 N 个 loading 占位槽（流式用户体验的关键）
+    const count = mmEroticCount;
+    setMmEroticPrompts(Array(count).fill(null)); // 全部 null = 全部加载中
+
     try {
       const firstImage = uploadedImages[0];
 
-      // ─── 转换为 base64（如果需要）────────────────────────────────────────
+      // 转换图片为 base64（handleEroticAnalyze 专用，仅用于 H3 生成，不用于 DNA 提取）
       let imageDataUrl = firstImage.path;
       if (firstImage.path.startsWith('blob:') || firstImage.path.startsWith('http')) {
         try {
@@ -1194,31 +1200,80 @@ function MiniMaxH3Panel({
         }
       }
 
-      // ─── 调用专用 H3 DNA 接口 ───────────────────────────────────────────
-      // 时长默认15秒（已在 mmDuration state 中设置）
       const userHint = mmPrompt.trim() || undefined;
+      const duration = parseInt(mmDuration, 10) as 15 | 30 | 60;
 
-      const res = await generateH3DnaPrompt({
-        imageUrl: imageDataUrl,
-        dna: mmImageDna,
-        eroticLevel: mmEroticLevel,
-        duration: (parseInt(mmDuration, 10) as 15 | 30 | 60),
-        userHint,
-        count: mmEroticCount,
-      });
+      // 2. 并行发起 N 个请求（count=1 每条），结果按完成顺序追加到 state
+      const pendingCount = { current: count };
+      const completedCount = { current: 0 };
 
-      if (res.prompts && res.prompts.length > 0) {
-        setMmEroticPrompts(res.prompts);
-        // 默认把第一条填入主提示词区
-        setMmPrompt(res.prompts[0]);
-        onSuccess(`已生成 ${res.prompts.length} 条 H3 提示词，可在下方选择使用`);
-      } else {
-        onError('生成失败，未返回提示词');
-      }
+      // 每个请求完成后：找到第一个 null 槽并填入结果（按完成顺序填入，保证 UI 不乱序闪烁）
+      const fillNextSlot = (prompt: string) => {
+        completedCount.current += 1;
+        setMmEroticPrompts(prev => {
+          // 找到第一个 null 槽（loading 中的）
+          const idx = prev.findIndex(p => p === null);
+          if (idx < 0) return prev; // 已全部填满
+          const updated = [...prev];
+          updated[idx] = prompt;
+          return updated;
+        });
+        // 最后一条完成时解锁按钮并填入第一条当默认提示词
+        if (completedCount.current === count) {
+          setMmEroticAnalyzing(false);
+          // 读取已填入的提示词（可能是乱序完成的，取第一条已完成的）
+          setMmEroticPrompts(prev => {
+            const filled = prev.filter((p): p is string => p !== null);
+            if (filled.length > 0) {
+              setMmPrompt(filled[0]); // 默认填入第一条
+            }
+            return prev;
+          });
+          onSuccess(`已生成 ${count} 条 H3 提示词，可在下方选择使用`);
+        }
+      };
+
+      // 同时发起所有 N 个请求（真正的并行，不等前一条完成再开始下一条）
+      const requestPromises = Array.from({ length: count }, (_, i) =>
+        generateH3DnaPrompt({
+          imageUrl: imageDataUrl,
+          dna: mmImageDna,
+          eroticLevel: mmEroticLevel,
+          duration,
+          userHint,
+          count: 1,  // 每条独立请求，流式更新
+        })
+          .then(res => {
+            if (res.prompts && res.prompts.length > 0) {
+              fillNextSlot(res.prompts[0]);
+            }
+          })
+          .catch((err: Error) => {
+            pendingCount.current -= 1;
+            console.error(`[H3] prompt #${i + 1} failed:`, err.message);
+            // 该槽标记为失败（用错误信息占位）
+            setMmEroticPrompts(prev => {
+              const idx = prev.findIndex(p => p === null);
+              if (idx < 0) return prev;
+              const updated = [...prev];
+              updated[idx] = `[生成失败 #${i + 1}: ${err.message}]`;
+              return updated;
+            });
+            // 最后一条时统一处理
+            if (pendingCount.current <= 0) {
+              setMmEroticAnalyzing(false);
+              onError(`H3 提示词生成失败，请重试`);
+            }
+          })
+      );
+
+      // 等待所有请求完成（Promise.all 即使有失败也等全部 resolve/reject）
+      await Promise.allSettled(requestPromises);
+
     } catch (err) {
-      onError(err instanceof Error ? err.message : '生成失败，请重试');
-    } finally {
       setMmEroticAnalyzing(false);
+      setMmEroticPrompts([]);
+      onError(err instanceof Error ? err.message : '生成失败，请重试');
     }
   }, [mmImages, mmEroticLevel, mmImageDna, mmPrompt, mmDuration, mmEroticCount, onError, onSuccess]);
 
@@ -1806,67 +1861,99 @@ function MiniMaxH3Panel({
                 )}
               </div>
 
-              {/* ═══ 提示词结果展示区 ═══════════════════════════════════════════ */}
+              {/* ═══ 提示词结果展示区（流式加载）════════════════════════════════════════ */}
               {mmEroticPrompts.length > 0 && (
                 <div className="mt-4 pt-4 border-t-2 border-pink-200/40">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-pink-600">✦ 已生成 {mmEroticPrompts.length} 条提示词</span>
+                      {/* 已完成计数 vs 总数 */}
+                      {mmEroticAnalyzing
+                        ? <span className="text-sm font-bold text-pink-600 animate-pulse">
+                            ✦ 生成中... {mmEroticPrompts.filter(p => p !== null).length}/{mmEroticPrompts.length}
+                          </span>
+                        : <span className="text-sm font-bold text-pink-600">
+                            ✦ 已生成 {mmEroticPrompts.filter(p => p !== null && !p.startsWith('[')).length} 条提示词
+                          </span>
+                      }
                     </div>
-                    <span className="text-[9px] text-pink-400/60">点击「生成视频」可一键提交任务</span>
+                    {!mmEroticAnalyzing && (
+                      <span className="text-[9px] text-pink-400/60">点击「生成视频」可一键提交任务</span>
+                    )}
                   </div>
                   <div className="space-y-3 max-h-96 overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin' }}>
-                    {mmEroticPrompts.map((prompt, idx) => (
-                      <EroticPromptCard
-                        key={idx}
-                        index={idx}
-                        prompt={prompt}
-                        duration={parseInt(mmDuration, 10) as 15 | 30 | 60}
-                        imagePreview={mmImages[0]?.preview || ''}
-                        imagePath={mmImages[0]?.path || ''}
-                        onUse={(p) => {
-                          setMmPrompt(p);
-                          onSuccess(`已使用提示词 #${idx + 1}`);
-                        }}
-                        onSendToLongVideo={(p) => {
-                          // 发送到长视频 v1.1 (NinfiniteLongVideoPage)
-                          setNlInitialPrompt(p);
-                          if (mmImages[0]?.path) {
-                            setNlInitialImage({
-                              path: mmImages[0].path,
-                              preview: mmImages[0].preview || mmImages[0].path,
-                            });
-                          }
-                          setVideoModel('longvideov2');
-                          onSuccess(`已发送提示词 #${idx + 1} 到长视频 v1.1`);
-                        }}
-                        onSendToLongVideoV2={(p) => {
-                          // 发送到长视频 V2 (MiniMaxLongVideoV2Page)
-                          setNlInitialPrompt(p);
-                          if (mmImages[0]?.path) {
-                            setNlInitialImage({
-                              path: mmImages[0].path,
-                              preview: mmImages[0].preview || mmImages[0].path,
-                            });
-                          }
-                          setVideoModel('minimaxlongv2');
-                          onSuccess(`已发送提示词 #${idx + 1} 到长视频 V2`);
-                        }}
-                        onGenerateVideo={(p) => {
-                          // 一键提交 MiniMax H3 任务
-                          const nodeList = buildMiniMaxNodeListWithPrompt(p);
-                          const preview = mmImages[0]?.preview || '';
-                          taskListRef.current?.submitTask(
-                            p,
-                            mmImages[0]?.path || '',
-                            preview,
-                            nodeList,
-                            WORKFLOW.MINIMAX_H3,
-                          );
-                          onSuccess(`已提交提示词 #${idx + 1} 到视频生成队列`);
-                        }}
-                      />
-                    ))}
+                    {mmEroticPrompts.map((prompt, idx) => {
+                      const isLoading = prompt === null;
+                      const isError = typeof prompt === 'string' && prompt.startsWith('[');
+                      const displayPrompt = isLoading ? '' : prompt;
+                      return (
+                        isLoading ? (
+                          // Loading 骨架
+                          <div key={idx} className="rounded-xl border border-pink-200/40 bg-bg-elevated p-3 animate-pulse">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="w-6 h-4 bg-pink-200/30 rounded" />
+                              <div className="w-20 h-4 bg-pink-200/30 rounded" />
+                            </div>
+                            <div className="space-y-1.5">
+                              <div className="h-3 bg-pink-200/20 rounded w-full" />
+                              <div className="h-3 bg-pink-200/20 rounded w-5/6" />
+                              <div className="h-3 bg-pink-200/20 rounded w-4/5" />
+                            </div>
+                          </div>
+                        ) : isError ? (
+                          // 单条失败状态（仍显示，用户可见错误原因）
+                          <div key={idx} className="rounded-xl border border-red-300/50 bg-red-50 p-3">
+                            <p className="text-xs text-red-500">提示词 #{idx + 1} 生成失败：{prompt}</p>
+                          </div>
+                        ) : (
+                          <EroticPromptCard
+                            key={idx}
+                            index={idx}
+                            prompt={displayPrompt}
+                            duration={parseInt(mmDuration, 10) as 15 | 30 | 60}
+                            imagePreview={mmImages[0]?.preview || ''}
+                            imagePath={mmImages[0]?.path || ''}
+                            onUse={(p) => {
+                              setMmPrompt(p);
+                              onSuccess(`已使用提示词 #${idx + 1}`);
+                            }}
+                            onSendToLongVideo={(p) => {
+                              setNlInitialPrompt(p);
+                              if (mmImages[0]?.path) {
+                                setNlInitialImage({
+                                  path: mmImages[0].path,
+                                  preview: mmImages[0].preview || mmImages[0].path,
+                                });
+                              }
+                              setVideoModel('longvideov2');
+                              onSuccess(`已发送提示词 #${idx + 1} 到长视频 v1.1`);
+                            }}
+                            onSendToLongVideoV2={(p) => {
+                              setNlInitialPrompt(p);
+                              if (mmImages[0]?.path) {
+                                setNlInitialImage({
+                                  path: mmImages[0].path,
+                                  preview: mmImages[0].preview || mmImages[0].path,
+                                });
+                              }
+                              setVideoModel('minimaxlongv2');
+                              onSuccess(`已发送提示词 #${idx + 1} 到长视频 V2`);
+                            }}
+                            onGenerateVideo={(p) => {
+                              const nodeList = buildMiniMaxNodeListWithPrompt(p);
+                              const preview = mmImages[0]?.preview || '';
+                              taskListRef.current?.submitTask(
+                                p,
+                                mmImages[0]?.path || '',
+                                preview,
+                                nodeList,
+                                WORKFLOW.MINIMAX_H3,
+                              );
+                              onSuccess(`已提交提示词 #${idx + 1} 到视频生成队列`);
+                            }}
+                          />
+                        )
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -2620,7 +2707,9 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
   // 生成条数（默认 3，可手动 5/10 或自定义 1-20）
   const [mmEroticCount, setMmEroticCount] = useState(3);
   // 批量生成的提示词列表（每条独立、可编辑、可单独生成视频）
-  const [mmEroticPrompts, setMmEroticPrompts] = useState<string[]>([]);
+  // 流式模式：(string | null)[] - null = 正在生成中，string = 已完成
+  // 非流式模式：string[] - 全部完成后一次性填入
+  const [mmEroticPrompts, setMmEroticPrompts] = useState<(string | null)[]>([]);
 
   // ─── 图片DNA自动提取（情色创作模式）─────────────────────────────────────────
   // 当情色创作模式开启 + 图片上传完成时，自动调用 Gemini 提取 DNA

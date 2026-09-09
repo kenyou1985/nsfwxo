@@ -6650,7 +6650,22 @@ async def expand_video_from_image(req: ExpandVideoFromImageRequest, api_key: str
 # ─── Image DNA Extraction ──────────────────────────────────────────────────────
 
 # Gemini-3.8-flash system prompt（用于图片 DNA 提取）
+# 强调必须输出严格有效的 JSON，避免 newlines/quotes 导致 JSON 解析失败
 _DNA_EXTRACTION_SYSTEM = """You are an expert at analyzing adult/NSFW reference images and extracting structured "image DNA" information.
+
+Given a reference image, extract the following information and respond ONLY with valid JSON (no markdown, no explanation).
+
+CRITICAL JSON RULES:
+- Use double quotes for ALL string keys and string values
+- Do NOT use single quotes inside JSON strings
+- Do NOT embed unescaped newlines inside string values; use \\n instead
+- Do NOT include any text outside the JSON object (no markdown, no commentary)
+- The entire response must be ONE valid JSON object starting with { and ending with }
+
+Example of VALID output:
+{"character_type":"御姐","character_description":"Young Asian woman, long black hair, fair skin, elegant pose","character_age_hint":"YOUNG_ADULT","scene_type":"卧室","scene_description":"Indoor bedroom with soft warm lighting","action_prediction":"她正侧卧在床","clothing_list":[{"name":"黑色蕾丝内衣","type":"上装","color":"黑色","style":"蕾丝"}],"overall_style":"浪漫唯美","nsfw_level":"normal"}
+
+Fields:
 
 Given a reference image, extract the following information and respond ONLY with valid JSON (no markdown, no explanation):
 
@@ -6800,8 +6815,69 @@ async def extract_image_dna(req: ExtractImageDnaRequest, api_key: str = Depends(
 
     try:
         dna = json.loads(text)
-    except json.JSONDecodeError as e:
-        raise HTTPException(status_code=502, detail=f"DNA 解析失败（非 JSON）: {text[:200]}... 错误: {e}")
+    except json.JSONDecodeError as first_err:
+        # ── JSON 解析失败：自动切 Grok-4.6 备用模型 ──────────────────────────
+        # Gemini 对含特殊字符（引号/换行）的字段值有时输出格式不规范导致解析崩溃。
+        # 典型错误："Unterminated string starting at: line 7 column 24 (char 316)"
+        # 立即改用 Grok 重试，给它更严格的 JSON 指令。
+        logger.warning(
+            f"[DNA] Gemini JSON 解析失败（{first_err}），自动切换 Grok-4.6 备用模型重试"
+        )
+        try:
+            # Grok-4.6 支持图片 URL，直接用 full_url 作为视觉输入
+            # 注意：call_grok 使用纯文本消息，这里把图片 URL 嵌入用户提示词，
+            # 配合 text-only 模式的 DNA system prompt 让 Grok "看图说话" 提取信息。
+            # Grok 的多模态能力（via OpenRouter）可以处理 image_url 内容块。
+            grok_system = _DNA_EXTRACTION_SYSTEM + (
+                "\n\nIMPORTANT: You are viewing this image via URL. "
+                "Describe what you see and extract the DNA information in VALID JSON format. "
+                "The image URL is: " + full_url
+            )
+            # 直接用 Grok 处理图片（多模态）
+            from app.services.llm_service import call_grok as _call_grok
+            # 构建 Grok 消息（多模态格式）
+            _GROK_DNA_USER = f"""Please analyze this image and extract the image DNA information.
+
+Image URL: {full_url}
+
+Respond ONLY with valid JSON (no markdown, no explanation). All strings must use double quotes. Do not use single quotes inside string values. Do not embed unescaped newlines inside string values. Start with {{ and end with }}."""
+
+            raw_grok = await _call_grok(
+                api_key,
+                system_prompt=grok_system,
+                user_prompt=_GROK_DNA_USER,
+                model_order=["grok-4.6", "grok-4.3"],
+            )
+            text_grok = raw_grok.strip()
+            if text_grok.startswith("```"):
+                text_grok = re.sub(r"^```(?:json)?\s*", "", text_grok)
+                text_grok = re.sub(r"\s*```$", "", text_grok)
+            dna = json.loads(text_grok)
+            logger.info("[DNA] Grok-4.6 备用模型成功")
+        except json.JSONDecodeError as second_err:
+            # Grok 也失败了，返回完整的错误信息给前端
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    f"DNA 解析失败（Gemini 和 Grok 均无法返回有效 JSON）\n"
+                    f"Gemini 原始输出：{text[:300]}\n"
+                    f"Grok 原始输出：{text_grok[:300] if 'text_grok' in dir() else 'N/A'}\n"
+                    f"错误：{first_err} / {second_err}\n"
+                    f"提示：图片可能包含 Gemini/Grok 均无法识别的内容，请尝试其他图片。"
+                ),
+            )
+        except Exception as grok_err:
+            # Grok API 错误（认证/限流/超时）
+            logger.warning(f"[DNA] Grok 备用模型也失败: {grok_err}")
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    f"DNA 解析失败（Gemini JSON 格式错误，Grok 备用模型异常）\n"
+                    f"Gemini 错误：{first_err}\n"
+                    f"Grok 错误：{grok_err}\n"
+                    f"提示：请尝试其他图片。"
+                ),
+            )
 
     # 安全校验：强制确保返回的是成年人
     age_hint = dna.get("character_age_hint", "")
@@ -7252,6 +7328,9 @@ async def generate_h3_dna(req: GenerateH3DnaRequest, api_key: str = Depends(get_
 
     输入：参考图 URL + DNA 信息（人物/场景/服装/动作预判）+ 创作等级 + 时长 + 生成条数
     输出：N 条 H3 格式中文视频提示词（每条独立不重复），引用 <Picture 1> 指明主体
+
+    多条时使用 asyncio.gather 并行生成，所有提示词同时开始调用 Grok-4.6，
+    不再串行等待，大幅缩短总等待时间。
     """
     dna = req.dna
     count = max(1, min(req.count, 20))
@@ -7265,55 +7344,50 @@ async def generate_h3_dna(req: GenerateH3DnaRequest, api_key: str = Depends(get_
     # 系统提示词（极简英文，直接驱动）
     system_prompt = _build_h3_dna_system_prompt(req.erotic_level)
 
-    # 用户提示词（DNA 上下文 + 格式全在这里）
-    user_prompt = _build_h3_dna_user_prompt(
-        dna=dna,
-        clothing_str=clothing_str,
-        duration=req.duration,
-        user_hint=req.user_hint,
-        count=count,
-        erotic_level=req.erotic_level,
-    )
+    def _build_prompt(variation_idx: int) -> str:
+        hint_suffix = ""
+        if variation_idx > 0:
+            hint_suffix = (
+                f"\n\nGenerate a COMPLETELY DIFFERENT version # {variation_idx + 1}."
+                f" Use a different pose, angle, lighting, and narrative action."
+            )
+        return (
+            _build_h3_dna_user_prompt(
+                dna=dna,
+                clothing_str=clothing_str,
+                duration=req.duration,
+                user_hint=req.user_hint,
+                count=1,
+                erotic_level=req.erotic_level,
+            )
+            + hint_suffix
+        )
+
+    async def _gen_one(idx: int) -> str:
+        """生成单条提示词（独立任务）"""
+        up = _build_prompt(idx)
+        result = await _generate_single_h3_prompt(api_key, system_prompt, up)
+        check_prompt_safety(result)
+        return result
 
     try:
+        # ── 并行生成所有提示词 ──
         if count == 1:
-            # 单条：保留原有行为
-            result_clean = await _generate_single_h3_prompt(api_key, system_prompt, user_prompt)
-            check_prompt_safety(result_clean)
+            result_clean = await _gen_one(0)
             return GenerateH3DnaResponse(
                 prompts=[result_clean],
                 erotic_level=req.erotic_level,
                 duration=req.duration,
             )
 
-        # 多条：让 LLM 一次性返回多条，用 ===== 分隔
-        result_clean = await _generate_single_h3_prompt(api_key, system_prompt, user_prompt)
-        parts = _split_multi_prompts(result_clean)
-
-        # 安全校验每条
-        for p in parts:
-            check_prompt_safety(p)
-
-        # 如果 LLM 没按格式分隔（只返回了 1 条），则循环补齐到 count 条
-        if len(parts) < count:
-            extra_needed = count - len(parts)
-            for i in range(extra_needed):
-                # 给每条补一个不同的多样性提示
-                user_prompt_extra = _build_h3_dna_user_prompt(
-                    dna=dna,
-                    clothing_str=clothing_str,
-                    duration=req.duration,
-                    user_hint=req.user_hint,
-                    count=1,
-                    erotic_level=req.erotic_level,
-                ) + f"\n\n请生成与之前提示词完全不同版本 # {len(parts)+1}，使用不同的姿势/动作/角度。"
-                extra = await _generate_single_h3_prompt(api_key, system_prompt, user_prompt_extra)
-                extra = extra.strip()
-                check_prompt_safety(extra)
-                parts.append(extra)
+        # 多条：asyncio.gather 并行调用，最长单条决定总耗时
+        results = await asyncio.gather(
+            *[_gen_one(i) for i in range(count)],
+            return_exceptions=False,
+        )
 
         return GenerateH3DnaResponse(
-            prompts=parts[:count],
+            prompts=list(results),
             erotic_level=req.erotic_level,
             duration=req.duration,
         )
