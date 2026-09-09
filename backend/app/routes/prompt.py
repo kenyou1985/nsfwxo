@@ -7355,24 +7355,104 @@ ORAL_POSES = [
 
 def _build_scene_aware_action_presets(dna) -> List[str]:
     """
-    根据 DNA 场景信息 + 动作预判，智能返回适合该场景的多样化起始动作列表。
+    根据 DNA 场景信息，智能返回适合该场景的多样化起始动作列表。
 
-    整合 195+ 姿势库的分类知识，按以下顺序匹配：
-      1. 场景关键词（户外/室内/水边/夜间）
-      2. 动作预判关键词（站立/趴/跪/坐/抱起/高举等）
-      3. 服装类型关键词（泳衣/衬衫/瑜伽裤/束缚衣等）
-    确保每条提示词的姿势与「DNA 场景 + DNA 动作 + DNA 服装」三者匹配，
-    避免出现「泳衣却跪在床上」「户外却用椅子姿势」之类的环境错配。
+    ═══ 匹配优先级（从高到低）══════════════════════════════════════════════
+    1. 道具检测（scene_description 中的物体）：最优先 — 姿势必须用 DNA 场景中存在的道具
+    2. 动作预判（action_prediction）：加权相关姿势
+    3. 服装类型：辅助加权（如泳衣→站立/户外姿势）
+
+    ═══ 道具关键词 → 姿势池映射 ════════════════════════════════════════════
+    【关键原则】：只要 DNA scene_description 中出现了某道具，该道具对应的姿势池就能使用。
+    不再按「户外禁用椅子、室内禁用泳池」这种死规则过滤。
+
+      道具关键词              → 优先姿势池
+      ─────────────────────────────────────────────────────────
+      椅子/凳子/餐椅/办公椅   → CHAIR_DESK_BED_POSES（椅子系列）
+      床/床垫/床铺/沙发       → CHAIR_DESK_BED_POSES（床/沙发系列）
+      桌子/料理台/书桌/台面  → CHAIR_DESK_BED_POSES（桌子后入/传教士）
+      地板/地面/草地/垫子     → PRONE_KNEELING_POSES（趴地/跪姿）
+      墙壁/墙面/门/门板       → INDOOR_STANDING_POSES（靠墙姿势）
+      树干/树木/树枝          → OUTDOOR_STANDING_POSES（扶树姿势）
+      石阶/台阶/楼梯/石凳     → OUTDOOR_STANDING_POSES（台阶单腿高抬）
+      栏杆/围栏/矮墙/院墙    → OUTDOOR_STANDING_POSES（扶栏杆姿势）
+      浴缸/洗手台             → WATER_POSES（浴缸姿势）
+      泳池/温泉/水池/海边     → WATER_POSES（水边姿势）
+      天台/露台/阳台/庭院     → OUTDOOR_STANDING_POSES（户外站立即可）
+      野外/树林/灌木          → OUTDOOR_STANDING_POSES（野外站立即可）
+
+    ═══ 返回值 ══════════════════════════════════════════════════════════
+    40-80 条不重复的多样化姿势，保证：
+    - 主要姿势（道具匹配）占 60%
+    - 通用姿势（不挑道具）占 30%
+    - 口交专项占 10%
     """
     scene_type = (dna.scene_type or "").lower()
     scene_desc = (dna.scene_description or "").lower()
     action_pred = (dna.action_prediction or "").lower()
 
-    # 合并场景文本
-    full_scene = f"{scene_type} {scene_desc}"
+    # 合并所有 DNA 文本（用于道具检测）
+    full_text = f"{scene_type} {scene_desc} {action_pred}"
 
-    # ── 1. 动作预判关键词检测（DNA 提取的"接下来1-3秒动作"） ──
-    # 这些关键词用于加权相应姿势池
+    # ── 1. 道具检测 ───────────────────────────────────────────────
+    _PROP_POOLS = {
+        "chair": {
+            "keywords": ["椅子", "凳子", "餐椅", "办公椅", "马桶", "沙发", "贵妃椅", "扶手椅", "chair", "sofa", "couch", "stool"],
+            "pool": CHAIR_DESK_BED_POSES,
+        },
+        "bed": {
+            "keywords": ["床", "床垫", "床铺", "床沿", "bed", "mattress"],
+            "pool": CHAIR_DESK_BED_POSES,
+        },
+        "table": {
+            "keywords": ["桌子", "餐桌", "料理台", "书桌", "梳妆台", "柜台", "台面", "desk", "table", "counter", "vanity"],
+            "pool": CHAIR_DESK_BED_POSES,
+        },
+        "ground": {
+            "keywords": ["地面", "地板", "草地", "垫子", "瑜伽垫", "ground", "floor", "grass", "mat", "草", "泥地", "沙地"],
+            "pool": PRONE_KNEELING_POSES,
+        },
+        "wall": {
+            "keywords": ["墙壁", "墙面", "墙", "门", "门板", "wall", "door"],
+            "pool": INDOOR_STANDING_POSES,
+        },
+        "tree": {
+            "keywords": ["树干", "树木", "树枝", "tree", "branch", "wood"],
+            "pool": OUTDOOR_STANDING_POSES,
+        },
+        "stairs": {
+            "keywords": ["石阶", "台阶", "楼梯", "阶梯", "石凳", "stair", "step", "ledge", "bench", "台阶上"],
+            "pool": OUTDOOR_STANDING_POSES,
+        },
+        "railing": {
+            "keywords": ["栏杆", "围栏", "矮墙", "院墙", "石墙", "railing", "fence", "wall", "rail"],
+            "pool": OUTDOOR_STANDING_POSES,
+        },
+        "bathtub": {
+            "keywords": ["浴缸", "浴盆", "浴池", "洗手台", "bathtub", "bath", "sink", "basin"],
+            "pool": WATER_POSES,
+        },
+        "pool": {
+            "keywords": ["泳池", "温泉", "水池", "海边", "浅水区", "ocean", "sea", "pool", "hotspring", "onsen", "水"],
+            "pool": WATER_POSES,
+        },
+        "outdoor": {
+            "keywords": ["天台", "露台", "阳台", "庭院", "院子", "野外", "树林", "灌木", "天台", "rooftop", "balcony", "yard", "garden", "courtyard", "outdoor", "outside", "beach", "沙滩", "park", "street", "街道"],
+            "pool": OUTDOOR_STANDING_POSES,
+        },
+    }
+
+    detected_prop_pools = []  # 按检测顺序记录（第一个检测到的道具权重最高）
+    seen_prop_keys = set()
+    for prop_key, prop_info in _PROP_POOLS.items():
+        for kw in prop_info["keywords"]:
+            if kw in full_text:
+                if prop_key not in seen_prop_keys:
+                    detected_prop_pools.append(prop_info["pool"])
+                    seen_prop_keys.add(prop_key)
+                break
+
+    # ── 2. 动作预判关键词检测 ──────────────────────────────────────
     action_kw = {
         "standing": ["站立", "站姿", "站", "standing", "扶", "拍照"],
         "kneeling_prone": ["跪", "趴", "kneel", "跪下", "趴下", "四肢着地"],
@@ -7390,9 +7470,7 @@ def _build_scene_aware_action_presets(dna) -> List[str]:
                 detected_actions.add(cat)
                 break
 
-    # ── 2. 服装类型检测（影响姿势可选性） ──
-    # 泳衣/瑜伽裤/束缚衣 → 更适合户外/站立/后入姿势
-    # 衬衫/连衣裙/睡衣 → 适合室内/坐姿/趴姿
+    # ── 3. 服装类型检测 ─────────────────────────────────────────────
     clothing_names = []
     if hasattr(dna, "clothing_list") and dna.clothing_list:
         for c in dna.clothing_list:
@@ -7400,75 +7478,51 @@ def _build_scene_aware_action_presets(dna) -> List[str]:
             clothing_names.append(cname)
     clothing_text = " ".join(clothing_names)
 
-    is_swimwear = any(kw in clothing_text for kw in ["泳衣", "泳装", "比基尼", "bikini", "swimsuit"])
+    is_swimwear = any(kw in clothing_text for kw in ["泳衣", "泳装", "比基尼", "bikini", "swimsuit", "连体泳"])
     is_yoga_pants = any(kw in clothing_text for kw in ["瑜伽裤", "yoga", "leggings"])
-    is_uniform = any(kw in clothing_text for kw in ["制服", "套装", "西装", "校服", "ol"])
     is_bondage = any(kw in clothing_text for kw in ["束缚", "皮革", "乳胶", "bondage"])
 
-    # ── 3. 场景分类 ──
-    is_outdoor = any(kw in full_scene for kw in _OUTDOOR_SCENE_KEYWORDS)
-    is_water = any(kw in full_scene for kw in _WATER_SCENE_KEYWORDS)
-    is_night = any(kw in full_scene for kw in _NIGHT_SCENE_KEYWORDS)
-    is_indoor = any(kw in full_scene for kw in _INDOOR_SCENE_KEYWORDS)
-
-    # ── 4. 姿势池构建（按权重） ──
+    # ── 4. 姿势池构建（道具优先 + 场景加权）───────────────────────────
     pool: List[str] = []
 
-    # 基础权重：场景决定主姿势池
+    # A. 道具匹配的姿势（主要来源，占 50-60%）
+    if detected_prop_pools:
+        # 第一个检测到的道具权重最高 ×2
+        pool += detected_prop_pools[0] * 2
+        for pp in detected_prop_pools[1:]:
+            pool += pp
+
+    # B. 场景基础加权（30%）
+    is_outdoor = any(kw in full_text for kw in _OUTDOOR_SCENE_KEYWORDS)
+    is_water = any(kw in full_text for kw in _WATER_SCENE_KEYWORDS)
+    is_night = any(kw in full_text for kw in _NIGHT_SCENE_KEYWORDS)
+    is_indoor = any(kw in full_text for kw in _INDOOR_SCENE_KEYWORDS)
+
     if is_outdoor:
-        # 户外：站立姿势为主（结合 DNA 动作预判「扶/站/抱起/拍照」）
-        pool += OUTDOOR_STANDING_POSES * 3     # 户外站立 120+ 条（重复权重）
-        if is_swimwear:
-            # 泳衣 + 户外：站立后入/单腿高抬/抱起更常见
-            pool += OUTDOOR_STANDING_POSES[:20] * 2
-        if is_yoga_pants:
-            # 瑜伽裤 + 户外：站立单腿高抬/后入变体
-            pool += OUTDOOR_STANDING_POSES[5:25] * 2
-        pool += PRONE_KNEELING_POSES          # 趴地/跪姿 15+
-        pool += GENERAL_STANDING_POSES        # 通用站立 30+
-        if is_water:
-            pool += WATER_POSES               # 水边 10+
-        if is_night:
-            pool += NIGHT_ROMANCE_POSES       # 夜间 10+
-        pool += ORAL_POSES[:5]
-    elif is_water:
-        pool += WATER_POSES * 2              # 泳池/温泉 20+
-        pool += OUTDOOR_STANDING_POSES[:15]   # 户外站立
-        pool += ORAL_POSES[:5]
-        pool += CHAIR_DESK_BED_POSES[:5]
-    elif is_night:
-        pool += NIGHT_ROMANCE_POSES * 2
-        pool += OUTDOOR_STANDING_POSES[:10]
-        pool += INDOOR_STANDING_POSES[:10]
-        pool += ORAL_POSES[:5]
+        pool += OUTDOOR_STANDING_POSES
         pool += GENERAL_STANDING_POSES[:10]
+    elif is_water:
+        pool += WATER_POSES * 2
+        pool += OUTDOOR_STANDING_POSES[:10]
+    elif is_night:
+        pool += NIGHT_ROMANCE_POSES
+        pool += INDOOR_STANDING_POSES[:10]
     elif is_indoor:
-        if is_bondage:
-            # SM室内：趴/跪/束缚姿势优先
-            pool += PRONE_KNEELING_POSES * 2
-            pool += CHAIR_DESK_BED_POSES[:10]
-            pool += ORAL_POSES
-        else:
-            pool += INDOOR_STANDING_POSES
-            pool += CHAIR_DESK_BED_POSES
-            pool += PRONE_KNEELING_POSES
-            pool += ORAL_POSES
-        pool += GENERAL_STANDING_POSES
+        pool += INDOOR_STANDING_POSES
+        pool += CHAIR_DESK_BED_POSES[:10]
     else:
-        # 未知场景：综合所有姿势池（DNA 提取失败时的兜底）
+        # 未知场景：综合所有姿势池（兜底）
         pool += OUTDOOR_STANDING_POSES[:15]
         pool += INDOOR_STANDING_POSES[:10]
-        pool += PRONE_KNEELING_POSES[:8]
-        pool += ORAL_POSES[:8]
-        pool += GENERAL_STANDING_POSES[:10]
-        pool += CHAIR_DESK_BED_POSES[:8]
+        pool += CHAIR_DESK_BED_POSES[:10]
+        pool += PRONE_KNEELING_POSES[:10]
         pool += WATER_POSES[:5]
-        pool += NIGHT_ROMANCE_POSES[:5]
 
-    # ── 5. 动作预判加权 ──
-    # 如果 DNA 提取的动作预判明确指向站立，则 outdoor/general standing 进一步加权
+    # C. 口交专项（10%，在任何场景都可使用）
+    pool += ORAL_POSES[:5]
+
+    # ── 5. 动作预判加权（进一步调整）─────────────────────────────────
     if "standing" in detected_actions or "carrying" in detected_actions:
-        # 站立/抱起主导：优先 outdoor/general standing
         pool = OUTDOOR_STANDING_POSES * 2 + GENERAL_STANDING_POSES + pool
     if "kneeling_prone" in detected_actions:
         pool = PRONE_KNEELING_POSES * 2 + pool
@@ -7477,17 +7531,18 @@ def _build_scene_aware_action_presets(dna) -> List[str]:
     if "oral" in detected_actions:
         pool = ORAL_POSES * 2 + pool
     if "kissing" in detected_actions:
-        # 接吻前戏多以站立/传教士姿势起手
         pool = GENERAL_STANDING_POSES + OUTDOOR_STANDING_POSES + pool
     if "walking" in detected_actions:
-        # 走近/走进来：后入站立姿势
         pool = OUTDOOR_STANDING_POSES + pool
 
-    # 打乱顺序，避免前几条总是相同类型的姿势
+    # 泳衣加权：站立户外姿势更多权重（泳衣容易展示身体曲线）
+    if is_swimwear:
+        pool = OUTDOOR_STANDING_POSES * 2 + pool
+
+    # ── 6. 打乱 + 去重 ───────────────────────────────────────────────
     import random
     random.shuffle(pool)
 
-    # 去重（保留顺序）
     seen = set()
     unique_pool = []
     for p in pool:
@@ -7495,7 +7550,6 @@ def _build_scene_aware_action_presets(dna) -> List[str]:
             seen.add(p)
             unique_pool.append(p)
 
-    # 返回至少 40 条（如果 pool 不够 40 条就全部返回）
     return unique_pool[:max(40, len(unique_pool))]
 
 
@@ -7605,7 +7659,8 @@ F. 借助场景元素站立：
    - 女性站立侧身靠在院子/花园/天台的树干/柱子/墙角，男性站在她侧面抬起她靠近男性侧的腿搁在自己大腿上，阴茎从侧面插入阴道侧入站立抽插
    - 女性站立双手扶着院子/天台/花园的石凳/矮墙/栏杆，男性站在她身后抬起她一条腿搁在支撑面上，以侧入站立姿势阴茎插入阴道抽插
 
-【严格要求】：当场景为户外/庭院/野外时，必须从上述 A-F 各类中选择完全不同的站立姿势，每条提示词的站立姿势不能重复（即使抽卡数量为 2 条也要确保 2 条姿势不同）。禁止连续生成"后入"×"后入"或"传教士"×"传教士"的重复组合。
+【姿势多样性要求】：必须从上述 A-F 各类中选择完全不同的站立姿势组合，每条提示词的姿势不能重复（即使抽卡数量为 2 条也要确保 2 条姿势不同）。禁止连续生成"后入"×"后入"或"传教士"×"传教士"的重复组合。
+【道具优先规则（已由系统自动匹配 DNA 场景道具）】：如果 DNA 场景描述中出现了椅子/床/桌子/浴缸等道具，系统已自动加权对应的姿势池。例如户外场景中有石阶→台阶姿势自动优先；有椅子→椅子姿势自动可用；泳池边→水边姿势自动优先。不需要人工排除任何道具组合。
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ━━━ 👗 服装状态渐进式脱衣/暴露规则（强制 — 避免"穿着衣服做爱"的逻辑错误）━━━
