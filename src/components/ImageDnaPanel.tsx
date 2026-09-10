@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, ChangeEvent } from 'react';
-import { User, MapPin, Shirt, Sparkles, Loader2, RefreshCw, Zap, Download, Copy, Wand2, ChevronRight, X, Maximize2, Replace, Plus, Trash2, RotateCcw, Pencil, Image as ImageIcon, Upload } from 'lucide-react';
+import { User, MapPin, Shirt, Sparkles, Loader2, RefreshCw, Zap, Download, Copy, Wand2, ChevronRight, X, Maximize2, Replace, Plus, Trash2, RotateCcw, Pencil, Image as ImageIcon, Upload, Check } from 'lucide-react';
 import type { ClothingInfo, ImageDnaResult } from '../services/promptApi';
 import { extractClothings } from '../services/promptApi';
 import { useToast } from '../hooks/useToast';
@@ -36,6 +36,20 @@ interface ImageDnaPanelProps {
   onCopyScene?: () => void;
   /** 将提取的服装图插入为参考图（替换首图槽位） */
   onInsertAsReference?: (dataUrl: string, clothingName: string) => void;
+  /** 自定义补充信息（必须出现的姿势/道具/场景元素等） */
+  supplementary?: string;
+  /** 补充信息变化回调 */
+  onSupplementaryChange?: (value: string) => void;
+  /** 逐条补充模式：'individual' = 每条独立，'unified' = 统一使用 supplementary */
+  supplementaryMode?: 'unified' | 'individual';
+  /** 模式切换回调 */
+  onSupplementaryModeChange?: (mode: 'unified' | 'individual') => void;
+  /** 每条提示词的补充文本数组 */
+  supplementaryItems?: string[];
+  /** 逐条补充变化回调 */
+  onSupplementaryItemsChange?: (items: string[]) => void;
+  /** 生成条数（用于逐条模式渲染对应数量的文本框） */
+  eroticCount?: number;
 }
 
 const NSFW_LEVEL_COLORS: Record<string, string> = {
@@ -144,6 +158,13 @@ export const ImageDnaPanel: React.FC<ImageDnaPanelProps> = ({
   onCopyCharacter,
   onCopyScene,
   onInsertAsReference,
+  supplementary = '',
+  onSupplementaryChange,
+  supplementaryMode = 'individual',
+  onSupplementaryModeChange,
+  supplementaryItems = [],
+  onSupplementaryItemsChange,
+  eroticCount = 3,
 }) => {
   const toast = useToast();
   // 包装调用，保持原有 showToast(msg, type) 接口
@@ -171,6 +192,50 @@ export const ImageDnaPanel: React.FC<ImageDnaPanelProps> = ({
   // 自定义服装元素图片（最多 3 张）
   const [customElementImages, setCustomElementImages] = useState<string[]>([]);
   const customImageInputRef = useRef<HTMLInputElement>(null);
+
+  // ─── 补充信息编辑流 ──────────────────────────────────────────────────
+  // supplementary（prop）= 已生效（已提交）的补充信息，用于 H3 生成
+  // draftSupplementary（local）= 用户当前在文本框里编辑的草稿，未提交不生效
+  const [draftSupplementary, setDraftSupplementary] = useState(supplementary || '');
+  const [isEditingSupplementary, setIsEditingSupplementary] = useState(!supplementary);
+
+  // ─── 逐条补充信息流 ──────────────────────────────────────────────────
+  // 逐条模式下，每个槽位独立维护本地草稿；提交时一次性同步到父组件
+  // 初始化：补充数组同步到 eroticCount 长度
+  const effectiveCount = Math.max(1, eroticCount);
+  const [draftSupplementaryItems, setDraftSupplementaryItems] = useState<string[]>(() => {
+    // 用补充信息初始化或空字符串补齐
+    const items: string[] = [];
+    for (let i = 0; i < effectiveCount; i++) {
+      items.push(supplementaryItems[i] ?? '');
+    }
+    return items;
+  });
+  const [individualEditing, setIndividualEditing] = useState(false);
+  // 逐条模式：追踪每个槽位是否已提交（用于成功 UI 显示）
+  const [submittedItems, setSubmittedItems] = useState<boolean[]>(() =>
+    Array(effectiveCount).fill(false)
+  );
+  // 统一模式：追踪是否已提交（用于成功 UI 显示）
+  const [unifiedSubmitted, setUnifiedSubmitted] = useState(false);
+
+  // 当 eroticCount 或 supplementaryItems 变化时，重新同步本地草稿
+  useEffect(() => {
+    const items: string[] = [];
+    for (let i = 0; i < effectiveCount; i++) {
+      items.push(supplementaryItems[i] ?? '');
+    }
+    setDraftSupplementaryItems(items);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eroticCount, supplementaryItems.length]);
+
+  // 当父组件重置了 supplementary（例如切图后重新提取 DNA），同步本地草稿
+  useEffect(() => {
+    if (isEditingSupplementary) {
+      setDraftSupplementary(supplementary || '');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supplementary]);
 
   // 当 DNA 更新时，把 dna.clothing_list 同步到 editableClothings（保留现有自定义项）
   useEffect(() => {
@@ -493,6 +558,97 @@ export const ImageDnaPanel: React.FC<ImageDnaPanelProps> = ({
     setCustomElementImages(prev => prev.filter((_, i) => i !== idx));
   }, []);
 
+  // ─── 补充信息提交 ──────────────────────────────────────────────────────
+  // 使用普通函数而非 useCallback，避免闭包陷阱导致取消按钮失效
+  const handleSubmitSupplementary = () => {
+    const trimmed = draftSupplementary.trim();
+    onSupplementaryChange?.(trimmed);
+    setIsEditingSupplementary(false);
+    setUnifiedSubmitted(true);
+    showToast(
+      trimmed ? `已提交补充信息（${trimmed.length} 字），下次生成 H3 提示词时生效` : '已清空补充信息',
+      'success',
+    );
+  };
+
+  // 统一模式删除处理
+  const handleDeleteUnifiedSupplementary = () => {
+    onSupplementaryChange?.('');
+    setUnifiedSubmitted(false);
+    showToast('已删除补充信息，将使用系统默认 H3 提示词', 'info');
+  };
+
+  // 取消编辑，恢复到已提交的文本
+  const handleCancelEditSupplementary = () => {
+    // 强制同步更新两步，确保编辑状态立即关闭
+    setDraftSupplementary(supplementary || '');
+    setIsEditingSupplementary(false);
+  };
+
+  // 进入编辑模式
+  const handleStartEditSupplementary = () => {
+    setDraftSupplementary(supplementary || '');
+    setIsEditingSupplementary(true);
+  };
+
+  // ─── 逐条补充信息处理函数 ─────────────────────────────────────────────
+  // 编辑单个槽位的内容
+  const handleSupplementaryItemChange = (idx: number, value: string) => {
+    setDraftSupplementaryItems(prev => {
+      const next = [...prev];
+      next[idx] = value;
+      return next;
+    });
+  };
+
+  // 提交所有逐条补充（一次性同步到父组件）
+  const handleSubmitSupplementaryItems = () => {
+    onSupplementaryItemsChange?.(draftSupplementaryItems);
+    setIndividualEditing(false);
+    // 标记所有有内容的条目为已提交状态
+    const newSubmitted = draftSupplementaryItems.map(s => s.trim().length > 0);
+    setSubmittedItems(newSubmitted);
+    const filledCount = draftSupplementaryItems.filter(s => s.trim().length > 0).length;
+    showToast(
+      filledCount > 0
+        ? `已提交 ${filledCount}/${effectiveCount} 条补充信息`
+        : '已清空全部补充信息',
+      'success',
+    );
+  };
+
+  // 删除单个逐条补充（清除该项并回退到系统默认）
+  const handleDeleteSupplementaryItem = (idx: number) => {
+    const newItems = [...draftSupplementaryItems];
+    newItems[idx] = '';
+    setDraftSupplementaryItems(newItems);
+    // 同步到父组件
+    onSupplementaryItemsChange?.(newItems);
+    // 更新提交状态
+    const newSubmitted = [...submittedItems];
+    newSubmitted[idx] = false;
+    setSubmittedItems(newSubmitted);
+    showToast(`已删除补充信息 #${idx + 1}，将使用系统默认 H3 提示词`, 'info');
+  };
+
+  // 统一模式提交成功处理（合并到原函数）
+
+  // 取消逐条编辑（恢复到父组件数据）
+  const handleCancelSupplementaryItems = () => {
+    // 重新从父组件数据初始化本地草稿
+    const items: string[] = [];
+    for (let i = 0; i < effectiveCount; i++) {
+      items.push(supplementaryItems[i] ?? '');
+    }
+    setDraftSupplementaryItems(items);
+    setIndividualEditing(false);
+  };
+
+  // 一键清空全部逐条补充
+  const handleClearSupplementaryItems = () => {
+    setDraftSupplementaryItems(Array(effectiveCount).fill(''));
+  };
+
   // 加载中状态
   if (loading) {
     return (
@@ -642,6 +798,249 @@ export const ImageDnaPanel: React.FC<ImageDnaPanelProps> = ({
             {dna.action_prediction || '等待 Gemini 分析...'}
           </p>
         </div>
+      </div>
+
+      {/* 自定义补充信息 - 用户可手动指定必须出现的姿势/道具/场景元素等 */}
+      <div className="rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 p-3">
+        {/* 标题栏 + 模式切换 */}
+        <div className="flex items-center gap-2 mb-3">
+          <Pencil size={14} className="text-emerald-500" />
+          <span className="text-xs font-semibold text-text-primary">自定义补充信息</span>
+
+          {/* 模式切换 Pills */}
+          <div className="flex ml-auto rounded-lg border border-emerald-300 overflow-hidden text-[9px] font-medium">
+            <button
+              onClick={() => onSupplementaryModeChange?.('individual')}
+              className={`px-2 py-1 transition-colors ${
+                supplementaryMode === 'individual'
+                  ? 'bg-emerald-500 text-white'
+                  : 'bg-white text-emerald-700 hover:bg-emerald-50'
+              }`}
+            >
+              逐条补充
+            </button>
+            <button
+              onClick={() => onSupplementaryModeChange?.('unified')}
+              className={`px-2 py-1 transition-colors ${
+                supplementaryMode === 'unified'
+                  ? 'bg-emerald-500 text-white'
+                  : 'bg-white text-emerald-700 hover:bg-emerald-50'
+              }`}
+            >
+              统一补充
+            </button>
+          </div>
+        </div>
+
+        {/* ── 逐条补充模式 ───────────────────────────────────────── */}
+        {supplementaryMode === 'individual' ? (
+          <div className="space-y-2">
+            {Array.from({ length: effectiveCount }).map((_, idx) => {
+              const itemValue = draftSupplementaryItems[idx] ?? '';
+              const hasContent = itemValue.trim().length > 0;
+              const isSubmitted = submittedItems[idx] && hasContent;
+              return (
+                <div
+                  key={idx}
+                  className={`rounded-lg border p-2 transition-all ${
+                    isSubmitted
+                      ? 'bg-emerald-50 border-emerald-300 shadow-sm'
+                      : hasContent
+                        ? 'bg-white/70 border-emerald-200'
+                        : 'bg-gray-50 border-gray-200'
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 ${
+                      isSubmitted
+                        ? 'bg-emerald-500 text-white'
+                        : hasContent
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-gray-100 text-gray-500'
+                    }`}>
+                      {isSubmitted && <Check size={9} />}
+                      提示词 #{idx + 1}
+                    </span>
+                    {isSubmitted && (
+                      <span className="flex items-center gap-0.5 text-[9px] text-emerald-600 font-medium">
+                        <Check size={9} />
+                        已提交 · {itemValue.trim().length} 字
+                      </span>
+                    )}
+                    {!isSubmitted && hasContent && (
+                      <span className="flex items-center gap-0.5 text-[9px] text-amber-500">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                        草稿
+                      </span>
+                    )}
+                    {!hasContent && (
+                      <span className="text-[9px] text-gray-400">未设置</span>
+                    )}
+                    {/* 删除按钮 */}
+                    {isSubmitted && (
+                      <button
+                        onClick={() => handleDeleteSupplementaryItem(idx)}
+                        className="ml-auto flex-shrink-0 w-5 h-5 flex items-center justify-center rounded-full bg-emerald-100 hover:bg-red-100 text-emerald-500 hover:text-red-500 transition-colors"
+                        title="删除补充信息（回退到系统默认）"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                  </div>
+                  <textarea
+                    value={itemValue}
+                    onChange={(e) => handleSupplementaryItemChange(idx, e.target.value)}
+                    placeholder={`为提示词 #${idx + 1} 指定特殊姿势/道具/场景...`}
+                    rows={2}
+                    className={`w-full px-2 py-1 rounded-lg text-[10px] bg-white border placeholder:text-gray-400/60 focus:outline-none focus:ring-1 resize-y leading-relaxed ${
+                      isSubmitted
+                        ? 'text-emerald-700 border-emerald-200 focus:ring-emerald-300'
+                        : hasContent
+                          ? 'text-text-primary border-emerald-100 focus:ring-emerald-300'
+                          : 'text-text-primary border-gray-200 focus:ring-gray-300'
+                    }`}
+                  />
+                </div>
+              );
+            })}
+
+            {/* 逐条补充操作栏 */}
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                onClick={handleSubmitSupplementaryItems}
+                className="flex items-center gap-1 px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold transition-colors"
+              >
+                <Check size={11} />
+                提交全部
+              </button>
+              <button
+                onClick={() => {
+                  // 取消编辑，恢复父组件数据
+                  const items: string[] = [];
+                  for (let i = 0; i < effectiveCount; i++) {
+                    items.push(supplementaryItems[i] ?? '');
+                  }
+                  setDraftSupplementaryItems(items);
+                }}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 text-[10px] font-medium transition-colors"
+              >
+                <X size={11} />
+                取消
+              </button>
+              <button
+                onClick={() => {
+                  setDraftSupplementaryItems(Array(effectiveCount).fill(''));
+                }}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 text-[10px] font-medium transition-colors"
+              >
+                <Trash2 size={10} />
+                清空
+              </button>
+              <span className="text-[9px] text-emerald-600/80 ml-auto">
+                ✦ 提交后生效，未提交不用于生成
+              </span>
+            </div>
+          </div>
+        ) : (
+          /* ── 统一补充模式 ──────────────────────────────────────── */
+          <div>
+            {isEditingSupplementary ? (
+              /* 编辑中状态 */
+              <>
+                <textarea
+                  value={draftSupplementary}
+                  onChange={(e) => setDraftSupplementary(e.target.value)}
+                  placeholder="例如：必须出现传教士姿势；必须使用按摩棒道具；站立后入；跪在椅子上口交；需要颜射收尾..."
+                  rows={3}
+                  className="w-full px-2 py-1.5 rounded-lg text-[10px] text-text-primary bg-white border border-emerald-200 placeholder:text-emerald-400/60 focus:outline-none focus:ring-1 focus:ring-emerald-300 resize-y leading-relaxed"
+                />
+                <div className="mt-2 flex items-center gap-2">
+                  <button
+                    onClick={handleSubmitSupplementary}
+                    className="flex items-center gap-1 px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold transition-colors"
+                  >
+                    <Check size={11} />
+                    {draftSupplementary.trim() ? '保存' : '清空'}
+                  </button>
+                  <button
+                    onClick={handleCancelEditSupplementary}
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 text-[10px] font-medium transition-colors"
+                  >
+                    <X size={11} />
+                    放弃
+                  </button>
+                  <span className="text-[9px] text-emerald-600/80 ml-auto">
+                    ✦ 未保存不会生效
+                  </span>
+                </div>
+              </>
+            ) : supplementary.trim().length > 0 ? (
+              /* 已提交 - 标签式展示 */
+              <>
+                <div className={`flex items-start gap-2 p-3 rounded-lg border transition-all ${
+                  unifiedSubmitted
+                    ? 'bg-emerald-50 border-emerald-300 shadow-sm'
+                    : 'bg-white border-emerald-200'
+                }`}>
+                  <div className="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500 text-white flex-shrink-0">
+                    <Check size={12} />
+                  </div>
+                  <span
+                    onClick={handleStartEditSupplementary}
+                    className="flex-1 text-[10px] text-text-primary leading-relaxed whitespace-pre-wrap break-words cursor-pointer hover:bg-emerald-50 rounded px-1 py-0.5 transition-colors"
+                    title="点击编辑"
+                  >
+                    {supplementary}
+                  </span>
+                  <button
+                    onClick={handleDeleteUnifiedSupplementary}
+                    className="flex-shrink-0 w-5 h-5 flex items-center justify-center rounded-full bg-gray-100 hover:bg-red-100 text-gray-400 hover:text-red-500 transition-colors"
+                    title="删除补充信息（回退到系统默认）"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+                {unifiedSubmitted && (
+                  <div className="mt-2 flex items-center gap-1.5 text-[9px] text-emerald-600 font-medium">
+                    <Check size={10} />
+                    已成功提交，下次生成 H3 提示词时生效
+                  </div>
+                )}
+                <div className="mt-2 flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      handleStartEditSupplementary();
+                      setUnifiedSubmitted(false);
+                    }}
+                    className="flex items-center gap-1 px-3 py-1 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-700 text-[10px] font-bold transition-colors"
+                  >
+                    <Pencil size={11} />
+                    编辑
+                  </button>
+                  <span className="text-[9px] text-emerald-600/80">
+                    ✦ 已合并到 H3 提示词生成（3 条共用）
+                  </span>
+                </div>
+              </>
+            ) : (
+              /* 未设置 */
+              <>
+                <div className="text-[10px] text-emerald-500/70 text-center py-2">
+                  暂未设置补充信息，点击下方「填写」开始
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <button
+                    onClick={handleStartEditSupplementary}
+                    className="flex items-center gap-1 px-3 py-1 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-700 text-[10px] font-bold transition-colors"
+                  >
+                    <Pencil size={11} />
+                    填写补充信息
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 服装信息 */}

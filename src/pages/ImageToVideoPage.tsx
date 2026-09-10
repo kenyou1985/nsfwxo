@@ -1154,6 +1154,15 @@ interface MiniMaxH3PanelProps {
   /** 批量生成的提示词列表（流式模式支持 null = 加载中） */
   mmEroticPrompts: (string | null)[];
   setMmEroticPrompts: React.Dispatch<React.SetStateAction<(string | null)[]>>;
+  /** 自定义补充信息（必须出现的姿势/道具/场景元素等） */
+  mmSupplementary: string;
+  setMmSupplementary: (v: string) => void;
+  /** 逐条补充模式：'individual' = 每条独立，'unified' = 统一使用 mmSupplementary */
+  mmSupplementaryMode: 'unified' | 'individual';
+  setMmSupplementaryMode: (v: 'unified' | 'individual') => void;
+  /** 每条提示词的补充文本数组（长度与 mmEroticCount 同步） */
+  mmSupplementaryItems: string[];
+  setMmSupplementaryItems: React.Dispatch<React.SetStateAction<string[]>>;
   /** 发送到长视频的函数 */
   setVideoModel: (v: VideoModel) => void;
   setNlInitialImage: (v: { path: string; preview: string } | null) => void;
@@ -1177,6 +1186,9 @@ function MiniMaxH3Panel({
   mmDnaError, setMmDnaError,
   mmEroticCount, setMmEroticCount,
   mmEroticPrompts, setMmEroticPrompts,
+  mmSupplementary, setMmSupplementary,
+  mmSupplementaryMode, setMmSupplementaryMode,
+  mmSupplementaryItems, setMmSupplementaryItems,
   setVideoModel, setNlInitialImage, setNlInitialPrompt,
 }: MiniMaxH3PanelProps) {
   // 主题库批量生成状态
@@ -1236,11 +1248,35 @@ function MiniMaxH3Panel({
     }
 
     const userHintRaw = mmPrompt.trim() || undefined;
+    const supplementaryRaw = mmSupplementary.trim() || undefined;
     const duration = parseInt(mmDuration, 10) as 15 | 30 | 60;
 
     // ── 流式并行生成：单次请求，多条并行流式输出 ───────────────────────────
     // 1. 立即显示 N 个空 loading 占位槽（流式用户体验的关键）
     const count = mmEroticCount;
+
+    // ── 用户自定义补充信息（必须出现的姿势/道具/场景元素）
+    // 支持两种模式：
+    //   - unified: 所有提示词共用同一个补充（原有行为）
+    //   - individual: 每个提示词有独立的补充（#1 用 mmSupplementaryItems[0], #2 用 [1], ...）
+    const hasUnifiedSupplementary = mmSupplementaryMode === 'unified' && (supplementaryRaw || '').trim().length > 0;
+    const hasIndividualSupplementary = mmSupplementaryMode === 'individual' && mmSupplementaryItems.some(s => s.trim().length > 0);
+
+    // 构建统一补充的要求字符串
+    const UNIFIED_SUPPLEMENTARY_REQUIREMENT = hasUnifiedSupplementary
+      ? `\n\n【用户自定义补充信息 - 必须严格遵守】\n${supplementaryRaw}\n要求：上述姿势/道具/场景元素必须在生成的 H3 提示词中明确出现并实际执行（不可仅作为背景元素），不允许被忽略或替换。`
+      : '';
+
+    // 构建逐条补充的要求字符串
+    const INDIVIDUAL_SUPPLEMENTARY_REQUIREMENT = hasIndividualSupplementary
+      ? (() => {
+          const lines = mmSupplementaryItems
+            .map((item, idx) => item.trim().length > 0 ? `  - 提示词 #${idx + 1}：${item.trim()}` : null)
+            .filter(Boolean)
+            .join('\n');
+          return `\n\n【逐条自定义补充信息 - 必须严格遵守】\n${lines}\n要求：每一项必须出现在对应编号的提示词中，并实际执行（不可仅作为背景元素），不允许被忽略或替换。`;
+        })()
+      : '';
 
     // ── 多样性约束：当一次性生成多条（count ≥ 2）时，向后端注入强约束提示
     // 解决「3条提示词姿势雷同」「道具权重过高（椅子）」「射精方式单一」
@@ -1253,9 +1289,23 @@ function MiniMaxH3Panel({
 5. 最后一个镜头统一为射精收尾：最后一个 [Shot N] 必须是射精瞬间（男性在女性体内/口腔/臀部/胸部/面部射出精液）+ 女性高潮反应的合并镜头。严禁单独出现「事后展示/衣衫不整/精液残留/半裸靠椅背/餍足表情」这种收尾镜头 —— 这些可以融入射精镜头内（如精液从交合处溢出、脸颊残留），但不能作为单独的 last shot 存在。
 6. 分镜结构：倒数第二个镜头是持续抽插/高潮前奏，最后一个镜头立即转入射精收尾（高潮 → 射精 → 精液溢出/覆盖），不允许中间插入事后状态。`;
 
-    const userHint = userHintRaw
-      ? `${userHintRaw}\n\n${DIVERSITY_CONSTRAINT}`
-      : (count > 1 ? DIVERSITY_CONSTRAINT : undefined);
+    // 根据模式组合 userHint
+    let userHint: string | undefined;
+    if (userHintRaw) {
+      // 用户手动输入了额外提示词 → 附加补充信息 + 多样性约束
+      userHint = `${userHintRaw}${UNIFIED_SUPPLEMENTARY_REQUIREMENT}${INDIVIDUAL_SUPPLEMENTARY_REQUIREMENT}\n\n${DIVERSITY_CONSTRAINT}`;
+    } else if (hasUnifiedSupplementary) {
+      // 无手动提示词，但有统一补充
+      userHint = `【用户自定义补充信息】\n${supplementaryRaw}${count > 1 ? `\n\n${DIVERSITY_CONSTRAINT}` : ''}`;
+    } else if (hasIndividualSupplementary) {
+      // 无手动提示词，但有逐条补充
+      userHint = `${INDIVIDUAL_SUPPLEMENTARY_REQUIREMENT}${count > 1 ? `\n\n${DIVERSITY_CONSTRAINT}` : ''}`;
+    } else if (count > 1) {
+      // 无任何补充，仅有多样性约束
+      userHint = DIVERSITY_CONSTRAINT;
+    } else {
+      userHint = undefined;
+    }
 
     setMmEroticPrompts(Array(count).fill('')); // 空字符串 = 正在生成
 
@@ -1344,7 +1394,7 @@ function MiniMaxH3Panel({
 
     void abort;
 
-  }, [mmImages, mmEroticLevel, mmImageDna, mmPrompt, mmDuration, mmEroticCount, onError, onSuccess]);
+  }, [mmImages, mmEroticLevel, mmImageDna, mmPrompt, mmSupplementary, mmSupplementaryItems, mmSupplementaryMode, mmDuration, mmEroticCount, onError, onSuccess]);
 
   // Pose preset handler
   const handlePoseSelect = (posePrompt: string, poseName: string) => {
@@ -1876,6 +1926,13 @@ function MiniMaxH3Panel({
                   setMmDnaError(null);
                 }}
                 onInsertAsReference={handleInsertClothingAsReference}
+                supplementary={mmSupplementary}
+                onSupplementaryChange={setMmSupplementary}
+                supplementaryMode={mmSupplementaryMode}
+                onSupplementaryModeChange={setMmSupplementaryMode}
+                supplementaryItems={mmSupplementaryItems}
+                onSupplementaryItemsChange={setMmSupplementaryItems}
+                eroticCount={mmEroticCount}
               />
 
               {/* 生成按钮 */}
@@ -2779,6 +2836,27 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
   // 流式模式：(string | null)[] - null = 正在生成中，string = 已完成
   // 非流式模式：string[] - 全部完成后一次性填入
   const [mmEroticPrompts, setMmEroticPrompts] = useState<(string | null)[]>([]);
+  // 自定义补充信息（必须出现的姿势/道具/场景元素等）— 与 DNA 合并用于生成 H3 提示词
+  const [mmSupplementary, setMmSupplementary] = useState('');
+
+  // ─── 逐条补充信息（针对每条提示词的差异化补充）─────────────────────────────
+  // 模式：'individual' = 每条提示词有独立的补充字段，'unified' = 统一使用 mmSupplementary
+  const [mmSupplementaryMode, setMmSupplementaryMode] = useState<'unified' | 'individual'>('individual');
+  // 每条提示词的补充文本，长度始终与 mmEroticCount 同步
+  const [mmSupplementaryItems, setMmSupplementaryItems] = useState<string[]>(['', '', '']);
+
+  // 当 mmEroticCount 变化时，自动调整 mmSupplementaryItems 长度
+  useEffect(() => {
+    setMmSupplementaryItems(prev => {
+      if (prev.length === mmEroticCount) return prev;
+      if (prev.length < mmEroticCount) {
+        // 扩展：补上空字符串
+        return [...prev, ...Array(mmEroticCount - prev.length).fill('')];
+      }
+      // 缩减：截断多余的
+      return prev.slice(0, mmEroticCount);
+    });
+  }, [mmEroticCount]);
 
   // ─── 图片DNA自动提取（情色创作模式）─────────────────────────────────────────
   // 当情色创作模式开启 + 图片上传完成时，自动调用 Gemini 提取 DNA
@@ -3609,6 +3687,12 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
           setMmEroticCount={setMmEroticCount}
           mmEroticPrompts={mmEroticPrompts}
           setMmEroticPrompts={setMmEroticPrompts}
+          mmSupplementary={mmSupplementary}
+          setMmSupplementary={setMmSupplementary}
+          mmSupplementaryMode={mmSupplementaryMode}
+          setMmSupplementaryMode={setMmSupplementaryMode}
+          mmSupplementaryItems={mmSupplementaryItems}
+          setMmSupplementaryItems={setMmSupplementaryItems}
           setVideoModel={setVideoModel}
           setNlInitialImage={setNlInitialImage}
           setNlInitialPrompt={setNlInitialPrompt}

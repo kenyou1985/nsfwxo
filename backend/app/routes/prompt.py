@@ -6820,6 +6820,20 @@ async def extract_image_dna(req: ExtractImageDnaRequest, api_key: str = Depends(
         # Gemini 对含特殊字符（引号/换行）的字段值有时输出格式不规范导致解析崩溃。
         # 典型错误："Unterminated string starting at: line 7 column 24 (char 316)"
         # 立即改用 Grok 重试，给它更严格的 JSON 指令。
+        #
+        # ⚠️ 重要：如果图片是 base64 data URL，Grok 文本 API 无法处理（context length exceeded）。
+        # base64 图片太长，无法作为纯文本嵌入 prompt。跳过 Grok fallback，直接报错。
+        if _is_base64_image(full_url):
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    f"DNA 解析失败（Gemini JSON 格式错误）\n"
+                    f"错误：{first_err}\n"
+                    f"提示：图片是 base64 格式，Grok 备用模型无法处理（图片数据太长）。"
+                    f"请尝试使用较小的图片，或确保图片已压缩后再上传。"
+                ),
+            )
+
         logger.warning(
             f"[DNA] Gemini JSON 解析失败（{first_err}），自动切换 Grok-4.6 备用模型重试"
         )

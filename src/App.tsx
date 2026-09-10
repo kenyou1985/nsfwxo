@@ -287,12 +287,12 @@ function App() {
 
   return (
     <FinishedTaskImagesContext.Provider value={{ finishedTasks: finishedTaskImages, registerTaskImages }}>
-      <div className="min-h-screen bg-bg-base">
-        <Header onSettingsClick={() => setIsSettingsOpen(true)} hasApiKey={hasApiKey} />
-        <TabNavigation activeTab={activeTab} onTabChange={handleTabChange} />
+        <div className="min-h-screen bg-bg-base">
+          <Header onSettingsClick={() => setIsSettingsOpen(true)} hasApiKey={hasApiKey} />
+          <TabNavigation activeTab={activeTab} onTabChange={handleTabChange} />
 
-        {/* Responsive container: mobile=max-w-[480px], desktop=full */}
-        <main className="max-w-[480px] lg:max-w-none mx-auto px-4 lg:px-6 pt-24 lg:pt-20 pb-8">
+          {/* Responsive container: mobile=max-w-[480px], desktop=full */}
+          <main className="max-w-[480px] lg:max-w-none mx-auto px-4 lg:px-6 pt-24 lg:pt-20 pb-8">
           {!isLoaded ? (
             <div className="flex items-center justify-center min-h-[40vh]">
               <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -372,7 +372,7 @@ function App() {
 
       <Toast toasts={toast.toasts} onRemove={toast.removeToast} />
       </div>
-    </FinishedTaskImagesContext.Provider>
+      </FinishedTaskImagesContext.Provider>
   );
 }
 
