@@ -109,6 +109,31 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
   // P2.2 防抖：searchQuery 直接驱动 input（即时反馈），debouncedSearchQuery 驱动过滤（避免每次按键都重算）
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearchQuery = useDebounce(searchQuery, 200);
+
+  // P3.3 历史搜索 — useMemo 派生过滤后的记录，避免每次 render 都重算
+  // 大小写不敏感匹配 prompt + themeTitle（如果有）
+  // 注意：必须在 handleSelectAllVisible 之前声明（依赖链：useCallback → filteredRecords → debouncedSearchQuery）
+  const filteredRecords = React.useMemo(() => {
+    const q = debouncedSearchQuery.trim().toLowerCase();
+    if (!q) return records;
+    return records.filter((r) => {
+      if (r.prompt && r.prompt.toLowerCase().includes(q)) return true;
+      if (r.themeTitle && r.themeTitle.toLowerCase().includes(q)) return true;
+      if (r.name && r.name.toLowerCase().includes(q)) return true;
+      return false;
+    });
+  }, [records, debouncedSearchQuery]);
+
+  const filteredVideoRecords = React.useMemo(() => {
+    const q = debouncedSearchQuery.trim().toLowerCase();
+    if (!q) return videoRecords;
+    return videoRecords.filter((r) => {
+      if (r.prompt && r.prompt.toLowerCase().includes(q)) return true;
+      if (r.name && r.name.toLowerCase().includes(q)) return true;
+      return false;
+    });
+  }, [videoRecords, debouncedSearchQuery]);
+
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
   const [loadedImages, setLoadedImages] = useState<Record<string, string[]>>({});
   const loadedImagesRef = useRef<Record<string, string[]>>({});
@@ -608,29 +633,6 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
     : videoRecords.reduce((sum, r) => sum + (r.images?.length || 0), 0);
 
   const hasAnyRecords = records.length > 0 || videoRecords.length > 0 || gpt2Records.length > 0;
-
-  // P3.3 历史搜索 — useMemo 派生过滤后的记录，避免每次 render 都重算
-  // 大小写不敏感匹配 prompt + themeTitle（如果有）
-  const filteredRecords = React.useMemo(() => {
-    const q = debouncedSearchQuery.trim().toLowerCase();
-    if (!q) return records;
-    return records.filter((r) => {
-      if (r.prompt && r.prompt.toLowerCase().includes(q)) return true;
-      if (r.themeTitle && r.themeTitle.toLowerCase().includes(q)) return true;
-      if (r.name && r.name.toLowerCase().includes(q)) return true;
-      return false;
-    });
-  }, [records, debouncedSearchQuery]);
-
-  const filteredVideoRecords = React.useMemo(() => {
-    const q = debouncedSearchQuery.trim().toLowerCase();
-    if (!q) return videoRecords;
-    return videoRecords.filter((r) => {
-      if (r.prompt && r.prompt.toLowerCase().includes(q)) return true;
-      if (r.name && r.name.toLowerCase().includes(q)) return true;
-      return false;
-    });
-  }, [videoRecords, debouncedSearchQuery]);
 
   return (
     <div className="space-y-4 animate-fade-in">
