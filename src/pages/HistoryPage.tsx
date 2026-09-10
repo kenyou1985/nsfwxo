@@ -98,21 +98,9 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
     setImageSelectionMode(false);
     onSuccess(`已删除 ${removed} 条历史记录`);
   }, [imageSelection, onSuccess]);
-  const handleSelectAllVisible = useCallback(() => {
-    setImageSelection(new Set(filteredRecords.map((r) => r.id)));
-  }, [filteredRecords]);
-  const exitSelectionMode = useCallback(() => {
-    setImageSelectionMode(false);
-    setImageSelection(new Set());
-  }, []);
-  // P3.3 历史搜索：用户输入关键词过滤 image/video 历史记录
-  // P2.2 防抖：searchQuery 直接驱动 input（即时反馈），debouncedSearchQuery 驱动过滤（避免每次按键都重算）
+  // P2.2 防抖：searchQuery 直接驱动 input（即时反馈），debouncedSearchQuery 驱动过滤
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearchQuery = useDebounce(searchQuery, 200);
-
-  // P3.3 历史搜索 — useMemo 派生过滤后的记录，避免每次 render 都重算
-  // 大小写不敏感匹配 prompt + themeTitle（如果有）
-  // 注意：必须在 handleSelectAllVisible 之前声明（依赖链：useCallback → filteredRecords → debouncedSearchQuery）
   const filteredRecords = React.useMemo(() => {
     const q = debouncedSearchQuery.trim().toLowerCase();
     if (!q) return records;
@@ -123,7 +111,6 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
       return false;
     });
   }, [records, debouncedSearchQuery]);
-
   const filteredVideoRecords = React.useMemo(() => {
     const q = debouncedSearchQuery.trim().toLowerCase();
     if (!q) return videoRecords;
@@ -133,6 +120,14 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
       return false;
     });
   }, [videoRecords, debouncedSearchQuery]);
+
+  const handleSelectAllVisible = useCallback(() => {
+    setImageSelection(new Set(filteredRecords.map((r) => r.id)));
+  }, [filteredRecords]);
+  const exitSelectionMode = useCallback(() => {
+    setImageSelectionMode(false);
+    setImageSelection(new Set());
+  }, []);
 
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
   const [loadedImages, setLoadedImages] = useState<Record<string, string[]>>({});
