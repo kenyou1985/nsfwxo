@@ -159,6 +159,20 @@ export function deleteRecord(id: string): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
 }
 
+/**
+ * P3.4 批量删除：一次性从 history 中移除多条记录，避免 N 次 localStorage 写入。
+ * 返回实际删除的条目数（用于 toast 反馈）。
+ */
+export function deleteRecords(ids: string[]): number {
+  if (ids.length === 0) return 0;
+  const idSet = new Set(ids);
+  const before = getRecords();
+  const after = before.filter((r) => !idSet.has(r.id));
+  if (after.length === before.length) return 0;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(after));
+  return before.length - after.length;
+}
+
 export function clearAllHistory(): void {
   localStorage.removeItem(STORAGE_KEY);
 }

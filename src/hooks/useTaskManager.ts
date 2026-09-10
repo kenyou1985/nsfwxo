@@ -541,9 +541,14 @@ export function useTaskManager({
   }, [extractFinishedTaskImages]);
 
   // 4. Polling interval effect — depends on pollTask
+  // 性能优化：当页面被切到后台（标签页不可见）或窗口最小化时，
+  // 不再 10s 轮询一次 — 浏览器标签页的 setInterval 在后台会被节流到
+  // 1 分钟以上，且用户也看不到状态变化。visibilitychange 触发时立即恢复
+  // 轮询并立刻 poll 一次，避免任务完成通知延迟。
   useEffect(() => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    intervalRef.current = setInterval(() => {
+    let isVisible = typeof document === 'undefined' ? true : document.visibilityState === 'visible';
+
+    const tick = () => {
       setTasks((currentTasks) => {
         const activeTasks = currentTasks.filter(
           (t) => (t.status === 'QUEUEING' || t.status === 'RUNNING') && t.taskId
@@ -551,8 +556,41 @@ export function useTaskManager({
         activeTasks.forEach((t) => pollTask(t));
         return currentTasks;
       });
-    }, POLL_INTERVAL);
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+    };
+
+    const start = () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      intervalRef.current = setInterval(tick, POLL_INTERVAL);
+    };
+
+    const stop = () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+
+    const onVisibilityChange = () => {
+      const nextVisible = document.visibilityState === 'visible';
+      if (nextVisible === isVisible) return;
+      isVisible = nextVisible;
+      if (nextVisible) {
+        // 切回前台：立刻 poll 一次（不等到下一个 10s 周期）+ 启动定时器
+        tick();
+        start();
+      } else {
+        // 切到后台：暂停定时器，节省 API 配额
+        stop();
+      }
+    };
+
+    if (isVisible) start();
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      stop();
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, [pollTask]);
 
   // Mirror of the latest tasks list, used by drainPendingQueue and addTask

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Trash2, Image as ImageIcon, Clock, X, RotateCcw, Loader2, Video, Heart, Download, AlertTriangle, HardDrive, Bookmark, Layers, Check, Circle, Palette, Copy } from 'lucide-react';
-import { getRecords, deleteRecord, clearAllHistory, type HistoryRecord } from '../services/historyService';
+import { useDebounce } from '../hooks/useDebounce';
+import { getRecords, deleteRecord, deleteRecords, clearAllHistory, type HistoryRecord } from '../services/historyService';
 import { loadCachedOrExtractedImages, getCachedImages, cacheImages } from '../services/imageCacheService';
 import { extractImagesFromZipAsDataUrls, extractImagesFromLocalZip, deleteLocalZip, fetchImageAsDataUrl } from '../services/runninghub';
 import { getFavorites, addFavorite, removeFavorite, clearFavorites, type FavoriteItem } from '../services/storage';
@@ -75,6 +76,39 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
   const [records, setRecords] = useState<HistoryRecord[]>([]);
   const [videoRecords, setVideoRecords] = useState<VideoHistoryRecord[]>([]);
   const [videoFilter, setVideoFilter] = useState<'all' | 'long_video'>('all');
+  // P3.4 批量选择状态：image tab 进入多选模式后，用户点击的记录 ID 会进入 selectionSet
+  // 选择模式与正常浏览互斥 — 一个 tab 一个 selection 集合
+  const [imageSelectionMode, setImageSelectionMode] = useState(false);
+  const [imageSelection, setImageSelection] = useState<Set<string>>(new Set());
+  const toggleImageSelected = useCallback((id: string) => {
+    setImageSelection((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+  const handleBatchDelete = useCallback(async () => {
+    if (imageSelection.size === 0) return;
+    const ids = Array.from(imageSelection);
+    const removed = deleteRecords(ids);
+    // 同步本地状态（不依赖 useEffect 异步刷新）
+    setRecords((prev) => prev.filter((r) => !imageSelection.has(r.id)));
+    setImageSelection(new Set());
+    setImageSelectionMode(false);
+    onSuccess(`已删除 ${removed} 条历史记录`);
+  }, [imageSelection, onSuccess]);
+  const handleSelectAllVisible = useCallback(() => {
+    setImageSelection(new Set(filteredRecords.map((r) => r.id)));
+  }, [filteredRecords]);
+  const exitSelectionMode = useCallback(() => {
+    setImageSelectionMode(false);
+    setImageSelection(new Set());
+  }, []);
+  // P3.3 历史搜索：用户输入关键词过滤 image/video 历史记录
+  // P2.2 防抖：searchQuery 直接驱动 input（即时反馈），debouncedSearchQuery 驱动过滤（避免每次按键都重算）
+  const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearchQuery = useDebounce(searchQuery, 200);
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
   const [loadedImages, setLoadedImages] = useState<Record<string, string[]>>({});
   const loadedImagesRef = useRef<Record<string, string[]>>({});
@@ -575,6 +609,29 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
 
   const hasAnyRecords = records.length > 0 || videoRecords.length > 0 || gpt2Records.length > 0;
 
+  // P3.3 历史搜索 — useMemo 派生过滤后的记录，避免每次 render 都重算
+  // 大小写不敏感匹配 prompt + themeTitle（如果有）
+  const filteredRecords = React.useMemo(() => {
+    const q = debouncedSearchQuery.trim().toLowerCase();
+    if (!q) return records;
+    return records.filter((r) => {
+      if (r.prompt && r.prompt.toLowerCase().includes(q)) return true;
+      if (r.themeTitle && r.themeTitle.toLowerCase().includes(q)) return true;
+      if (r.name && r.name.toLowerCase().includes(q)) return true;
+      return false;
+    });
+  }, [records, debouncedSearchQuery]);
+
+  const filteredVideoRecords = React.useMemo(() => {
+    const q = debouncedSearchQuery.trim().toLowerCase();
+    if (!q) return videoRecords;
+    return videoRecords.filter((r) => {
+      if (r.prompt && r.prompt.toLowerCase().includes(q)) return true;
+      if (r.name && r.name.toLowerCase().includes(q)) return true;
+      return false;
+    });
+  }, [videoRecords, debouncedSearchQuery]);
+
   return (
     <div className="space-y-4 animate-fade-in">
       {/* Tab switcher */}
@@ -659,10 +716,108 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
         </div>
       )}
 
+      {/* P3.3 历史搜索输入框 — image/video 两个 tab 共用 */}
+      {hasAnyRecords && (activeTab === 'image' || activeTab === 'video') && (
+        <div className="relative">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={activeTab === 'image' ? '🔍 搜索图片历史（提示词/主题/名称）' : '🔍 搜索视频历史（提示词/名称）'}
+            className="w-full bg-bg-elevated border border-border rounded-xl pl-3 pr-9 py-2 text-xs text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-primary transition-colors"
+            aria-label="搜索历史记录"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full hover:bg-bg-hover transition-colors text-text-secondary"
+              aria-label="清空搜索"
+              title="清空"
+            >
+              <X size={14} />
+            </button>
+          )}
+          {searchQuery && (activeTab === 'image' ? records.length : videoRecords.length) > 0 && (
+            <p className="mt-1 text-[10px] text-text-tertiary">
+              {(activeTab === 'image' ? filteredRecords : filteredVideoRecords).length}
+              {' / '}
+              {(activeTab === 'image' ? records : videoRecords).length} 条匹配
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* 搜索无结果空状态 */}
+      {searchQuery && (
+        (activeTab === 'image' && records.length > 0 && filteredRecords.length === 0) ||
+        (activeTab === 'video' && videoRecords.length > 0 && filteredVideoRecords.length === 0)
+      ) && (
+        <div className="flex flex-col items-center justify-center py-12 text-text-secondary">
+          <p className="text-sm">未找到匹配 "{searchQuery}" 的历史记录</p>
+          <button
+            type="button"
+            onClick={() => setSearchQuery('')}
+            className="mt-3 px-3 py-1.5 rounded-lg bg-bg-elevated border border-border text-xs text-text-secondary hover:bg-bg-hover transition-colors"
+          >
+            清空搜索
+          </button>
+        </div>
+      )}
+
+      {/* P3.4 批量操作工具栏 — 仅在 image tab 显示 */}
+      {activeTab === 'image' && filteredRecords.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {!imageSelectionMode ? (
+            <button
+              type="button"
+              onClick={() => setImageSelectionMode(true)}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-bg-elevated border border-border text-[11px] text-text-secondary hover:bg-bg-hover transition-colors"
+            >
+              <Check size={12} />
+              批量操作
+            </button>
+          ) : (
+            <>
+              <span className="text-[11px] text-text-secondary">
+                已选 {imageSelection.size} / {filteredRecords.length}
+              </span>
+              <button
+                type="button"
+                onClick={handleSelectAllVisible}
+                className="px-2.5 py-1.5 rounded-lg bg-bg-elevated border border-border text-[11px] text-text-secondary hover:bg-bg-hover transition-colors"
+              >
+                全选当前
+              </button>
+              <button
+                type="button"
+                onClick={handleBatchDelete}
+                disabled={imageSelection.size === 0}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-colors ${
+                  imageSelection.size === 0
+                    ? 'bg-bg-elevated text-text-tertiary cursor-not-allowed'
+                    : 'bg-red-500/10 text-red-500 hover:bg-red-500/20'
+                }`}
+              >
+                <Trash2 size={12} />
+                删除选中
+              </button>
+              <button
+                type="button"
+                onClick={exitSelectionMode}
+                className="px-2.5 py-1.5 rounded-lg bg-bg-elevated border border-border text-[11px] text-text-secondary hover:bg-bg-hover transition-colors"
+              >
+                取消
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Image history */}
-      {activeTab === 'image' && records.length > 0 && (
+      {activeTab === 'image' && filteredRecords.length > 0 && (
         <div className="space-y-3">
-          {records.map((record, recordIndex) => {
+          {filteredRecords.map((record, recordIndex) => {
             const images = getRecordImages(record);
             const isLoading = loadingKeys.has(record.id);
             const sourceBadge = getSourceBadge(record);
@@ -903,7 +1058,7 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
       )}
 
       {/* Video history */}
-      {activeTab === 'video' && videoRecords.length > 0 && (
+      {activeTab === 'video' && filteredVideoRecords.length > 0 && (
         <div className="space-y-3">
           {/* 工作流筛选器（合并长视频 V2 / v1.1 / H3 为统一列表） */}
           <div className="flex items-center gap-2 flex-wrap">
@@ -924,7 +1079,7 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
               </button>
             ))}
           </div>
-          {videoRecords
+          {filteredVideoRecords
             .filter((r) => {
               if (videoFilter === 'all') return true;
               if (videoFilter === 'long_video') {

@@ -241,4 +241,25 @@ export function setupGlobalErrorHandlers() {
   window.addEventListener('unhandledrejection', (event) => {
     logger.logUnhandledRejection(event.reason);
   });
+
+  // 性能优化：生产环境下静默来自业务模块的 console.log / console.debug。
+  // 只保留 console.warn / console.error 真实告警，避免 1MB+ 的日式刷屏占用
+  // CPU + 内存（devtools console 是大型对象，数百条日志会显著拖慢长会话）。
+  // 开发环境（import.meta.env.PROD === false）保留完整日志方便调试。
+  // 使用 (import.meta as any).env.PROD 避免 vite/client 类型缺失问题。
+  const isProd = (import.meta as unknown as { env?: { PROD?: boolean } }).env?.PROD === true;
+  if (typeof console !== 'undefined' && isProd) {
+    const originalLog = console.log;
+    const originalDebug = console.debug;
+    console.log = (...args: unknown[]) => {
+      // 只放过带有 [NSFWXO] 前缀的错误日志（logger.error 会用 console.error）
+      const first = args[0];
+      if (typeof first === 'string' && (first.includes('[NSFWXO-ERR]') || first.includes('[NSFWXO-WARN]'))) {
+        originalLog.apply(console, args);
+      }
+    };
+    console.debug = () => {
+      // 生产环境完全静默 debug
+    };
+  }
 }

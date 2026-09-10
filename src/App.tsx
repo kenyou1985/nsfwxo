@@ -1,15 +1,9 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, Suspense, lazy, useMemo } from 'react';
 import { Header } from './components/Header';
 import { TabNavigation } from './components/TabNavigation';
 import { Toast } from './components/Toast';
-import { TextToImagePage } from './pages/TextToImagePage';
-import { ImageToImagePage } from './pages/ImageToImagePage';
-import { ImageToVideoPage } from './pages/ImageToVideoPage';
-import { HistoryPage } from './pages/HistoryPage';
-import { AIPromptPage } from './pages/AIPromptPage';
-import { GPTImage2Page } from './pages/GPTImage2Page';
-import { ModelLibraryPage } from './pages/ModelLibraryPage';
 import { useApiKey } from './hooks/useApiKey';
+import { useHotkeys } from './hooks/useHotkeys';
 import { getDefaultWorkflow } from './services/modelDefaultsService';
 import { buildUnifiedTxt2ImgOptions } from './utils/txt2imgDefaults';
 import { useYunwuKey } from './hooks/useYunwuKey';
@@ -24,6 +18,34 @@ import { WORKFLOW } from './services/runninghub';
 import type { TabType, QueuedTask } from './types';
 import { Eye, EyeOff, Check, Trash2, X, Zap, Server, Image } from 'lucide-react';
 import { FinishedTaskImagesContext } from './contexts/FinishedTaskImagesContext';
+
+// 路由级代码分割：每个页面单独打包成 chunk，仅在用户切换 Tab 时按需加载
+// 收益：AIPromptPage (8k 行) / ImageToVideoPage (4k 行) / GridStoryboardMode 等
+//       大模块不再阻塞首屏，首屏 JS 体积预计下降 60-70%
+const TextToImagePage = lazy(() =>
+  import('./pages/TextToImagePage').then((m) => ({ default: m.TextToImagePage }))
+);
+const ImageToImagePage = lazy(() =>
+  import('./pages/ImageToImagePage').then((m) => ({ default: m.ImageToImagePage }))
+);
+const ImageToVideoPage = lazy(() =>
+  import('./pages/ImageToVideoPage').then((m) => ({ default: m.ImageToVideoPage }))
+);
+const HistoryPage = lazy(() =>
+  import('./pages/HistoryPage').then((m) => ({ default: m.HistoryPage }))
+);
+const AIPromptPage = lazy(() =>
+  import('./pages/AIPromptPage').then((m) => ({ default: m.AIPromptPage }))
+);
+const GPTImage2Page = lazy(() =>
+  import('./pages/GPTImage2Page').then((m) => ({ default: m.GPTImage2Page }))
+);
+const ModelLibraryPage = lazy(() =>
+  import('./pages/ModelLibraryPage').then((m) => ({ default: m.ModelLibraryPage }))
+);
+
+// useHotkeys 需要在 useMemo 里包装 bindings，避免每次 render 重建数组导致
+// useHotkeys 内部 useEffect 反复执行 add/remove listener。
 
 function App() {
   const { apiKey, maskedKey, hasApiKey, isLoaded, saveApiKey, removeApiKey } = useApiKey();
@@ -103,6 +125,32 @@ function App() {
     onTaskComplete: handleTaskComplete,
     onTaskImagesReady: registerTaskImages,
   });
+
+  // P3.1 全局键盘快捷键：
+  //   - Cmd/Ctrl + K : 唤起/关闭设置面板
+  //   - Cmd/Ctrl + . : 跳到图片历史
+  //   - Esc          : 关闭打开的设置面板
+  // 通过 useMemo 缓存 bindings 数组，避免 useHotkeys 内部 effect 反复注册/注销
+  const hotkeyBindings = useMemo(
+    () => [
+      {
+        key: 'k',
+        cmdOrCtrl: true,
+        handler: () => setIsSettingsOpen((v) => !v),
+      },
+      {
+        key: '.',
+        cmdOrCtrl: true,
+        handler: () => setActiveTab('history' as TabType),
+      },
+      {
+        key: 'Escape',
+        handler: () => setIsSettingsOpen(false),
+      },
+    ],
+    []
+  );
+  useHotkeys(hotkeyBindings, isLoaded);
 
   // Auto-restore in-progress tasks from localStorage on mount
   useEffect(() => {
@@ -298,7 +346,11 @@ function App() {
               <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
             </div>
           ) : (
-            renderPage()
+            // Suspense 包裹懒加载页面：切换 Tab 时显示轻量级骨架屏
+            // 首屏加载只下载当前 Tab 所需 chunk，其余页面按需懒加载
+            <Suspense fallback={<PageLoadingFallback />}>
+              {renderPage()}
+            </Suspense>
           )}
         </main>
 
@@ -666,6 +718,26 @@ function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `${m}m ${s}s`;
+}
+
+/** 懒加载页面的占位骨架屏：
+ *  - 比传统 spinner 感知更快（用户能"看到"页面在加载）
+ *  - 避免布局抖动：保留与主页面相同的容器宽度和 padding
+ *  - 浅灰色块用 animate-pulse 暗示"内容即将到来" */
+function PageLoadingFallback() {
+  return (
+    <div className="space-y-4 animate-pulse" aria-busy="true" aria-live="polite">
+      <div className="h-8 w-32 bg-bg-elevated rounded-lg" />
+      <div className="h-40 w-full bg-bg-elevated rounded-2xl" />
+      <div className="grid grid-cols-3 gap-3">
+        <div className="h-24 bg-bg-elevated rounded-xl" />
+        <div className="h-24 bg-bg-elevated rounded-xl" />
+        <div className="h-24 bg-bg-elevated rounded-xl" />
+      </div>
+      <div className="h-32 w-full bg-bg-elevated rounded-2xl" />
+      <span className="sr-only">页面加载中...</span>
+    </div>
+  );
 }
 
 export default App;
