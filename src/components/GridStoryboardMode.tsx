@@ -73,6 +73,7 @@ const ALL_CATEGORIES = [
   '中国著名',
   '裸体运动',
   '口交高潮',
+  '强制凌辱',
 ] as const;
 
 function formatElapsedTime(startTime?: number): string {

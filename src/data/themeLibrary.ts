@@ -28,7 +28,8 @@ export type ThemeCategory =
   | '女同情欲'     // 8. 女同情欲
   | '魔幻奇幻'     // 9. 魔幻奇幻
   | '奇异猎奇'     // 10. 奇异猎奇
-  | 'SM重口';      // 11. SM 重口
+  | 'SM重口'        // 11. SM 重口
+  | '强制凌辱';     // 12. 强制凌辱
 
 export interface ThemeBeat {
   shotNumber: number;        // 1-9
@@ -66,6 +67,7 @@ export const THEME_CATEGORIES: { key: ThemeCategory; label: string; color: strin
   { key: '魔幻奇幻',     label: '魔幻奇幻',   color: 'from-violet-500 to-purple-700', japanese: ['魔法', '召喚', '妖精', '剣と魔法', '異世界'] },
   { key: '奇异猎奇',     label: '奇异猎奇',   color: 'from-slate-600 to-gray-800', japanese: ['触手', '貞子', '蟲', '獣姦', '中毒'] },
   { key: 'SM重口',       label: 'SM 重口',     color: 'from-red-700 to-black', japanese: ['SM', '拷問', '窒素', 'ボンデージ', '調教'] },
+  { key: '强制凌辱',     label: '强制凌辱',   color: 'from-gray-800 to-red-900', japanese: ['強制', '陵辱', '調教', 'ボンデージ', 'CIO'] },
 ];
 
 // -----------------------------------------------------------------------------
@@ -15643,9 +15645,2290 @@ export const THEME_LIBRARY: ThemeEntry[] = [
     { shotNumber: 9, scene: '特写·高潮', prompt: '特写镜头，在<Picture 1>体内猛烈射精浓稠白色精液灌满阴部，阴唇微张精液从边缘溢出，厨房料理台，夜景灯光氛围，高清8K，HDR，细节丰富，流畅自然动态，稳定镜头' }
   ]
 },
+// ═══════════════════════════════════════════════════════════════════════════
+// 十二. 强制凌辱（57 个 / 重度 / CNC 角色扮演）
+{
+  id: 'theme_424',
+  title: '人体家具（茶几/脚凳）',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「人体家具（茶几/脚凳）」主题下必含深喉口交+后入抽插+口爆面部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，现代公寓客厅，茶几、沙发、落地灯',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在现代公寓客厅，茶几、沙发、落地灯，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在现代公寓客厅，茶几、沙发、落地灯表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在现代公寓客厅，茶几、沙发、落地灯，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在现代公寓客厅，茶几、沙发、落地灯表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在现代公寓客厅，茶几、沙发、落地灯，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在现代公寓客厅，茶几、沙发、落地灯表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_425',
+  title: '镜像自我凌辱',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「镜像自我凌辱」主题下必含深喉口交+后入抽插+口爆面部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，带落地镜的卧室',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在带落地镜的卧室，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在带落地镜的卧室表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在带落地镜的卧室，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在带落地镜的卧室表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在带落地镜的卧室，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在带落地镜的卧室表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_426',
+  title: '浴室重塑记忆',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「浴室重塑记忆」主题下必含深喉口交+后入抽插+口爆面部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，浴室，淋浴间、镜子、湿润的瓷砖',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在浴室，淋浴间、镜子、湿润的瓷砖，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在浴室，淋浴间、镜子、湿润的瓷砖表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在浴室，淋浴间、镜子、湿润的瓷砖，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在浴室，淋浴间、镜子、湿润的瓷砖表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在浴室，淋浴间、镜子、湿润的瓷砖，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在浴室，淋浴间、镜子、湿润的瓷砖表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_427',
+  title: '食物玩法强制吞食',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「食物玩法强制吞食」主题下必含深喉口交+后入抽插+后入臀部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，公寓厨房与餐桌',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在公寓厨房与餐桌，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在公寓厨房与餐桌表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在公寓厨房与餐桌，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在公寓厨房与餐桌表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '中景背面，男性最后猛烈冲刺后整根抽出，迅速将浓稠精液射在她高翘的臀部、腰窝与臀瓣上，白浊精液覆盖臀面沿臀缝流淌滴落，她保持臀部高举姿势颤抖着达到高潮，男性握着自己仍在搏动的阴茎对准她臀缝挤尽最后精液' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在公寓厨房与餐桌，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在公寓厨房与餐桌表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '中景背面，男性最后猛烈冲刺后整根抽出，迅速将浓稠精液射在她高翘的臀部、腰窝与臀瓣上，白浊精液覆盖臀面沿臀缝流淌滴落，她保持臀部高举姿势颤抖着达到高潮，男性握着自己仍在搏动的阴茎对准她臀缝挤尽最后精液' }
+  ]
+},
+
+{
+  id: 'theme_428',
+  title: '写字羞辱后插入',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「写字羞辱后插入」主题下必含深喉口交+后入抽插+口爆面部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，卧室，有全身镜与手机支架',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在卧室，有全身镜与手机支架，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在卧室，有全身镜与手机支架表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在卧室，有全身镜与手机支架，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在卧室，有全身镜与手机支架表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在卧室，有全身镜与手机支架，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在卧室，有全身镜与手机支架表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_429',
+  title: '强迫看着镜子被插入',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「强迫看着镜子被插入」主题下必含深喉口交+后入抽插+后入臀部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，带落地镜的卧室',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在带落地镜的卧室，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在带落地镜的卧室表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在带落地镜的卧室，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在带落地镜的卧室表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '中景背面，男性最后猛烈冲刺后整根抽出，迅速将浓稠精液射在她高翘的臀部、腰窝与臀瓣上，白浊精液覆盖臀面沿臀缝流淌滴落，她保持臀部高举姿势颤抖着达到高潮，男性握着自己仍在搏动的阴茎对准她臀缝挤尽最后精液' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在带落地镜的卧室，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在带落地镜的卧室表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '中景背面，男性最后猛烈冲刺后整根抽出，迅速将浓稠精液射在她高翘的臀部、腰窝与臀瓣上，白浊精液覆盖臀面沿臀缝流淌滴落，她保持臀部高举姿势颤抖着达到高潮，男性握着自己仍在搏动的阴茎对准她臀缝挤尽最后精液' }
+  ]
+},
+
+{
+  id: 'theme_430',
+  title: '边缘控制反复折磨',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「边缘控制反复折磨」主题下必含深喉口交+后入抽插+口爆面部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，卧室床上',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在卧室床上，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在卧室床上表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在卧室床上，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在卧室床上表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在卧室床上，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在卧室床上表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_431',
+  title: '写字后强迫展示',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「写字后强迫展示」主题下必含深喉口交+后入抽插+后入臀部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，卧室，有全身镜与手机支架',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在卧室，有全身镜与手机支架，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在卧室，有全身镜与手机支架表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在卧室，有全身镜与手机支架，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在卧室，有全身镜与手机支架表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '中景背面，男性最后猛烈冲刺后整根抽出，迅速将浓稠精液射在她高翘的臀部、腰窝与臀瓣上，白浊精液覆盖臀面沿臀缝流淌滴落，她保持臀部高举姿势颤抖着达到高潮，男性握着自己仍在搏动的阴茎对准她臀缝挤尽最后精液' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在卧室，有全身镜与手机支架，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在卧室，有全身镜与手机支架表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '中景背面，男性最后猛烈冲刺后整根抽出，迅速将浓稠精液射在她高翘的臀部、腰窝与臀瓣上，白浊精液覆盖臀面沿臀缝流淌滴落，她保持臀部高举姿势颤抖着达到高潮，男性握着自己仍在搏动的阴茎对准她臀缝挤尽最后精液' }
+  ]
+},
+
+{
+  id: 'theme_432',
+  title: '厨房奶油玩法',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「厨房奶油玩法」主题下必含深喉口交+后入抽插+后入臀部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，公寓厨房与餐桌',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在公寓厨房与餐桌，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在公寓厨房与餐桌表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在公寓厨房与餐桌，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在公寓厨房与餐桌表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '中景背面，男性最后猛烈冲刺后整根抽出，迅速将浓稠精液射在她高翘的臀部、腰窝与臀瓣上，白浊精液覆盖臀面沿臀缝流淌滴落，她保持臀部高举姿势颤抖着达到高潮，男性握着自己仍在搏动的阴茎对准她臀缝挤尽最后精液' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在公寓厨房与餐桌，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在公寓厨房与餐桌表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '中景背面，男性最后猛烈冲刺后整根抽出，迅速将浓稠精液射在她高翘的臀部、腰窝与臀瓣上，白浊精液覆盖臀面沿臀缝流淌滴落，她保持臀部高举姿势颤抖着达到高潮，男性握着自己仍在搏动的阴茎对准她臀缝挤尽最后精液' }
+  ]
+},
+
+{
+  id: 'theme_433',
+  title: '洗脑式服从训练',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「洗脑式服从训练」主题下必含深喉口交+后入抽插+口爆面部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，现代公寓客厅，沙发、茶几、落地灯',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在现代公寓客厅，沙发、茶几、落地灯，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在现代公寓客厅，沙发、茶几、落地灯表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在现代公寓客厅，沙发、茶几、落地灯，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在现代公寓客厅，沙发、茶几、落地灯表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在现代公寓客厅，沙发、茶几、落地灯，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在现代公寓客厅，沙发、茶几、落地灯表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_434',
+  title: '深夜小巷CNC拦截',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「深夜小巷CNC拦截」主题下必含深喉口交+后入抽插+内射收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，城市老旧小巷，夜间路灯、潮湿墙壁',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在城市老旧小巷，夜间路灯、潮湿墙壁，身穿深色连帽外套的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色连帽外套的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色连帽外套的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色连帽外套的壮硕男性把<Picture 1>按在城市老旧小巷，夜间路灯、潮湿墙壁表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在城市老旧小巷，夜间路灯、潮湿墙壁，身穿深色连帽外套的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色连帽外套的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色连帽外套的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色连帽外套的壮硕男性把<Picture 1>按在城市老旧小巷，夜间路灯、潮湿墙壁表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在城市老旧小巷，夜间路灯、潮湿墙壁，身穿深色连帽外套的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色连帽外套的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色连帽外套的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色连帽外套的壮硕男性把<Picture 1>按在城市老旧小巷，夜间路灯、潮湿墙壁表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_435',
+  title: '末班车CNC威胁',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「末班车CNC威胁」主题下必含深喉口交+后入抽插+口爆面部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，夜间空荡地铁车厢',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在夜间空荡地铁车厢，身穿深色夹克的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色夹克的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色夹克的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色夹克的壮硕男性把<Picture 1>按在夜间空荡地铁车厢表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在夜间空荡地铁车厢，身穿深色夹克的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色夹克的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色夹克的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色夹克的壮硕男性把<Picture 1>按在夜间空荡地铁车厢表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在夜间空荡地铁车厢，身穿深色夹克的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色夹克的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色夹克的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色夹克的壮硕男性把<Picture 1>按在夜间空荡地铁车厢表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_436',
+  title: '郊外树林CNC绑架',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「郊外树林CNC绑架」主题下必含深喉口交+后入抽插+口爆面部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，郊外树林，树木、落叶、黄昏光线',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在郊外树林，树木、落叶、黄昏光线，身穿户外冲锋衣的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿户外冲锋衣的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿户外冲锋衣的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿户外冲锋衣的壮硕男性把<Picture 1>按在郊外树林，树木、落叶、黄昏光线表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在郊外树林，树木、落叶、黄昏光线，身穿户外冲锋衣的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿户外冲锋衣的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿户外冲锋衣的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿户外冲锋衣的壮硕男性把<Picture 1>按在郊外树林，树木、落叶、黄昏光线表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在郊外树林，树木、落叶、黄昏光线，身穿户外冲锋衣的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿户外冲锋衣的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿户外冲锋衣的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿户外冲锋衣的壮硕男性把<Picture 1>按在郊外树林，树木、落叶、黄昏光线表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_437',
+  title: '地下停车场CNC拦截',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「地下停车场CNC拦截」主题下必含深喉口交+后入抽插+口爆面部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，地下停车场，水泥柱、车灯',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在地下停车场，水泥柱、车灯，身穿深色西装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色西装的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性把<Picture 1>按在地下停车场，水泥柱、车灯表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在地下停车场，水泥柱、车灯，身穿深色西装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色西装的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性把<Picture 1>按在地下停车场，水泥柱、车灯表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在地下停车场，水泥柱、车灯，身穿深色西装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色西装的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性把<Picture 1>按在地下停车场，水泥柱、车灯表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_438',
+  title: '天台把柄威胁',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「天台把柄威胁」主题下必含深喉口交+后入抽插+后入臀部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，高层住宅天台，护栏、城市夜景',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在高层住宅天台，护栏、城市夜景，身穿黑色风衣的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿黑色风衣的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿黑色风衣的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿黑色风衣的壮硕男性把<Picture 1>按在高层住宅天台，护栏、城市夜景表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在高层住宅天台，护栏、城市夜景，身穿黑色风衣的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿黑色风衣的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿黑色风衣的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿黑色风衣的壮硕男性把<Picture 1>按在高层住宅天台，护栏、城市夜景表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '中景背面，男性最后猛烈冲刺后整根抽出，迅速将浓稠精液射在她高翘的臀部、腰窝与臀瓣上，白浊精液覆盖臀面沿臀缝流淌滴落，她保持臀部高举姿势颤抖着达到高潮，男性握着自己仍在搏动的阴茎对准她臀缝挤尽最后精液' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在高层住宅天台，护栏、城市夜景，身穿黑色风衣的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿黑色风衣的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿黑色风衣的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿黑色风衣的壮硕男性把<Picture 1>按在高层住宅天台，护栏、城市夜景表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '中景背面，男性最后猛烈冲刺后整根抽出，迅速将浓稠精液射在她高翘的臀部、腰窝与臀瓣上，白浊精液覆盖臀面沿臀缝流淌滴落，她保持臀部高举姿势颤抖着达到高潮，男性握着自己仍在搏动的阴茎对准她臀缝挤尽最后精液' }
+  ]
+},
+
+{
+  id: 'theme_439',
+  title: '商场卫生间闯入',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「商场卫生间闯入」主题下必含深喉口交+后入抽插+内射收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，商场女卫生间隔间',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在商场女卫生间隔间，身穿深色夹克的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色夹克的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色夹克的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色夹克的壮硕男性把<Picture 1>按在商场女卫生间隔间表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在商场女卫生间隔间，身穿深色夹克的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色夹克的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色夹克的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色夹克的壮硕男性把<Picture 1>按在商场女卫生间隔间表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在商场女卫生间隔间，身穿深色夹克的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色夹克的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色夹克的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色夹克的壮硕男性把<Picture 1>按在商场女卫生间隔间表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_440',
+  title: '废弃工厂CNC',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「废弃工厂CNC」主题下必含深喉口交+后入抽插+口爆面部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，废弃工厂，锈蚀机器、破碎窗户、灰尘飞扬',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在废弃工厂，锈蚀机器、破碎窗户、灰尘飞扬，身穿深色工装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色工装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色工装的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色工装的壮硕男性把<Picture 1>按在废弃工厂，锈蚀机器、破碎窗户、灰尘飞扬表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在废弃工厂，锈蚀机器、破碎窗户、灰尘飞扬，身穿深色工装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色工装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色工装的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色工装的壮硕男性把<Picture 1>按在废弃工厂，锈蚀机器、破碎窗户、灰尘飞扬表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在废弃工厂，锈蚀机器、破碎窗户、灰尘飞扬，身穿深色工装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色工装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色工装的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色工装的壮硕男性把<Picture 1>按在废弃工厂，锈蚀机器、破碎窗户、灰尘飞扬表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_441',
+  title: '轿车内CNC拦截',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「轿车内CNC拦截」主题下必含深喉口交+后入抽插+后入臀部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，偏僻路边轿车后座',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在偏僻路边轿车后座，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在偏僻路边轿车后座表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在偏僻路边轿车后座，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在偏僻路边轿车后座表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '中景背面，男性最后猛烈冲刺后整根抽出，迅速将浓稠精液射在她高翘的臀部、腰窝与臀瓣上，白浊精液覆盖臀面沿臀缝流淌滴落，她保持臀部高举姿势颤抖着达到高潮，男性握着自己仍在搏动的阴茎对准她臀缝挤尽最后精液' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在偏僻路边轿车后座，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在偏僻路边轿车后座表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '中景背面，男性最后猛烈冲刺后整根抽出，迅速将浓稠精液射在她高翘的臀部、腰窝与臀瓣上，白浊精液覆盖臀面沿臀缝流淌滴落，她保持臀部高举姿势颤抖着达到高潮，男性握着自己仍在搏动的阴茎对准她臀缝挤尽最后精液' }
+  ]
+},
+
+{
+  id: 'theme_442',
+  title: '酒店走廊冲出拦截',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「酒店走廊冲出拦截」主题下必含深喉口交+后入抽插+口爆面部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，高级酒店走廊，地毯、壁灯、房门',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在高级酒店走廊，地毯、壁灯、房门，身穿西装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿西装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿西装的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿西装的壮硕男性把<Picture 1>按在高级酒店走廊，地毯、壁灯、房门表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在高级酒店走廊，地毯、壁灯、房门，身穿西装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿西装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿西装的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿西装的壮硕男性把<Picture 1>按在高级酒店走廊，地毯、壁灯、房门表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在高级酒店走廊，地毯、壁灯、房门，身穿西装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿西装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿西装的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿西装的壮硕男性把<Picture 1>按在高级酒店走廊，地毯、壁灯、房门表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_443',
+  title: '海边礁石CNC拦截',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「海边礁石CNC拦截」主题下必含深喉口交+后入抽插+口爆面部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，夜晚海边礁石，海浪、月光、湿润岩石',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在夜晚海边礁石，海浪、月光、湿润岩石，身穿衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿衬衫的壮硕男性把<Picture 1>按在夜晚海边礁石，海浪、月光、湿润岩石表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在夜晚海边礁石，海浪、月光、湿润岩石，身穿衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿衬衫的壮硕男性把<Picture 1>按在夜晚海边礁石，海浪、月光、湿润岩石表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在夜晚海边礁石，海浪、月光、湿润岩石，身穿衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿衬衫的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿衬衫的壮硕男性把<Picture 1>按在夜晚海边礁石，海浪、月光、湿润岩石表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_444',
+  title: '公寓狗调室内爬行',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「公寓狗调室内爬行」主题下必含深喉口交+后入抽插+口爆面部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，现代私人公寓客厅与走廊，木地板',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在现代私人公寓客厅与走廊，木地板，身穿深色西装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色西装的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性把<Picture 1>按在现代私人公寓客厅与走廊，木地板表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在现代私人公寓客厅与走廊，木地板，身穿深色西装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色西装的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性把<Picture 1>按在现代私人公寓客厅与走廊，木地板表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在现代私人公寓客厅与走廊，木地板，身穿深色西装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色西装的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性把<Picture 1>按在现代私人公寓客厅与走廊，木地板表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_445',
+  title: '狗调学狗叫喂食',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「狗调学狗叫喂食」主题下必含深喉口交+后入抽插+后入臀部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，现代私人公寓客厅，木地板、皮质沙发',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在现代私人公寓客厅，木地板、皮质沙发，身穿深色西装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色西装的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性把<Picture 1>按在现代私人公寓客厅，木地板、皮质沙发表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在现代私人公寓客厅，木地板、皮质沙发，身穿深色西装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色西装的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性把<Picture 1>按在现代私人公寓客厅，木地板、皮质沙发表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '中景背面，男性最后猛烈冲刺后整根抽出，迅速将浓稠精液射在她高翘的臀部、腰窝与臀瓣上，白浊精液覆盖臀面沿臀缝流淌滴落，她保持臀部高举姿势颤抖着达到高潮，男性握着自己仍在搏动的阴茎对准她臀缝挤尽最后精液' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在现代私人公寓客厅，木地板、皮质沙发，身穿深色西装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色西装的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性把<Picture 1>按在现代私人公寓客厅，木地板、皮质沙发表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '中景背面，男性最后猛烈冲刺后整根抽出，迅速将浓稠精液射在她高翘的臀部、腰窝与臀瓣上，白浊精液覆盖臀面沿臀缝流淌滴落，她保持臀部高举姿势颤抖着达到高潮，男性握着自己仍在搏动的阴茎对准她臀缝挤尽最后精液' }
+  ]
+},
+
+{
+  id: 'theme_446',
+  title: '公寓狗调巡回巡视',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「公寓狗调巡回巡视」主题下必含深喉口交+后入抽插+口爆面部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，现代私人公寓客厅与走廊，木地板',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在现代私人公寓客厅与走廊，木地板，身穿深色西装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色西装的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性把<Picture 1>按在现代私人公寓客厅与走廊，木地板表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在现代私人公寓客厅与走廊，木地板，身穿深色西装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色西装的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性把<Picture 1>按在现代私人公寓客厅与走廊，木地板表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在现代私人公寓客厅与走廊，木地板，身穿深色西装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色西装的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性把<Picture 1>按在现代私人公寓客厅与走廊，木地板表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_447',
+  title: '狗调室内爬行调教',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「狗调室内爬行调教」主题下必含深喉口交+后入抽插+内射收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，现代私人公寓客厅与走廊，木地板',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在现代私人公寓客厅与走廊，木地板，身穿深色西装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色西装的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性把<Picture 1>按在现代私人公寓客厅与走廊，木地板表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在现代私人公寓客厅与走廊，木地板，身穿深色西装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色西装的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性把<Picture 1>按在现代私人公寓客厅与走廊，木地板表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在现代私人公寓客厅与走廊，木地板，身穿深色西装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色西装的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性把<Picture 1>按在现代私人公寓客厅与走廊，木地板表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_448',
+  title: '狗调狗爬巡视插入',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「狗调狗爬巡视插入」主题下必含深喉口交+后入抽插+口爆面部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，现代私人公寓客厅与走廊，木地板',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在现代私人公寓客厅与走廊，木地板，身穿深色西装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色西装的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性把<Picture 1>按在现代私人公寓客厅与走廊，木地板表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在现代私人公寓客厅与走廊，木地板，身穿深色西装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色西装的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性把<Picture 1>按在现代私人公寓客厅与走廊，木地板表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在现代私人公寓客厅与走廊，木地板，身穿深色西装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色西装的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性把<Picture 1>按在现代私人公寓客厅与走廊，木地板表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_449',
+  title: '办公室打斗制服',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「办公室打斗制服」主题下必含深喉口交+后入抽插+后入臀部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，现代高级办公室，夜景落地窗、宽大办公桌、皮质沙发',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在现代高级办公室，夜景落地窗、宽大办公桌、皮质沙发，身穿深色西装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色西装的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性把<Picture 1>按在现代高级办公室，夜景落地窗、宽大办公桌、皮质沙发表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在现代高级办公室，夜景落地窗、宽大办公桌、皮质沙发，身穿深色西装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色西装的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性把<Picture 1>按在现代高级办公室，夜景落地窗、宽大办公桌、皮质沙发表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '中景背面，男性最后猛烈冲刺后整根抽出，迅速将浓稠精液射在她高翘的臀部、腰窝与臀瓣上，白浊精液覆盖臀面沿臀缝流淌滴落，她保持臀部高举姿势颤抖着达到高潮，男性握着自己仍在搏动的阴茎对准她臀缝挤尽最后精液' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在现代高级办公室，夜景落地窗、宽大办公桌、皮质沙发，身穿深色西装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色西装的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色西装的壮硕男性把<Picture 1>按在现代高级办公室，夜景落地窗、宽大办公桌、皮质沙发表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '中景背面，男性最后猛烈冲刺后整根抽出，迅速将浓稠精液射在她高翘的臀部、腰窝与臀瓣上，白浊精液覆盖臀面沿臀缝流淌滴落，她保持臀部高举姿势颤抖着达到高潮，男性握着自己仍在搏动的阴茎对准她臀缝挤尽最后精液' }
+  ]
+},
+
+{
+  id: 'theme_450',
+  title: '酒店套房打斗制服',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「酒店套房打斗制服」主题下必含深喉口交+后入抽插+口爆面部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，豪华酒店套房，大床、落地窗、城市夜景',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在豪华酒店套房，大床、落地窗、城市夜景，身穿深色休闲衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色休闲衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色休闲衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色休闲衬衫的壮硕男性把<Picture 1>按在豪华酒店套房，大床、落地窗、城市夜景表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在豪华酒店套房，大床、落地窗、城市夜景，身穿深色休闲衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色休闲衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色休闲衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色休闲衬衫的壮硕男性把<Picture 1>按在豪华酒店套房，大床、落地窗、城市夜景表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在豪华酒店套房，大床、落地窗、城市夜景，身穿深色休闲衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色休闲衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色休闲衬衫的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色休闲衬衫的壮硕男性把<Picture 1>按在豪华酒店套房，大床、落地窗、城市夜景表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_451',
+  title: '废弃仓库警察制服',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「废弃仓库警察制服」主题下必含深喉口交+后入抽插+后入臀部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，废弃仓库，昏暗灯光、水泥柱、铁架',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在废弃仓库，昏暗灯光、水泥柱、铁架，身穿深色工装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色工装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色工装的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色工装的壮硕男性把<Picture 1>按在废弃仓库，昏暗灯光、水泥柱、铁架表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在废弃仓库，昏暗灯光、水泥柱、铁架，身穿深色工装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色工装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色工装的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色工装的壮硕男性把<Picture 1>按在废弃仓库，昏暗灯光、水泥柱、铁架表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '中景背面，男性最后猛烈冲刺后整根抽出，迅速将浓稠精液射在她高翘的臀部、腰窝与臀瓣上，白浊精液覆盖臀面沿臀缝流淌滴落，她保持臀部高举姿势颤抖着达到高潮，男性握着自己仍在搏动的阴茎对准她臀缝挤尽最后精液' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在废弃仓库，昏暗灯光、水泥柱、铁架，身穿深色工装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色工装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色工装的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色工装的壮硕男性把<Picture 1>按在废弃仓库，昏暗灯光、水泥柱、铁架表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '中景背面，男性最后猛烈冲刺后整根抽出，迅速将浓稠精液射在她高翘的臀部、腰窝与臀瓣上，白浊精液覆盖臀面沿臀缝流淌滴落，她保持臀部高举姿势颤抖着达到高潮，男性握着自己仍在搏动的阴茎对准她臀缝挤尽最后精液' }
+  ]
+},
+
+{
+  id: 'theme_452',
+  title: '武术馆打斗制服',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「武术馆打斗制服」主题下必含深喉口交+后入抽插+内射收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，室内武术馆，木地板、镜子墙、训练垫',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在室内武术馆，木地板、镜子墙、训练垫，身穿黑色训练服的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿黑色训练服的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿黑色训练服的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿黑色训练服的壮硕男性把<Picture 1>按在室内武术馆，木地板、镜子墙、训练垫表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在室内武术馆，木地板、镜子墙、训练垫，身穿黑色训练服的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿黑色训练服的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿黑色训练服的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿黑色训练服的壮硕男性把<Picture 1>按在室内武术馆，木地板、镜子墙、训练垫表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在室内武术馆，木地板、镜子墙、训练垫，身穿黑色训练服的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿黑色训练服的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿黑色训练服的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿黑色训练服的壮硕男性把<Picture 1>按在室内武术馆，木地板、镜子墙、训练垫表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_453',
+  title: '地下审讯室打斗制服',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「地下审讯室打斗制服」主题下必含深喉口交+后入抽插+口爆面部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，地下审讯室，金属椅、昏暗灯光、水泥墙',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在地下审讯室，金属椅、昏暗灯光、水泥墙，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在地下审讯室，金属椅、昏暗灯光、水泥墙表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在地下审讯室，金属椅、昏暗灯光、水泥墙，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在地下审讯室，金属椅、昏暗灯光、水泥墙表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在地下审讯室，金属椅、昏暗灯光、水泥墙，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在地下审讯室，金属椅、昏暗灯光、水泥墙表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_454',
+  title: '住宅楼电梯强制口交',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「住宅楼电梯强制口交」主题下必含深喉口交+后入抽插+内射收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，住宅楼老旧电梯内部',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在住宅楼老旧电梯内部，身穿深色外套的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色外套的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色外套的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色外套的壮硕男性把<Picture 1>按在住宅楼老旧电梯内部表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在住宅楼老旧电梯内部，身穿深色外套的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色外套的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色外套的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色外套的壮硕男性把<Picture 1>按在住宅楼老旧电梯内部表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在住宅楼老旧电梯内部，身穿深色外套的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色外套的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色外套的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色外套的壮硕男性把<Picture 1>按在住宅楼老旧电梯内部表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_455',
+  title: '夜间公交车强制猥亵',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「夜间公交车强制猥亵」主题下必含深喉口交+后入抽插+口爆面部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，夜间公交车后座，车窗夜景',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在夜间公交车后座，车窗夜景，身穿夹克的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿夹克的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿夹克的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿夹克的壮硕男性把<Picture 1>按在夜间公交车后座，车窗夜景表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在夜间公交车后座，车窗夜景，身穿夹克的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿夹克的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿夹克的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿夹克的壮硕男性把<Picture 1>按在夜间公交车后座，车窗夜景表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在夜间公交车后座，车窗夜景，身穿夹克的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿夹克的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿夹克的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿夹克的壮硕男性把<Picture 1>按在夜间公交车后座，车窗夜景表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_456',
+  title: '游泳池更衣室强制猥亵',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「游泳池更衣室强制猥亵」主题下必含深喉口交+后入抽插+内射收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，游泳池更衣室，储物柜、长凳',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在游泳池更衣室，储物柜、长凳，身穿泳裤的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿泳裤的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿泳裤的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿泳裤的壮硕男性把<Picture 1>按在游泳池更衣室，储物柜、长凳表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在游泳池更衣室，储物柜、长凳，身穿泳裤的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿泳裤的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿泳裤的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿泳裤的壮硕男性把<Picture 1>按在游泳池更衣室，储物柜、长凳表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在游泳池更衣室，储物柜、长凳，身穿泳裤的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿泳裤的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿泳裤的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿泳裤的壮硕男性把<Picture 1>按在游泳池更衣室，储物柜、长凳表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_457',
+  title: '郊外树林小便强制猥亵',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「郊外树林小便强制猥亵」主题下必含深喉口交+后入抽插+内射收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，郊外树林，草地、树木',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在郊外树林，草地、树木，身穿户外服的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿户外服的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿户外服的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿户外服的壮硕男性把<Picture 1>按在郊外树林，草地、树木表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在郊外树林，草地、树木，身穿户外服的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿户外服的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿户外服的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿户外服的壮硕男性把<Picture 1>按在郊外树林，草地、树木表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在郊外树林，草地、树木，身穿户外服的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿户外服的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿户外服的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿户外服的壮硕男性把<Picture 1>按在郊外树林，草地、树木表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_458',
+  title: '夜间泳池边强制口交',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「夜间泳池边强制口交」主题下必含深喉口交+后入抽插+后入臀部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，夜间私人游泳池边，水面反光',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在夜间私人游泳池边，水面反光，身穿泳裤的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿泳裤的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿泳裤的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿泳裤的壮硕男性把<Picture 1>按在夜间私人游泳池边，水面反光表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在夜间私人游泳池边，水面反光，身穿泳裤的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿泳裤的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿泳裤的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿泳裤的壮硕男性把<Picture 1>按在夜间私人游泳池边，水面反光表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '中景背面，男性最后猛烈冲刺后整根抽出，迅速将浓稠精液射在她高翘的臀部、腰窝与臀瓣上，白浊精液覆盖臀面沿臀缝流淌滴落，她保持臀部高举姿势颤抖着达到高潮，男性握着自己仍在搏动的阴茎对准她臀缝挤尽最后精液' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在夜间私人游泳池边，水面反光，身穿泳裤的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿泳裤的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿泳裤的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿泳裤的壮硕男性把<Picture 1>按在夜间私人游泳池边，水面反光表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '中景背面，男性最后猛烈冲刺后整根抽出，迅速将浓稠精液射在她高翘的臀部、腰窝与臀瓣上，白浊精液覆盖臀面沿臀缝流淌滴落，她保持臀部高举姿势颤抖着达到高潮，男性握着自己仍在搏动的阴茎对准她臀缝挤尽最后精液' }
+  ]
+},
+
+{
+  id: 'theme_459',
+  title: '故障电梯快速强制猥亵',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「故障电梯快速强制猥亵」主题下必含深喉口交+后入抽插+后入臀部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，故障电梯内部，紧急灯',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在故障电梯内部，紧急灯，身穿西装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿西装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿西装的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿西装的壮硕男性把<Picture 1>按在故障电梯内部，紧急灯表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在故障电梯内部，紧急灯，身穿西装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿西装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿西装的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿西装的壮硕男性把<Picture 1>按在故障电梯内部，紧急灯表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '中景背面，男性最后猛烈冲刺后整根抽出，迅速将浓稠精液射在她高翘的臀部、腰窝与臀瓣上，白浊精液覆盖臀面沿臀缝流淌滴落，她保持臀部高举姿势颤抖着达到高潮，男性握着自己仍在搏动的阴茎对准她臀缝挤尽最后精液' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在故障电梯内部，紧急灯，身穿西装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿西装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿西装的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿西装的壮硕男性把<Picture 1>按在故障电梯内部，紧急灯表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '中景背面，男性最后猛烈冲刺后整根抽出，迅速将浓稠精液射在她高翘的臀部、腰窝与臀瓣上，白浊精液覆盖臀面沿臀缝流淌滴落，她保持臀部高举姿势颤抖着达到高潮，男性握着自己仍在搏动的阴茎对准她臀缝挤尽最后精液' }
+  ]
+},
+
+{
+  id: 'theme_460',
+  title: '乘车厕所强制猥亵',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「乘车厕所强制猥亵」主题下必含深喉口交+后入抽插+后入臀部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，行驶中公交车厕所',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在行驶中公交车厕所，身穿夹克的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿夹克的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿夹克的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿夹克的壮硕男性把<Picture 1>按在行驶中公交车厕所表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在行驶中公交车厕所，身穿夹克的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿夹克的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿夹克的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿夹克的壮硕男性把<Picture 1>按在行驶中公交车厕所表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '中景背面，男性最后猛烈冲刺后整根抽出，迅速将浓稠精液射在她高翘的臀部、腰窝与臀瓣上，白浊精液覆盖臀面沿臀缝流淌滴落，她保持臀部高举姿势颤抖着达到高潮，男性握着自己仍在搏动的阴茎对准她臀缝挤尽最后精液' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在行驶中公交车厕所，身穿夹克的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿夹克的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿夹克的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿夹克的壮硕男性把<Picture 1>按在行驶中公交车厕所表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '中景背面，男性最后猛烈冲刺后整根抽出，迅速将浓稠精液射在她高翘的臀部、腰窝与臀瓣上，白浊精液覆盖臀面沿臀缝流淌滴落，她保持臀部高举姿势颤抖着达到高潮，男性握着自己仍在搏动的阴茎对准她臀缝挤尽最后精液' }
+  ]
+},
+
+{
+  id: 'theme_461',
+  title: '夜间泳池水下拦截',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「夜间泳池水下拦截」主题下必含深喉口交+后入抽插+内射收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，夜间游泳池水面与池边',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在夜间游泳池水面与池边，身穿泳裤的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿泳裤的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿泳裤的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿泳裤的壮硕男性把<Picture 1>按在夜间游泳池水面与池边表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在夜间游泳池水面与池边，身穿泳裤的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿泳裤的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿泳裤的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿泳裤的壮硕男性把<Picture 1>按在夜间游泳池水面与池边表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在夜间游泳池水面与池边，身穿泳裤的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿泳裤的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿泳裤的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿泳裤的壮硕男性把<Picture 1>按在夜间游泳池水面与池边表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_462',
+  title: '电梯监控死角快速猥亵',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「电梯监控死角快速猥亵」主题下必含深喉口交+后入抽插+内射收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，电梯内部监控死角位置',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在电梯内部监控死角位置，身穿外套的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿外套的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿外套的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿外套的壮硕男性把<Picture 1>按在电梯内部监控死角位置表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在电梯内部监控死角位置，身穿外套的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿外套的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿外套的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿外套的壮硕男性把<Picture 1>按在电梯内部监控死角位置表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在电梯内部监控死角位置，身穿外套的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿外套的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿外套的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿外套的壮硕男性把<Picture 1>按在电梯内部监控死角位置表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_463',
+  title: '废弃医院重口凌辱',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「废弃医院重口凌辱」主题下必含深喉口交+后入抽插+后入臀部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，废弃医院走廊与病房，破旧病床、掉落的吊瓶架',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在废弃医院走廊与病房，破旧病床、掉落的吊瓶架，身穿深色外套的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色外套的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色外套的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色外套的壮硕男性把<Picture 1>按在废弃医院走廊与病房，破旧病床、掉落的吊瓶架表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在废弃医院走廊与病房，破旧病床、掉落的吊瓶架，身穿深色外套的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色外套的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色外套的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色外套的壮硕男性把<Picture 1>按在废弃医院走廊与病房，破旧病床、掉落的吊瓶架表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '中景背面，男性最后猛烈冲刺后整根抽出，迅速将浓稠精液射在她高翘的臀部、腰窝与臀瓣上，白浊精液覆盖臀面沿臀缝流淌滴落，她保持臀部高举姿势颤抖着达到高潮，男性握着自己仍在搏动的阴茎对准她臀缝挤尽最后精液' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在废弃医院走廊与病房，破旧病床、掉落的吊瓶架，身穿深色外套的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色外套的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色外套的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色外套的壮硕男性把<Picture 1>按在废弃医院走廊与病房，破旧病床、掉落的吊瓶架表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '中景背面，男性最后猛烈冲刺后整根抽出，迅速将浓稠精液射在她高翘的臀部、腰窝与臀瓣上，白浊精液覆盖臀面沿臀缝流淌滴落，她保持臀部高举姿势颤抖着达到高潮，男性握着自己仍在搏动的阴茎对准她臀缝挤尽最后精液' }
+  ]
+},
+
+{
+  id: 'theme_464',
+  title: '地下通道暴雨凌辱',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「地下通道暴雨凌辱」主题下必含深喉口交+后入抽插+后入臀部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，城市地下人行通道，积水、回声、昏黄灯光',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在城市地下人行通道，积水、回声、昏黄灯光，身穿雨衣的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿雨衣的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿雨衣的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿雨衣的壮硕男性把<Picture 1>按在城市地下人行通道，积水、回声、昏黄灯光表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在城市地下人行通道，积水、回声、昏黄灯光，身穿雨衣的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿雨衣的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿雨衣的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿雨衣的壮硕男性把<Picture 1>按在城市地下人行通道，积水、回声、昏黄灯光表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '中景背面，男性最后猛烈冲刺后整根抽出，迅速将浓稠精液射在她高翘的臀部、腰窝与臀瓣上，白浊精液覆盖臀面沿臀缝流淌滴落，她保持臀部高举姿势颤抖着达到高潮，男性握着自己仍在搏动的阴茎对准她臀缝挤尽最后精液' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在城市地下人行通道，积水、回声、昏黄灯光，身穿雨衣的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿雨衣的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿雨衣的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿雨衣的壮硕男性把<Picture 1>按在城市地下人行通道，积水、回声、昏黄灯光表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '中景背面，男性最后猛烈冲刺后整根抽出，迅速将浓稠精液射在她高翘的臀部、腰窝与臀瓣上，白浊精液覆盖臀面沿臀缝流淌滴落，她保持臀部高举姿势颤抖着达到高潮，男性握着自己仍在搏动的阴茎对准她臀缝挤尽最后精液' }
+  ]
+},
+
+{
+  id: 'theme_465',
+  title: '烂尾楼施工绳凌辱',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「烂尾楼施工绳凌辱」主题下必含深喉口交+后入抽插+内射收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，夜间烂尾楼，裸露钢筋、水泥地面',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在夜间烂尾楼，裸露钢筋、水泥地面，身穿工装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿工装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿工装的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿工装的壮硕男性把<Picture 1>按在夜间烂尾楼，裸露钢筋、水泥地面表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在夜间烂尾楼，裸露钢筋、水泥地面，身穿工装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿工装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿工装的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿工装的壮硕男性把<Picture 1>按在夜间烂尾楼，裸露钢筋、水泥地面表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在夜间烂尾楼，裸露钢筋、水泥地面，身穿工装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿工装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿工装的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿工装的壮硕男性把<Picture 1>按在夜间烂尾楼，裸露钢筋、水泥地面表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_466',
+  title: '公共男厕隔间凌辱',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「公共男厕隔间凌辱」主题下必含深喉口交+后入抽插+内射收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，公园公共男厕隔间，恶臭、脏污',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在公园公共男厕隔间，恶臭、脏污，身穿休闲服的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿休闲服的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿休闲服的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿休闲服的壮硕男性把<Picture 1>按在公园公共男厕隔间，恶臭、脏污表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在公园公共男厕隔间，恶臭、脏污，身穿休闲服的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿休闲服的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿休闲服的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿休闲服的壮硕男性把<Picture 1>按在公园公共男厕隔间，恶臭、脏污表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在公园公共男厕隔间，恶臭、脏污，身穿休闲服的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿休闲服的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿休闲服的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿休闲服的壮硕男性把<Picture 1>按在公园公共男厕隔间，恶臭、脏污表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_467',
+  title: '天桥底下凌辱',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「天桥底下凌辱」主题下必含深喉口交+后入抽插+内射收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，城市天桥底下，桥墩、垃圾、昏暗路灯',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在城市天桥底下，桥墩、垃圾、昏暗路灯，身穿连帽衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿连帽衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿连帽衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿连帽衫的壮硕男性把<Picture 1>按在城市天桥底下，桥墩、垃圾、昏暗路灯表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在城市天桥底下，桥墩、垃圾、昏暗路灯，身穿连帽衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿连帽衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿连帽衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿连帽衫的壮硕男性把<Picture 1>按在城市天桥底下，桥墩、垃圾、昏暗路灯表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在城市天桥底下，桥墩、垃圾、昏暗路灯，身穿连帽衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿连帽衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿连帽衫的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿连帽衫的壮硕男性把<Picture 1>按在城市天桥底下，桥墩、垃圾、昏暗路灯表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_468',
+  title: '办公室强制凌辱',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「办公室强制凌辱」主题下必含深喉口交+后入抽插+内射收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，现代高级办公室，夜景落地窗、宽大办公桌',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在现代高级办公室，夜景落地窗、宽大办公桌，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在现代高级办公室，夜景落地窗、宽大办公桌表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在现代高级办公室，夜景落地窗、宽大办公桌，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在现代高级办公室，夜景落地窗、宽大办公桌表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在现代高级办公室，夜景落地窗、宽大办公桌，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在现代高级办公室，夜景落地窗、宽大办公桌表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_469',
+  title: '深夜停车场凌辱',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「深夜停车场凌辱」主题下必含深喉口交+后入抽插+口爆面部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，地下停车场',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在地下停车场，身穿深色夹克的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色夹克的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色夹克的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色夹克的壮硕男性把<Picture 1>按在地下停车场表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在地下停车场，身穿深色夹克的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色夹克的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色夹克的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色夹克的壮硕男性把<Picture 1>按在地下停车场表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在地下停车场，身穿深色夹克的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色夹克的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色夹克的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色夹克的壮硕男性把<Picture 1>按在地下停车场表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_470',
+  title: '酒店房间强暴',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「酒店房间强暴」主题下必含深喉口交+后入抽插+后入臀部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，酒店房间',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在酒店房间，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在酒店房间表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在酒店房间，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在酒店房间表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '中景背面，男性最后猛烈冲刺后整根抽出，迅速将浓稠精液射在她高翘的臀部、腰窝与臀瓣上，白浊精液覆盖臀面沿臀缝流淌滴落，她保持臀部高举姿势颤抖着达到高潮，男性握着自己仍在搏动的阴茎对准她臀缝挤尽最后精液' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在酒店房间，身穿深色衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色衬衫的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色衬衫的壮硕男性把<Picture 1>按在酒店房间表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '中景背面，男性最后猛烈冲刺后整根抽出，迅速将浓稠精液射在她高翘的臀部、腰窝与臀瓣上，白浊精液覆盖臀面沿臀缝流淌滴落，她保持臀部高举姿势颤抖着达到高潮，男性握着自己仍在搏动的阴茎对准她臀缝挤尽最后精液' }
+  ]
+},
+
+{
+  id: 'theme_471',
+  title: '天台威胁凌辱',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「天台威胁凌辱」主题下必含深喉口交+后入抽插+内射收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，高层住宅天台',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在高层住宅天台，身穿黑色风衣的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿黑色风衣的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿黑色风衣的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿黑色风衣的壮硕男性把<Picture 1>按在高层住宅天台表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在高层住宅天台，身穿黑色风衣的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿黑色风衣的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿黑色风衣的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿黑色风衣的壮硕男性把<Picture 1>按在高层住宅天台表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在高层住宅天台，身穿黑色风衣的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿黑色风衣的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿黑色风衣的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿黑色风衣的壮硕男性把<Picture 1>按在高层住宅天台表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_472',
+  title: '废弃工厂仓库凌辱',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「废弃工厂仓库凌辱」主题下必含深喉口交+后入抽插+后入臀部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，废弃工厂仓库',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在废弃工厂仓库，身穿深色工装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色工装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色工装的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色工装的壮硕男性把<Picture 1>按在废弃工厂仓库表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在废弃工厂仓库，身穿深色工装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色工装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色工装的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色工装的壮硕男性把<Picture 1>按在废弃工厂仓库表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '中景背面，男性最后猛烈冲刺后整根抽出，迅速将浓稠精液射在她高翘的臀部、腰窝与臀瓣上，白浊精液覆盖臀面沿臀缝流淌滴落，她保持臀部高举姿势颤抖着达到高潮，男性握着自己仍在搏动的阴茎对准她臀缝挤尽最后精液' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在废弃工厂仓库，身穿深色工装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色工装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色工装的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色工装的壮硕男性把<Picture 1>按在废弃工厂仓库表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '中景背面，男性最后猛烈冲刺后整根抽出，迅速将浓稠精液射在她高翘的臀部、腰窝与臀瓣上，白浊精液覆盖臀面沿臀缝流淌滴落，她保持臀部高举姿势颤抖着达到高潮，男性握着自己仍在搏动的阴茎对准她臀缝挤尽最后精液' }
+  ]
+},
+
+{
+  id: 'theme_473',
+  title: '废弃仓库轮奸',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「废弃仓库轮奸」主题下必含深喉口交+后入抽插+口爆面部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，废弃仓库，水泥地、铁架、昏暗灯光',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在废弃仓库，水泥地、铁架、昏暗灯光，身穿深色外套的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色外套的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色外套的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色外套的壮硕男性把<Picture 1>按在废弃仓库，水泥地、铁架、昏暗灯光表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在废弃仓库，水泥地、铁架、昏暗灯光，身穿深色外套的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色外套的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色外套的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色外套的壮硕男性把<Picture 1>按在废弃仓库，水泥地、铁架、昏暗灯光表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在废弃仓库，水泥地、铁架、昏暗灯光，身穿深色外套的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿深色外套的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿深色外套的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿深色外套的壮硕男性把<Picture 1>按在废弃仓库，水泥地、铁架、昏暗灯光表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_474',
+  title: '酒店套房三人行',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「酒店套房三人行」主题下必含深喉口交+后入抽插+内射收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，酒店套房，大床、落地窗、地毯',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在酒店套房，大床、落地窗、地毯，身穿衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿衬衫的壮硕男性把<Picture 1>按在酒店套房，大床、落地窗、地毯表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在酒店套房，大床、落地窗、地毯，身穿衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿衬衫的壮硕男性把<Picture 1>按在酒店套房，大床、落地窗、地毯表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在酒店套房，大床、落地窗、地毯，身穿衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿衬衫的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿衬衫的壮硕男性把<Picture 1>按在酒店套房，大床、落地窗、地毯表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_475',
+  title: '地下停车场双男轮奸',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「地下停车场双男轮奸」主题下必含深喉口交+后入抽插+口爆面部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，地下停车场，车辆、水泥柱、冷白灯光',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在地下停车场，车辆、水泥柱、冷白灯光，身穿夹克的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿夹克的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿夹克的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿夹克的壮硕男性把<Picture 1>按在地下停车场，车辆、水泥柱、冷白灯光表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在地下停车场，车辆、水泥柱、冷白灯光，身穿夹克的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿夹克的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿夹克的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿夹克的壮硕男性把<Picture 1>按在地下停车场，车辆、水泥柱、冷白灯光表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在地下停车场，车辆、水泥柱、冷白灯光，身穿夹克的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿夹克的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿夹克的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿夹克的壮硕男性把<Picture 1>按在地下停车场，车辆、水泥柱、冷白灯光表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_476',
+  title: '别墅换妻轮奸',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「别墅换妻轮奸」主题下必含深喉口交+后入抽插+口爆面部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，私人别墅客厅，沙发、地毯、落地灯',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在私人别墅客厅，沙发、地毯、落地灯，身穿衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿衬衫的壮硕男性把<Picture 1>按在私人别墅客厅，沙发、地毯、落地灯表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在私人别墅客厅，沙发、地毯、落地灯，身穿衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿衬衫的壮硕男性把<Picture 1>按在私人别墅客厅，沙发、地毯、落地灯表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在私人别墅客厅，沙发、地毯、落地灯，身穿衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿衬衫的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿衬衫的壮硕男性把<Picture 1>按在私人别墅客厅，沙发、地毯、落地灯表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_477',
+  title: '浴室双女凌辱',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「浴室双女凌辱」主题下必含深喉口交+后入抽插+口爆面部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，浴室，淋浴间、洗手台、镜子、水汽',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在浴室，淋浴间、洗手台、镜子、水汽，身穿浴袍的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿浴袍的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿浴袍的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿浴袍的壮硕男性把<Picture 1>按在浴室，淋浴间、洗手台、镜子、水汽表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在浴室，淋浴间、洗手台、镜子、水汽，身穿浴袍的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿浴袍的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿浴袍的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿浴袍的壮硕男性把<Picture 1>按在浴室，淋浴间、洗手台、镜子、水汽表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在浴室，淋浴间、洗手台、镜子、水汽，身穿浴袍的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿浴袍的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿浴袍的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿浴袍的壮硕男性把<Picture 1>按在浴室，淋浴间、洗手台、镜子、水汽表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_478',
+  title: '公寓楼梯间拦截',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「公寓楼梯间拦截」主题下必含深喉口交+后入抽插+口爆面部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，高层住宅楼梯间，水泥台阶、扶手、应急灯',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在高层住宅楼梯间，水泥台阶、扶手、应急灯，身穿连帽衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿连帽衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿连帽衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿连帽衫的壮硕男性把<Picture 1>按在高层住宅楼梯间，水泥台阶、扶手、应急灯表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在高层住宅楼梯间，水泥台阶、扶手、应急灯，身穿连帽衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿连帽衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿连帽衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿连帽衫的壮硕男性把<Picture 1>按在高层住宅楼梯间，水泥台阶、扶手、应急灯表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在高层住宅楼梯间，水泥台阶、扶手、应急灯，身穿连帽衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿连帽衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿连帽衫的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿连帽衫的壮硕男性把<Picture 1>按在高层住宅楼梯间，水泥台阶、扶手、应急灯表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_479',
+  title: '艺术展厅闭馆凌辱',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「艺术展厅闭馆凌辱」主题下必含深喉口交+后入抽插+口爆面部射精收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，夜间艺术展厅，大型雕塑、白墙、射灯',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在夜间艺术展厅，大型雕塑、白墙、射灯，身穿黑衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿黑衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿黑衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿黑衬衫的壮硕男性把<Picture 1>按在夜间艺术展厅，大型雕塑、白墙、射灯表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在夜间艺术展厅，大型雕塑、白墙、射灯，身穿黑衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿黑衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿黑衬衫的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿黑衬衫的壮硕男性把<Picture 1>按在夜间艺术展厅，大型雕塑、白墙、射灯表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在夜间艺术展厅，大型雕塑、白墙、射灯，身穿黑衬衫的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿黑衬衫的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿黑衬衫的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿黑衬衫的壮硕男性把<Picture 1>按在夜间艺术展厅，大型雕塑、白墙、射灯表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '面部特写转胸部特写', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
+{
+  id: 'theme_480',
+  title: '货车运输轮奸',
+  category: '强制凌辱',
+  intensity: 'heavy',
+  multiRef: false,
+  description: '<Picture 1>「货车运输轮奸」主题下必含深喉口交+后入抽插+内射收尾的强制凌辱场景',
+  scenario: '暗黑电影风格，红黑主色调，强光阴影，行驶中的厢式货车后厢，颠簸、昏暗、货物箱',
+  beat15s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在行驶中的厢式货车后厢，颠簸、昏暗、货物箱，身穿工装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿工装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿工装的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿工装的壮硕男性把<Picture 1>按在行驶中的厢式货车后厢，颠簸、昏暗、货物箱表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' }
+  ],
+  beat30s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在行驶中的厢式货车后厢，颠簸、昏暗、货物箱，身穿工装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿工装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿工装的壮硕男性强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿工装的壮硕男性把<Picture 1>按在行驶中的厢式货车后厢，颠簸、昏暗、货物箱表面，从后方强行插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ],
+  beat60s: [
+    { shotNumber: 1, scene: '全身远景', prompt: '全身远景，<Picture 1>穿着完整服装走在行驶中的厢式货车后厢，颠簸、昏暗、货物箱，身穿工装的壮硕男性从后方突然拦截并控制她的双手按在墙上，眼神惊恐，电影级光影，8K，HDR' },
+    { shotNumber: 2, scene: '中景', prompt: '中景镜头，身穿工装的壮硕男性强行撕开<Picture 1>的衣物，<Picture 1>挣扎哭喊，电影级光影，8K，HDR' },
+    { shotNumber: 3, scene: '近景特写', prompt: '近景特写，<Picture 1>被按跪在地，身穿工装的壮硕男性缓慢解开腰带露出硬挺阴茎，强迫其深喉口交，<Picture 1>眼角流泪唾液溢出，电影级光影，8K，HDR' },
+    { shotNumber: 4, scene: '中景', prompt: '中景镜头，身穿工装的壮硕男性把<Picture 1>按在行驶中的厢式货车后厢，颠簸、昏暗、货物箱表面，从后方缓慢整根插入，男性在前戏过渡阶段自然脱去所有衣物露出全身肌肉，<Picture 1>双手撑住身体，会阴处被撑开，电影级光影，8K，HDR' },
+    { shotNumber: 5, scene: '近景特写', prompt: '近景特写，全裸的壮硕男性从后方猛烈抽插，<Picture 1>被撞击身体前倾，乳房悬垂晃动，电影级光影，8K，HDR' },
+    { shotNumber: 6, scene: '近景特写', prompt: '近景特写，男性持续后入抽插加速加深，囊袋反复撞击臀瓣发出清脆啪啪声，<Picture 1>咬唇回眸喘息，电影级光影，8K，HDR' },
+    { shotNumber: 7, scene: '中景', prompt: '中景镜头，全裸男性把<Picture 1>转过身正面面对自己再次插入，面对面传教士姿势深入抽插，<Picture 1>双腿被分开架在男性腰侧，电影级光影，8K，HDR' },
+    { shotNumber: 8, scene: '近景特写', prompt: '近景特写，男性将<Picture 1>再次翻转为后入姿势猛烈冲刺，<Picture 1>全身颤抖即将高潮，会阴处明显湿润，电影级光影，8K，HDR' },
+    { shotNumber: 9, scene: '中景背面', prompt: '面部特写转胸部特写，男性从她体内抽出后她立刻滑跪到他身前张嘴伸出舌头，男性低吼着将浓稠精液射入她张开的口腔完成唯一一次口爆，白浊精液充满口腔溢出到下巴、锁骨与裸露乳房，她用舌头舔食龟头与柱身上残留的精液并吞下大部分，剩余精液从嘴角拉丝滴落，眼神餍足潮红' }
+  ]
+},
+
 ];
 
-// ═══════════════════════════════════════════════════════════════════════════
 // 辅助函数
 // ═══════════════════════════════════════════════════════════════════════════
 export function 按分类筛选主题(分类?: ThemeCategory): ThemeEntry[] {
@@ -16229,6 +18512,28 @@ const 类别镜头模板: Record<ThemeCategory, string[]> = {
     // Shot 9: 多人轮奸结束（意图=multi）
     '全身镜头，多名全裸男性将{主体}捆绑在{场景}中央同时{姿势描述}，阴茎插入阴部和肛门结合部位清晰可见，脸上和身体被精液覆盖，{氛围}，高清8K，HDR，稳定镜头',
   ],
+
+  // 12. 强制凌辱：强制口交 + 强制插入 + 强制高潮（CNC 角色扮演）
+  '强制凌辱': [
+    // Shot 1: 被制服
+    '全身远景，{主体}被{男性}从后方拦截按在{场景}墙壁上，双手被控制，眼神惊恐，{氛围}，电影级光影，8K，HDR',
+    // Shot 2: 强制脱衣
+    '中景镜头，{男性}强行撕开{主体}的衣物，{主体}挣扎哭喊，{氛围}，电影级光影，8K，HDR',
+    // Shot 3: 强制口交
+    '近景特写，{主体}被按跪在地，{男性}强迫其深喉口交，{主体}眼角流泪，{氛围}，电影级光影，8K，HDR',
+    // Shot 4: 强制插入
+    '中景镜头，{男性}把{主体}按在{场景}表面，从后方强行插入，{主体}双手撑住身体，{氛围}，电影级光影，8K，HDR',
+    // Shot 5: 抽插进行
+    '近景特写，{男性}从后方猛烈抽插，{主体}被撞击身体前倾，{氛围}，电影级光影，8K，HDR',
+    // Shot 6: 强制高潮
+    '近景特写，{男性}加深抽插，{主体}被迫达到高潮，{氛围}，电影级光影，8K，HDR',
+    // Shot 7: 换姿势
+    '中景镜头，{男性}把{主体}转过身正面面对自己，再次插入，{氛围}，电影级光影，8K，HDR',
+    // Shot 8: 强制颜射
+    '近景特写，{男性}拔出后在{主体}脸上射精，精液覆盖面部，{氛围}，电影级光影，8K，HDR',
+    // Shot 9: 结束
+    '全身远景，{男性}整理衣物离开，{主体}瘫软在{场景}地面上，{氛围}，电影级光影，8K，HDR',
+  ],
 };
 
 /**
@@ -16408,7 +18713,7 @@ function 获取主题镜头(主题: ThemeEntry, shotCount: number): ThemeBeat[] 
  * 容易让男性穿着衣服，生成出来的视频画面违和（参考用户反馈）。
  */
 function 主题是否需要显式裸体(主题: ThemeEntry): boolean {
-  return ['纯性爱', '户外野战', '多人派对', '女同情欲', 'SM重口', '奇异猎奇'].includes(主题.category);
+  return ['纯性爱', '户外野战', '多人派对', '女同情欲', 'SM重口', '强制凌辱', '奇异猎奇'].includes(主题.category);
 }
 
 /**
@@ -16420,7 +18725,7 @@ function 主题是否需要显式裸体(主题: ThemeEntry): boolean {
  * 注意：女同情欲无男性；奇异猎奇使用触手（不是真实男性身体）。
  */
 function 主题是否需要显式男性主体(主题: ThemeEntry): boolean {
-  return ['纯性爱', '户外野战', '多人派对', 'SM重口'].includes(主题.category);
+  return ['纯性爱', '户外野战', '多人派对', 'SM重口', '强制凌辱'].includes(主题.category);
 }
 
 /**
