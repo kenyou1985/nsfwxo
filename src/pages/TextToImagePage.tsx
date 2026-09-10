@@ -88,7 +88,7 @@ export function TextToImagePage({
   const [customPrompt, setCustomPrompt] = useState('');
   const [enableRandomPrompt, setEnableRandomPrompt] = useState(false);
   const [isR18Enabled, setIsR18Enabled] = useState(false);
-  const [displayLang, setDisplayLang] = useState<'en' | 'zh'>('en');
+  const [displayLang, setDisplayLang] = useState<'en' | 'zh'>('zh');
 
   // UI state — 桌面端两个折叠面板各自独立的 open 状态，避免和移动端的 advancedOpen 互相影响
   const [basicOpen, setBasicOpen] = useState(true);

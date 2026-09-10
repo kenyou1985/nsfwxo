@@ -348,12 +348,24 @@ export function PromptEditor({
 
         {/* User description input */}
         <div className="relative">
-          <div className="absolute right-2 top-2 z-10 flex items-center gap-1">
+          <textarea
+            ref={textareaRef}
+            value={customPrompt}
+            onChange={(e) => { onCustomPromptChange(e.target.value); }}
+            placeholder={displayLang === 'zh' ? '输入你的描述想法（可选），或直接点击下方标签添加...' : 'Your description (optional)...'}
+            disabled={disabled}
+            className="w-full bg-bg-elevated border border-border rounded-xl px-4 py-2.5 text-xs text-text-primary placeholder:text-text-tertiary/50 focus:outline-none focus:border-primary/60 transition-colors resize-none overflow-hidden leading-relaxed min-h-[44px]"
+          />
+          {/* 操作按钮组 + 自定义按钮组（多图模式：插入参考图引用）— 移出 textarea 避免遮挡文字 */}
+          <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+            {/* 自定义按钮（多图模式：插入参考图引用）— 放在前面，避免被操作按钮挤压 */}
+            {extraTextareaActions}
+            {/* 主操作按钮 */}
             {onGacha && (
               <button
                 onClick={onGacha}
                 disabled={disabled || isGachaLoading}
-                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shrink-0"
                 title="随机抽卡生成提示词"
               >
                 {isGachaLoading ? (
@@ -361,14 +373,15 @@ export function PromptEditor({
                 ) : (
                   <Shuffle size={11} />
                 )}
-                <span>抽卡</span>
+                <span className="hidden sm:inline">抽卡</span>
+                <span className="sm:hidden">🎲</span>
               </button>
             )}
             {onOptimizePrompt && (
               <button
                 onClick={onOptimizePrompt}
                 disabled={disabled || isOptimizing || isGeneratingFromPrompt}
-                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shrink-0"
                 title="AI 自由提示词：点击后自动扩写并提交生图"
               >
                 {isOptimizing ? (
@@ -378,24 +391,11 @@ export function PromptEditor({
                 ) : (
                   <Wand2 size={11} />
                 )}
-                <span>{isOptimizing ? '扩写中' : isGeneratingFromPrompt ? '提交中' : '自由提示词'}</span>
+                <span className="hidden sm:inline">{isOptimizing ? '扩写中' : isGeneratingFromPrompt ? '提交中' : '自由提示词'}</span>
+                <span className="sm:hidden">✨</span>
               </button>
             )}
           </div>
-          <textarea
-            ref={textareaRef}
-            value={customPrompt}
-            onChange={(e) => { onCustomPromptChange(e.target.value); }}
-            placeholder={displayLang === 'zh' ? '输入你的描述想法（可选），或直接点击下方标签添加...' : 'Your description (optional)...'}
-            disabled={disabled}
-            className="w-full bg-bg-elevated border border-border rounded-xl px-4 py-2.5 pr-20 text-xs text-text-primary placeholder:text-text-tertiary/50 focus:outline-none focus:border-primary/60 transition-colors resize-none overflow-hidden leading-relaxed"
-          />
-          {/* 自定义按钮组（多图模式：插入参考图引用） */}
-          {extraTextareaActions && (
-            <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-              {extraTextareaActions}
-            </div>
-          )}
         </div>
 
         {/* Gacha prompt output — only show when gacha result exists */}

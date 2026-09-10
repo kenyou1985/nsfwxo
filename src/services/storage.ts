@@ -521,7 +521,7 @@ export function clearStoryboardHistory(): void {
 
 export interface FavoriteItem {
   id: string;
-  /** Reference to the image source.
+  /** Reference to the image/video source.
    * - data: URLs → stored directly (short, inline, no cache needed)
    * - blob: URLs → stored directly (valid for session lifetime)
    * - http: URLs → stored directly (valid for session lifetime)
@@ -536,6 +536,10 @@ export interface FavoriteItem {
   tags?: Record<string, string[]>;
   r18: boolean;
   timestamp: number;
+  /** 标记为视频收藏（收藏时连带提示词一起保存） */
+  isVideo?: boolean;
+  /** 视频工作流 ID（用于再次生成） */
+  workflowId?: string;
 }
 
 const FAVORITES_KEY = 'nsfwxo_favorites';

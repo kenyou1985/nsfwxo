@@ -2784,6 +2784,68 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
   // 长视频 v1.1 初始提示词（来自 H3 提示词引擎）
   const [nlInitialPrompt, setNlInitialPrompt] = useState<string | null>(null);
 
+  // ── 视频历史再次生成：读取 sessionStorage 并自动预填表单 ─────────────────────
+  // pendingVideoRecord 延迟机制：等 taskListRef 可用后再提交 MiniMax H3 任务
+  const [pendingVideoRecord, setPendingVideoRecord] = useState<{
+    prompt: string;
+    images: string[];
+  } | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem('nsfwxo_video_regenerate');
+      if (!raw) return;
+      const record = JSON.parse(raw) as { prompt: string; images: string[]; workflowId?: string };
+      sessionStorage.removeItem('nsfwxo_video_regenerate');
+      if (!record.images?.[0]) return;
+      const refImage = record.images[0];
+      const prompt = record.prompt || '';
+      const wfId = record.workflowId;
+
+      // MiniMax H3（图生视频）或默认：直接提交任务
+      // 使用 pendingVideoRecord 机制延迟到 taskListRef 可用时再提交
+      if (wfId === WORKFLOW.MINIMAX_H3 || !wfId) {
+        setPendingVideoRecord({ prompt, images: record.images });
+        return;
+      }
+
+      // MiniMax 长视频 V2
+      if (wfId === WORKFLOW.MINIMAX_LONG_V2 || wfId === '2092046754606030850' || wfId === '2091369701523136514') {
+        setVideoModel('minimaxlongv2');
+        setNlInitialImage({ path: refImage, preview: refImage });
+        if (prompt) setNlInitialPrompt(prompt);
+        return;
+      }
+
+      // 长视频 v1.1
+      if (wfId === '2094226327238135810' || wfId === '2094672102264090625') {
+        setVideoModel('longvideov2');
+        setNlInitialImage({ path: refImage, preview: refImage });
+        if (prompt) setNlInitialPrompt(prompt);
+        return;
+      }
+    } catch {
+      // ignore corrupt data
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 处理 pending video record（等 taskListRef 可用后提交 MiniMax H3 任务）
+  useEffect(() => {
+    if (!pendingVideoRecord) return;
+    if (!taskListRef.current) return; // 等 VideoTaskList 挂载
+    const { prompt, images } = pendingVideoRecord;
+    const refImage = images[0] || '';
+    if (!refImage) return;
+    const nodeList: NodeInfo[] = [
+      { nodeId: '38', fieldName: 'prompt', fieldValue: prompt, description: '提示词' },
+      { nodeId: '50', fieldName: 'image', fieldValue: refImage, description: '参考图1' },
+    ];
+    taskListRef.current?.submitTask(prompt, refImage, refImage, nodeList, WORKFLOW.MINIMAX_H3);
+    onSuccess?.('任务已提交');
+    setPendingVideoRecord(null);
+  }, [pendingVideoRecord]);
+
   // Wan 2.2 state
   const [imagePath, setImagePath] = useState('');
   const [imagePreview, setImagePreview] = useState('');

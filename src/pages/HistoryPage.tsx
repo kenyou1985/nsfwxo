@@ -116,7 +116,6 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
     if (!q) return videoRecords;
     return videoRecords.filter((r) => {
       if (r.prompt && r.prompt.toLowerCase().includes(q)) return true;
-      if (r.name && r.name.toLowerCase().includes(q)) return true;
       return false;
     });
   }, [videoRecords, debouncedSearchQuery]);
@@ -564,6 +563,44 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
     onRegenerate?.(record);
   };
 
+  // ── 视频收藏 ─────────────────────────────────────────────────────────────────
+  const handleVideoToggleFavorite = (record: VideoHistoryRecord) => {
+    const videoUrl = record.images[0] || '';
+    const existing = favorites.find(
+      (f) => f.isVideo && f.imageRef === videoUrl
+    );
+    if (existing) {
+      removeFavorite(existing.id);
+      setFavorites(getFavorites());
+      onSuccess?.('已取消收藏');
+    } else {
+      const added = addFavorite({
+        imageUrl: videoUrl,
+        prompt: record.prompt,
+        source: 'history',
+        r18: false,
+        isVideo: true,
+        workflowId: record.workflowId,
+      });
+      if (!added) {
+        onError?.('收藏失败，请重试');
+        return;
+      }
+      setFavorites(getFavorites());
+      onSuccess?.('已收藏');
+    }
+  };
+
+  // ── 视频再次生成 ─────────────────────────────────────────────────────────────
+  const handleVideoRegenerate = (record: VideoHistoryRecord) => {
+    try {
+      sessionStorage.setItem('nsfwxo_video_regenerate', JSON.stringify(record));
+      onNavigate?.('img2vid');
+    } catch {
+      onError?.('再次生成失败，请重试');
+    }
+  };
+
   // Toggle favorited state for an image. The caller is responsible for
   // identifying the right favorite — most callers don't have an id yet
   // (they only have a generated image URL), so we look up by both
@@ -610,6 +647,7 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
 
   // Use imageRef for lookup since addFavorite stores the URL in imageRef field
   const isFav = (url: string) => favorites.some((f) => f.imageRef === url);
+  const isVideoFav = (url: string) => favorites.some((f) => f.isVideo && f.imageRef === url);
 
   // Image history
   const currentImages = lightboxRecordIndex !== null && activeTab === 'image'
@@ -1127,6 +1165,21 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
                       </button>
                     )}
                     <button
+                      onClick={() => handleVideoRegenerate(record)}
+                      className="w-7 h-7 rounded-lg hover:bg-green-500/20 flex items-center justify-center text-text-secondary hover:text-green-400 transition-colors"
+                      title="再次生成"
+                    >
+                      <RotateCcw size={14} />
+                    </button>
+                    <button
+                      onClick={() => handleVideoToggleFavorite(record)}
+                      className="w-7 h-7 rounded-lg hover:bg-pink-500/20 flex items-center justify-center transition-colors"
+                      style={{ color: isVideoFav(record.images[0] || '') ? '#ec4899' : undefined }}
+                      title={isVideoFav(record.images[0] || '') ? '取消收藏' : '收藏视频'}
+                    >
+                      <Heart size={14} />
+                    </button>
+                    <button
                       onClick={() => handleDeleteVideo(record.id)}
                       className="w-7 h-7 rounded-lg hover:bg-red-500/20 flex items-center justify-center text-text-secondary hover:text-red-400 transition-colors"
                     >
@@ -1198,10 +1251,73 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
 
       {/* Favorites tab */}
       {activeTab === 'favorites' && (
-        <div className="space-y-3">
+        <div className="space-y-4">
+          {/* 视频收藏 */}
+          {favorites.filter((f) => f.isVideo).length > 0 && (
+            <>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-text-secondary">视频收藏</span>
+              </div>
+              <div className="space-y-2">
+                {favorites
+                  .filter((f) => f.isVideo)
+                  .map((item) => (
+                    <div key={item.id} className="rounded-xl bg-bg-surface border border-border p-3">
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="min-w-0 flex-1">
+                          {item.prompt && (
+                            <p className="text-sm text-text-primary line-clamp-2">{item.prompt}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <button
+                            onClick={() => {
+                              // 从收藏还原 VideoHistoryRecord 并再次生成
+                              const record: VideoHistoryRecord = {
+                                id: item.id,
+                                prompt: item.prompt || '',
+                                images: [item.imageRef || item.imageUrl || ''],
+                                coins: null,
+                                taskId: null,
+                                createdAt: item.timestamp,
+                                workflowId: item.workflowId,
+                              };
+                              handleVideoRegenerate(record);
+                            }}
+                            className="w-7 h-7 rounded-lg hover:bg-green-500/20 flex items-center justify-center text-text-secondary hover:text-green-400 transition-colors"
+                            title="再次生成"
+                          >
+                            <RotateCcw size={14} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteFavorite(item.id)}
+                            className="w-7 h-7 rounded-lg hover:bg-red-500/20 flex items-center justify-center text-text-secondary hover:text-red-400 transition-colors"
+                            title="删除收藏"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                      {/* 视频预览 */}
+                      {(item.imageUrl || item.imageRef) && (
+                        <video
+                          src={item.imageUrl || item.imageRef || ''}
+                          controls
+                          className="w-full max-h-48 rounded-lg bg-black"
+                        />
+                      )}
+                    </div>
+                  ))}
+              </div>
+            </>
+          )}
+
+          {/* 图片收藏 */}
           <div className="flex items-center justify-between">
-            <span className="text-sm text-text-secondary">{favorites.length} 张收藏</span>
-            {favorites.length > 0 && (
+            <span className="text-sm text-text-secondary">
+              图片收藏 {favorites.filter((f) => !f.isVideo).length > 0 && `(${favorites.filter((f) => !f.isVideo).length})`}
+            </span>
+            {favorites.filter((f) => !f.isVideo).length > 0 && (
               <button
                 onClick={handleClearFavorites}
                 className="text-xs text-red-400 hover:text-red-300 transition-colors flex items-center gap-1"
@@ -1212,61 +1328,63 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
             )}
           </div>
 
-          {favorites.length === 0 ? (
+          {favorites.filter((f) => !f.isVideo).length === 0 && !favorites.some((f) => f.isVideo) ? (
             <div className="flex flex-col items-center justify-center py-20 text-text-secondary">
               <Heart size={48} className="mb-4 opacity-30" />
               <p className="text-sm">暂无收藏</p>
-              <p className="text-xs text-text-tertiary mt-1">在图片历史中点击红心按钮添加收藏</p>
+              <p className="text-xs text-text-tertiary mt-1">在历史记录中点击红心按钮添加收藏</p>
+            </div>
+          ) : favorites.filter((f) => !f.isVideo).length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-text-tertiary">
+              <p className="text-sm">暂无图片收藏</p>
             </div>
           ) : (
             <div className="flex flex-wrap gap-2">
-              {favorites.map((item) => (
-                <div
-                  key={item.id}
-                  className="relative rounded-lg overflow-hidden bg-bg-elevated group cursor-pointer"
-                  onClick={() => item.imageUrl && setLightboxFavoriteIndex(item.id === favorites[0]?.id ? 0 : favorites.findIndex((f) => f.id === item.id))}
-                >
-                  {item.imageUrl ? (
-                    <AspectAwareImage
-                      src={item.imageUrl}
-                      alt="收藏"
-                      maxHeight={120}
-                      objectFit="cover"
-                      className="group-hover:scale-105 transition-transform"
-                    />
-                  ) : (
-                    // Orphan ref (legacy data stored before the hash-ref
-                    // migration, or a hash the unified cache can't resolve).
-                    // Show a placeholder rather than a broken-image icon so
-                    // the favorites tab still renders cleanly.
-                    <div className="w-full h-full flex flex-col items-center justify-center text-text-tertiary bg-bg-elevated" style={{ width: 80, height: 120 }}>
-                      <ImageIcon size={20} className="opacity-40" />
-                      <span className="text-[9px] mt-1 opacity-60">图片已失效</span>
-                    </div>
-                  )}
-                  <div className="absolute top-1 right-1 flex items-center gap-1">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleToggleFavorite(item.imageUrl ?? "", item.prompt, item.id); }}
-                      className="w-7 h-7 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 transition-colors"
-                      title="取消收藏"
-                    >
-                      <Heart size={14} className="fill-red-500 text-red-500" />
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleDeleteFavorite(item.id); }}
-                      className="w-7 h-7 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 transition-colors text-white"
-                      title="删除收藏"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2">
-                    {item.prompt && (
-                      <p className="text-[10px] text-white/80 line-clamp-1">{item.prompt}</p>
+              {favorites
+                .filter((f) => !f.isVideo)
+                .map((item) => (
+                  <div
+                    key={item.id}
+                    className="relative rounded-lg overflow-hidden bg-bg-elevated group cursor-pointer"
+                    onClick={() => item.imageUrl && setLightboxFavoriteIndex(item.id === favorites[0]?.id ? 0 : favorites.findIndex((f) => f.id === item.id))}
+                  >
+                    {item.imageUrl ? (
+                      <AspectAwareImage
+                        src={item.imageUrl}
+                        alt="收藏"
+                        maxHeight={120}
+                        objectFit="cover"
+                        className="group-hover:scale-105 transition-transform"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center text-text-tertiary bg-bg-elevated" style={{ width: 80, height: 120 }}>
+                        <ImageIcon size={20} className="opacity-40" />
+                        <span className="text-[9px] mt-1 opacity-60">图片已失效</span>
+                      </div>
                     )}
+                    <div className="absolute top-1 right-1 flex items-center gap-1">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleToggleFavorite(item.imageUrl ?? "", item.prompt, item.id); }}
+                        className="w-7 h-7 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 transition-colors"
+                        title="取消收藏"
+                      >
+                        <Heart size={14} className="fill-red-500 text-red-500" />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDeleteFavorite(item.id); }}
+                        className="w-7 h-7 rounded-full bg-black/50 flex items-center justify-center hover:bg-black/70 transition-colors text-white"
+                        title="删除收藏"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2">
+                      {item.prompt && (
+                        <p className="text-[10px] text-white/80 line-clamp-1">{item.prompt}</p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
             </div>
           )}
         </div>

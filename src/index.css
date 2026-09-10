@@ -109,3 +109,56 @@ input[type='range']:focus {
 input[type='range']:focus::-webkit-slider-thumb {
   box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.25);
 }
+
+/* ─── 移动端性能 & 触控优化 ───────────────────────────────────────────────────── */
+
+/* 按钮 / 可点击元素启用快速触控反馈（取消 300ms 延迟，禁用双击放大） */
+button,
+[role='button'],
+a {
+  touch-action: manipulation;
+}
+
+/* 移动端最小可点击区域（避免按钮太密集误触） */
+@media (max-width: 640px) {
+  button:not([class*='h-3']):not([class*='h-4']) {
+    min-height: 32px;
+  }
+}
+
+/* 移动端文本输入框 16px 防 iOS 自动放大 */
+@media (max-width: 640px) {
+  input[type='text'],
+  input[type='number'],
+  input[type='email'],
+  input[type='search'],
+  input:not([type]),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
+/* GPU 加速：频繁变换的元素 */
+.will-change-transform {
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+/* 长按高亮禁用（已通过 -webkit-tap-highlight-color 处理，补充 Firefox） */
+@media (max-width: 640px) {
+  * {
+    -webkit-touch-callout: none;
+  }
+}
+
+/* 移动端减少动效（尊重用户的减少动效偏好） */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -7,10 +7,49 @@
     <meta name="theme-color" content="#0a0a0f" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="description" content="AI 图片 / 视频生成器" />
+    <!-- 移动端加载速度优化 -->
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <link rel="preconnect" href="https://rh-images.xiaoyaoyou.com" crossorigin />
+    <link rel="dns-prefetch" href="https://rh-images.xiaoyaoyou.com" />
     <title>AI Generator</title>
+    <style>
+      /* 首屏关键 CSS（避免白屏闪烁，移动端首字节到达前即可看到容器） */
+      html, body { margin: 0; padding: 0; background: #0a0a0f; }
+      #root { min-height: 100vh; min-height: 100dvh; }
+      /* 加载占位（避免移动端出现白色闪烁） */
+      .app-loading {
+        position: fixed; inset: 0;
+        display: flex; align-items: center; justify-content: center;
+        background: #0a0a0f;
+        color: #6e6e73;
+        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+        font-size: 14px;
+        z-index: 9999;
+      }
+      .app-loading-dot {
+        width: 8px; height: 8px; border-radius: 50%;
+        background: #0071e3; margin: 0 3px;
+        animation: app-loading-bounce 1.2s infinite ease-in-out;
+      }
+      .app-loading-dot:nth-child(2) { animation-delay: 0.15s; }
+      .app-loading-dot:nth-child(3) { animation-delay: 0.3s; }
+      @keyframes app-loading-bounce {
+        0%, 80%, 100% { transform: scale(0.6); opacity: 0.5; }
+        40% { transform: scale(1); opacity: 1; }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- 首屏加载占位（JS 加载完成后会被 React 覆盖） -->
+      <div class="app-loading">
+        <span class="app-loading-dot"></span>
+        <span class="app-loading-dot"></span>
+        <span class="app-loading-dot"></span>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
