@@ -453,17 +453,18 @@ export function ImageToImagePage({
     try {
       const nodeList: import('../types').NodeInfo[] = [];
 
-      // 最多3张参考图（nodeId: 154/118/95）
+      // 始终提交全部3个参考图槽位，即使为空
+      // 原因：若缺失 nodeId，RunningHub 后端会回退到工作流内置默认参考图，
+      // 导致只提交图1时，生成的图片反而用了模型默认的图2/图3
       const multiImageNodeIds = ['154', '118', '95'];
-      multiRefImages.forEach((img, idx) => {
-        if (img.path) {
-          nodeList.push({
-            nodeId: multiImageNodeIds[idx],
-            fieldName: 'image',
-            fieldValue: img.path,
-            description: `参考图${idx + 1}`,
-          });
-        }
+      multiImageNodeIds.forEach((nodeId, idx) => {
+        const img = multiRefImages[idx];
+        nodeList.push({
+          nodeId,
+          fieldName: 'image',
+          fieldValue: img?.path || '',
+          description: `参考图${idx + 1}`,
+        });
       });
 
       // 增强开关（nodeId: 188）
