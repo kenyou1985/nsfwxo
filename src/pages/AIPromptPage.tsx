@@ -2338,7 +2338,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
             if (lastErr) throw lastErr;
           }
 
-          const videoPrompt = videoRes.results?.[0]?.prompt?.trim();
+          const videoPrompt = videoRes?.results?.[0]?.prompt?.trim();
           if (!videoPrompt) {
             console.warn(`[handleBatchGenerateH3] 第 ${i + 1} 个视频提示词扩写返回为空，跳过`);
             return;
@@ -2614,7 +2614,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               h3Prompt={h3Prompts[idx]}
               h3Generating={h3ProcessingIndices.has(idx)}
               sceneLabel={result.theme_label || result.theme || (THEMES.find((t) => t.key === theme)?.label || theme || (r18Mode ? 'R18' : '默认主题'))}
-              onGotoLongVideoWithH3={(imageUrl) => handleGotoLongVideoWithH3(index, { image_prompt: result.image_prompt || '' }, imageUrl, h3Prompts[idx])}
+              onGotoLongVideoWithH3={(imageUrl) => handleGotoLongVideoWithH3(imageUrl, idx, h3Prompts[idx])}
               selectedImageIndex={selectedImageIndices[idx]}
               onSelectImage={(imageIdx, imageUrl) => handleSelectRandomImage(idx, imageIdx, imageUrl)}
             />
@@ -7853,6 +7853,17 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
                       )}
                     </span>
                     <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                      {onPanelH3PromptChange && (
+                        <button
+                          type="button"
+                          onClick={() => onPanelH3PromptChange?.('')}
+                          disabled={!panelH3Prompt}
+                          className="text-[10px] text-text-tertiary hover:text-red-500 flex items-center gap-0.5 px-1 py-0.5 rounded hover:bg-red-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                          title="清除提示词"
+                        >
+                          <X size={10} /> 清除
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => { navigator.clipboard?.writeText(panelH3Prompt); }}

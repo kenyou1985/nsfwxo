@@ -16732,7 +16732,7 @@ export const THEME_LIBRARY: ThemeEntry[] = [
     { shotNumber: 6, scene: '后入', prompt: '近景，把她转过身，站立后入插入，双手撑着书架，电影级光影，8K，HDR' },
     { shotNumber: 7, scene: '正面', prompt: '近景，换成把她抱起面对面插入，背靠书架，电影级光影，8K，HDR' },
     { shotNumber: 8, scene: '传教士', prompt: '近景，再换成把她按在长桌上传教士姿势深入抽插，电影级光影，8K，HDR' },
-    { shotNumber: 9, scene: '射精收尾', prompt: '近景，抽出后全部射在她脸上，精液顺着脸颊滴到书上，她抽泣着不敢动，电影级光影，8K，HDR' }
+    { shotNumber: 9, scene: '射精收尾', prompt: '近景，阴茎抽出后全部精液射在她脸上，精液顺着脸颊滴到书上，她抽泣着不敢动，电影级光影，8K，HDR' }
   ],
   beat60s: [
     { shotNumber: 1, scene: '逗留', prompt: '中景，穿衬衫短裙的女性独自在书架间找书，男性从另一头突然出现，电影级光影，8K，HDR' },
@@ -16743,7 +16743,7 @@ export const THEME_LIBRARY: ThemeEntry[] = [
     { shotNumber: 6, scene: '后入', prompt: '近景，把她转过身，站立后入插入，双手撑着书架，电影级光影，8K，HDR' },
     { shotNumber: 7, scene: '正面', prompt: '近景，换成把她抱起面对面插入，背靠书架，电影级光影，8K，HDR' },
     { shotNumber: 8, scene: '传教士', prompt: '近景，再换成把她按在长桌上传教士姿势深入抽插，电影级光影，8K，HDR' },
-    { shotNumber: 9, scene: '射精收尾', prompt: '近景，抽出后全部射在她脸上，精液顺着脸颊滴到书上，她抽泣着不敢动，电影级光影，8K，HDR' }
+    { shotNumber: 9, scene: '射精收尾', prompt: '近景，阴茎抽出后全部精液射在她脸上，精液顺着脸颊滴到书上，她抽泣着不敢动，电影级光影，8K，HDR' }
   ]
 },
 
@@ -16761,7 +16761,7 @@ export const THEME_LIBRARY: ThemeEntry[] = [
     { shotNumber: 3, scene: '威胁', prompt: '近景，女性哭"健身房已经关门了……求你……"，男性扯下她的运动服，电影级光影，8K，HDR' },
     { shotNumber: 4, scene: '强制口交', prompt: '近景，强制她跪在镜子前口交，电影级光影，8K，HDR' },
     { shotNumber: 5, scene: '多姿势', prompt: '近景，换成把她双腿架在哑铃架上正面插入，电影级光影，8K，HDR' },
-    { shotNumber: 6, scene: '射精收尾', prompt: '近景，抽出后全部射在她小腹和大腿上，她靠着镜子抽泣，电影级光影，8K，HDR' }
+    { shotNumber: 6, scene: '射精收尾', prompt: '近景，阴茎抽出后精液射在她脸上，精液顺着脸颊滴到书上，她抽泣着不敢动，电影级光影，8K，HDR' }
   ],
   beat30s: [
     { shotNumber: 1, scene: '锻炼', prompt: '中景，女性在跑步机上慢跑，灯光突然变暗，男性走来，电影级光影，8K，HDR' },
@@ -16772,7 +16772,7 @@ export const THEME_LIBRARY: ThemeEntry[] = [
     { shotNumber: 6, scene: '后入', prompt: '近景，把她趴在跑步机上后入插入，电影级光影，8K，HDR' },
     { shotNumber: 7, scene: '正面', prompt: '近景，换成把她双腿架在哑铃架上正面插入，电影级光影，8K，HDR' },
     { shotNumber: 8, scene: '站立', prompt: '近景，再换成站立抱起插入，背靠镜子，电影级光影，8K，HDR' },
-    { shotNumber: 9, scene: '射精收尾', prompt: '近景，抽出后全部射在她小腹和大腿上，她靠着镜子抽泣，电影级光影，8K，HDR' }
+    { shotNumber: 9, scene: '射精收尾', prompt: '近景，阴茎抽出后精液射在她小腹和大腿上，她靠着镜子抽泣，电影级光影，8K，HDR' }
   ],
   beat60s: [
     { shotNumber: 1, scene: '锻炼', prompt: '中景，女性在跑步机上慢跑，灯光突然变暗，男性走来，电影级光影，8K，HDR' },
@@ -16783,7 +16783,7 @@ export const THEME_LIBRARY: ThemeEntry[] = [
     { shotNumber: 6, scene: '后入', prompt: '近景，把她趴在跑步机上后入插入，电影级光影，8K，HDR' },
     { shotNumber: 7, scene: '正面', prompt: '近景，换成把她双腿架在哑铃架上正面插入，电影级光影，8K，HDR' },
     { shotNumber: 8, scene: '站立', prompt: '近景，再换成站立抱起插入，背靠镜子，电影级光影，8K，HDR' },
-    { shotNumber: 9, scene: '射精收尾', prompt: '近景，抽出后全部射在她小腹和大腿上，她靠着镜子抽泣，电影级光影，8K，HDR' }
+    { shotNumber: 9, scene: '射精收尾', prompt: '近景，阴茎抽出后精液射在她小腹和大腿上，她靠着镜子抽泣，电影级光影，8K，HDR' }
   ]
 },
 
@@ -16812,7 +16812,7 @@ export const THEME_LIBRARY: ThemeEntry[] = [
     { shotNumber: 6, scene: '后入', prompt: '近景，让她双手撑着更高一级台阶，后入插入，电影级光影，8K，HDR' },
     { shotNumber: 7, scene: '面对面', prompt: '近景，换成把她面对面抵在墙上抱起插入，电影级光影，8K，HDR' },
     { shotNumber: 8, scene: '正面', prompt: '近景，再换成让她坐在台阶上双腿分开正面插入，电影级光影，8K，HDR' },
-    { shotNumber: 9, scene: '射精收尾', prompt: '近景，抽出后全部射在她大腿内侧，精液顺着腿往下流，她坐在台阶上抽泣，电影级光影，8K，HDR' }
+    { shotNumber: 9, scene: '射精收尾', prompt: '近景，阴茎抽出后精液射在她大腿内侧，精液顺着腿往下流，她坐在台阶上抽泣，电影级光影，8K，HDR' }
   ],
   beat60s: [
     { shotNumber: 1, scene: '上楼', prompt: '中景，女性走在楼梯上，男性从上方下来堵住去路，电影级光影，8K，HDR' },
@@ -16823,7 +16823,7 @@ export const THEME_LIBRARY: ThemeEntry[] = [
     { shotNumber: 6, scene: '后入', prompt: '近景，让她双手撑着更高一级台阶，后入插入，电影级光影，8K，HDR' },
     { shotNumber: 7, scene: '面对面', prompt: '近景，换成把她面对面抵在墙上抱起插入，电影级光影，8K，HDR' },
     { shotNumber: 8, scene: '正面', prompt: '近景，再换成让她坐在台阶上双腿分开正面插入，电影级光影，8K，HDR' },
-    { shotNumber: 9, scene: '射精收尾', prompt: '近景，抽出后全部射在她大腿内侧，精液顺着腿往下流，她坐在台阶上抽泣，电影级光影，8K，HDR' }
+    { shotNumber: 9, scene: '射精收尾', prompt: '近景，阴茎抽出后精液全部射在她大腿内侧，精液顺着腿往下流，她坐在台阶上抽泣，电影级光影，8K，HDR' }
   ]
 },
 
@@ -16885,7 +16885,7 @@ export const THEME_LIBRARY: ThemeEntry[] = [
     { shotNumber: 3, scene: '威胁', prompt: '近景，女性哭喊"会有人过来……求你们……"，电影级光影，8K，HDR' },
     { shotNumber: 4, scene: '双人口交', prompt: '近景，在后座强制为两人口交，电影级光影，8K，HDR' },
     { shotNumber: 5, scene: '轮流插入', prompt: '近景，男性A后座后入，男性B站车外让她用手，电影级光影，8K，HDR' },
-    { shotNumber: 6, scene: '射精收尾', prompt: '近景，两人同时射在她小腹和胸口，精液顺着身体流下，她躺在引擎盖上抽泣，电影级光影，8K，HDR' }
+    { shotNumber: 6, scene: '射精收尾', prompt: '近景，两人精液同时射在她小腹和胸口，精液顺着身体流下，她躺在引擎盖上抽泣，电影级光影，8K，HDR' }
   ],
   beat30s: [
     { shotNumber: 1, scene: '被抓', prompt: '中景，女性被两名男性夹在中间走向一辆车，电影级光影，8K，HDR' },
@@ -16896,7 +16896,7 @@ export const THEME_LIBRARY: ThemeEntry[] = [
     { shotNumber: 6, scene: 'A插入B服务', prompt: '近景，男性A后座后入插入，男性B站车外让她用手，电影级光影，8K，HDR' },
     { shotNumber: 7, scene: 'B插入A口交', prompt: '近景，把她抱到引擎盖上，男性B正面插入，男性A让她口交，电影级光影，8K，HDR' },
     { shotNumber: 8, scene: '轮流', prompt: '近景，两人快速轮流抽插，电影级光影，8K，HDR' },
-    { shotNumber: 9, scene: '射精收尾', prompt: '近景，两人同时射在她小腹和胸口，精液顺着身体流下，她躺在引擎盖上抽泣，电影级光影，8K，HDR' }
+    { shotNumber: 9, scene: '射精收尾', prompt: '近景，两人精液同时射在她小腹和胸口，精液顺着身体流下，她躺在引擎盖上抽泣，电影级光影，8K，HDR' }
   ],
   beat60s: [
     { shotNumber: 1, scene: '被抓', prompt: '中景，女性被两名男性夹在中间走向一辆车，电影级光影，8K，HDR' },
@@ -16907,7 +16907,7 @@ export const THEME_LIBRARY: ThemeEntry[] = [
     { shotNumber: 6, scene: 'A插入B服务', prompt: '近景，男性A后座后入插入，男性B站车外让她用手，电影级光影，8K，HDR' },
     { shotNumber: 7, scene: 'B插入A口交', prompt: '近景，把她抱到引擎盖上，男性B正面插入，男性A让她口交，电影级光影，8K，HDR' },
     { shotNumber: 8, scene: '轮流', prompt: '近景，两人快速轮流抽插，电影级光影，8K，HDR' },
-    { shotNumber: 9, scene: '射精收尾', prompt: '近景，两人同时射在她小腹和胸口，精液顺着身体流下，她躺在引擎盖上抽泣，电影级光影，8K，HDR' }
+    { shotNumber: 9, scene: '射精收尾', prompt: '近景，两人精液同时射在她小腹和胸口，精液顺着身体流下，她躺在引擎盖上抽泣，电影级光影，8K，HDR' }
   ]
 },
 
@@ -16925,7 +16925,7 @@ export const THEME_LIBRARY: ThemeEntry[] = [
     { shotNumber: 3, scene: '威胁', prompt: '近景，主女性哭着"太多人了……求你们……"，电影级光影，8K，HDR' },
     { shotNumber: 4, scene: '双女口交', prompt: '近景，两名女性被强制同时为两名男性口交，电影级光影，8K，HDR' },
     { shotNumber: 5, scene: '轮流', prompt: '近景，男性A后入主女性，男性B后入另一名女性，电影级光影，8K，HDR' },
-    { shotNumber: 6, scene: '射精收尾', prompt: '近景，两名男性分别射在两名女性脸上，主女性哭得最厉害，电影级光影，8K，HDR' }
+    { shotNumber: 6, scene: '射精收尾', prompt: '近景，两名男性精液分别射在两名女性脸上，主女性哭得最厉害，电影级光影，8K，HDR' }
   ],
   beat30s: [
     { shotNumber: 1, scene: '开始', prompt: '中景，四个人在客厅，两名男性突然按住两名女性，电影级光影，8K，HDR' },
@@ -16936,7 +16936,7 @@ export const THEME_LIBRARY: ThemeEntry[] = [
     { shotNumber: 6, scene: 'A后入主女', prompt: '近景，男性A后入主女性，男性B后入另一名女性，电影级光影，8K，HDR' },
     { shotNumber: 7, scene: 'B正面主女', prompt: '近景，交换对象，男性B正面插入主女性，电影级光影，8K，HDR' },
     { shotNumber: 8, scene: '双女后入', prompt: '近景，两名女性被摆成面对面，两名男性同时从后方插入，电影级光影，8K，HDR' },
-    { shotNumber: 9, scene: '射精收尾', prompt: '近景，两名男性分别射在两名女性脸上，主女性哭得最厉害，电影级光影，8K，HDR' }
+    { shotNumber: 9, scene: '射精收尾', prompt: '近景，两名男性精液分别射在两名女性脸上，主女性哭得最厉害，电影级光影，8K，HDR' }
   ],
   beat60s: [
     { shotNumber: 1, scene: '开始', prompt: '中景，四个人在客厅，两名男性突然按住两名女性，电影级光影，8K，HDR' },
@@ -16947,7 +16947,7 @@ export const THEME_LIBRARY: ThemeEntry[] = [
     { shotNumber: 6, scene: 'A后入主女', prompt: '近景，男性A后入主女性，男性B后入另一名女性，电影级光影，8K，HDR' },
     { shotNumber: 7, scene: 'B正面主女', prompt: '近景，交换对象，男性B正面插入主女性，电影级光影，8K，HDR' },
     { shotNumber: 8, scene: '双女后入', prompt: '近景，两名女性被摆成面对面，两名男性同时从后方插入，电影级光影，8K，HDR' },
-    { shotNumber: 9, scene: '射精收尾', prompt: '近景，两名男性分别射在两名女性脸上，主女性哭得最厉害，电影级光影，8K，HDR' }
+    { shotNumber: 9, scene: '射精收尾', prompt: '近景，两名男性精液分别射在两名女性脸上，主女性哭得最厉害，电影级光影，8K，HDR' }
   ]
 },
 
@@ -16965,7 +16965,7 @@ export const THEME_LIBRARY: ThemeEntry[] = [
     { shotNumber: 3, scene: '威胁', prompt: '近景，主女性哭着"求你……别让我做这种事……"但仍被强迫，电影级光影，8K，HDR' },
     { shotNumber: 4, scene: '双女口交', prompt: '近景，强制两名女性同时为男性口交，电影级光影，8K，HDR' },
     { shotNumber: 5, scene: '轮流', prompt: '近景，两名女性被摆成跪趴姿势，男性轮流快速抽插，电影级光影，8K，HDR' },
-    { shotNumber: 6, scene: '射精收尾', prompt: '近景，最终射在两名女性脸上，她们并排抽泣，电影级光影，8K，HDR' }
+    { shotNumber: 6, scene: '射精收尾', prompt: '近景，最终精液射在两名女性脸上，她们并排抽泣，电影级光影，8K，HDR' }
   ],
   beat30s: [
     { shotNumber: 1, scene: '进入', prompt: '中景，两名穿连衣裙的女性被男性带进套房，电影级光影，8K，HDR' },
@@ -16976,7 +16976,7 @@ export const THEME_LIBRARY: ThemeEntry[] = [
     { shotNumber: 6, scene: '主女后入', prompt: '近景，男性后入插入主女性，同时让另一名女性继续口交，电影级光影，8K，HDR' },
     { shotNumber: 7, scene: '另一女正面', prompt: '近景，换成正面插入另一名女性，主女性被按着观看，电影级光影，8K，HDR' },
     { shotNumber: 8, scene: '轮流', prompt: '近景，两名女性被摆成跪趴姿势，男性轮流快速抽插，电影级光影，8K，HDR' },
-    { shotNumber: 9, scene: '射精收尾', prompt: '近景，最终射在两名女性脸上，她们并排抽泣，电影级光影，8K，HDR' }
+    { shotNumber: 9, scene: '射精收尾', prompt: '近景，最终精液射在两名女性脸上，她们并排抽泣，电影级光影，8K，HDR' }
   ],
   beat60s: [
     { shotNumber: 1, scene: '进入', prompt: '中景，两名穿连衣裙的女性被男性带进套房，电影级光影，8K，HDR' },
@@ -16987,7 +16987,7 @@ export const THEME_LIBRARY: ThemeEntry[] = [
     { shotNumber: 6, scene: '主女后入', prompt: '近景，男性后入插入主女性，同时让另一名女性继续口交，电影级光影，8K，HDR' },
     { shotNumber: 7, scene: '另一女正面', prompt: '近景，换成正面插入另一名女性，主女性被按着观看，电影级光影，8K，HDR' },
     { shotNumber: 8, scene: '轮流', prompt: '近景，两名女性被摆成跪趴姿势，男性轮流快速抽插，电影级光影，8K，HDR' },
-    { shotNumber: 9, scene: '射精收尾', prompt: '近景，最终射在两名女性脸上，她们并排抽泣，电影级光影，8K，HDR' }
+    { shotNumber: 9, scene: '射精收尾', prompt: '近景，最终精液射在两名女性脸上，她们并排抽泣，电影级光影，8K，HDR' }
   ]
 },
 
@@ -17045,7 +17045,7 @@ export const THEME_LIBRARY: ThemeEntry[] = [
     { shotNumber: 3, scene: '威胁', prompt: '近景，女性哭喊"车在走……求你停下……我会掉下去……"，男性扯下她的裤子，电影级光影，8K，HDR' },
     { shotNumber: 4, scene: '双人口交', prompt: '近景，在颠簸中强制为两人口交，电影级光影，8K，HDR' },
     { shotNumber: 5, scene: '轮流插入', prompt: '近景，两名男性快速轮流抽插，她抓着货物箱，电影级光影，8K，HDR' },
-    { shotNumber: 6, scene: '射精收尾', prompt: '近景，两人同时射在她身上，精液随颠簸往下淌，她抽泣着，电影级光影，8K，HDR' }
+    { shotNumber: 6, scene: '射精收尾', prompt: '近景，两人精液同时射在她身上，精液随颠簸往下淌，她抽泣着，电影级光影，8K，HDR' }
   ],
   beat30s: [
     { shotNumber: 1, scene: '上车', prompt: '中景，两名女性坐在货车后厢，车辆开始行驶，男性关上车门，电影级光影，8K，HDR' },
@@ -17056,7 +17056,7 @@ export const THEME_LIBRARY: ThemeEntry[] = [
     { shotNumber: 6, scene: 'A插入', prompt: '近景，男性A后入姿势插入，她双手撑着车厢壁，电影级光影，8K，HDR' },
     { shotNumber: 7, scene: 'B插入', prompt: '近景，换成男性B正面插入，电影级光影，8K，HDR' },
     { shotNumber: 8, scene: '轮流', prompt: '近景，两名男性快速轮流抽插，她抓着货物箱，电影级光影，8K，HDR' },
-    { shotNumber: 9, scene: '射精收尾', prompt: '近景，两人同时射在她身上，精液随颠簸往下淌，她抽泣着，电影级光影，8K，HDR' }
+    { shotNumber: 9, scene: '射精收尾', prompt: '近景，两人精液同时射在她身上，精液随颠簸往下淌，她抽泣着，电影级光影，8K，HDR' }
   ],
   beat60s: [
     { shotNumber: 1, scene: '上车', prompt: '中景，两名女性坐在货车后厢，车辆开始行驶，男性关上车门，电影级光影，8K，HDR' },
@@ -17067,7 +17067,7 @@ export const THEME_LIBRARY: ThemeEntry[] = [
     { shotNumber: 6, scene: 'A插入', prompt: '近景，男性A后入姿势插入，她双手撑着车厢壁，电影级光影，8K，HDR' },
     { shotNumber: 7, scene: 'B插入', prompt: '近景，换成男性B正面插入，电影级光影，8K，HDR' },
     { shotNumber: 8, scene: '轮流', prompt: '近景，两名男性快速轮流抽插，她抓着货物箱，电影级光影，8K，HDR' },
-    { shotNumber: 9, scene: '射精收尾', prompt: '近景，两人同时射在她身上，精液随颠簸往下淌，她抽泣着，电影级光影，8K，HDR' }
+    { shotNumber: 9, scene: '射精收尾', prompt: '近景，两人精液同时射在她身上，精液随颠簸往下淌，她抽泣着，电影级光影，8K，HDR' }
   ]
 },
 
@@ -17125,7 +17125,7 @@ export const THEME_LIBRARY: ThemeEntry[] = [
     { shotNumber: 3, scene: '威胁', prompt: '近景，女性哭"求你们……别这样……"，衣服被扯掉，电影级光影，8K，HDR' },
     { shotNumber: 4, scene: '多人口交', prompt: '近景，强制她为多人轮流口交，电影级光影，8K，HDR' },
     { shotNumber: 5, scene: '轮流插入', prompt: '近景，男性们轮流快速抽插，电影级光影，8K，HDR' },
-    { shotNumber: 6, scene: '射精收尾', prompt: '近景，多人同时射在她身上，她瘫软抽泣，电影级光影，8K，HDR' }
+    { shotNumber: 6, scene: '射精收尾', prompt: '近景，多人精液同时射在她身上，她瘫软抽泣，电影级光影，8K，HDR' }
   ],
   beat30s: [
     { shotNumber: 1, scene: '泳池边', prompt: '中景，女性穿着比基尼在泳池边休息，男性们围上来，电影级光影，8K，HDR' },
@@ -17136,7 +17136,7 @@ export const THEME_LIBRARY: ThemeEntry[] = [
     { shotNumber: 6, scene: '轮流插入1', prompt: '近景，男性A后入插入，男性B继续让她口交，电影级光影，8K，HDR' },
     { shotNumber: 7, scene: '轮流插入2', prompt: '近景，男性B插入，男性A观看，电影级光影，8K，HDR' },
     { shotNumber: 8, scene: '轮流抽插', prompt: '近景，多人快速轮流抽插，电影级光影，8K，HDR' },
-    { shotNumber: 9, scene: '射精收尾', prompt: '近景，多人同时射在她身上，她瘫软抽泣，电影级光影，8K，HDR' }
+    { shotNumber: 9, scene: '射精收尾', prompt: '近景，多人精液同时射在她身上，她瘫软抽泣，电影级光影，8K，HDR' }
   ],
   beat60s: [
     { shotNumber: 1, scene: '泳池边', prompt: '中景，女性穿着比基尼在泳池边休息，男性们围上来，电影级光影，8K，HDR' },
@@ -17147,7 +17147,7 @@ export const THEME_LIBRARY: ThemeEntry[] = [
     { shotNumber: 6, scene: '轮流插入1', prompt: '近景，男性A后入插入，男性B继续让她口交，电影级光影，8K，HDR' },
     { shotNumber: 7, scene: '轮流插入2', prompt: '近景，男性B插入，男性A观看，电影级光影，8K，HDR' },
     { shotNumber: 8, scene: '轮流抽插', prompt: '近景，多人快速轮流抽插，电影级光影，8K，HDR' },
-    { shotNumber: 9, scene: '射精收尾', prompt: '近景，多人同时射在她身上，她瘫软抽泣，电影级光影，8K，HDR' }
+    { shotNumber: 9, scene: '射精收尾', prompt: '近景，多人精液同时射在她身上，她瘫软抽泣，电影级光影，8K，HDR' }
   ]
 },
 
@@ -18724,14 +18724,67 @@ function _强化Soundscape_已废弃(text: string): string {
 /**
  * 获取主题的镜头序列。
  *
- * 所有类别（含 SM 重口）统一走智能生成器：
- *   - 根据 title/scenario 提取元素（服装/场景/道具/氛围/男性服装）
- *   - 应用类别专属的两阶段镜头模板（出场穿衣 → 性行为全裸）
+ * 强约束分类（强制凌辱）和弱约束分类走不同路径：
  *
- * SM 重口不再使用原始 beat 数据（那些数据过于简单如"被钢钉穿刺后疼痛和快感交织尖叫"，
- * 不符合 H3 模板格式，参考用户反馈）。
+ * 【强约束】强制凌辱分类
+ *   - 严格使用 themeLibrary.ts 中的文件 beats
+ *   - 不走动态生成（确保 UI 显示 = 文件内容）
+ *   - 文件 beats 缺失时打印警告并返回空数组（不再回退到动态生成）
+ *
+ * 【弱约束】SM 重口分类
+ *   - 文件 beats 过于简单，"被钢钉穿刺后疼痛和快感交织尖叫" 之类，
+ *     不符合 H3 模板格式 → 继续走动态生成（参考用户反馈）
+ *
+ * 【默认】其他分类
+ *   - 优先使用文件 beats
+ *   - 文件无数据 / 数量不匹配 → fallback 到动态生成
  */
 function 获取主题镜头(主题: ThemeEntry, shotCount: number): ThemeBeat[] {
+  // ════════════════════════════════════════════════════════════════════════
+  // 【强约束】强制凌辱分类：严格使用文件 beats，保证 UI 与 themeLibrary.ts 同步
+  // ════════════════════════════════════════════════════════════════════════
+  if (主题.category === '强制凌辱') {
+    const fileBeats =
+      shotCount === 6
+        ? 主题.beat15s
+        : 主题.beat30s && 主题.beat30s.length > 0
+        ? 主题.beat30s
+        : 主题.beat60s;
+
+    if (fileBeats && fileBeats.length === shotCount) {
+      return fileBeats;
+    }
+
+    // beats 缺失 / 数量不匹配：打印警告 + 返回空数组（不走动态生成，保持"文件是唯一真理"）
+    console.warn(
+      `[themeLibrary] 强制凌辱主题 ${主题.id}「${主题.title}」的 beats 数据缺失或不匹配 ` +
+      `(期望 ${shotCount} 个镜头, 实际 ${fileBeats?.length ?? 0})。` +
+      `请补充 themeLibrary.ts 中的 beat15s/beat30s/beat60s。`
+    );
+    return fileBeats && fileBeats.length > 0 ? fileBeats : [];
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  // 【弱约束】SM 重口分类：原始 beats 太简单，保持动态生成逻辑
+  // ════════════════════════════════════════════════════════════════════════
+  if (主题.category === 'SM重口') {
+    return 动态生成镜头序列(主题, shotCount);
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  // 【默认】其他分类：优先使用文件 beats，缺失时 fallback 到动态生成
+  // ════════════════════════════════════════════════════════════════════════
+  const fileBeats =
+    shotCount === 6
+      ? 主题.beat15s
+      : 主题.beat30s && 主题.beat30s.length > 0
+      ? 主题.beat30s
+      : 主题.beat60s;
+
+  if (fileBeats && fileBeats.length === shotCount) {
+    return fileBeats;
+  }
+
   return 动态生成镜头序列(主题, shotCount);
 }
 

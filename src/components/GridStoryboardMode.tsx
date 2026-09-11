@@ -1008,7 +1008,7 @@ export function GridStoryboardMode({
         const idx = merged.findIndex((t) => t.themeTitle === entry.themeTitle);
         const historyId = addGridHistory({
           plot: entry.themeTitle,
-          gridSize: entry.gridSize,
+          grid_size: entry.gridSize,
           r18: r18Mode,
           panels: entry.panels,
         });
@@ -2108,7 +2108,7 @@ export function GridStoryboardMode({
     setFullPrompt('');
     setGridImages([]);
     setActiveImageIdx(0);
-    setSelectedTemplate(null);
+    setSelectedTemplates([]);
     setStep('themes');
     setCurrentHistoryId(null);
     clearGridSession();

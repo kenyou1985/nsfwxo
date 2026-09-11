@@ -1288,6 +1288,46 @@ const handleGirlfriendSelect = useCallback(
               </span>
             )}
           </h3>
+          <div className="flex items-center gap-1">
+            {/* 清除按钮 */}
+            <button
+              type="button"
+              onClick={() => {
+                setPrompt('');
+                handleClearThemeTabs();
+              }}
+              disabled={!prompt}
+              className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium text-text-tertiary hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              title="清除提示词"
+            >
+              <X size={11} /> 清除
+            </button>
+            {/* 复制按钮 */}
+            <button
+              type="button"
+              onClick={async () => {
+                if (!prompt.trim()) return;
+                try {
+                  if (navigator.clipboard?.writeText) {
+                    await navigator.clipboard.writeText(prompt);
+                  } else {
+                    const ta = document.createElement('textarea');
+                    ta.value = prompt;
+                    ta.style.cssText = 'position:fixed;opacity:0';
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                  }
+                } catch { /* noop */ }
+              }}
+              disabled={!prompt.trim()}
+              className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium text-primary hover:bg-indigo-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              title="复制提示词"
+            >
+              <Copy size={11} /> 复制
+            </button>
+          </div>
         </div>
         {/* 模版预设 + 主题标签切换 */}
         {H3_VIDEO_TEMPLATES.length > 0 && (

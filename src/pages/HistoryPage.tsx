@@ -96,7 +96,7 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
     setRecords((prev) => prev.filter((r) => !imageSelection.has(r.id)));
     setImageSelection(new Set());
     setImageSelectionMode(false);
-    onSuccess(`已删除 ${removed} 条历史记录`);
+    onSuccess?.(`已删除 ${removed} 条历史记录`);
   }, [imageSelection, onSuccess]);
   // P2.2 防抖：searchQuery 直接驱动 input（即时反馈），debouncedSearchQuery 驱动过滤
   const [searchQuery, setSearchQuery] = useState('');
@@ -1126,7 +1126,7 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
                   '2094672102264090625', // 长视频 v1.1 (旧版)
                   '2084661265636839425', // MiniMax H3 图生视频
                 ];
-                return LONG_VIDEO_IDS.includes(r.workflowId);
+                return LONG_VIDEO_IDS.includes(r.workflowId ?? '');
               }
               return true;
             })

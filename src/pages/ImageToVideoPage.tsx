@@ -1366,7 +1366,7 @@ function MiniMaxH3Panel({
           setMmEroticPrompts(prev => {
             const completed = prev
               .map((p, i) => ({ p, i }))
-              .filter(({ p }) => p && !p.startsWith('[生成失败'));
+              .filter((c): c is { p: string; i: number } => c.p != null && !c.p.startsWith('[生成失败'));
 
             if (completed.length >= 2) {
               const completedPrompts = completed.map(c => c.p);
