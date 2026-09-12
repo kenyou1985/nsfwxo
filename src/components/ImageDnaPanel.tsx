@@ -199,18 +199,10 @@ export const ImageDnaPanel: React.FC<ImageDnaPanelProps> = ({
   const [draftSupplementary, setDraftSupplementary] = useState(supplementary || '');
   const [isEditingSupplementary, setIsEditingSupplementary] = useState(!supplementary);
   // ─── 补充信息面板折叠/展开 ───────────────────────────────────────────
-  // 默认折叠：避免视觉杂乱，用户点击标题栏或「展开」按钮才显示编辑区。
-  // 触发自动展开的例外：用户已开始编辑（isEditingSupplementary=true）且没有已提交内容
+  // 强制默认折叠：不管 prop / 编辑状态如何，都从折叠开始。
+  // 用户必须主动点击标题栏或「展开」按钮才显示编辑区。
+  // 这样能避免视觉杂乱，且补充信息本身就是可选字段。
   const [isSupplementaryPanelOpen, setIsSupplementaryPanelOpen] = useState(false);
-  // 自动展开判断：仅在初次进入"无任何内容 + 用户已开始编辑"时打开
-  // 当 prop supplementary 非空（有已提交内容）时也保持折叠，需要展开才能看到详情
-  // 若 isEditingSupplementary=true 但尚未提交，则视作用户主动编辑，临时展开
-  React.useEffect(() => {
-    if (isEditingSupplementary && !supplementary.trim()) {
-      setIsSupplementaryPanelOpen(true);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // ─── 逐条补充信息流 ──────────────────────────────────────────────────
   // 逐条模式下，每个槽位独立维护本地草稿；提交时一次性同步到父组件
