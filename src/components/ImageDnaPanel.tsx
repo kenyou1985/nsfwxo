@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, ChangeEvent } from 'react';
-import { User, MapPin, Shirt, Sparkles, Loader2, RefreshCw, Zap, Download, Copy, Wand2, ChevronRight, X, Maximize2, Replace, Plus, Trash2, RotateCcw, Pencil, Image as ImageIcon, Upload, Check } from 'lucide-react';
+import { User, MapPin, Shirt, Sparkles, Loader2, RefreshCw, Zap, Download, Copy, Wand2, ChevronRight, ChevronDown, X, Maximize2, Replace, Plus, Trash2, RotateCcw, Pencil, Image as ImageIcon, Upload, Check } from 'lucide-react';
 import type { ClothingInfo, ImageDnaResult } from '../services/promptApi';
 import { extractClothings } from '../services/promptApi';
 import { useToast } from '../hooks/useToast';
@@ -198,6 +198,19 @@ export const ImageDnaPanel: React.FC<ImageDnaPanelProps> = ({
   // draftSupplementary（local）= 用户当前在文本框里编辑的草稿，未提交不生效
   const [draftSupplementary, setDraftSupplementary] = useState(supplementary || '');
   const [isEditingSupplementary, setIsEditingSupplementary] = useState(!supplementary);
+  // ─── 补充信息面板折叠/展开 ───────────────────────────────────────────
+  // 默认折叠：避免视觉杂乱，用户点击标题栏或「展开」按钮才显示编辑区。
+  // 触发自动展开的例外：用户已开始编辑（isEditingSupplementary=true）且没有已提交内容
+  const [isSupplementaryPanelOpen, setIsSupplementaryPanelOpen] = useState(false);
+  // 自动展开判断：仅在初次进入"无任何内容 + 用户已开始编辑"时打开
+  // 当 prop supplementary 非空（有已提交内容）时也保持折叠，需要展开才能看到详情
+  // 若 isEditingSupplementary=true 但尚未提交，则视作用户主动编辑，临时展开
+  React.useEffect(() => {
+    if (isEditingSupplementary && !supplementary.trim()) {
+      setIsSupplementaryPanelOpen(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ─── 逐条补充信息流 ──────────────────────────────────────────────────
   // 逐条模式下，每个槽位独立维护本地草稿；提交时一次性同步到父组件
@@ -802,35 +815,100 @@ export const ImageDnaPanel: React.FC<ImageDnaPanelProps> = ({
 
       {/* 自定义补充信息 - 用户可手动指定必须出现的姿势/道具/场景元素等 */}
       <div className="rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 p-3">
-        {/* 标题栏 + 模式切换 */}
-        <div className="flex items-center gap-2 mb-3">
+        {/* 标题栏 + 折叠/展开 + 模式切换 */}
+        <div
+          className="flex items-center gap-2 mb-0 cursor-pointer select-none"
+          onClick={() => setIsSupplementaryPanelOpen(prev => !prev)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              setIsSupplementaryPanelOpen(prev => !prev);
+            }
+          }}
+        >
           <Pencil size={14} className="text-emerald-500" />
           <span className="text-xs font-semibold text-text-primary">自定义补充信息</span>
 
-          {/* 模式切换 Pills */}
-          <div className="flex ml-auto rounded-lg border border-emerald-300 overflow-hidden text-[9px] font-medium">
+          {/* 已提交内容摘要（折叠时显示） */}
+          {!isSupplementaryPanelOpen && supplementaryMode === 'unified' && supplementary.trim().length > 0 && (
+            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[9px] font-medium border border-emerald-200">
+              <Check size={9} />
+              已设置 · {supplementary.trim().length} 字
+            </span>
+          )}
+          {!isSupplementaryPanelOpen && supplementaryMode === 'individual' && supplementaryItems.some(s => s.trim().length > 0) && (() => {
+            const filled = supplementaryItems.filter(s => s.trim().length > 0).length;
+            return (
+              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[9px] font-medium border border-emerald-200">
+                <Check size={9} />
+                已设置 · {filled}/{effectiveCount}
+              </span>
+            );
+          })()}
+
+          {/* 展开/折叠按钮（点击整行也可切换） */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsSupplementaryPanelOpen(prev => !prev);
+            }}
+            className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded-lg border border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50 text-[10px] font-medium transition-colors"
+            title={isSupplementaryPanelOpen ? '折叠补充信息面板' : '展开补充信息面板'}
+          >
+            {isSupplementaryPanelOpen ? '折叠' : '展开'}
+            {isSupplementaryPanelOpen
+              ? <ChevronDown size={11} className="rotate-180 transition-transform" />
+              : <ChevronDown size={11} className="transition-transform" />
+            }
+          </button>
+        </div>
+
+        {/* 折叠状态下的简要说明 + 一键展开 */}
+        {!isSupplementaryPanelOpen && (
+          <div className="mt-2 text-[10px] text-emerald-600/80 leading-relaxed">
+            💡 用于指定必须出现的姿势 / 道具 / 场景元素。除非明确改变场景，否则 H3 提示词默认以参考图作为首帧。
             <button
-              onClick={() => onSupplementaryModeChange?.('individual')}
-              className={`px-2 py-1 transition-colors ${
-                supplementaryMode === 'individual'
-                  ? 'bg-emerald-500 text-white'
-                  : 'bg-white text-emerald-700 hover:bg-emerald-50'
-              }`}
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setIsSupplementaryPanelOpen(true); }}
+              className="ml-1 underline decoration-emerald-400 hover:text-emerald-700"
             >
-              逐条补充
-            </button>
-            <button
-              onClick={() => onSupplementaryModeChange?.('unified')}
-              className={`px-2 py-1 transition-colors ${
-                supplementaryMode === 'unified'
-                  ? 'bg-emerald-500 text-white'
-                  : 'bg-white text-emerald-700 hover:bg-emerald-50'
-              }`}
-            >
-              统一补充
+              点击展开
             </button>
           </div>
-        </div>
+        )}
+
+        {/* 面板内容：仅在展开时显示 */}
+        {isSupplementaryPanelOpen && (
+          <>
+            {/* 模式切换 Pills（放在独立行，避免与标题栏的展开按钮冲突） */}
+            <div className="flex items-center gap-2 mt-3 mb-3">
+              <span className="text-[10px] text-emerald-700/80 font-medium">补充模式：</span>
+              <div className="flex rounded-lg border border-emerald-300 overflow-hidden text-[9px] font-medium">
+                <button
+                  onClick={() => onSupplementaryModeChange?.('individual')}
+                  className={`px-2 py-1 transition-colors ${
+                    supplementaryMode === 'individual'
+                      ? 'bg-emerald-500 text-white'
+                      : 'bg-white text-emerald-700 hover:bg-emerald-50'
+                  }`}
+                >
+                  逐条补充
+                </button>
+                <button
+                  onClick={() => onSupplementaryModeChange?.('unified')}
+                  className={`px-2 py-1 transition-colors ${
+                    supplementaryMode === 'unified'
+                      ? 'bg-emerald-500 text-white'
+                      : 'bg-white text-emerald-700 hover:bg-emerald-50'
+                  }`}
+                >
+                  统一补充
+                </button>
+              </div>
+            </div>
 
         {/* ── 逐条补充模式 ───────────────────────────────────────── */}
         {supplementaryMode === 'individual' ? (
@@ -1040,6 +1118,8 @@ export const ImageDnaPanel: React.FC<ImageDnaPanelProps> = ({
               </>
             )}
           </div>
+        )}
+          </>
         )}
       </div>
 

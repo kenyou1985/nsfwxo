@@ -426,9 +426,39 @@ export function MiniMaxLongVideoV2Page({
       } catch { /* use original path */ }
     }
 
-    const userHint = prompt.trim() || undefined;
+    const userHintRaw = prompt.trim() || undefined;
+    // ── 默认首帧锚点约束：参考图始终是首帧 ──
+    // 长视频 V2 页面没有补充信息编辑入口，因此始终启用首帧锚点。
+    // 唯一例外：用户在 prompt 里显式要求"换场景"。
+    const SCENE_CHANGE_KEYWORDS = [
+      '换场景', '切换到', '切到', '场景换成', '转到', '场景切换',
+      '在另一', '去另一', '场景改为', '场景换', '场景变',
+      'moved to', 'switch scene', 'change scene', 'at the ', 'in the hotel',
+    ];
+    const sceneExplicitlyChanged = userHintRaw
+      ? SCENE_CHANGE_KEYWORDS.some(kw => userHintRaw!.includes(kw))
+      : false;
+    const FIRST_FRAME_ANCHOR = sceneExplicitlyChanged
+      ? ''
+      : `【首帧锚点 - 最高优先级】
+1. 默认行为：[Shot 1] 必须以参考图作为首帧视觉起点，画面构图、角色站位 / 姿势 / 朝向、背景环境、服装必须紧贴参考图。不允许凭空脑补未出现的场景、动作或外观。
+2. 角色一致性：全程必须严格复用参考图的角色外观（面部、发型、妆容、身材、肤色、服装）。如用户提示词要求换服装，按提示词执行；否则沿用参考图。
+3. 场景默认沿用参考图：参考图所在的场景即首帧场景。提示词中如果仅指定姿势/道具/动作，仍在参考图场景内执行；只有显式提到"换场景/切换/转到某地"时才允许替换。
+4. [Shot N] 对应 <Picture N>：每个 Shot 必须显式以"对应<Picture N>"开头，把参考图当作画面锚点。
+5. 如果生成的 [Shot 1] 内容看起来不像参考图（比如凭空出现新角色、新环境、新构图），视为违规，必须重写。`;
+
+    const userHint = userHintRaw
+      ? (FIRST_FRAME_ANCHOR ? `${FIRST_FRAME_ANCHOR}\n\n${userHintRaw}` : userHintRaw)
+      : (FIRST_FRAME_ANCHOR || undefined);
     const dur = (parseInt(duration, 10) as 15 | 30 | 60);
     const count = eroticCount;
+
+    console.log('[MiniMaxLongVideoV2] handleEroticAnalyze userHint 构造', {
+      hasFirstFrameAnchor: !!FIRST_FRAME_ANCHOR,
+      sceneExplicitlyChanged,
+      hasUserHint: !!userHintRaw,
+      finalUserHintLength: userHint?.length ?? 0,
+    });
 
     setEroticPrompts(Array(count).fill('')); // 流式实时显示
 

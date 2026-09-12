@@ -1289,23 +1289,57 @@ function MiniMaxH3Panel({
 5. 最后一个镜头统一为射精收尾：最后一个 [Shot N] 必须是射精瞬间（男性在女性体内/口腔/臀部/胸部/面部射出精液）+ 女性高潮反应的合并镜头。严禁单独出现「事后展示/衣衫不整/精液残留/半裸靠椅背/餍足表情」这种收尾镜头 —— 这些可以融入射精镜头内（如精液从交合处溢出、脸颊残留），但不能作为单独的 last shot 存在。
 6. 分镜结构：倒数第二个镜头是持续抽插/高潮前奏，最后一个镜头立即转入射精收尾（高潮 → 射精 → 精液溢出/覆盖），不允许中间插入事后状态。`;
 
+    // ── 默认首帧锚点约束：除非补充信息明确改变场景，否则参考图始终是首帧 ──
+    // 这是修复「补充信息加入后视频直接跳过参考图」的关键。
+    // 把这段放在 userHint 的最开头（最高优先级），确保后端 LLM 把 <Picture 1>
+    // 当作 [Shot 1] 的视觉起点，并保持参考图的角色外观 / 构图 / 场景 / 服装。
+    // 当用户/补充信息明确提出新场景（如"切到海边"、"换到酒店大堂"）时，
+    // 那段说明会自然覆盖此约束；其它所有情况下参考图始终是首帧。
+    // 关键词扫描：如果补充信息里包含明确的"换场景"动词，标识 sceneChanged = true
+    const SCENE_CHANGE_KEYWORDS = [
+      '换场景', '切换到', '切到', '场景换成', '转到', '场景切换',
+      '在另一', '去另一', '场景改为', '场景换', '场景变',
+      'moved to', 'switch scene', 'change scene', 'at the ', 'in the hotel',
+    ];
+    const allSuppText = [supplementaryRaw || '', ...mmSupplementaryItems.filter(Boolean)].join('\n');
+    const sceneExplicitlyChanged = SCENE_CHANGE_KEYWORDS.some(kw => allSuppText.includes(kw));
+    const FIRST_FRAME_ANCHOR = sceneExplicitlyChanged
+      ? ''
+      : `【首帧锚点 - 最高优先级】
+1. 默认行为：[Shot 1] 必须以参考图作为首帧视觉起点，画面构图、角色站位 / 姿势 / 朝向、背景环境、服装必须紧贴参考图。不允许凭空脑补未出现的场景、动作或外观。
+2. 角色一致性：全程必须严格复用参考图的角色外观（面部、发型、妆容、身材、肤色、服装）。如补充信息要求换服装，按补充信息执行；否则沿用参考图。
+3. 场景默认沿用参考图：参考图所在的场景即首帧场景。补充信息中如果仅指定姿势/道具/动作，仍在参考图场景内执行；只有显式提到"换场景/切换/转到某地"时才允许替换。
+4. [Shot N] 对应 <Picture N>：每个 Shot 必须显式以"对应<Picture N>"开头，把参考图当作画面锚点。
+5. 如果生成的 [Shot 1] 内容看起来不像参考图（比如凭空出现新角色、新环境、新构图），视为违规，必须重写。`;
+
     // 根据模式组合 userHint
     let userHint: string | undefined;
     if (userHintRaw) {
       // 用户手动输入了额外提示词 → 附加补充信息 + 多样性约束
-      userHint = `${userHintRaw}${UNIFIED_SUPPLEMENTARY_REQUIREMENT}${INDIVIDUAL_SUPPLEMENTARY_REQUIREMENT}\n\n${DIVERSITY_CONSTRAINT}`;
+      userHint = `${FIRST_FRAME_ANCHOR}${FIRST_FRAME_ANCHOR ? '\n\n' : ''}${userHintRaw}${UNIFIED_SUPPLEMENTARY_REQUIREMENT}${INDIVIDUAL_SUPPLEMENTARY_REQUIREMENT}\n\n${DIVERSITY_CONSTRAINT}`;
     } else if (hasUnifiedSupplementary) {
       // 无手动提示词，但有统一补充
-      userHint = `【用户自定义补充信息】\n${supplementaryRaw}${count > 1 ? `\n\n${DIVERSITY_CONSTRAINT}` : ''}`;
+      userHint = `${FIRST_FRAME_ANCHOR}${FIRST_FRAME_ANCHOR ? '\n\n' : ''}【用户自定义补充信息】\n${supplementaryRaw}${count > 1 ? `\n\n${DIVERSITY_CONSTRAINT}` : ''}`;
     } else if (hasIndividualSupplementary) {
       // 无手动提示词，但有逐条补充
-      userHint = `${INDIVIDUAL_SUPPLEMENTARY_REQUIREMENT}${count > 1 ? `\n\n${DIVERSITY_CONSTRAINT}` : ''}`;
+      userHint = `${FIRST_FRAME_ANCHOR}${FIRST_FRAME_ANCHOR ? '\n\n' : ''}${INDIVIDUAL_SUPPLEMENTARY_REQUIREMENT}${count > 1 ? `\n\n${DIVERSITY_CONSTRAINT}` : ''}`;
     } else if (count > 1) {
       // 无任何补充，仅有多样性约束
-      userHint = DIVERSITY_CONSTRAINT;
+      userHint = `${FIRST_FRAME_ANCHOR}${FIRST_FRAME_ANCHOR ? '\n\n' : ''}${DIVERSITY_CONSTRAINT}`;
     } else {
-      userHint = undefined;
+      // 无任何补充，无多样性约束 → 但首帧锚点仍然有效
+      userHint = FIRST_FRAME_ANCHOR || undefined;
     }
+
+    console.log('[ImageToVideo] handleEroticAnalyze userHint 构造', {
+      hasFirstFrameAnchor: !!FIRST_FRAME_ANCHOR,
+      sceneExplicitlyChanged,
+      suppChars: allSuppText.length,
+      hasUnified: hasUnifiedSupplementary,
+      hasIndividual: hasIndividualSupplementary,
+      hasUserHint: !!userHintRaw,
+      finalUserHintLength: userHint?.length ?? 0,
+    });
 
     setMmEroticPrompts(Array(count).fill('')); // 空字符串 = 正在生成
 
