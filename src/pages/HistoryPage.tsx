@@ -341,49 +341,6 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
     onNavigate('gptimg2');
   }, [onNavigate, onError]);
 
-  const handleGpt2Video = useCallback((record: GptImage2Record, imgIndex: number) => {
-    if (!onNavigate) {
-      onError?.('当前页面无法跳转到图生视频');
-      return;
-    }
-    const cached = gpt2CachedImages[record.id];
-    const url = cached?.[imgIndex];
-    if (!url) {
-      onError?.('图片尚未加载完成');
-      return;
-    }
-    try {
-      sessionStorage.setItem('history_img2vid', JSON.stringify({ imageUrl: url, targetModel: 'minimaxh3' }));
-    } catch (err) {
-      console.error('[HistoryPage] failed to set sessionStorage', err);
-      onError?.('保存图片失败');
-      return;
-    }
-    onNavigate('img2vid');
-  }, [onNavigate, onError, gpt2CachedImages]);
-
-  // GPT Image 2 → 长视频 v1.1
-  const handleGpt2LongVideo = useCallback((record: GptImage2Record, imgIndex: number) => {
-    if (!onNavigate) {
-      onError?.('当前页面无法跳转到图生视频');
-      return;
-    }
-    const cached = gpt2CachedImages[record.id];
-    const url = cached?.[imgIndex];
-    if (!url) {
-      onError?.('图片尚未加载完成');
-      return;
-    }
-    try {
-      sessionStorage.setItem('history_img2vid', JSON.stringify({ imageUrl: url, targetModel: 'longvideov2' }));
-    } catch (err) {
-      console.error('[HistoryPage] failed to set sessionStorage', err);
-      onError?.('保存图片失败');
-      return;
-    }
-    onNavigate('img2vid');
-  }, [onNavigate, onError, gpt2CachedImages]);
-
   // GPT Image 2 → 长视频 v2
   const handleGpt2LongVideoV2 = useCallback((record: GptImage2Record, imgIndex: number) => {
     if (!onNavigate) {
@@ -501,38 +458,6 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
     // Fallback to images stored directly in the record (data URLs already extracted)
     return record.images || [];
   };
-
-  // 图片历史 → 图生视频（MiniMax H3）：把图片存到 sessionStorage，跳到图生视频页面。
-  const handleGenerateVideoFromImage = useCallback((imageUrl: string) => {
-    if (!onNavigate) {
-      onError?.('当前页面无法跳转到图生视频');
-      return;
-    }
-    try {
-      sessionStorage.setItem('history_img2vid', JSON.stringify({ imageUrl, targetModel: 'minimaxh3' }));
-    } catch (err) {
-      console.error('[HistoryPage] failed to set sessionStorage', err);
-      onError?.('保存图片失败：' + (err instanceof Error ? err.message : '未知错误'));
-      return;
-    }
-    onNavigate('img2vid');
-  }, [onNavigate, onError]);
-
-  // 图片历史 → 长视频 v1.1：把图片存到 sessionStorage，跳到图生视频页面。
-  const handleGenerateLongVideoFromImage = useCallback((imageUrl: string) => {
-    if (!onNavigate) {
-      onError?.('当前页面无法跳转到图生视频');
-      return;
-    }
-    try {
-      sessionStorage.setItem('history_img2vid', JSON.stringify({ imageUrl, targetModel: 'longvideov2' }));
-    } catch (err) {
-      console.error('[HistoryPage] failed to set sessionStorage', err);
-      onError?.('保存图片失败：' + (err instanceof Error ? err.message : '未知错误'));
-      return;
-    }
-    onNavigate('img2vid');
-  }, [onNavigate, onError]);
 
   // 图片历史 → 长视频 v2：把图片存到 sessionStorage，跳到图生视频页面。
   const handleGenerateLongVideoV2FromImage = useCallback((imageUrl: string) => {
@@ -1054,28 +979,6 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
                         onClick={() => {
                           const selectedIdx = selectedImg2vidIndex[record.id] ?? 0;
                           const url = images[selectedIdx] ?? images[0];
-                          handleGenerateVideoFromImage(url);
-                        }}
-                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90 transition-all"
-                        title={`使用第 ${(selectedImg2vidIndex[record.id] ?? 0) + 1} 张图片生视频（MiniMax H3）`}
-                      >
-                        <Video size={11} />生视频
-                      </button>
-                      <button
-                        onClick={() => {
-                          const selectedIdx = selectedImg2vidIndex[record.id] ?? 0;
-                          const url = images[selectedIdx] ?? images[0];
-                          handleGenerateLongVideoFromImage(url);
-                        }}
-                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-gradient-to-r from-orange-500 to-red-500 text-white hover:opacity-90 transition-all"
-                        title={`使用第 ${(selectedImg2vidIndex[record.id] ?? 0) + 1} 张图片生长视频（长视频 v1.1）`}
-                      >
-                        <Video size={11} />长视频 1.1
-                      </button>
-                      <button
-                        onClick={() => {
-                          const selectedIdx = selectedImg2vidIndex[record.id] ?? 0;
-                          const url = images[selectedIdx] ?? images[0];
                           handleGenerateLongVideoV2FromImage(url);
                         }}
                         className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-gradient-to-r from-cyan-500 to-blue-500 text-white hover:opacity-90 transition-all"
@@ -1095,7 +998,7 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
       {/* Video history */}
       {activeTab === 'video' && filteredVideoRecords.length > 0 && (
         <div className="space-y-3">
-          {/* 工作流筛选器（合并长视频 V2 / v1.1 / H3 为统一列表） */}
+          {/* 工作流筛选器（MiniMax 长视频 V2 统一列表） */}
           <div className="flex items-center gap-2 flex-wrap">
             {([
               { key: 'all', label: '全部' },
@@ -1118,13 +1021,10 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
             .filter((r) => {
               if (videoFilter === 'all') return true;
               if (videoFilter === 'long_video') {
-                // 长视频 V2 / v1.1 / H3（MiniMax H3）统一显示，不区分
+                // MiniMax 长视频 V2（含旧 MiniMax 长视频）统一显示
                 const LONG_VIDEO_IDS = [
                   '2092046754606030850', // 长视频 V2
                   '2091369701523136514', // MiniMax 长视频
-                  '2094226327238135810', // 长视频 v1.1 (new)
-                  '2094672102264090625', // 长视频 v1.1 (旧版)
-                  '2084661265636839425', // MiniMax H3 图生视频
                 ];
                 return LONG_VIDEO_IDS.includes(r.workflowId ?? '');
               }
@@ -1686,20 +1586,6 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
                             title={`使用第 ${(selectedGpt2EditIdx[record.id] ?? 0) + 1} 张图片编辑`}
                           >
                             <Palette size={11} />编辑
-                          </button>
-                          <button
-                            onClick={() => handleGpt2Video(record, selectedGpt2Img2vidIdx[record.id] ?? 0)}
-                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90 transition-all"
-                            title={`使用第 ${(selectedGpt2Img2vidIdx[record.id] ?? 0) + 1} 张图片生视频（MiniMax H3）`}
-                          >
-                            <Video size={11} />生视频
-                          </button>
-                          <button
-                            onClick={() => handleGpt2LongVideo(record, selectedGpt2Img2vidIdx[record.id] ?? 0)}
-                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-gradient-to-r from-orange-500 to-red-500 text-white hover:opacity-90 transition-all"
-                            title={`使用第 ${(selectedGpt2Img2vidIdx[record.id] ?? 0) + 1} 张图片生长视频（长视频 v1.1）`}
-                          >
-                            <Video size={11} />长视频 1.1
                           </button>
                           <button
                             onClick={() => handleGpt2LongVideoV2(record, selectedGpt2Img2vidIdx[record.id] ?? 0)}

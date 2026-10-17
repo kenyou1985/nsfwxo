@@ -16,6 +16,8 @@ interface VideoTask {
   startTime: number;
   nodeInfoList: NodeInfo[];
   workflowId?: string;
+  /** official = 官方 RunningHub 任务；daotai = 本地导演台（/api/daotai）任务 */
+  engine?: 'official' | 'daotai';
 }
 
 // ─── localStorage 配额保护 ─────────────────────────────────────────────────────
@@ -84,6 +86,8 @@ interface VideoTaskListProps {
 
 export interface VideoTaskListHandle {
   submitTask: (prompt: string, imagePath: string, imagePreview: string, nodeInfoList: NodeInfo[], workflowId?: string) => void;
+  /** 提交本地导演台（det16）任务：走 /api/daotai/video，轮询 /api/daotai/query */
+  submitDaotaiTask: (prompt: string, body: Record<string, unknown>, preview?: string) => void;
 }
 
 interface VideoTaskCompleteResult {
@@ -566,9 +570,59 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
     }
   }, [apiKey]);
 
+  // ── 导演台（det16）任务轮询：走本地 /api/daotai/query ──────────────────────
+  const pollDaotaiTask = useCallback(async (task: VideoTask) => {
+    if (!apiKey || !task.taskId) return;
+    if (pollingRef.current[task.id]) return;
+
+    const poll = async () => {
+      try {
+        const resp = await fetch('/api/daotai/query', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ taskId: task.taskId }),
+        });
+        const data = await resp.json();
+        if (data.status === 'SUCCESS') {
+          const videoUrl = data.video_url || data.url || '';
+          const updatedTask: VideoTask = {
+            ...task,
+            status: 'FINISHED',
+            engine: 'daotai',
+            images: videoUrl ? [videoUrl] : [],
+          };
+          setTasks((prev) => prev.map((t) => (t.id === task.id ? updatedTask : t)));
+          // 写入历史记录，便于 HistoryPage 回溯
+          saveToHistoryRef.current(updatedTask);
+          if (videoUrl) onSuccessRef.current?.('视频生成完成');
+          onTaskComplete?.({ task: updatedTask, results: [] });
+        } else if (data.status === 'FAILED') {
+          const msg = data.message || '生成失败';
+          setTasks((prev) =>
+            prev.map((t) => (t.id === task.id ? { ...t, status: 'FAILED', error: msg } : t)),
+          );
+          onErrorRef.current?.(msg);
+        } else {
+          // PROCESSING / QUEUEING → 8 秒后继续（工作流自动切分 + 自杀式免扣分）
+          pollingRef.current[task.id] = setTimeout(poll, 8000);
+        }
+      } catch {
+        // 轮询瞬时失败不终止任务，下一轮继续
+        pollingRef.current[task.id] = setTimeout(poll, 8000);
+      }
+    };
+
+    pollingRef.current[task.id] = setTimeout(poll, 5000);
+  }, [apiKey, onTaskComplete]);
+
   const pollTask = useCallback(async (task: VideoTask) => {
     if (!apiKey || !task.taskId) return;
     if (pollingRef.current[task.id]) return;
+
+    // 导演台任务走本地轮询链路
+    if (task.engine === 'daotai') {
+      return pollDaotaiTask(task);
+    }
 
     const poll = async () => {
       try {
@@ -714,6 +768,7 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
       startTime: Date.now(),
       nodeInfoList,
       workflowId,
+      engine: 'official',
     };
 
     setTasks((prev) => [newTask, ...prev].slice(0, maxTasks));
@@ -745,6 +800,65 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
     }
   }, [apiKey, tasks.length, maxTasks, onError, onSuccess, pollTask]);
 
+  // ── 导演台（det16）提交：走本地 /api/daotai/video ──────────────────────────
+  const handleDaotaiSubmit = useCallback(async (
+    prompt: string,
+    body: Record<string, unknown>,
+    preview = '',
+  ) => {
+    if (tasks.length >= maxTasks) {
+      onError('任务队列已满');
+      return;
+    }
+
+    const id = `vtd-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const newTask: VideoTask = {
+      id,
+      taskId: null,
+      status: 'QUEUEING',
+      prompt,
+      imagePreview: preview,
+      images: [],
+      coins: null,
+      elapsedSeconds: 0,
+      error: null,
+      startTime: Date.now(),
+      nodeInfoList: [],
+      workflowId: String(body.workflow_id || ''),
+      engine: 'daotai',
+    };
+
+    setTasks((prev) => [newTask, ...prev].slice(0, maxTasks));
+    console.log(`[VideoTaskList] handleDaotaiSubmit: task ${id} added, QUEUEING. body keys:`, Object.keys(body));
+
+    try {
+      const resp = await fetch('/api/daotai/video', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(body),
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        throw new Error(data.error || `HTTP ${resp.status}`);
+      }
+      const taskId = data.taskId || data.task_id;
+      if (!taskId) {
+        throw new Error('提交成功但未返回 taskId');
+      }
+      const taskWithId: VideoTask = { ...newTask, taskId, status: 'RUNNING', engine: 'daotai' };
+      setTasks((prev) => prev.map((t) => (t.id === id ? taskWithId : t)));
+      onSuccess(`已提交到导演台 H3（det16）生成队列，任务 ${taskId}`);
+      pollDaotaiTask(taskWithId);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '提交失败';
+      setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, status: 'FAILED', error: msg } : t)));
+      onError(msg);
+    }
+  }, [apiKey, tasks.length, maxTasks, onError, onSuccess, pollDaotaiTask]);
+
   const cancelTask = useCallback((id: string) => {
     if (pollingRef.current[id]) {
       clearTimeout(pollingRef.current[id]);
@@ -761,7 +875,10 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
     submitTask: (prompt: string, imagePath: string, imagePreview: string, nodeInfoList: NodeInfo[], workflowId?: string) => {
       handleSubmit(prompt, imagePath, imagePreview, nodeInfoList, workflowId);
     },
-  }), [handleSubmit]);
+    submitDaotaiTask: (prompt: string, body: Record<string, unknown>, preview?: string) => {
+      handleDaotaiSubmit(prompt, body, preview ?? '');
+    },
+  }), [handleSubmit, handleDaotaiSubmit]);
 
   // Use ref to always call the latest handleSubmit
   const handleSubmitWrapper = useCallback((...args: Parameters<typeof handleSubmit>) => {

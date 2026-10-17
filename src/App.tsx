@@ -662,7 +662,7 @@ function InlineApiKeyEditor({
           </div>
           <h3 className="text-sm font-semibold text-text-primary">后端服务地址</h3>
         </div>
-        <p className="text-[11px] text-text-tertiary -mt-1">本地开发默认 localhost:8000，部署到 Railway 后填入其分配的域名</p>
+        <p className="text-[11px] text-text-tertiary -mt-1">本地开发默认 localhost:9000，部署到 Railway 后填入其分配的域名</p>
         {isUrlModified && (
           <div className="flex items-center gap-2 text-xs text-amber-400 bg-amber-400/10 px-3 py-2 rounded-lg">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
@@ -706,7 +706,7 @@ function InlineApiKeyEditor({
         <ol className="space-y-1 text-[11px] text-text-secondary">
           <li className="flex gap-2"><span className="text-blue-500 font-medium">1.</span> RunningHub Key 用于调用 Flux/SD 生图、Wan2.1 生视频</li>
           <li className="flex gap-2"><span className="text-primary font-medium">2.</span> OpenLux Key 用于 AI 提示词智能生成（grok-4-20-reasoning）</li>
-          <li className="flex gap-2"><span className="text-amber-500 font-medium">3.</span> 本地开发使用 localhost:8000，部署 Railway 后替换为分配的域名</li>
+          <li className="flex gap-2"><span className="text-amber-500 font-medium">3.</span> 本地开发使用 localhost:9000，部署 Railway 后替换为分配的域名</li>
         </ol>
       </div>
     </div>

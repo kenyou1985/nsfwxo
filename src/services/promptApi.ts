@@ -985,7 +985,7 @@ export interface GenerateH3DnaParams {
   imageUrl: string;
   dna: ImageDnaResult;
   eroticLevel: 'soft' | 'normal' | 'sm';
-  duration: 15 | 30 | 60;
+  duration: 15 | 30 | 60 | 120 | 180 | 240;
   userHint?: string;
   /** 生成条数，默认 1 */
   count?: number;

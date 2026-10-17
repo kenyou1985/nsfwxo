@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.routes.prompt import router as prompt_router
+from app.routes.daotai import router as daotai_router
 
 app = FastAPI(
     title="NSFW Multimodal Prompt Engine",
@@ -44,6 +45,7 @@ app.add_middleware(
 )
 
 app.include_router(prompt_router)
+app.include_router(daotai_router)
 
 
 @app.get("/health")

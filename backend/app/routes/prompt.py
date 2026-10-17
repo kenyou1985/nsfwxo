@@ -7121,20 +7121,29 @@ def _build_h3_dna_system_prompt(erotic_level: str) -> str:
 # 30 秒视频 → 9 个分镜
 # 60 秒视频 → 9-12 个分镜
 DEFAULT_SHOT_COUNT_BY_DURATION = {
-    15: 5,   # 4-6 范围内取 5
-    30: 9,   # 9 固定
-    60: 11,  # 9-12 范围内取 11
+    15: 5,    # 4-6 范围内取 5
+    30: 9,    # 9 固定
+    60: 11,   # 9-12 范围内取 11
+    120: 18,  # 2 分钟：12-18 镜
+    180: 24,  # 3 分钟：18-24 镜
+    240: 30,  # 4 分钟：24-30 镜（默认 30 分镜）
 }
 
 
 def _calc_default_shot_count(duration: int) -> int:
-    """根据视频时长返回默认分镜数（15s→5, 30s→9, 60s→11）"""
+    """根据视频时长返回默认分镜数（15s→5, 30s→9, 60s→11, 120s→18, 180s→24, 240s→30）"""
     if duration <= 15:
         return DEFAULT_SHOT_COUNT_BY_DURATION[15]
     elif duration <= 30:
         return DEFAULT_SHOT_COUNT_BY_DURATION[30]
-    else:
+    elif duration <= 60:
         return DEFAULT_SHOT_COUNT_BY_DURATION[60]
+    elif duration <= 120:
+        return DEFAULT_SHOT_COUNT_BY_DURATION[120]
+    elif duration <= 180:
+        return DEFAULT_SHOT_COUNT_BY_DURATION[180]
+    else:
+        return DEFAULT_SHOT_COUNT_BY_DURATION[240]
 
 
 # ── 镜头/分镜景别池（保证分镜多样化） ──
@@ -7588,8 +7597,14 @@ def _build_h3_dna_user_prompt(
         duration_hint = "聚焦单一核心动作，节奏紧凑，描述约3-5秒的连续动作"
     elif duration == 30:
         duration_hint = "含1-2个动作递进，节奏适中，描述约5-8秒的连续动作"
-    else:
+    elif duration == 60:
         duration_hint = "含2-3个动作变化，起承转合完整，描述约8-15秒的连续动作"
+    elif duration == 120:
+        duration_hint = "含4-6个动作变化，完整起承转合，5阶段（开场/前戏/中段/高潮/收尾）必须全部出现，描述约15-30秒的连续动作"
+    elif duration == 180:
+        duration_hint = "含6-9个动作变化，完整5阶段（开场/前戏/中段/高潮/收尾）必须全部出现并充分展开，可包含多个场景转换，描述约30-60秒的连续动作"
+    else:  # 240 / 4分钟
+        duration_hint = "含8-12个动作变化，完整5阶段（开场/前戏/中段/高潮/收尾）必须全部出现并充分展开，可包含多个场景转换和角色服装变化，描述约60-90秒的连续动作"
 
     user_hint_block = f"\n【用户补充要求】{user_hint}\n" if user_hint else ""
 
@@ -8088,7 +8103,7 @@ non_diegetic_music: N/A
 ━━━ Output Requirements (for EACH prompt) ━━━━━━━━━━━━━━━━━━
 1. 时长: {duration}秒 → {duration_hint}
 2. **必须使用 H3 专用模板输出格式**（subject_definitions / summary / retention_analysis / detailed_description）— 见下方「Output Format」
-3. **分镜数量硬性要求**：{duration}秒视频默认 {default_shot_count} 个分镜（15秒→4-6镜、30秒→9镜、60秒→9-12镜）
+3. **分镜数量硬性要求**：{duration}秒视频默认 {default_shot_count} 个分镜（15秒→4-6镜、30秒→9镜、60秒→9-12镜、120秒→14-18镜、180秒→18-24镜）
 4. **必须引用参考图主体**: 引用参考图主体：<Picture 1>
 5. 必须基于 action_prediction 推断人物的连贯动作，**经历 5 个阶段**：
    - 阶段 1（开场 1-2 镜）：静态初始姿态，【男性穿着完整服装，女性穿着参考图初始服装】
@@ -8226,7 +8241,7 @@ async def generate_h3_dna_stream(req: GenerateH3DnaRequest, api_key: str = Depen
     前端可按 index 分别渲染各槽的加载状态。
     """
     dna = req.dna
-    count = max(1, min(req.count, 20))
+    count = max(1, min(req.count, 30))
 
     clothing_str = "; ".join(
         f"{c.name}({c.type}, {c.color} {c.style})"

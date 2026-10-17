@@ -254,12 +254,12 @@ class GenerateH3DnaRequest(BaseModel):
     dna: ExtractImageDnaResponse = Field(..., description="DNA 提取结果（包含人物/场景/服装/动作预判信息）")
     # erotic_level: soft=纯情色, normal=带性爱, sm=SM重口味
     erotic_level: Literal["soft", "normal", "sm"] = Field(default="normal", description="创作方向等级")
-    # duration: 15/30/60 秒
-    duration: Literal[15, 30, 60] = Field(default=15, description="视频时长（秒）")
+    # duration: 15/30/60/120/180/240 秒 (新增 2分钟/3分钟/4分钟)
+    duration: Literal[15, 30, 60, 120, 180, 240] = Field(default=15, description="视频时长（秒）: 15/30/60/2分钟(120)/3分钟(180)/4分钟(240)")
     # 用户可选补充描述
     user_hint: Optional[str] = Field(default=None, description="用户补充的动作/镜头描述（可选）")
-    # 批量生成条数（1/3/5/10/自定义），每条都是全新的不重复提示词
-    count: int = Field(default=1, ge=1, le=20, description="生成条数（1-20 条），每条不重复")
+    # 批量生成条数（1-30），每条都是全新的不重复提示词
+    count: int = Field(default=1, ge=1, le=30, description="生成条数（1-30 条），每条不重复")
 
 
 class GenerateH3DnaResponse(BaseModel):

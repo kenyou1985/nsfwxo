@@ -1,6 +1,12 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Video, Image as ImageIcon, Wand2, Copy, Check, Loader2, X, Clock, History, Sparkles, ChevronRight, ChevronDown, ChevronUp, Trash2, Clapperboard, Layers, Play } from 'lucide-react';
 import { ImageUploader } from '../components/ImageUploader';
+import {
+  EroticCreationPanel,
+  type EroticDuration,
+  type EroticLevel,
+  type EroticImageRef,
+} from '../components/EroticCreationPanel';
 import { GirlfriendSelector } from '../components/GirlfriendSelector';
 import { ParameterSlider } from '../components/ParameterSlider';
 import { ParameterSelect } from '../components/ParameterSelect';
@@ -21,7 +27,7 @@ import ThemeLibraryPanel from '../components/ThemeLibraryPanel';
 import { THEME_LIBRARY, THEME_CATEGORIES, 主题转视频提示词 } from '../data/themeLibrary';
 import type { ThemeEntry } from '../data/themeLibrary';
 import type { RunningHubModelEntry } from '../services/runninghubModelsService';
-import { NinfiniteLongVideoPage } from './NinfiniteLongVideoPage';
+import { DaotaiH3Panel } from '../components/DaotaiH3Panel';
 import { MiniMaxLongVideoV2Page } from './MiniMaxLongVideoV2Page';
 import { generateH3Prompt } from '../services/h3PromptService';
 import { resolveImageRef } from '../services/imageCacheService';
@@ -894,210 +900,6 @@ function 历史图片选择器({ on选择, 当前图片路径 }: { on选择: (ur
   );
 }
 
-// ─── 提示词卡片组件（情色创作模式结果展示）───────────────────────────────
-interface EroticPromptCardProps {
-  index: number;
-  prompt: string;
-  duration: 15 | 30 | 60;
-  /** 参考图预览（折叠态不再展示；保留以兼容外部调用） */
-  imagePreview?: string;
-  /** 参考图路径（保留以兼容外部调用） */
-  imagePath?: string;
-  onUse: (prompt: string) => void;
-  onSendToLongVideo: (prompt: string) => void;
-  /** 发送到长视频 V2 */
-  onSendToLongVideoV2?: (prompt: string) => void;
-  onGenerateVideo: (prompt: string) => void;
-}
-
-function EroticPromptCard({
-  index,
-  prompt,
-  duration,
-  imagePreview,
-  imagePath,
-  onUse,
-  onSendToLongVideo,
-  onSendToLongVideoV2,
-  onGenerateVideo,
-}: EroticPromptCardProps) {
-  const [editingPrompt, setEditingPrompt] = useState(prompt);
-  const [isEditing, setIsEditing] = useState(false);
-  const [copied, setCopied] = useState(false);
-  // 卡片整体默认折叠：长提示词默认收起为单行，与电脑端展示逻辑一致
-  const [collapsed, setCollapsed] = useState(true);
-
-  // 当外部 prompt 变化时同步到编辑状态和折叠状态（新建/更新时重置折叠）
-  useEffect(() => {
-    if (!isEditing) setEditingPrompt(prompt);
-    // 收到新的提示词（流式到达或初次加载）→ 折叠
-    setCollapsed(true);
-  }, [prompt, isEditing]);
-
-  const handleCopy = async () => {
-    const textToCopy = editingPrompt || prompt;
-    try {
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(textToCopy);
-      } else {
-        // Fallback for non-secure contexts (e.g. http://)
-        const ta = document.createElement('textarea');
-        ta.value = textToCopy;
-        ta.style.position = 'fixed';
-        ta.style.opacity = '0';
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-      }
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error('[EroticPromptCard] 复制失败', err);
-    }
-  };
-
-  return (
-    <div className="rounded-xl border border-pink-200 bg-white overflow-hidden">
-      {/* 折叠态：单行紧凑菜单（序号 + 时长 + 摘要 + 「生成视频」+「复制」+ 切换箭头） */}
-      <div
-        onClick={() => setCollapsed(c => !c)}
-        className="flex items-center justify-between gap-2 px-3 py-2 bg-gradient-to-r from-pink-50 to-rose-50 cursor-pointer hover:from-pink-100 hover:to-rose-100 transition-colors"
-        role="button"
-      >
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          <span className="flex-shrink-0 flex items-center justify-center w-5 h-5 rounded-full bg-pink-500 text-white text-[10px] font-bold">
-            {index + 1}
-          </span>
-          <span className="text-[10px] font-medium text-pink-600 truncate min-w-0">
-            {duration}秒 · {editingPrompt.slice(0, 32).replace(/\n/g, ' ')}{editingPrompt.length > 32 ? '...' : ''}
-          </span>
-        </div>
-        <div className="flex items-center gap-0.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-          {/* 折叠态：显示全部视频生成按钮（当前模型 + 长视频v1.1 + 长视频v2） */}
-          <button
-            onClick={() => onSendToLongVideo(editingPrompt)}
-            title="发送至长视频 v1.1"
-            className="flex items-center gap-0.5 px-1.5 py-1 rounded-lg bg-violet-100 text-violet-600 text-[9px] font-medium hover:bg-violet-200 transition-colors"
-          >
-            <Video size={9} />
-            长视频
-          </button>
-          {onSendToLongVideoV2 && (
-            <button
-              onClick={() => onSendToLongVideoV2(editingPrompt)}
-              title="发送至长视频 V2"
-              className="flex items-center gap-0.5 px-1.5 py-1 rounded-lg bg-cyan-100 text-cyan-600 text-[9px] font-medium hover:bg-cyan-200 transition-colors"
-            >
-              <Video size={9} />
-              长视频V2
-            </button>
-          )}
-          <button
-            onClick={() => onGenerateVideo(editingPrompt)}
-            title="一键生成视频"
-            className="flex items-center gap-0.5 px-2 py-1 rounded-lg bg-gradient-to-r from-rose-500 to-pink-500 text-white text-[10px] font-bold hover:opacity-90 transition-opacity shadow-sm"
-          >
-            <Play size={10} />
-            生成视频
-          </button>
-          <button
-            onClick={handleCopy}
-            title={copied ? '已复制' : '复制提示词到剪贴板'}
-            className={`flex items-center gap-0.5 px-1.5 py-1 rounded-lg text-[9px] font-medium transition-colors ${
-              copied
-                ? 'bg-emerald-500 text-white'
-                : 'bg-white/80 text-pink-600 border border-pink-200 hover:bg-white'
-            }`}
-          >
-            {copied ? <><Check size={9} />已复制</> : <><Copy size={9} />复制</>}
-          </button>
-          {collapsed ? (
-            <ChevronDown size={14} className="text-pink-500 ml-0.5" />
-          ) : (
-            <ChevronUp size={14} className="text-pink-500 ml-0.5" />
-          )}
-        </div>
-      </div>
-
-      {/* 展开态：完整提示词 + 全部操作按钮（编辑/复制/长视频/长视频V2） */}
-      {!collapsed && (
-        <>
-          {/* 提示词内容 */}
-          <div className="px-3 py-2">
-            {isEditing ? (
-              <textarea
-                value={editingPrompt}
-                onChange={(e) => setEditingPrompt(e.target.value)}
-                className="w-full min-h-[80px] p-2 rounded-lg border border-amber-300 bg-amber-50 text-[10px] text-text-primary resize-y focus:outline-none focus:ring-2 focus:ring-amber-400"
-                placeholder="编辑提示词内容..."
-              />
-            ) : (
-              <p className="text-[10px] text-text-primary leading-relaxed whitespace-pre-wrap">
-                {editingPrompt}
-              </p>
-            )}
-          </div>
-
-          {/* 完整操作按钮组（编辑、复制、使用、长视频、长视频V2） */}
-          <div className="flex items-center gap-1 px-3 pb-2 flex-wrap">
-            <button
-              onClick={() => {
-                if (isEditing) {
-                  onUse(editingPrompt);
-                  setIsEditing(false);
-                } else {
-                  setIsEditing(true);
-                }
-              }}
-              className={`px-2 py-0.5 rounded-lg text-[9px] font-medium transition-colors ${
-                isEditing
-                  ? 'bg-amber-500 text-white'
-                  : 'bg-amber-100 text-amber-600 hover:bg-amber-200'
-              }`}
-            >
-              {isEditing ? '✓ 确认' : '✎ 编辑'}
-            </button>
-            <button
-              onClick={handleCopy}
-              title="复制提示词到剪贴板"
-              className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[9px] font-medium transition-colors ${
-                copied
-                  ? 'bg-emerald-100 text-emerald-600'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              {copied ? <><Check size={9} /> 已复制</> : <><Copy size={9} /> 复制</>}
-            </button>
-            <button
-              onClick={() => onUse(editingPrompt)}
-              className="px-2 py-0.5 rounded-lg bg-pink-100 text-pink-600 text-[9px] font-medium hover:bg-pink-200 transition-colors"
-            >
-              使用
-            </button>
-            <button
-              onClick={() => onSendToLongVideo(editingPrompt)}
-              className="px-2 py-0.5 rounded-lg bg-violet-100 text-violet-600 text-[9px] font-medium hover:bg-violet-200 transition-colors"
-            >
-              长视频
-            </button>
-            {onSendToLongVideoV2 && (
-              <button
-                onClick={() => onSendToLongVideoV2(editingPrompt)}
-                className="px-2 py-0.5 rounded-lg bg-cyan-100 text-cyan-600 text-[9px] font-medium hover:bg-cyan-200 transition-colors"
-              >
-                长视频V2
-              </button>
-            )}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-// ─── MiniMax H3 面板 ─────────────────────────────────────────────────────────
-
 interface MiniMaxH3PanelProps {
   apiKey: string;
   mmImages: { path: string; preview: string }[];
@@ -1139,8 +941,8 @@ interface MiniMaxH3PanelProps {
   /** 情色创作模式（参考图 AI 分析生成提示词） */
   mmEroticMode: boolean;
   setMmEroticMode: (v: boolean) => void;
-  mmEroticLevel: 'soft' | 'normal' | 'sm';
-  setMmEroticLevel: (v: 'soft' | 'normal' | 'sm') => void;
+  mmEroticLevel: EroticLevel;
+  setMmEroticLevel: (v: EroticLevel) => void;
   /** 图片DNA提取结果（由 Gemini-3.8-flash 生成） */
   mmImageDna: ImageDnaResult | null;
   setMmImageDna: (v: ImageDnaResult | null) => void;
@@ -1151,13 +953,10 @@ interface MiniMaxH3PanelProps {
   /** 生成条数（默认3） */
   mmEroticCount: number;
   setMmEroticCount: (v: number) => void;
-  /** 批量生成的提示词列表（流式模式支持 null = 加载中） */
-  mmEroticPrompts: (string | null)[];
-  setMmEroticPrompts: React.Dispatch<React.SetStateAction<(string | null)[]>>;
   /** 自定义补充信息（必须出现的姿势/道具/场景元素等） */
   mmSupplementary: string;
   setMmSupplementary: (v: string) => void;
-  /** 逐条补充模式：'individual' = 每条独立，'unified' = 统一使用 mmSupplementary */
+  /** 逐条补充模式 */
   mmSupplementaryMode: 'unified' | 'individual';
   setMmSupplementaryMode: (v: 'unified' | 'individual') => void;
   /** 每条提示词的补充文本数组（长度与 mmEroticCount 同步） */
@@ -1185,7 +984,6 @@ function MiniMaxH3Panel({
   mmDnaLoading, setMmDnaLoading,
   mmDnaError, setMmDnaError,
   mmEroticCount, setMmEroticCount,
-  mmEroticPrompts, setMmEroticPrompts,
   mmSupplementary, setMmSupplementary,
   mmSupplementaryMode, setMmSupplementaryMode,
   mmSupplementaryItems, setMmSupplementaryItems,
@@ -1195,8 +993,6 @@ function MiniMaxH3Panel({
   const [themeBatchProgress, setThemeBatchProgress] = useState<{ current: number; total: number } | null>(null);
   // 每个槽位的上传状态（移动端优化：避免一个上传阻塞全部 9 个槽位）
   const [mmUploadingSlots, setMmUploadingSlots] = useState<Set<number>>(new Set());
-  // 情色创作分析状态
-  const [mmEroticAnalyzing, setMmEroticAnalyzing] = useState(false);
 
   // 安全释放 blob URL，避免移动端内存泄漏导致页面崩溃
   const revokeIfBlob = (url: string) => {
@@ -1205,230 +1001,6 @@ function MiniMaxH3Panel({
     }
   };
 
-  /**
-   * 情色创作模式第二步：结合 DNA 信息 + 用户描述，调用 Grok-4.6 生成 H3 提示词
-   * Step 1（DNA 提取）已在父组件自动完成，此函数处理 Step 2（提示词生成）
-   */
-  const handleEroticAnalyze = useCallback(async () => {
-    const uploadedImages = mmImages.filter(img => img.path && img.path !== 'None');
-    console.log('[ImageToVideo] handleEroticAnalyze 点击', {
-      hasImages: uploadedImages.length > 0,
-      hasDna: !!mmImageDna,
-      isSubmitting,
-      mmEroticAnalyzing,
-      mmDnaLoading,
-      mmImageDna_keys: mmImageDna ? Object.keys(mmImageDna) : null,
-    });
-    if (uploadedImages.length === 0) {
-      onError('请先上传至少一张参考图');
-      return;
-    }
-    if (!mmImageDna) {
-      onError('请等待 DNA 提取完成');
-      return;
-    }
-    setMmEroticAnalyzing(true);
-
-    // 图片 base64 转换（用于 H3 流式生成）
-    const firstImage = uploadedImages[0];
-    let imageDataUrl = firstImage.path;
-    if (firstImage.path.startsWith('blob:') || firstImage.path.startsWith('http')) {
-      try {
-        const resp = await fetch(firstImage.path);
-        const blob = await resp.blob();
-        imageDataUrl = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
-      } catch {
-        // fetch 失败时仍使用原路径
-      }
-    }
-
-    const userHintRaw = mmPrompt.trim() || undefined;
-    const supplementaryRaw = mmSupplementary.trim() || undefined;
-    const duration = parseInt(mmDuration, 10) as 15 | 30 | 60;
-
-    // ── 流式并行生成：单次请求，多条并行流式输出 ───────────────────────────
-    // 1. 立即显示 N 个空 loading 占位槽（流式用户体验的关键）
-    const count = mmEroticCount;
-
-    // ── 用户自定义补充信息（必须出现的姿势/道具/场景元素）
-    // 支持两种模式：
-    //   - unified: 所有提示词共用同一个补充（原有行为）
-    //   - individual: 每个提示词有独立的补充（#1 用 mmSupplementaryItems[0], #2 用 [1], ...）
-    const hasUnifiedSupplementary = mmSupplementaryMode === 'unified' && (supplementaryRaw || '').trim().length > 0;
-    const hasIndividualSupplementary = mmSupplementaryMode === 'individual' && mmSupplementaryItems.some(s => s.trim().length > 0);
-
-    // 构建统一补充的要求字符串
-    const UNIFIED_SUPPLEMENTARY_REQUIREMENT = hasUnifiedSupplementary
-      ? `\n\n【用户自定义补充信息 - 必须严格遵守】\n${supplementaryRaw}\n要求：上述姿势/道具/场景元素必须在生成的 H3 提示词中明确出现并实际执行（不可仅作为背景元素），不允许被忽略或替换。`
-      : '';
-
-    // 构建逐条补充的要求字符串
-    const INDIVIDUAL_SUPPLEMENTARY_REQUIREMENT = hasIndividualSupplementary
-      ? (() => {
-          const lines = mmSupplementaryItems
-            .map((item, idx) => item.trim().length > 0 ? `  - 提示词 #${idx + 1}：${item.trim()}` : null)
-            .filter(Boolean)
-            .join('\n');
-          return `\n\n【逐条自定义补充信息 - 必须严格遵守】\n${lines}\n要求：每一项必须出现在对应编号的提示词中，并实际执行（不可仅作为背景元素），不允许被忽略或替换。`;
-        })()
-      : '';
-
-    // ── 多样性约束：当一次性生成多条（count ≥ 2）时，向后端注入强约束提示
-    // 解决「3条提示词姿势雷同」「道具权重过高（椅子）」「射精方式单一」
-    // 「最后一镜事后展示而非射精收尾」等结构性问题
-    const DIVERSITY_CONSTRAINT = `【多样性约束 - 必须严格执行】
-1. 姿势多样性：每条提示词必须从不同角度/不同姿势切入，禁止所有镜头都围绕同一道具（如椅子）。同一房间内可以站立、跪、趴、坐、侧卧等多种体位切换。
-2. 道具多样化使用：椅子作为道具可以有很多花样 —— 跪在椅子上、趴在椅子上、单腿踩着椅子后入、双手扶着椅背后入、坐在椅子上面对/背对伴侣、坐在椅面一侧腿搭扶手传教士变体。把椅子当作姿势变换的辅助物而非核心场景。
-3. 道具权重 = 环境权重：禁止道具（椅子、玩偶、台灯等）锁定场景主导地位，环境与道具各占一半权重。每条提示词应允许不同的姿势起始位（不一定坐在椅子上，可以站立/跪在地板/床沿/窗边等）。
-4. 5种射精方式轮换 + 后入射臀部权重提升：必须在 5 种射精方式中至少出现 3 种 —— (a) 口爆 (b) 内射 creampie (c) 后入射臀部（背部深弓臀部高举时精液从交合处溢出，镜头从后方捕捉插入与臀部闪烁） (d) 射胸部 (e) 颜射 facial。每条提示词随机抽取一种作为唯一射精，5 种之间均匀分布，后入射臀部权重提到 35%（与口爆、内射并列最高）。
-5. 最后一个镜头统一为射精收尾：最后一个 [Shot N] 必须是射精瞬间（男性在女性体内/口腔/臀部/胸部/面部射出精液）+ 女性高潮反应的合并镜头。严禁单独出现「事后展示/衣衫不整/精液残留/半裸靠椅背/餍足表情」这种收尾镜头 —— 这些可以融入射精镜头内（如精液从交合处溢出、脸颊残留），但不能作为单独的 last shot 存在。
-6. 分镜结构：倒数第二个镜头是持续抽插/高潮前奏，最后一个镜头立即转入射精收尾（高潮 → 射精 → 精液溢出/覆盖），不允许中间插入事后状态。`;
-
-    // ── 默认首帧锚点约束：除非补充信息明确改变场景，否则参考图始终是首帧 ──
-    // 这是修复「补充信息加入后视频直接跳过参考图」的关键。
-    // 把这段放在 userHint 的最开头（最高优先级），确保后端 LLM 把 <Picture 1>
-    // 当作 [Shot 1] 的视觉起点，并保持参考图的角色外观 / 构图 / 场景 / 服装。
-    // 当用户/补充信息明确提出新场景（如"切到海边"、"换到酒店大堂"）时，
-    // 那段说明会自然覆盖此约束；其它所有情况下参考图始终是首帧。
-    // 关键词扫描：如果补充信息里包含明确的"换场景"动词，标识 sceneChanged = true
-    const SCENE_CHANGE_KEYWORDS = [
-      '换场景', '切换到', '切到', '场景换成', '转到', '场景切换',
-      '在另一', '去另一', '场景改为', '场景换', '场景变',
-      'moved to', 'switch scene', 'change scene', 'at the ', 'in the hotel',
-    ];
-    const allSuppText = [supplementaryRaw || '', ...mmSupplementaryItems.filter(Boolean)].join('\n');
-    const sceneExplicitlyChanged = SCENE_CHANGE_KEYWORDS.some(kw => allSuppText.includes(kw));
-    const FIRST_FRAME_ANCHOR = sceneExplicitlyChanged
-      ? ''
-      : `【首帧锚点 - 最高优先级】
-1. 默认行为：[Shot 1] 必须以参考图作为首帧视觉起点，画面构图、角色站位 / 姿势 / 朝向、背景环境、服装必须紧贴参考图。不允许凭空脑补未出现的场景、动作或外观。
-2. 角色一致性：全程必须严格复用参考图的角色外观（面部、发型、妆容、身材、肤色、服装）。如补充信息要求换服装，按补充信息执行；否则沿用参考图。
-3. 场景默认沿用参考图：参考图所在的场景即首帧场景。补充信息中如果仅指定姿势/道具/动作，仍在参考图场景内执行；只有显式提到"换场景/切换/转到某地"时才允许替换。
-4. [Shot N] 对应 <Picture N>：每个 Shot 必须显式以"对应<Picture N>"开头，把参考图当作画面锚点。
-5. 如果生成的 [Shot 1] 内容看起来不像参考图（比如凭空出现新角色、新环境、新构图），视为违规，必须重写。`;
-
-    // 根据模式组合 userHint
-    let userHint: string | undefined;
-    if (userHintRaw) {
-      // 用户手动输入了额外提示词 → 附加补充信息 + 多样性约束
-      userHint = `${FIRST_FRAME_ANCHOR}${FIRST_FRAME_ANCHOR ? '\n\n' : ''}${userHintRaw}${UNIFIED_SUPPLEMENTARY_REQUIREMENT}${INDIVIDUAL_SUPPLEMENTARY_REQUIREMENT}\n\n${DIVERSITY_CONSTRAINT}`;
-    } else if (hasUnifiedSupplementary) {
-      // 无手动提示词，但有统一补充
-      userHint = `${FIRST_FRAME_ANCHOR}${FIRST_FRAME_ANCHOR ? '\n\n' : ''}【用户自定义补充信息】\n${supplementaryRaw}${count > 1 ? `\n\n${DIVERSITY_CONSTRAINT}` : ''}`;
-    } else if (hasIndividualSupplementary) {
-      // 无手动提示词，但有逐条补充
-      userHint = `${FIRST_FRAME_ANCHOR}${FIRST_FRAME_ANCHOR ? '\n\n' : ''}${INDIVIDUAL_SUPPLEMENTARY_REQUIREMENT}${count > 1 ? `\n\n${DIVERSITY_CONSTRAINT}` : ''}`;
-    } else if (count > 1) {
-      // 无任何补充，仅有多样性约束
-      userHint = `${FIRST_FRAME_ANCHOR}${FIRST_FRAME_ANCHOR ? '\n\n' : ''}${DIVERSITY_CONSTRAINT}`;
-    } else {
-      // 无任何补充，无多样性约束 → 但首帧锚点仍然有效
-      userHint = FIRST_FRAME_ANCHOR || undefined;
-    }
-
-    console.log('[ImageToVideo] handleEroticAnalyze userHint 构造', {
-      hasFirstFrameAnchor: !!FIRST_FRAME_ANCHOR,
-      sceneExplicitlyChanged,
-      suppChars: allSuppText.length,
-      hasUnified: hasUnifiedSupplementary,
-      hasIndividual: hasIndividualSupplementary,
-      hasUserHint: !!userHintRaw,
-      finalUserHintLength: userHint?.length ?? 0,
-    });
-
-    setMmEroticPrompts(Array(count).fill('')); // 空字符串 = 正在生成
-
-    // 用 ref 保存每条提示词的累加文本（避免 setState 闭包问题）
-    const accumulated: Record<number, string> = {};
-
-    // 2. 单次流式请求，并行生成 count 条，最早完成的先显示
-    const { abort } = await streamGenerateH3DnaPrompt(
-      {
-        imageUrl: imageDataUrl,
-        dna: mmImageDna,
-        eroticLevel: mmEroticLevel,
-        duration,
-        userHint,
-        count,
-      },
-      {
-        onStart: ({ index }) => {
-          accumulated[index] = '';
-        },
-        onDelta: ({ index, text }) => {
-          accumulated[index] = (accumulated[index] ?? '') + text;
-          setMmEroticPrompts(prev => {
-            const updated = [...prev];
-            while (updated.length <= index) updated.push('');
-            updated[index] = accumulated[index] ?? '';
-            return updated;
-          });
-        },
-        onEnd: ({ index, prompt }) => {
-          // 单条提示词完成 → 立即应用"最后一段必须为射精收尾"的兜底后处理
-          // 解决后端 LLM 经常把最后一镜写成"事后展示/餍足靠椅背/半裸整理"等问题
-          const repaired = replaceLastShotEjaculation(prompt, 'creampie');
-          accumulated[index] = repaired;
-          setMmEroticPrompts(prev => {
-            const updated = [...prev];
-            while (updated.length <= index) updated.push('');
-            updated[index] = repaired;
-            return updated;
-          });
-        },
-        onError: ({ index, message }) => {
-          console.error(`[H3 stream] prompt #${index + 1} failed:`, message);
-          accumulated[index] = `[生成失败 #${index + 1}: ${message}]`;
-          setMmEroticPrompts(prev => {
-            const updated = [...prev];
-            while (updated.length <= index) updated.push('');
-            updated[index] = accumulated[index] ?? '';
-            return updated;
-          });
-        },
-        onDone: ({ successful }) => {
-          setMmEroticAnalyzing(false);
-
-          // ── 跨条多样化后处理 ─────────────────────────────────
-          // 等所有提示词生成完毕后，对成功生成的提示词重新分配不同的射精方式
-          // 确保 3 条提示词分别使用 3 种不同的射精方式（后入射臀部权重最高 35%）
-          setMmEroticPrompts(prev => {
-            const completed = prev
-              .map((p, i) => ({ p, i }))
-              .filter((c): c is { p: string; i: number } => c.p != null && !c.p.startsWith('[生成失败'));
-
-            if (completed.length >= 2) {
-              const completedPrompts = completed.map(c => c.p);
-              const diversified = enforceEroticDiversity(completedPrompts);
-              const updated = [...prev];
-              completed.forEach((c, k) => { updated[c.i] = diversified[k]; });
-              const first = updated.find(p => p && !p.startsWith('[生成失败'));
-              if (first) setMmPrompt(first);
-              return updated;
-            }
-
-            const first = prev.find(p => p && !p.startsWith('[生成失败'));
-            if (first) setMmPrompt(first);
-            return prev;
-          });
-
-          if (successful > 0) {
-            onSuccess(`已生成 ${successful} 条 H3 提示词`);
-          } else {
-            onError(`H3 提示词生成全部失败，请重试`);
-          }
-        },
-      },
-    );
-
-    void abort;
-
-  }, [mmImages, mmEroticLevel, mmImageDna, mmPrompt, mmSupplementary, mmSupplementaryItems, mmSupplementaryMode, mmDuration, mmEroticCount, onError, onSuccess]);
 
   // Pose preset handler
   const handlePoseSelect = (posePrompt: string, poseName: string) => {
@@ -1632,7 +1204,6 @@ function MiniMaxH3Panel({
       // 3) 同步关闭情色创作模式开关，避免 useEffect 因图片路径变化而重复触发 DNA 提取
       if (mmEroticMode) {
         setMmEroticMode(false);
-        setMmEroticAnalyzing(false);
       }
 
       // 4) 替换参考图后重置 DNA（参考图变了，DNA 必须重新提取，由用户决定何时开启模式）
@@ -1805,321 +1376,67 @@ function MiniMaxH3Panel({
           </span>
         </div>
 
-        {/* 情色创作模式开关 + 方向选择 */}
-        <div className="mb-3 p-4 rounded-xl bg-gradient-to-r from-pink-500/5 via-rose-500/5 to-red-500/5 border border-pink-200/50">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Sparkles size={16} className="text-pink-500" />
-              <span className="text-sm font-semibold text-text-primary">情色创作模式</span>
-              <span className="text-[10px] text-text-tertiary hidden sm:inline">· Grok-4.6 AI</span>
-            </div>
-            {/* 开关 */}
-            <button
-              onClick={() => setMmEroticMode(!mmEroticMode)}
-              className={`w-11 h-6 rounded-full transition-colors relative ${mmEroticMode ? 'bg-pink-500' : 'bg-text-tertiary'}`}
-              disabled={isSubmitting || mmEroticAnalyzing}
-            >
-              <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${mmEroticMode ? 'translate-x-5' : 'translate-x-0.5'}`} />
-            </button>
-          </div>
-
-          {/* 方向选择（开关开启时显示）——三大卡片横排 */}
-          {mmEroticMode && (
-            <div className="space-y-4">
-              {/* 创作方向三卡片 */}
-              <div className="grid grid-cols-3 gap-2">
-                {/* 纯情色 */}
-                <button
-                  onClick={() => setMmEroticLevel('soft')}
-                  disabled={isSubmitting || mmEroticAnalyzing}
-                  className={`relative flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all text-center ${
-                    mmEroticLevel === 'soft'
-                      ? 'border-pink-400 bg-pink-50 ring-2 ring-pink-300 shadow-md'
-                      : 'border-pink-200 bg-white/60 hover:bg-pink-50/60'
-                  }`}
-                >
-                  {mmEroticLevel === 'soft' && (
-                    <span className="absolute -top-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-pink-500 text-white text-[9px] font-bold">已选中</span>
-                  )}
-                  <span className="text-lg">🌸</span>
-                  <span className={`text-[11px] font-bold ${mmEroticLevel === 'soft' ? 'text-pink-600' : 'text-pink-400'}`}>纯情色</span>
-                  <span className="text-[9px] text-pink-300 leading-tight">裸露·自慰·挑逗</span>
-                  <span className="text-[8px] text-pink-300/70 leading-tight">无插入·无射精</span>
-                </button>
-
-                {/* 带性爱 */}
-                <button
-                  onClick={() => setMmEroticLevel('normal')}
-                  disabled={isSubmitting || mmEroticAnalyzing}
-                  className={`relative flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all text-center ${
-                    mmEroticLevel === 'normal'
-                      ? 'border-rose-400 bg-rose-50 ring-2 ring-rose-300 shadow-md'
-                      : 'border-rose-200 bg-white/60 hover:bg-rose-50/60'
-                  }`}
-                >
-                  {mmEroticLevel === 'normal' && (
-                    <span className="absolute -top-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-rose-500 text-white text-[9px] font-bold">已选中</span>
-                  )}
-                  <span className="text-lg">🔥</span>
-                  <span className={`text-[11px] font-bold ${mmEroticLevel === 'normal' ? 'text-rose-600' : 'text-rose-400'}`}>带性爱</span>
-                  <span className="text-[9px] text-rose-300 leading-tight">插入·抽插·体位</span>
-                  <span className="text-[8px] text-rose-300/70 leading-tight">内射·颜射·外射</span>
-                </button>
-
-                {/* SM重口味 */}
-                <button
-                  onClick={() => setMmEroticLevel('sm')}
-                  disabled={isSubmitting || mmEroticAnalyzing}
-                  className={`relative flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all text-center ${
-                    mmEroticLevel === 'sm'
-                      ? 'border-red-400 bg-red-50 ring-2 ring-red-300 shadow-md'
-                      : 'border-red-200 bg-white/60 hover:bg-red-50/60'
-                  }`}
-                >
-                  {mmEroticLevel === 'sm' && (
-                    <span className="absolute -top-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold">已选中</span>
-                  )}
-                  <span className="text-lg">⚡</span>
-                  <span className={`text-[11px] font-bold ${mmEroticLevel === 'sm' ? 'text-red-600' : 'text-red-400'}`}>SM重口味</span>
-                  <span className="text-[9px] text-red-300 leading-tight">凌辱·道具·捆绑</span>
-                  <span className="text-[8px] text-red-300/70 leading-tight">肛交·束缚·羞辱</span>
-                </button>
-              </div>
-
-              {/* 时长 + 生成条数 同一行 */}
-              <div className="flex items-center gap-4 flex-wrap">
-                {/* 时长 */}
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-text-tertiary flex-shrink-0">视频时长：</span>
-                  {([15, 30, 60] as const).map(d => (
-                    <button
-                      key={d}
-                      onClick={() => setMmDuration(d.toString())}
-                      disabled={isSubmitting || mmEroticAnalyzing}
-                      className={`px-3 py-1 rounded-lg text-[10px] font-bold transition-all hover:opacity-90 disabled:opacity-50 ${
-                        mmDuration === d.toString()
-                          ? 'bg-pink-500 text-white ring-2 ring-pink-300 shadow-sm'
-                          : 'bg-pink-500/30 text-pink-300/70'
-                      }`}
-                    >
-                      {d}秒
-                    </button>
-                  ))}
-                </div>
-
-                {/* 分隔 */}
-                <div className="w-px h-5 bg-pink-200/50" />
-
-                {/* 生成条数 */}
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-text-tertiary flex-shrink-0">生成条数：</span>
-                  {([3, 5, 10] as const).map(n => (
-                    <button
-                      key={n}
-                      onClick={() => setMmEroticCount(n)}
-                      disabled={isSubmitting || mmEroticAnalyzing}
-                      className={`px-3 py-1 rounded-lg text-[10px] font-bold transition-all hover:opacity-90 disabled:opacity-50 ${
-                        mmEroticCount === n
-                          ? 'bg-rose-500 text-white ring-2 ring-rose-300 shadow-sm'
-                          : 'bg-rose-500/30 text-rose-300/70'
-                      }`}
-                    >
-                      {n}条
-                    </button>
-                  ))}
-                  {/* 自定义条数 */}
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="number"
-                      min={1}
-                      max={20}
-                      value={![3, 5, 10].includes(mmEroticCount) ? mmEroticCount : ''}
-                      onChange={(e) => {
-                        const v = parseInt(e.target.value, 10);
-                        if (!isNaN(v) && v >= 1 && v <= 20) setMmEroticCount(v);
-                      }}
-                      placeholder="自定义"
-                      className="w-12 px-1.5 py-1 rounded-lg bg-rose-500/20 text-rose-300 text-[10px] text-center border border-rose-300/40 focus:outline-none focus:ring-1 focus:ring-rose-400"
-                      disabled={isSubmitting || mmEroticAnalyzing}
-                    />
-                    <span className="text-[9px] text-rose-300/70">自定义1-20条</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* 图片DNA分析面板（自动提取，自动显示） */}
-              <ImageDnaPanel
-                dna={mmImageDna}
-                loading={mmDnaLoading}
-                error={mmDnaError}
-                imageUrl={mmImages[0]?.path || mmImages[0]?.preview || undefined}
-                additionalImageUrls={mmImages.slice(1, 6).map(img => img.preview || img.path).filter(Boolean)}
-                onReExtract={() => {
-                  // 清除 DNA 缓存，触发重新提取
-                  setMmImageDna(null);
-                  setMmDnaError(null);
-                }}
-                onInsertAsReference={handleInsertClothingAsReference}
-                supplementary={mmSupplementary}
-                onSupplementaryChange={setMmSupplementary}
-                supplementaryMode={mmSupplementaryMode}
-                onSupplementaryModeChange={setMmSupplementaryMode}
-                supplementaryItems={mmSupplementaryItems}
-                onSupplementaryItemsChange={setMmSupplementaryItems}
-                eroticCount={mmEroticCount}
-              />
-
-              {/* 生成按钮 */}
-              <button
-                onClick={handleEroticAnalyze}
-                disabled={
-                  isSubmitting || mmEroticAnalyzing ||
-                  mmImages.filter(img => img.path).length === 0 ||
-                  mmDnaLoading || !mmImageDna
-                }
-                className={`w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                  mmEroticAnalyzing
-                    ? 'bg-pink-500/50 text-white/70 cursor-not-allowed'
-                    : (!mmImageDna || mmDnaLoading)
-                    ? 'bg-pink-500/30 text-white/50 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-pink-500 to-rose-500 text-white hover:opacity-90 shadow-md'
-                }`}
-              >
-                {mmEroticAnalyzing ? (
-                  <>
-                    <Loader2 size={14} className="animate-spin" />
-                    <span>正在生成 {mmEroticCount} 条 H3 提示词...</span>
-                  </>
-                ) : mmDnaLoading ? (
-                  <>
-                    <Loader2 size={14} className="animate-spin" />
-                    <span>正在提取图片DNA...</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles size={14} />
-                    <span>生成 {mmEroticCount} 条 H3 提示词（{mmDuration}秒）</span>
-                  </>
-                )}
-              </button>
-
-              {/* 提示文字 */}
-              <p className="text-[10px] text-pink-400/80 text-center">
-                {mmImageDna
-                  ? 'DNA 已提取完成，点击上方按钮生成基于人物/场景/服装信息的 H3 提示词'
-                  : '上传参考图后，将自动提取图片DNA信息'}
-              </p>
-              {/* 调试信息 */}
-              <div className="mt-1 flex flex-wrap gap-1 text-[9px] text-pink-300/60">
-                {isSubmitting && <span className="px-1 py-0.5 rounded bg-pink-900/40">⚠ isSubmitting</span>}
-                {mmEroticAnalyzing && <span className="px-1 py-0.5 rounded bg-pink-900/40">⚠ mmEroticAnalyzing</span>}
-                {mmImages.filter(img => img.path).length === 0 && <span className="px-1 py-0.5 rounded bg-pink-900/40">⚠ 无参考图</span>}
-                {mmDnaLoading && <span className="px-1 py-0.5 rounded bg-pink-900/40">⚠ DNA加载中</span>}
-                {!mmImageDna && <span className="px-1 py-0.5 rounded bg-pink-900/40">⚠ 无DNA数据</span>}
-                {!isSubmitting && !mmEroticAnalyzing && mmImages.filter(img => img.path).length > 0 && !mmDnaLoading && mmImageDna && (
-                  <span className="px-1 py-0.5 rounded bg-green-900/40 text-green-300/80">✓ 就绪</span>
-                )}
-              </div>
-
-              {/* ═══ 提示词结果展示区（流式加载）════════════════════════════════════════ */}
-              {mmEroticPrompts.length > 0 && (
-                <div className="mt-4 pt-4 border-t-2 border-pink-200/40">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      {/* 已完成计数 vs 总数 */}
-                      {mmEroticAnalyzing
-                        ? <span className="text-sm font-bold text-pink-600 animate-pulse">
-                            ✦ 生成中... {mmEroticPrompts.filter(p => p !== null).length}/{mmEroticPrompts.length}
-                          </span>
-                        : <span className="text-sm font-bold text-pink-600">
-                            ✦ 已生成 {mmEroticPrompts.filter(p => p !== null && !p.startsWith('[')).length} 条提示词
-                          </span>
-                      }
-                    </div>
-                    {!mmEroticAnalyzing && (
-                      <span className="text-[9px] text-pink-400/60">点击「生成视频」可一键提交任务</span>
-                    )}
-                  </div>
-                  <div className="space-y-3 max-h-[28rem] overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin' }}>
-                    {mmEroticPrompts.map((prompt, idx) => {
-                      const isLoading = prompt === null;
-                      const isError = typeof prompt === 'string' && prompt.startsWith('[');
-                      const displayPrompt = isLoading ? '' : prompt;
-                      return (
-                        isLoading ? (
-                          // Loading 骨架
-                          <div key={idx} className="rounded-xl border border-pink-200/40 bg-bg-elevated p-3 animate-pulse">
-                            <div className="flex items-center gap-2 mb-2">
-                              <div className="w-6 h-4 bg-pink-200/30 rounded" />
-                              <div className="w-20 h-4 bg-pink-200/30 rounded" />
-                            </div>
-                            <div className="space-y-1.5">
-                              <div className="h-3 bg-pink-200/20 rounded w-full" />
-                              <div className="h-3 bg-pink-200/20 rounded w-5/6" />
-                              <div className="h-3 bg-pink-200/20 rounded w-4/5" />
-                            </div>
-                          </div>
-                        ) : isError ? (
-                          // 单条失败状态（仍显示，用户可见错误原因）
-                          <div key={idx} className="rounded-xl border border-red-300/50 bg-red-50 p-3">
-                            <p className="text-xs text-red-500">提示词 #{idx + 1} 生成失败：{prompt}</p>
-                          </div>
-                        ) : (
-                          <EroticPromptCard
-                            key={idx}
-                            index={idx}
-                            prompt={displayPrompt}
-                            duration={parseInt(mmDuration, 10) as 15 | 30 | 60}
-                            imagePreview={mmImages[0]?.preview || ''}
-                            imagePath={mmImages[0]?.path || ''}
-                            onUse={(p) => {
-                              setMmPrompt(p);
-                              onSuccess(`已使用提示词 #${idx + 1}`);
-                            }}
-                            onSendToLongVideo={(p) => {
-                              setNlInitialPrompt(p);
-                              if (mmImages[0]?.path) {
-                                setNlInitialImage({
-                                  path: mmImages[0].path,
-                                  preview: mmImages[0].preview || mmImages[0].path,
-                                });
-                              }
-                              setVideoModel('longvideov2');
-                              onSuccess(`已发送提示词 #${idx + 1} 到长视频 v1.1`);
-                            }}
-                            onSendToLongVideoV2={(p) => {
-                              setNlInitialPrompt(p);
-                              if (mmImages[0]?.path) {
-                                setNlInitialImage({
-                                  path: mmImages[0].path,
-                                  preview: mmImages[0].preview || mmImages[0].path,
-                                });
-                              }
-                              setVideoModel('minimaxlongv2');
-                              onSuccess(`已发送提示词 #${idx + 1} 到长视频 V2`);
-                            }}
-                            onGenerateVideo={(p) => {
-                              const nodeList = buildMiniMaxNodeListWithPrompt(p);
-                              const preview = mmImages[0]?.preview || '';
-                              taskListRef.current?.submitTask(
-                                p,
-                                mmImages[0]?.path || '',
-                                preview,
-                                nodeList,
-                                WORKFLOW.MINIMAX_H3,
-                              );
-                              onSuccess(`已提交提示词 #${idx + 1} 到视频生成队列`);
-                            }}
-                          />
-                        )
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+        <EroticCreationPanel
+          images={mmImages as EroticImageRef[]}
+          prompt={mmPrompt}
+          disabled={isSubmitting}
+          eroticMode={mmEroticMode}
+          setEroticMode={setMmEroticMode}
+          eroticLevel={mmEroticLevel}
+          setEroticLevel={setMmEroticLevel}
+          duration={parseInt(mmDuration, 10) as EroticDuration}
+          setDuration={(v) => setMmDuration(String(v))}
+          eroticCount={mmEroticCount}
+          setEroticCount={setMmEroticCount}
+          supplementary={mmSupplementary}
+          setSupplementary={setMmSupplementary}
+          supplementaryMode={mmSupplementaryMode}
+          setSupplementaryMode={setMmSupplementaryMode}
+          supplementaryItems={mmSupplementaryItems}
+          setSupplementaryItems={setMmSupplementaryItems}
+          imageDna={mmImageDna}
+          dnaLoading={mmDnaLoading}
+          dnaError={mmDnaError}
+          onReExtract={() => { setMmImageDna(null); setMmDnaError(null); }}
+          onInsertClothingAsReference={handleInsertClothingAsReference}
+          onUsePrompt={(p) => { setMmPrompt(p); }}
+          onGenerateVideo={(p, idx) => {
+            const nodeList = buildMiniMaxNodeListWithPrompt(p);
+            const preview = mmImages[0]?.preview || '';
+            taskListRef.current?.submitTask(
+              p,
+              mmImages[0]?.path || '',
+              preview,
+              nodeList,
+              WORKFLOW.MINIMAX_H3,
+            );
+            onSuccess(`已提交提示词 #${idx + 1} 到 MiniMax H3 生成队列`);
+          }}
+          onSendToLongVideo={(p) => {
+            sessionStorage.setItem('storyboard_h3_longvideo', JSON.stringify({
+              imagePath: mmImages[0]?.path || '',
+              imagePreview: mmImages[0]?.preview || mmImages[0]?.path || '',
+              h3Prompt: p,
+              targetModel: 'longvideov2',
+            }));
+            setVideoModel('minimaxlongv2');
+            onSuccess(`已发送提示词到长视频 V2`);
+          }}
+          onSendToLongVideoV2={(p) => {
+            sessionStorage.setItem('storyboard_h3_longvideo', JSON.stringify({
+              imagePath: mmImages[0]?.path || '',
+              imagePreview: mmImages[0]?.preview || mmImages[0]?.path || '',
+              h3Prompt: p,
+              targetModel: 'minimaxlongv2',
+            }));
+            setVideoModel('minimaxlongv2');
+            onSuccess(`已发送提示词到长视频 V2`);
+          }}
+          onSetPrompt={(p) => { setMmPrompt(p); }}
+          onError={onError}
+          onSuccess={onSuccess}
+          panelName="ImageToVideo-H3"
+        />
 
         <div className="grid grid-cols-5 gap-2">
           {[0, 1, 2, 3, 4, 5, 6, 7, 8].map(idx => {
@@ -2805,11 +2122,11 @@ function MiniMaxH3T2VPanel({
 
 // ─── 主页面 ────────────────────────────────────────────────────────────────
 
-type VideoModel = 'wan22' | 'minimaxh3' | 'minimaxh3t2v' | 'longvideov2' | 'minimaxlongv2';
+type VideoModel = 'minimaxlongv2' | 'daotai-h3';
 
 export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPageProps) {
   // Model selector
-  const [videoModel, setVideoModel] = useState<VideoModel>('minimaxh3');
+  const [videoModel, setVideoModel] = useState<VideoModel>('minimaxlongv2');
 
   // 长视频 v1.1 初始参考图（从历史记录跳转时设置，由 NinfiniteLongVideoPage 一次性消费）
   const [nlInitialImage, setNlInitialImage] = useState<{ path: string; preview: string } | null>(null);
@@ -2851,9 +2168,9 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
         return;
       }
 
-      // 长视频 v1.1
+      // 长视频 v1.1（已下线）→ 承接至 MiniMax 长视频 V2
       if (wfId === '2094226327238135810' || wfId === '2094672102264090625') {
-        setVideoModel('longvideov2');
+        setVideoModel('minimaxlongv2');
         setNlInitialImage({ path: refImage, preview: refImage });
         if (prompt) setNlInitialPrompt(prompt);
         return;
@@ -2926,12 +2243,9 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
   const [mmImageDna, setMmImageDna] = useState<ImageDnaResult | null>(null);
   const [mmDnaLoading, setMmDnaLoading] = useState(false);
   const [mmDnaError, setMmDnaError] = useState<string | null>(null);
-  // 生成条数（默认 3，可手动 5/10 或自定义 1-20）
-  const [mmEroticCount, setMmEroticCount] = useState(3);
+  // 生成条数（默认 30，可手动 3/5/10/20 或自定义 1-30）
+  const [mmEroticCount, setMmEroticCount] = useState(30);
   // 批量生成的提示词列表（每条独立、可编辑、可单独生成视频）
-  // 流式模式：(string | null)[] - null = 正在生成中，string = 已完成
-  // 非流式模式：string[] - 全部完成后一次性填入
-  const [mmEroticPrompts, setMmEroticPrompts] = useState<(string | null)[]>([]);
   // 自定义补充信息（必须出现的姿势/道具/场景元素等）— 与 DNA 合并用于生成 H3 提示词
   const [mmSupplementary, setMmSupplementary] = useState('');
 
@@ -3135,8 +2449,8 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
             h3PromptText = parsed.h3Prompt || '';
             targetModel = parsed.targetModel || '';
           }
-          // 根据 targetModel 切换到对应的视频模型（长视频1.1 或 长视频v2）
-          setVideoModel(targetModel === 'minimaxlongv2' ? 'minimaxlongv2' : 'longvideov2');
+          // 根据 targetModel 切换到对应的视频模型（v1.1 已下线 → 统一承接至 长视频 V2）
+          setVideoModel('minimaxlongv2');
           // 设置参考图
           if (h3ImgPath) {
             // 【重要】h3ImgPath 是 RunningHub 的相对路径（"openapi/xxx.jpg"），
@@ -3188,7 +2502,7 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
             batchTargetModel = sessionEntry.targetModel || '';
           }
           // 根据 targetModel 切换到对应的视频模型（长视频1.1 或 长视频v2）
-          setVideoModel(batchTargetModel === 'minimaxlongv2' ? 'minimaxlongv2' : 'longvideov2');
+          setVideoModel('minimaxlongv2');
           // 设置多张参考图（用于 NinfiniteLongVideoPage 的多图 slots）
           if (batchImages.length > 0) {
             // 【fix】preview 在写入端已是 cacheKey，消费端必须通过 resolveImageRef
@@ -3223,7 +2537,7 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
         try {
           const { imageUrl, h3Prompt: randomH3Prompt, prompt: randomPrompt } = JSON.parse(randomLongVideoData);
           // 切换到长视频 1.1 模型
-          setVideoModel('longvideov2');
+          setVideoModel('minimaxlongv2');
           
           // 处理图片
           let finalImagePath = imageUrl || '';
@@ -3294,7 +2608,7 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
           // 根据 targetModel 自动切换到对应的视频模型
           if (targetModel === 'longvideov2') {
             // 切换到 长视频 v1.1 模型，并写入 slot 0
-            setVideoModel('longvideov2');
+            setVideoModel('minimaxlongv2');
             setNlInitialImage({ path: finalImagePath, preview: finalImagePreview });
           } else if (targetModel === 'minimaxlongv2') {
             // 切换到 MiniMax 长视频 V2 模型，并写入 slot 0
@@ -3302,7 +2616,7 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
             setNlInitialImage({ path: finalImagePath, preview: finalImagePreview });
           } else if (targetModel === 'minimaxh3') {
             // 切换到 MiniMax H3 模型
-            setVideoModel('minimaxh3');
+            setVideoModel('daotai-h3');
             // 设置图片到 MiniMax H3 面板
             setMmImages([{ path: finalImagePath, preview: finalImagePreview }, { path: '', preview: '' }, { path: '', preview: '' }]);
           } else {
@@ -3387,6 +2701,7 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
       nodeInfoList: NodeInfo[],
       workflowId?: string,
     ) => void;
+    submitDaotaiTask: (prompt: string, body: Record<string, unknown>, preview?: string) => void;
   } | null>(null);
 
   /**
@@ -3647,34 +2962,14 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
           </span>
           <div className="flex bg-bg-elevated rounded-xl p-1">
             <button
-              onClick={() => setVideoModel('wan22')}
+              onClick={() => setVideoModel('daotai-h3')}
               className={`px-4 py-2 rounded-lg text-xs font-medium transition-all ${
-                videoModel === 'wan22'
-                  ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-sm'
-                  : 'text-text-secondary hover:text-text-primary'
-              }`}
-            >
-              Wan 2.2
-            </button>
-            <button
-              onClick={() => setVideoModel('minimaxh3t2v')}
-              className={`px-4 py-2 rounded-lg text-xs font-medium transition-all ${
-                videoModel === 'minimaxh3t2v'
-                  ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-sm'
-                  : 'text-text-secondary hover:text-text-primary'
-              }`}
-            >
-              MiniMax H3 文生视频
-            </button>
-            <button
-              onClick={() => setVideoModel('minimaxh3')}
-              className={`px-4 py-2 rounded-lg text-xs font-medium transition-all ${
-                videoModel === 'minimaxh3'
+                videoModel === 'daotai-h3'
                   ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-sm'
                   : 'text-text-secondary hover:text-text-primary'
               }`}
             >
-              MiniMax H3
+              导演台 H3 (det16)
             </button>
             <button
               onClick={() => setVideoModel('minimaxlongv2')}
@@ -3686,112 +2981,17 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
             >
               MiniMax 长视频 V2
             </button>
-            <button
-              onClick={() => setVideoModel('longvideov2')}
-              className={`px-4 py-2 rounded-lg text-xs font-medium transition-all ${
-                videoModel === 'longvideov2'
-                  ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-sm'
-                  : 'text-text-secondary hover:text-text-primary'
-              }`}
-            >
-              长视频 v1.1
-            </button>
           </div>
         </div>
       </div>
 
-      {/* 视频模型面板 */}
-      {videoModel === 'minimaxh3t2v' && (
-        <MiniMaxH3T2VPanel
+      {/* 导演台 H3 (det16) — 本地 /api/daotai，任务挂载顶部任务列表 */}
+      {videoModel === 'daotai-h3' && (
+        <DaotaiH3Panel
           apiKey={apiKey}
-          mh3Prompt={mh3Prompt}
-          setMh3Prompt={setMh3Prompt}
-          mh3AutoPrompt={mh3AutoPrompt}
-          setMh3AutoPrompt={setMh3AutoPrompt}
-          mh3DirectOutput={mh3DirectOutput}
-          setMh3DirectOutput={setMh3DirectOutput}
-          mh3Duration={mh3Duration}
-          setMh3Duration={setMh3Duration}
-          mh3AspectRatio={mh3AspectRatio}
-          setMh3AspectRatio={setMh3AspectRatio}
-          mh3Submitting={mh3Submitting}
-          setMh3Submitting={setMh3Submitting}
-          isSubmitting={isSubmitting}
-          setIsSubmitting={setIsSubmitting}
           onError={onError}
           onSuccess={onSuccess}
           taskListRef={taskListRef}
-          onBatchProgress={setThemeBatchProgress}
-          mh3ThemeTabs={mh3ThemeTabs}
-          setMh3ThemeTabs={setMh3ThemeTabs}
-          mh3ThemeTabIndex={mh3ThemeTabIndex}
-          setMh3ThemeTabIndex={setMh3ThemeTabIndex}
-          mh3ThemePrompts={mh3ThemePrompts}
-          setMh3ThemePrompts={setMh3ThemePrompts}
-        />
-      )}
-
-      {/* MiniMax H3 UI */}
-      {videoModel === 'minimaxh3' && (
-        <MiniMaxH3Panel
-          apiKey={apiKey}
-          mmImages={mmImages}
-          setMmImages={setMmImages}
-          mmPrompt={mmPrompt}
-          setMmPrompt={setMmPrompt}
-          mmDuration={mmDuration}
-          setMmDuration={setMmDuration}
-          mmStrength={mmStrength}
-          setMmStrength={setMmStrength}
-          mmStyleMode={mmStyleMode}
-          setMmStyleMode={setMmStyleMode}
-          mmAutoPrompt={mmAutoPrompt}
-          setMmAutoPrompt={setMmAutoPrompt}
-          mmDirectOutput={mmDirectOutput}
-          setMmDirectOutput={setMmDirectOutput}
-          mmVideoModel={mmVideoModel}
-          setMmVideoModel={setMmVideoModel}
-          mmLora={mmLora}
-          setMmLora={setMmLora}
-          mmLoraWeight={mmLoraWeight}
-          setMmLoraWeight={setMmLoraWeight}
-          mmUploading={mmUploading}
-          setMmUploading={setMmUploading}
-          isSubmitting={isSubmitting}
-          setIsSubmitting={setIsSubmitting}
-          onError={onError}
-          onSuccess={onSuccess}
-          taskListRef={taskListRef}
-          selectedGirlfriend={selectedGirlfriend}
-          setSelectedGirlfriend={setSelectedGirlfriend}
-          girlfriendUploading={girlfriendUploading}
-          setGirlfriendUploading={setGirlfriendUploading}
-          mmSelectedGirlfriends={mmSelectedGirlfriends}
-          setMmSelectedGirlfriends={setMmSelectedGirlfriends}
-          onBatchProgress={setThemeBatchProgress}
-          mmEroticMode={mmEroticMode}
-          setMmEroticMode={setMmEroticMode}
-          mmEroticLevel={mmEroticLevel}
-          setMmEroticLevel={setMmEroticLevel}
-          mmImageDna={mmImageDna}
-          setMmImageDna={setMmImageDna}
-          mmDnaLoading={mmDnaLoading}
-          setMmDnaLoading={setMmDnaLoading}
-          mmDnaError={mmDnaError}
-          setMmDnaError={setMmDnaError}
-          mmEroticCount={mmEroticCount}
-          setMmEroticCount={setMmEroticCount}
-          mmEroticPrompts={mmEroticPrompts}
-          setMmEroticPrompts={setMmEroticPrompts}
-          mmSupplementary={mmSupplementary}
-          setMmSupplementary={setMmSupplementary}
-          mmSupplementaryMode={mmSupplementaryMode}
-          setMmSupplementaryMode={setMmSupplementaryMode}
-          mmSupplementaryItems={mmSupplementaryItems}
-          setMmSupplementaryItems={setMmSupplementaryItems}
-          setVideoModel={setVideoModel}
-          setNlInitialImage={setNlInitialImage}
-          setNlInitialPrompt={setNlInitialPrompt}
         />
       )}
 
@@ -3807,251 +3007,7 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
         />
       )}
 
-      {/* 长视频 v1.1 UI */}
-      {videoModel === 'longvideov2' && (
-        <NinfiniteLongVideoPage
-          apiKey={apiKey}
-          onError={onError}
-          onSuccess={onSuccess}
-          initialImage={nlInitialImage}
-          initialImages={nlInitialImages}
-          initialPrompt={nlInitialPrompt}
-          submitTask={sharedSubmitTask}
-        />
-      )}
 
-      {/* Wan 2.2 UI */}
-      {videoModel === 'wan22' && (
-        <div key="wan22">
-      {/* 图片上传 */}
-      <div className="rounded-xl bg-bg-surface border border-border p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-medium text-text-primary flex items-center gap-2">
-            <ImageIcon size={16} className="text-primary" />
-            选择图片
-          </h3>
-          <历史图片选择器 on选择={handleImageSelect} 当前图片路径={imagePath} />
-        </div>
-        <ImageUploader
-          value={imagePath}
-          previewUrl={imagePreview}
-          onChange={handleImageSelect}
-          onUpload={handleUpload}
-          disabled={isSubmitting}
-          error={uploadError || undefined}
-          uploadLabel={selectedGirlfriend ? '更换图片' : undefined}
-        />
-        {selectedGirlfriend && (
-          <div className="mt-2 flex items-center gap-2">
-            <div className="px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 text-[10px] font-medium border border-red-200/50">
-              AI 女友模式 · {selectedGirlfriend.nameZh || selectedGirlfriend.name}
-            </div>
-            {girlfriendUploading && (
-              <div className="flex items-center gap-1 text-[10px] text-text-tertiary">
-                <div className="w-3 h-3 border border-text-tertiary/30 border-t-text-tertiary rounded-full animate-spin" />
-                上传中...
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* AI 提示词面板 — 放在参考图下面 */}
-      <AIPromptPanel on应用={handlePromptApply} />
-
-      {/* 预设姿势 */}
-      <PosePresetSelector
-        type="video"
-        onSelect={handlePoseSelect}
-        disabled={isSubmitting}
-        selectedGirlfriend={selectedGirlfriend}
-      />
-
-      {/* 脚本导入 — 从粘贴的脚本文本中识别分镜 */}
-      <div className="rounded-xl bg-bg-surface border border-border overflow-hidden">
-        <button
-          onClick={() => setScriptInputOpen(!scriptInputOpen)}
-          className="w-full px-4 py-3 flex items-center justify-between hover:bg-bg-elevated transition-colors"
-        >
-          <div className="flex items-center gap-2">
-            <Clapperboard size={15} className="text-purple-500" />
-            <span className="text-sm font-medium text-text-primary">脚本导入</span>
-            {parsedScriptPanels.length > 0 && (
-              <span className="px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-600 text-[11px] font-medium">
-                {parsedScriptPanels.length} 个分镜
-              </span>
-            )}
-          </div>
-          {scriptInputOpen ? <ChevronUp size={15} className="text-text-tertiary" /> : <ChevronDown size={15} className="text-text-tertiary" />}
-        </button>
-
-        {scriptInputOpen && (
-          <div className="px-4 pb-4 space-y-3 border-t border-border/50">
-            <p className="text-xs text-text-tertiary mt-2">
-              粘贴分镜脚本文本，自动识别「镜头文案」「图片提示词」「视频提示词」「景别」「音效」「语音分镜」等字段。
-            </p>
-            <textarea
-              value={scriptInputText}
-              onChange={(e) => { setScriptInputText(e.target.value); setParseError(null); }}
-              placeholder={'粘贴分镜脚本，例如：\n\n镜头1\n镜头文案: xxx\n图片提示词: xxx\n视频提示词: xxx\n景别: 中景\n音效: xxx\n\n镜头2\n...'}
-              rows={8}
-              className="w-full px-3 py-2 rounded-lg bg-bg-elevated border border-border text-xs text-text-primary placeholder-slate-600 focus:outline-none focus:border-primary/50 resize-none font-mono"
-            />
-            {parseError && (
-              <p className="text-xs text-red-500">{parseError}</p>
-            )}
-            <div className="flex gap-2">
-              <button
-                onClick={handleParseScript}
-                disabled={!scriptInputText.trim()}
-                className="px-4 py-2 rounded-lg bg-purple-600 text-white text-xs font-medium hover:bg-purple-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                解析脚本
-              </button>
-              {parsedScriptPanels.length > 0 && (
-                <button
-                  onClick={() => { setParsedScriptPanels([]); setScriptInputText(''); setParseError(null); }}
-                  className="px-4 py-2 rounded-lg bg-bg-elevated border border-border text-text-secondary text-xs hover:bg-bg-hover transition-colors"
-                >
-                  清除
-                </button>
-              )}
-            </div>
-
-            {/* Parsed panels preview */}
-            {parsedScriptPanels.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-text-secondary font-medium">解析结果预览</span>
-                  <span className="text-xs text-text-tertiary">{parsedScriptPanels.length} 个分镜</span>
-                </div>
-                <div className="max-h-60 overflow-y-auto space-y-2">
-                  {parsedScriptPanels.map((panel, idx) => (
-                    <div key={idx} className="rounded-lg bg-bg-elevated border border-border p-3 space-y-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="px-1.5 py-0.5 rounded bg-purple-600 text-white text-[10px] font-medium">
-                          镜头{panel.panel_number}
-                        </span>
-                        {panel.shot_type && (
-                          <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-600 text-[10px]">
-                            {panel.shot_type}
-                          </span>
-                        )}
-                      </div>
-                      {panel.scene_description && (
-                        <p className="text-[11px] text-text-secondary whitespace-pre-wrap break-words">{panel.scene_description}</p>
-                      )}
-                      {panel.video_prompt && (
-                        <p className="text-[10px] text-purple-500 whitespace-pre-wrap break-words">视频: {panel.video_prompt}</p>
-                      )}
-                      {panel.image_prompt && (
-                        <p className="text-[10px] text-green-600 whitespace-pre-wrap break-words">图片: {panel.image_prompt}</p>
-                      )}
-                      {panel.sound_cue && (
-                        <p className="text-[10px] text-amber-600">音效: {panel.sound_cue}</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* 视频参数 */}
-      <div className="rounded-xl bg-bg-surface border border-border p-4">
-        <h3 className="text-sm font-medium text-text-primary mb-3 flex items-center gap-2">
-          <Video size={16} className="text-primary" />
-          视频参数
-        </h3>
-
-        <div className="space-y-4">
-          {/* 提示词输入 */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs text-text-secondary">提示词</label>
-              <button
-                onClick={handleExpandPrompt}
-                disabled={isExpandingPrompt || isSubmitting}
-                title="智能扩写：按 Wan2.2 i2v 规范生成英文视频提示词（不含场景/背景/外观）"
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
-                  isExpandingPrompt || isSubmitting
-                    ? 'bg-bg-elevated text-text-secondary cursor-not-allowed'
-                    : 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90'
-                }`}
-              >
-                {isExpandingPrompt ? (
-                  <><Loader2 size={11} className="animate-spin" /> 扩写中</>
-                ) : (
-                  <><Wand2 size={11} />智能扩写</>
-                )}
-              </button>
-            </div>
-            <textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder="描述视频中的人物动作、表情、场景变化... 或点击「智能扩写」自动生成 Wan2.2 格式提示词"
-              rows={4}
-              className="w-full px-3 py-2 rounded-lg bg-bg-elevated border border-border text-sm text-text-primary placeholder-slate-500 focus:outline-none focus:border-primary/50 resize-none"
-              disabled={isSubmitting}
-            />
-          </div>
-
-          {/* 生成按钮 - 放在提示词下方 */}
-          <GenerateButton
-            onClick={handleSubmit}
-            isLoading={isSubmitting}
-            disabled={!imagePath || !prompt.trim() || isSubmitting || isReuploading || girlfriendUploading}
-            label={
-              girlfriendUploading ? '锚定上传中...' :
-              isReuploading ? '重新上传历史图片中...' :
-              isSubmitting ? '提交中...' : '生成视频'
-            }
-          />
-
-          <div className="grid grid-cols-2 gap-4">
-            <ParameterSelect label="时长" value={duration} options={DURATION_OPTIONS} onChange={setDuration} disabled={isSubmitting} />
-            <ParameterSelect label="分辨率" value={resolution} options={RESOLUTION_OPTIONS} onChange={setResolution} disabled={isSubmitting} />
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setInterpolation(!interpolation)}
-              className={`w-10 h-6 rounded-full transition-colors relative ${interpolation ? 'bg-primary' : 'bg-text-tertiary'}`}
-              disabled={isSubmitting}
-            >
-              <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${interpolation ? 'translate-x-5' : 'translate-x-1'}`} />
-            </button>
-            <span className="text-xs text-text-secondary">补帧（视频更流畅但耗时更长）</span>
-          </div>
-
-          {/* LoRA 设置 */}
-          <div className="border-t border-border/50 pt-4">
-            <h4 className="text-xs text-text-secondary mb-3">LoRA 设置（可选）</h4>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <ParameterSelect label="High LoRA" value={loraHigh} options={LORA_HIGH_OPTIONS} onChange={setLoraHigh} disabled={isSubmitting} />
-                {loraHigh && (
-                  <div className="mt-2">
-                    <ParameterSlider label="权重" value={loraHighWeight} min={0.1} max={2} step={0.1} onChange={setLoraHighWeight} disabled={isSubmitting} />
-                  </div>
-                )}
-              </div>
-              <div>
-                <ParameterSelect label="Low LoRA" value={loraLow} options={LORA_LOW_OPTIONS} onChange={setLoraLow} disabled={isSubmitting} />
-                {loraLow && (
-                  <div className="mt-2">
-                    <ParameterSlider label="权重" value={loraLowWeight} min={0.1} max={2} step={0.1} onChange={setLoraLowWeight} disabled={isSubmitting} />
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-        </div>
-      )}
     </div>
   );
 }

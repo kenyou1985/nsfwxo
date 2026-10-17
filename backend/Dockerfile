@@ -12,7 +12,7 @@ COPY data/ ./data/
 COPY run.py .
 
 # Expose port
-EXPOSE 8000
+EXPOSE 9000
 
 # Run
 CMD ["python", "run.py"]

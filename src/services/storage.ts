@@ -129,7 +129,7 @@ export function getMaleCharacterPrompt(id: MaleCharacterId): string {
 
 // ─── Backend URL ─────────────────────────────────────────────────────────────
 
-const DEFAULT_BACKEND_URL = 'http://localhost:8000';
+const DEFAULT_BACKEND_URL = 'http://localhost:9000';
 // 生产环境域名（移动端 H5 访问时优先匹配）
 const PRODUCTION_BACKEND_HOSTS = ['.onrender.com', '.railway.app', '.fly.dev', '.vercel.app'];
 
@@ -145,7 +145,7 @@ export function getBackendUrl(): string {
   try {
     if (typeof window !== 'undefined' && window.location) {
       const { hostname, protocol, port } = window.location;
-      // 桌面开发时：localhost / 127.0.0.1 → 用默认 8000 端口
+      // 桌面开发时：localhost / 127.0.0.1 → 用默认 9000 端口
       const isLocal =
         hostname === 'localhost' ||
         hostname === '127.0.0.1' ||
