@@ -10,6 +10,8 @@
     "restartPolicyMaxRetries": 10,
     "healthcheckPath": "/health",
     "healthcheckInterval": 30,
+    "healthcheckTimeout": 10,
+    "startupTimeout": 180,
     "restartPolicyMinWaitSeconds": 10
   }
 }
