@@ -1319,7 +1319,7 @@ function MiniMaxH3Panel({
   };
 
   /** 主题库批量生成：循环为每个主题提交 MiniMax H3 任务 */
-  const handleThemeBatchGenerate = useCallback(async (themes: ThemeEntry[], duration: 15 | 30 | 60) => {
+  const handleThemeBatchGenerate = useCallback(async (themes: ThemeEntry[], duration: 15 | 30 | 60 | 120 | 180) => {
     if (mmImages.length === 0 || !mmImages[0]?.path) {
       onError('请先上传或选择一张参考图片');
       return;
@@ -1861,7 +1861,7 @@ function MiniMaxH3T2VPanel({
   };
 
   /** 主题库批量生成（T2V 无需参考图） */
-  const handleThemeBatchGenerate = useCallback(async (themes: ThemeEntry[], duration: 15 | 30 | 60) => {
+  const handleThemeBatchGenerate = useCallback(async (themes: ThemeEntry[], duration: 15 | 30 | 60 | 120 | 180) => {
     if (themes.length === 0) return;
     setThemeBatchProgress({ current: 0, total: themes.length });
     onBatchProgress?.({ current: 0, total: themes.length });
@@ -1901,7 +1901,7 @@ function MiniMaxH3T2VPanel({
   };
 
   // 单独填入：收到多个主题，初始化标签切换状态，默认显示第一个主题提示词
-  const handleTheme单独填入 = useCallback((themes: ThemeEntry[], duration: 15 | 30 | 60) => {
+  const handleTheme单独填入 = useCallback((themes: ThemeEntry[], duration: 15 | 30 | 60 | 120 | 180) => {
     const prompts = themes.map(t => 主题转视频提示词(t, duration));
     setMh3ThemeTabs(themes);
     setMh3ThemeTabIndex(0);
@@ -2125,8 +2125,8 @@ function MiniMaxH3T2VPanel({
 type VideoModel = 'minimaxlongv2' | 'daotai-h3';
 
 export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPageProps) {
-  // Model selector
-  const [videoModel, setVideoModel] = useState<VideoModel>('minimaxlongv2');
+  // Model selector（默认导演台 H3 (det16)）
+  const [videoModel, setVideoModel] = useState<VideoModel>('daotai-h3');
 
   // 长视频 v1.1 初始参考图（从历史记录跳转时设置，由 NinfiniteLongVideoPage 一次性消费）
   const [nlInitialImage, setNlInitialImage] = useState<{ path: string; preview: string } | null>(null);

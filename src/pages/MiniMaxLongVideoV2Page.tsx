@@ -542,7 +542,7 @@ export function MiniMaxLongVideoV2Page({
   }, [prompt, images, submitting, buildNodeList, onError, onSuccess]);
 
   // ── 主题库批量生成 ────────────────────────────────────────────────────
-  const handleThemeBatchGenerate = useCallback(async (themes: ThemeEntry[], dur: 15 | 30 | 60) => {
+  const handleThemeBatchGenerate = useCallback(async (themes: ThemeEntry[], dur: 15 | 30 | 60 | 120 | 180) => {
     if (!images.some(img => img.path)) {
       onError('请先上传或选择一张参考图片');
       return;

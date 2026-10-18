@@ -16,9 +16,9 @@ interface ThemeLibraryPanelProps {
   /** 单个主题应用：填入提示词文本框（原有功能） */
   on应用提示词: (提示词: string) => void;
   /** 批量生成：传入多个主题的完整数据，由父组件负责循环调用 submitTask */
-  on批量生成?: (themes: ThemeEntry[], duration: 15 | 30 | 60) => void;
+  on批量生成?: (themes: ThemeEntry[], duration: 15 | 30 | 60 | 120 | 180) => void;
   /** 单独填入：传入多个主题完整数据，由父组件负责渲染标签切换 UI */
-  on单独填入?: (themes: ThemeEntry[], duration: 15 | 30 | 60) => void;
+  on单独填入?: (themes: ThemeEntry[], duration: 15 | 30 | 60 | 120 | 180) => void;
   on上传图片?: (files: File[]) => void;
   multiRefMode?: boolean;
   /** 外部强制设置已选主题（如从外部导入时） */
@@ -26,9 +26,11 @@ interface ThemeLibraryPanelProps {
 }
 
 const 时长选项 = [
-  { label: '15秒', value: 15 as 15 | 30 | 60, shots: 6, color: 'bg-emerald-100 text-emerald-700' },
-  { label: '30秒', value: 30 as 15 | 30 | 60, shots: 9, color: 'bg-blue-100 text-blue-700' },
-  { label: '60秒', value: 60 as 15 | 30 | 60, shots: 9, color: 'bg-violet-100 text-violet-700' },
+  { label: '15秒',  value: 15  as 15 | 30 | 60 | 120 | 180, shots: 6,  color: 'bg-emerald-100 text-emerald-700' },
+  { label: '30秒',  value: 30  as 15 | 30 | 60 | 120 | 180, shots: 9,  color: 'bg-blue-100 text-blue-700' },
+  { label: '60秒',  value: 60  as 15 | 30 | 60 | 120 | 180, shots: 9,  color: 'bg-violet-100 text-violet-700' },
+  { label: '120秒', value: 120 as 15 | 30 | 60 | 120 | 180, shots: 20, color: 'bg-amber-100 text-amber-700' },
+  { label: '180秒', value: 180 as 15 | 30 | 60 | 120 | 180, shots: 30, color: 'bg-rose-100 text-rose-700' },
 ];
 
 export default function ThemeLibraryPanel({
@@ -41,7 +43,7 @@ export default function ThemeLibraryPanel({
 }: ThemeLibraryPanelProps) {
   const [选中分类, set选中分类] = useState<ThemeCategory | '全部'>('全部');
   const [选中强度, set选中强度] = useState<Intensity | '全部'>('全部');
-  const [时长, set时长] = useState<15 | 30 | 60>(30);
+  const [时长, set时长] = useState<15 | 30 | 60 | 120 | 180>(30);
   const [随机抽取数量, set随机抽取数量] = useState(5);
   const [已选主题列表, set已选主题列表] = useState<ThemeEntry[]>(externalSelected ?? []);
   const [搜索词, set搜索词] = useState('');

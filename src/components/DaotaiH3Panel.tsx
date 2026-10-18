@@ -346,15 +346,17 @@ export function DaotaiH3Panel({ apiKey, onError, onSuccess, taskListRef }: Daota
 
   // ── 主题库（470 个预设主题）批量生成：依次提交 det16 ─────────────────────
   const handleThemeGenerate = useCallback(
-    async (themes: ThemeEntry[], themeDuration: 15 | 30 | 60) => {
+    async (themes: ThemeEntry[], themeDuration: 15 | 30 | 60 | 120 | 180) => {
       const refList = refs.filter((r): r is DaotaiRefImage => !!r);
       if (refList.length === 0) {
         onError('请至少上传一张参考图');
         return;
       }
       if (submitting) return;
+      // 主题库支持 15/30/60/120/180s，det16 按段数（≤16）自动切分，时长仅用于提示词节奏
+      const d: 15 | 30 | 60 | 120 | 180 = themeDuration;
       for (let i = 0; i < themes.length; i++) {
-        const promptText = 主题转视频提示词(themes[i], themeDuration);
+        const promptText = 主题转视频提示词(themes[i], d);
         onSuccess(`主题「${themes[i].title}」开始生成（${i + 1}/${themes.length}）`);
         await runSubmit(promptText, refList);
         // det16 任务逐个提交，避免同一时刻并发过多

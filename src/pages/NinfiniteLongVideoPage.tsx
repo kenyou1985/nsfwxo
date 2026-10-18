@@ -410,7 +410,7 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
   }, [onSuccess]);
 
   /** 主题库批量生成 */
-  const handleThemeBatchGenerate = useCallback(async (themes: ThemeEntry[], duration: 15 | 30 | 60) => {
+  const handleThemeBatchGenerate = useCallback(async (themes: ThemeEntry[], duration: 15 | 30 | 60 | 120 | 180) => {
     const firstImage = images.find((img) => img.path && img.path !== 'None');
     if (!firstImage?.path || firstImage.path === 'None') {
       onError('请先上传或选择一张参考图片');
@@ -432,7 +432,7 @@ export function NinfiniteLongVideoPage({ apiKey, onError, onSuccess, initialImag
 
   /** 主题库"单独填入"：每个主题独立生成 H3 提示词，存入主题标签列表，
    *  用户可在标签之间切换查看 / 编辑。第一个主题默认显示在 textarea 中。 */
-  const handleTheme单独填入 = useCallback((themes: ThemeEntry[], duration: 15 | 30 | 60) => {
+  const handleTheme单独填入 = useCallback((themes: ThemeEntry[], duration: 15 | 30 | 60 | 120 | 180) => {
     if (themes.length === 0) return;
     const prompts = themes.map((t) => 主题转视频提示词(t, duration));
     setThemeTabs(themes);
