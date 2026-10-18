@@ -22,7 +22,7 @@ from app.models.schemas import (
     ExtractClothingsRequest, ExtractClothingsResponse,
     StoryboardOutlineRequest, StoryboardOutlineResponse, StoryboardOutline,
     StoryboardScriptRequest, StoryboardScriptResponse,
-    GenerateH3DnaRequest, GenerateH3DnaResponse,
+    GenerateH3DnaRequest, GenerateH3DnaResponse, SeriesOutlineRequest,
 )
 from app.services.llm_service import call_grok, stream_grok, clean_json_response, OpenLuxAuthError, OpenLuxRateLimitError, OpenLuxTimeoutError, OpenLuxParseError, OpenLuxAPIError, OpenLuxTruncationError, call_llm, extract_clothings_with_image
 from app.services.gacha_service import generate_random_tags
@@ -7112,6 +7112,106 @@ def _build_h3_dna_system_prompt(erotic_level: str) -> str:
     return _H3_DNA_SYSTEM_PROMPTS.get(erotic_level, _H3_DNA_SYSTEM_PROMPTS["normal"])
 
 
+def _postprocess_h3_prompt(text: str) -> str:
+    """H3 脚本后处理：剥离思考块（<think>…</think> 及其转义变体），兜底补齐 speaker_mapping。
+    保证输出完全遵循六段式模板（subject_definitions→summary→retention_analysis→
+    detailed_description→overall_soundscape→non_diegetic_music→speaker_mapping）。"""
+    if not text:
+        return text
+    import re as _re
+    text = _re.sub(r"<think>[\s\S]*?</think>", "", text, flags=_re.IGNORECASE)
+    text = _re.sub(r"<\\think>[\s\S]*?</\\think>", "", text, flags=_re.IGNORECASE)
+    text = _re.sub(r"<\|?think\|?>[\s\S]*?<\|?/think\|?>", "", text, flags=_re.IGNORECASE)
+    text = text.strip()
+    # 若 LLM 省略 speaker_mapping（对话较少时常见），按六段式模板兜底补齐
+    if "speaker_mapping" not in text:
+        text = text.rstrip() + '\nspeaker_mapping: {"S1": "Chinese (Mandarin)_Sweet_Female"}'
+    return text
+
+
+# ── 系列短剧资产模板（角色三视图 / 场景空景 / 道具单品）────────────────────────
+# 公共电影质感前缀（所有资产共用，由后端确定性拼接，保证完全遵循模板）
+_SERIES_ASSET_COMMON = (
+    "cinematic photorealistic live-action film still, shot on 35mm anamorphic with ARRI Alexa LF cinema camera, "
+    "shallow depth of field with creamy cinematic bokeh, naturalistic three-point lighting motivated by scene sources, "
+    "soft warm key with cool fill and rim, hyper-detailed human anatomy with visible skin texture and subtle subsurface scattering, "
+    "realistic fabric textures with natural draping and wear, weathered practical props and lived-in environment details, "
+    "organic 35mm film grain texture, ACES film color grading with teal-and-orange Hollywood palette, polished cinematic color science, "
+    "cinematic lens flare and subtle chromatic aberration, soft cinematic vignette, "
+    "photographic composition with rule of thirds and leading depth cues, anamorphic widescreen cinema feel, "
+    "consistent character look across shots, avoid 3D CGI render look, avoid cartoon or cel-shaded outlines, "
+    "avoid anime line art, avoid plastic waxy skin, avoid over-saturated neon colors, avoid painted illustration look, "
+    "avoid comic book halftone inking, avoid doll-like uncanny valley stylization, "
+)
+
+_SERIES_ASSET_CHARACTER_STRUCT = (
+    "character reference sheet: three headless full-body views side by side (front, 90-degree side, back), "
+    "all three cropped above the neckline — no face, no head, no hair, no hat, no head accessories, no earrings, "
+    "neck down to soles of feet only; two face-and-neck close-ups on the right: one front face and one 90-degree side face, "
+    "head and shoulders fully in frame; the headless full-body views and the face-and-neck close-ups must depict the same "
+    "character with identical clothing, body, and skin tone; pure white background, soft even studio lighting, "
+    "no dramatic shadows, no background props, "
+    "角色设定参考图，左侧并列展示正面、90度侧面、背面三张等高无头全身视图，右侧为正脸特写与90度侧脸特写两张脸颈特写。"
+    "三张全身视图头部以上裁出画面，不画脸、不画头发、不画头部装饰，只保留脖颈以下到脚底的全身，中性A字站姿，"
+    "三张等高并排、间距均匀，脚底对齐；两张脸颈特写为头与肩的近景，正脸与90度侧脸，五官、发型、肤质清晰。"
+)
+
+_SERIES_ASSET_CHARACTER_TAIL = (
+    "。脸颈特写与三张无头全身视图的服装、身材、肤色完全一致，纯白背景，柔和均匀的光线., "
+    "East Asian face, East Asian facial features, East Asian woman face"
+)
+
+_SERIES_ASSET_SCENE_HEAD = (
+    "固定机位广角镜头，清晰的建立镜头，"
+)
+
+_SERIES_ASSET_SCENE_TAIL = (
+    "。画面中没有任何人物，空场景，电影质感"
+)
+
+_SERIES_ASSET_PROP_HEAD = (
+    "单品产品图，标准产品摄影视角，微俯视3/4视角，"
+)
+
+_SERIES_ASSET_PROP_TAIL = (
+    "，物品各部分比例准确，孤立放置在纯白背景上，居中完整入镜，边缘完整无裁切，"
+    "背景纯净不承载任何叙事内容，无其他物品、无人物、无场景，柔和均匀的影棚光，轻淡阴影，高细节"
+)
+
+
+def _build_character_asset_prompt(name: str, appearance: str, outfit: str) -> str:
+    return f"{_SERIES_ASSET_COMMON}{_SERIES_ASSET_CHARACTER_STRUCT}{name}：{appearance}，{outfit}{_SERIES_ASSET_CHARACTER_TAIL}"
+
+
+def _build_scene_asset_prompt(name: str, description: str, lighting: str) -> str:
+    return f"{_SERIES_ASSET_COMMON}{_SERIES_ASSET_SCENE_HEAD}{name}：{description}。光照·{lighting}{_SERIES_ASSET_SCENE_TAIL}"
+
+
+def _build_prop_asset_prompt(name: str, description: str) -> str:
+    return f"{_SERIES_ASSET_COMMON}{_SERIES_ASSET_PROP_HEAD}{name}：{description}{_SERIES_ASSET_PROP_TAIL}"
+
+
+_SERIES_OUTLINE_SYSTEM = """你是成人短剧系列策划师与资产设定师。基于参考图 DNA 与用户主题，设计一部剧情连贯递进的成人短剧系列。
+
+必须严格输出一个 JSON 对象（不要 markdown 代码块、不要解释、不要额外文字），结构如下：
+{
+  "episodes": [
+    {"ep": 1, "title": "4-8字标题", "summary": "60字以内的本集剧情概览（含关键情欲/冲突推进）", "hook_out": "20字以内的本集结尾钩子（留给下一集承接）"}
+  ],
+  "blueprints": {
+    "characters": [{"name": "角色名", "role": "主角/配角", "appearance": "外貌体型细节（年龄/脸型/身材/肤色/神情）", "outfit": "本系列贯穿的服装细节"}],
+    "scenes": [{"name": "场景名", "description": "空间布局与陈设细节", "lighting": "光照氛围（时段/光源/色调/明暗）"}],
+    "props": [{"name": "道具名", "description": "外观/材质/尺寸细节"}]
+  }
+}
+
+硬性要求：
+- episodes 数量必须等于用户要求的剧集数，每集剧情连贯递进、集与集承接（第 N 集承接第 N-1 集的 hook_out）。
+- 角色 1-2 个主角（外观严格遵循参考图 DNA 描述），可有 1 个配角；场景 2-3 个贯穿全系列的核心场景；道具 0-2 个与剧情强相关的关键道具。
+- 所有角色必须明确为成年人 18+。
+- 语言：全部使用简体中文。"""
+
+
 # ════════════════════════════════════════════════════════════════════════════════
 # H3 专用输出模板（subject_definitions / summary / retention_analysis / detailed_description）
 # ════════════════════════════════════════════════════════════════════════════════
@@ -8242,6 +8342,9 @@ async def generate_h3_dna_stream(req: GenerateH3DnaRequest, api_key: str = Depen
     """
     dna = req.dna
     count = max(1, min(req.count, 30))
+    mode = (req.mode or "parallel").lower()
+    if mode not in ("parallel", "sequential"):
+        mode = "parallel"
 
     clothing_str = "; ".join(
         f"{c.name}({c.type}, {c.color} {c.style})"
@@ -8250,9 +8353,66 @@ async def generate_h3_dna_stream(req: GenerateH3DnaRequest, api_key: str = Depen
 
     system_prompt = _build_h3_dna_system_prompt(req.erotic_level)
 
-    def _build_prompt(variation_idx: int) -> str:
+    def _is_series_hint(hint: str) -> bool:
+        """系列短剧模式判定：user_hint 含系列/每集/连贯等词 → 生成剧情连贯的系列集，
+        而不是互不相关的独立变体。"""
+        if not hint:
+            return False
+        return any(k in hint for k in ('系列', '每集', '连贯', '短剧', 'episode', 'Episode'))
+
+    def _extract_ending(text: str, max_chars: int = 700) -> str:
+        """从一条已生成的系列脚本中提取「上一集结尾」：优先取最后一个 [Shot N] 段（结尾画面/情节）。"""
+        text = text.strip()
+        if not text:
+            return ""
+        parts = text.split("[Shot ")
+        if len(parts) > 1:
+            last = "[Shot " + parts[-1]
+            # 截断到 soundscape/music/mapping 等非画面段落之前，避免承接注入噪音
+            for stop in ("overall_soundscape", "non_diegetic_music", "speaker_mapping"):
+                i = last.find(stop)
+                if i > 0:
+                    last = last[:i].rstrip()
+                    break
+            return last[:max_chars]
+        return text[-max_chars:]
+
+    def _build_prompt(variation_idx: int, prev_ending: Optional[str] = None) -> str:
         hint_suffix = ""
-        if variation_idx > 0:
+        is_series = count > 1 and _is_series_hint(req.user_hint or '')
+        if is_series:
+            # 系列短剧模式：N 集必须剧情连贯递进，集与集通过人物关系/场景/情节承接串联
+            episode_no = variation_idx + 1
+            if episode_no == 1:
+                hint_suffix = (
+                    f"\n\n【系列模式 · 第 {episode_no} 集 / 共 {count} 集】\n"
+                    f"这是系列短剧的第一集（开篇）：交代参考图角色的人物设定、核心场景与人物关系，"
+                    f"建立贯穿全系列的核心欲望线与张力，为后续剧集埋下情节钩子。"
+                    f"角色外观严格遵循参考图；本集独立成段（可单独生成视频），"
+                    f"结尾留下与第 {episode_no + 1} 集衔接的情节钩子。"
+                )
+            else:
+                if mode == "sequential" and prev_ending:
+                    # 硬承接：真实引用上一集生成的结尾文本，本集必须从此处续写
+                    hint_suffix = (
+                        f"\n\n【系列模式 · 第 {episode_no} 集 / 共 {count} 集 · 硬承接】\n"
+                        f"本集是系列短剧的后续剧集，剧情必须紧接上一集结尾展开。\n"
+                        f"【上一集结尾（本集必须严格从此画面/情节续写，不得另起炉灶）】\n"
+                        f"{prev_ending}\n"
+                        f"人物关系、服装状态、场景环境、核心冲突都要延续上一集的进展并向前推进"
+                        f"（情感/关系/冲突每集递进一个阶段），禁止跳回无关情节。"
+                        f"角色外观严格遵循参考图；本集独立成段（可单独生成视频），"
+                        f"结尾留下与第 {episode_no + 1} 集衔接的情节钩子。"
+                    )
+                else:
+                    hint_suffix = (
+                        f"\n\n【系列模式 · 第 {episode_no} 集 / 共 {count} 集】\n"
+                        f"本集是系列短剧的后续剧集，剧情必须紧接上一集结尾展开：人物关系、服装状态、"
+                        f"场景环境、核心冲突都要延续上一集的进展并向前推进（情感/关系/冲突每集递进一个阶段），"
+                        f"禁止另起炉灶、禁止与前后集内容无关。角色外观严格遵循参考图；本集独立成段"
+                        f"（可单独生成视频），结尾留下与第 {episode_no + 1} 集衔接的情节钩子。"
+                    )
+        elif variation_idx > 0:
             hint_suffix = (
                 f"\n\nGenerate a COMPLETELY DIFFERENT version # {variation_idx + 1}."
                 f" Use a different pose, angle, lighting, and narrative action."
@@ -8269,10 +8429,10 @@ async def generate_h3_dna_stream(req: GenerateH3DnaRequest, api_key: str = Depen
             + hint_suffix
         )
 
-    async def _gen_one_stream(idx: int) -> AsyncIterator[str]:
+    async def _gen_one_stream(idx: int, prev_ending: Optional[str] = None) -> AsyncIterator[str]:
         """单条提示词的流式生成（yield NDJSON lines）"""
         try:
-            up = _build_prompt(idx)
+            up = _build_prompt(idx, prev_ending)
             collected: List[str] = []
 
             yield _ndjson_event({"event": "start", "index": idx})
@@ -8283,7 +8443,9 @@ async def generate_h3_dna_stream(req: GenerateH3DnaRequest, api_key: str = Depen
                 yield _ndjson_event({"event": "delta", "index": idx, "text": piece})
 
             result_clean = "".join(collected).strip()
+            result_clean = _postprocess_h3_prompt(result_clean)
             check_prompt_safety(result_clean)
+            results[idx] = result_clean  # 供 sequential 模式提取上一集结尾
 
             yield _ndjson_event({
                 "event": "end",
@@ -8301,12 +8463,41 @@ async def generate_h3_dna_stream(req: GenerateH3DnaRequest, api_key: str = Depen
         except Exception as e:
             yield _ndjson_event({"event": "error", "index": idx, "message": f"{type(e).__name__}: {e}", "fatal": True})
 
+    results: Dict[int, str] = {}
+
     async def _merge_streams() -> AsyncIterator[str]:
-        """并行运行所有 _gen_one_stream，用 queue 合并 NDJSON lines，保留 index 顺序语义"""
+        """按 mode 合并 NDJSON lines：
+        - parallel:   并行运行所有 _gen_one_stream，queue 合并
+        - sequential: 串行逐集生成，后一集注入前一集结尾文本（硬承接）
+        """
         queue: asyncio.Queue[Tuple[int, str]] = asyncio.Queue()
         done_count = {"n": 0, "success": 0}
         lock = asyncio.Lock()
 
+        if mode == "sequential":
+            # 串行硬承接：逐集生成，维护 prev_ending 供下一集承接
+            prev_ending: Optional[str] = None
+            for idx in range(count):
+                success_before = done_count["success"]
+                async for line in _gen_one_stream(idx, prev_ending):
+                    try:
+                        evt = json.loads(line)
+                        if evt.get("event") == "slot_success":
+                            async with lock:
+                                done_count["success"] += 1
+                            continue
+                    except Exception:
+                        pass
+                    yield line
+                async with lock:
+                    done_count["n"] += 1
+                if done_count["success"] > success_before:
+                    prev_ending = _extract_ending(results.get(idx, ""))
+                # 本集失败时保留上集结尾，下一集仍可承接
+            yield _ndjson_event({"event": "done", "total": count, "successful": done_count["success"]})
+            return
+
+        # parallel：现状（并行生成，逻辑承接）
         async def enqueue(idx: int) -> None:
             async for line in _gen_one_stream(idx):
                 await queue.put((idx, line))
@@ -8343,6 +8534,129 @@ async def generate_h3_dna_stream(req: GenerateH3DnaRequest, api_key: str = Depen
 
     return StreamingResponse(
         _merge_streams(),
+        media_type="application/x-ndjson",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@router.post("/generate/series/outline")
+async def generate_series_outline(req: SeriesOutlineRequest, api_key: str = Depends(get_api_key)):
+    """系列短剧大纲 + 资产蓝图生成（NDJSON 流式）。
+
+    事件格式：
+      {"event":"outline","data":{episodes:[{ep,title,summary,hook_out}], blueprints:{characters,scenes,props}}}
+      {"event":"assets","data":{characters:[{name,prompt}], scenes:[{name,prompt}], props:[{name,prompt}]}}
+      {"event":"error","message":"..."}
+      {"event":"done","ok":true|false}
+
+    资产提示词由后端确定性拼接（完全遵循角色三视图/场景空景/道具单品模板），
+    LLM 只负责输出蓝图（角色外观服装 / 场景布局光照 / 道具细节）。
+    """
+    count = max(1, min(req.count, 30))
+
+    clothing_str = "; ".join(
+        f"{c.name}({c.type}, {c.color} {c.style})"
+        for c in req.dna.clothing_list
+    ) or "无可见服装"
+
+    # DNA 上下文（人物/场景/服装摘要）
+    dna_context = (
+        f"【参考图 DNA】\n"
+        f"人物类型：{req.dna.character_type}（{req.dna.character_age_hint}）\n"
+        f"人物外貌：{req.dna.character_description}\n"
+        f"服装：{clothing_str}\n"
+        f"场景：{req.dna.scene_type}：{req.dna.scene_description}\n"
+        f"动作预判：{req.dna.action_prediction}\n"
+        f"整体风格：{req.dna.overall_style}（NSFW: {req.dna.nsfw_level}）"
+    )
+
+    user_hint_block = f"\n【用户主题/剧情要求】{req.user_hint}" if req.user_hint else ""
+
+    user_prompt = (
+        f"{dna_context}\n"
+        f"【要求】设计一部共 {count} 集的成人短剧系列，单集时长 {req.duration} 秒，"
+        f"创作方向：{req.erotic_level}。{user_hint_block}\n"
+        f"严格按 system 要求的 JSON 结构输出，episodes 必须恰好 {count} 条。"
+    )
+
+    async def _generate():
+        try:
+            raw = await call_grok(api_key, _SERIES_OUTLINE_SYSTEM, user_prompt, max_tokens=16384)
+            data = clean_json_response(raw)
+            if not isinstance(data, dict):
+                yield _ndjson_event({"event": "error", "message": "大纲生成返回格式异常（非 JSON 对象）"})
+                yield _ndjson_event({"event": "done", "ok": False})
+                return
+
+            episodes = data.get("episodes") or []
+            blueprints = data.get("blueprints") or {}
+            if not isinstance(episodes, list) or len(episodes) == 0:
+                yield _ndjson_event({"event": "error", "message": "大纲生成缺少 episodes 列表"})
+                yield _ndjson_event({"event": "done", "ok": False})
+                return
+
+            episodes = episodes[:count]
+            for ep in episodes:
+                if not isinstance(ep, dict):
+                    continue
+                ep.setdefault("title", f"第 {ep.get('ep', '?')} 集")
+                ep.setdefault("summary", "")
+                ep.setdefault("hook_out", "")
+
+            yield _ndjson_event({"event": "outline", "data": {"episodes": episodes, "blueprints": blueprints}})
+
+            # 资产提示词：后端确定性拼接模板
+            characters = []
+            for c in (blueprints.get("characters") or []):
+                if not isinstance(c, dict) or not c.get("name"):
+                    continue
+                characters.append({
+                    "name": c.get("name"),
+                    "role": c.get("role", "主角"),
+                    "prompt": _build_character_asset_prompt(
+                        c.get("name", ""),
+                        c.get("appearance", "成年东亚女性，面容清晰，身材匀称"),
+                        c.get("outfit", "贴合参考图服装风格"),
+                    ),
+                })
+            scenes = []
+            for s in (blueprints.get("scenes") or []):
+                if not isinstance(s, dict) or not s.get("name"):
+                    continue
+                scenes.append({
+                    "name": s.get("name"),
+                    "prompt": _build_scene_asset_prompt(
+                        s.get("name", ""),
+                        s.get("description", "室内空间"),
+                        s.get("lighting", "自然柔和光线"),
+                    ),
+                })
+            props = []
+            for p in (blueprints.get("props") or []):
+                if not isinstance(p, dict) or not p.get("name"):
+                    continue
+                props.append({
+                    "name": p.get("name"),
+                    "prompt": _build_prop_asset_prompt(p.get("name", ""), p.get("description", "关键道具")),
+                })
+
+            yield _ndjson_event({"event": "assets", "data": {"characters": characters, "scenes": scenes, "props": props}})
+            yield _ndjson_event({"event": "done", "ok": True})
+        except ContentSafetyError as e:
+            yield _ndjson_event({"event": "error", "message": f"内容安全拒绝: {e}"})
+            yield _ndjson_event({"event": "done", "ok": False})
+        except OpenLuxAPIError as e:
+            yield _ndjson_event({"event": "error", "message": str(e)})
+            yield _ndjson_event({"event": "done", "ok": False})
+        except OpenLuxAuthError as e:
+            yield _ndjson_event({"event": "error", "message": str(e)})
+            yield _ndjson_event({"event": "done", "ok": False})
+        except Exception as e:
+            yield _ndjson_event({"event": "error", "message": f"{type(e).__name__}: {e}"})
+            yield _ndjson_event({"event": "done", "ok": False})
+
+    return StreamingResponse(
+        _generate(),
         media_type="application/x-ndjson",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

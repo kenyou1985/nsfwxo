@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Sparkles, Loader2, Play, Copy, Check, X, ChevronDown, ChevronUp, Video, Wand2, Settings2, Clock, Hash, Brain, Film, ListOrdered, Image as ImageIcon, Layers } from 'lucide-react';
 import { streamGenerateH3DnaPrompt, type ImageDnaResult } from '../services/promptApi';
 import { ImageDnaPanel } from './ImageDnaPanel';
+import { SeriesWorkbench } from './SeriesWorkbench';
 import { compressDataUrlIfNeeded, isHeicDataUrl } from '../utils/imagePreprocess';
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -83,7 +84,7 @@ export const SKILL_PRESETS: SkillPreset[] = [
     hint: '输入完整新主题，生成系列脚本',
     icon: <Wand2 size={12} />,
     duration: 60,
-    count: 30,
+    count: 3,
     level: 'normal',
     userHint: '请根据下方输入的完整主题生成系列大纲与每集分镜（每集 60s），每集独立成段，剧情连贯递进，集与集之间通过场景/人物关系串联，主体符合参考图角色外观。',
   },
@@ -360,6 +361,8 @@ export interface EroticCreationPanelProps {
   onUsePrompt: (prompt: string, idx: number) => void;
   /** 点击「生成视频」：父页面用这条提示词构建节点并提交任务 */
   onGenerateVideo: (prompt: string, idx: number) => void;
+  /** 系列资产生成/上传成功：自动填入父页面参考图槽（不触发 DNA 重提取） */
+  onAssetToRef?: (dataUrl: string, name: string) => void;
   /** 「发送到长视频 v1.1」（可选，仅 ImageToVideoPage 注入） */
   onSendToLongVideo?: (prompt: string) => void;
   /** 「发送到长视频 V2」（可选，仅 ImageToVideoPage 注入） */
@@ -413,6 +416,7 @@ export function EroticCreationPanel({
   onInsertClothingAsReference,
   onUsePrompt,
   onGenerateVideo,
+  onAssetToRef,
   onSendToLongVideo,
   onSendToLongVideoV2,
   onSetPrompt,
@@ -427,6 +431,9 @@ export function EroticCreationPanel({
   // ── 自定义主题文本 + 当前激活的 Skill ID ─────────────────────────────────
   const [customThemeText, setCustomThemeText] = useState<string>('');
   const [activeSkillId, setActiveSkillId] = useState<string | null>(null);
+
+  // 当前激活 Skill 的 userHint（供系列工作台使用：10 集 / 自定义主题的系列主题）
+  const activePresetUserHint = SKILL_PRESETS.find(p => p.id === activeSkillId)?.userHint ?? '';
 
   // ── 当 count 变化时，同步补充项数组长度 ──────────────────────────────────
   useEffect(() => {
@@ -805,11 +812,11 @@ export function EroticCreationPanel({
                           className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold bg-gradient-to-r from-pink-500 to-rose-500 text-white hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
                         >
                           <Wand2 size={11} />
-                          应用主题并生成 30 条提示词
+                          应用主题并生成 {eroticCount} 条提示词
                         </button>
                       </div>
                       <p className="text-[9px] text-pink-500/80 leading-relaxed">
-                        主题将自动套用为系列剧本的核心设定，并按下方「生成条数」配置的数量生成独立的 H3 提示词（默认 30 条）
+                        主题将自动套用为系列剧本的核心设定，并按下方「生成条数」配置的数量生成独立的 H3 提示词（默认 3 条）
                       </p>
                     </div>
                   )}
@@ -880,6 +887,21 @@ export function EroticCreationPanel({
           <p className="text-[10px] text-pink-400/80 leading-relaxed">
             将自动分析第一张参考图（DNA 提取）→ 结合选定方向与补充信息 → Grok-4.6 流式生成 H3 格式提示词
           </p>
+
+          {/* ── 系列工作台（大纲 + 脚本 + 角色/场景/道具资产） ─────────── */}
+          <SeriesWorkbench
+            images={images}
+            imageDna={imageDna}
+            eroticLevel={eroticLevel}
+            duration={duration}
+            count={eroticCount}
+            userHint={activePresetUserHint}
+            onError={onError}
+            onSuccess={onSuccess}
+            onUsePrompt={(promptText, idx) => onUsePrompt(promptText, idx)}
+            onGenerateVideo={(promptText, idx) => onGenerateVideo(promptText, idx)}
+            onAssetToRef={onAssetToRef}
+          />
 
           {/* ── 结果展示区 ──────────────────────────────────────────── */}
           {eroticPrompts.length > 0 && (

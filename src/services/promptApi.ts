@@ -989,6 +989,8 @@ export interface GenerateH3DnaParams {
   userHint?: string;
   /** 生成条数，默认 1 */
   count?: number;
+  /** 系列生成模式: parallel=并行（逻辑承接）; sequential=硬承接（后一集真实引用前一集结尾） */
+  mode?: 'parallel' | 'sequential';
 }
 
 export interface GenerateH3DnaResult {
@@ -1102,6 +1104,7 @@ export async function streamGenerateH3DnaPrompt(
       duration: params.duration,
       user_hint: params.userHint || null,
       count: params.count ?? 1,
+      mode: params.mode ?? 'parallel',
     },
     (evt: StreamEvent) => {
       switch (evt.event) {
@@ -1131,6 +1134,93 @@ export async function streamGenerateH3DnaPrompt(
             total: (evt.total as number) ?? 0,
             successful: (evt.successful as number) ?? 0,
           });
+          break;
+      }
+    },
+  );
+}
+
+// ─── 系列短剧：大纲 + 资产 ────────────────────────────────────────────────────
+
+export interface SeriesEpisodeOutline {
+  ep?: number;
+  title?: string;
+  summary?: string;
+  hook_out?: string;
+}
+
+export interface SeriesBlueprints {
+  characters?: { name?: string; role?: string; appearance?: string; outfit?: string }[];
+  scenes?: { name?: string; description?: string; lighting?: string }[];
+  props?: { name?: string; description?: string }[];
+}
+
+export interface SeriesAssetItem {
+  name: string;
+  role?: string;
+  prompt: string;
+}
+
+export interface SeriesAssets {
+  characters: SeriesAssetItem[];
+  scenes: SeriesAssetItem[];
+  props: SeriesAssetItem[];
+}
+
+export interface SeriesOutlineCallbacks {
+  /** 大纲生成完成（episodes + 蓝图） */
+  onOutline?: (data: { episodes: SeriesEpisodeOutline[]; blueprints: SeriesBlueprints }) => void;
+  /** 资产提示词生成完成（角色/场景/道具，已套模板） */
+  onAssets?: (data: SeriesAssets) => void;
+  onError?: (message: string) => void;
+  onDone?: (ok: boolean) => void;
+}
+
+/**
+ * 系列短剧大纲 + 资产蓝图生成（NDJSON 流式）。
+ * 事件：outline（episodes + blueprints）→ assets（三类已套模板的提示词）→ done
+ */
+export async function streamGenerateSeriesOutline(
+  params: {
+    imageUrl: string;
+    dna: ImageDnaResult;
+    eroticLevel: 'soft' | 'normal' | 'sm';
+    duration: 15 | 30 | 60 | 120 | 180 | 240;
+    userHint?: string;
+    count?: number;
+  },
+  callbacks: SeriesOutlineCallbacks,
+): Promise<{ abort: () => void }> {
+  const yunwuKey = getYunwuKey();
+  if (!yunwuKey) {
+    callbacks.onError?.('OpenLux API Key 未设置');
+    callbacks.onDone?.(false);
+    return { abort: () => {} };
+  }
+
+  return openNdjsonStream(
+    '/api/prompt/generate/series/outline',
+    {
+      image_url: params.imageUrl,
+      dna: params.dna,
+      erotic_level: params.eroticLevel,
+      duration: params.duration,
+      user_hint: params.userHint || null,
+      count: params.count ?? 10,
+    },
+    (evt: StreamEvent) => {
+      switch (evt.event) {
+        case 'outline':
+          callbacks.onOutline?.(evt.data as { episodes: SeriesEpisodeOutline[]; blueprints: SeriesBlueprints });
+          break;
+        case 'assets':
+          callbacks.onAssets?.(evt.data as SeriesAssets);
+          break;
+        case 'error':
+          callbacks.onError?.((evt.message as string) ?? '未知错误');
+          break;
+        case 'done':
+          callbacks.onDone?.(evt.ok === true);
           break;
       }
     },

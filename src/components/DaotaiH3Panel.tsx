@@ -277,6 +277,30 @@ export function DaotaiH3Panel({ apiKey, onError, onSuccess, taskListRef }: Daota
     }
   }, [handleUpload, eroticMode, onError, onSuccess]);
 
+  // ── 资产生成/上传成功：自动填入参考图槽（首个空槽，不触发 DNA 重提取） ──
+  const handleInsertAssetAsReference = useCallback(async (dataUrl: string, assetName: string) => {
+    try {
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      const mime = blob.type || 'image/png';
+      const ext = mime.split('/')[1] || 'png';
+      const safeName = (assetName || 'asset').replace(/[^\w一-龥]+/g, '_').slice(0, 32) || 'asset';
+      const file = new File([blob], `${safeName}_${Date.now()}.${ext}`, { type: mime });
+      // 填入第一个空槽，避免覆盖用户已上传的参考图
+      const firstEmpty = refs.findIndex(r => !r);
+      const slot = firstEmpty >= 0 ? firstEmpty : 0;
+      await handleUpload(file, slot);
+      // 插入资产参考图时自动关闭情色创作模式（避免 useEffect 再次触发 DNA 提取）
+      if (eroticMode) setEroticMode(false);
+      setImageDna(null);
+      setDnaError(null);
+      onSuccess(`资产「${assetName}」已自动填入参考图 ${slot + 1}`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '未知错误';
+      onError(`资产参考图填入失败: ${msg}`);
+    }
+  }, [refs, handleUpload, eroticMode, onError, onSuccess]);
+
   // ── 提交（det16）：挂载到顶部 VideoTaskList，由全局任务列表轮询 ──────────
   const runSubmit = useCallback(
     async (trimmedPrompt: string, refList: DaotaiRefImage[]) => {
@@ -471,6 +495,7 @@ export function DaotaiH3Panel({ apiKey, onError, onSuccess, taskListRef }: Daota
         onInsertClothingAsReference={handleInsertClothingAsReference}
         onUsePrompt={(promptText: string) => { setPrompt(promptText); }}
         onGenerateVideo={handlePanelGenerate}
+        onAssetToRef={handleInsertAssetAsReference}
         onSetPrompt={(p: string) => { setPrompt(p); }}
         onError={onError}
         onSuccess={onSuccess}

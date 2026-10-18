@@ -260,6 +260,8 @@ class GenerateH3DnaRequest(BaseModel):
     user_hint: Optional[str] = Field(default=None, description="用户补充的动作/镜头描述（可选）")
     # 批量生成条数（1-30），每条都是全新的不重复提示词
     count: int = Field(default=1, ge=1, le=30, description="生成条数（1-30 条），每条不重复")
+    # 系列生成模式: parallel=并行（逻辑承接，速度快）; sequential=硬承接（串行，后一集真实引用前一集结尾文本）
+    mode: Literal["parallel", "sequential"] = Field(default="parallel", description="系列生成模式")
 
 
 class GenerateH3DnaResponse(BaseModel):
@@ -267,3 +269,13 @@ class GenerateH3DnaResponse(BaseModel):
     prompts: list[str] = Field(default_factory=list, description="生成的 H3 格式中文视频提示词列表（每条不重复）")
     erotic_level: str = Field(..., description="使用的创作方向")
     duration: int = Field(..., description="视频时长（秒）")
+
+
+class SeriesOutlineRequest(BaseModel):
+    """系列短剧大纲 + 资产蓝图生成（NDJSON 流式）"""
+    image_url: str = Field(..., description="参考图 URL（支持 base64 data:image/... 或 http(s):// URL）")
+    dna: ExtractImageDnaResponse = Field(..., description="DNA 提取结果（包含人物/场景/服装/动作预判信息）")
+    erotic_level: Literal["soft", "normal", "sm"] = Field(default="normal", description="创作方向等级")
+    duration: Literal[15, 30, 60, 120, 180, 240] = Field(default=60, description="单集视频时长（秒）")
+    user_hint: Optional[str] = Field(default=None, description="用户补充的系列主题/剧情要求（可选）")
+    count: int = Field(default=10, ge=2, le=30, description="剧集数（2-30 集）")

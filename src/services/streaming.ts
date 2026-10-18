@@ -21,8 +21,10 @@ export type StreamEvent =
   | { event: 'end'; index: number; theme_label?: string; prompt: string; [k: string]: unknown }
   | { event: 'panel'; index: number; panel: { panel_number: number; scene_description: string; image_prompt: string }; [k: string]: unknown }
   | { event: 'panel_skipped'; index?: number; reason: string; [k: string]: unknown }
+  | { event: 'outline'; data: unknown; [k: string]: unknown }
+  | { event: 'assets'; data: unknown; [k: string]: unknown }
   | { event: 'error'; index?: number; message: string; fatal?: boolean; [k: string]: unknown }
-  | { event: 'done'; total: number; successful: number; count?: number; [k: string]: unknown };
+  | { event: 'done'; total: number; successful: number; count?: number; ok?: boolean; [k: string]: unknown };
 
 export interface StreamHandle {
   /** Abort the request (e.g. on component unmount or new request). */

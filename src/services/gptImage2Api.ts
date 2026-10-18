@@ -2,6 +2,9 @@ import type { GirlfriendPreset } from '../data/girlfriendPresets';
 
 const OPENLUX_BASE = 'https://api.openlux.ai/v1';
 
+/** 默认生图模型：gpt-image-2.5-sunburst-c（可被调用方覆盖） */
+export const DEFAULT_IMAGE_MODEL = 'gpt-image-2.5-sunburst-c';
+
 export type GptImageQuality = 'low' | 'medium' | 'high';
 /** gpt-image-2 支持任意尺寸（最大边 ≤ 3840px，两边 16 的倍数，比例 ≤ 3:1） */
 export type GptImageSize = '1024x1024' | '1536x1024' | '1024x1536' | '1024x768' | '768x1024' | '1024x1792' | '1792x1024' | '1024x2048' | '2048x1024' | '2048x1152' | '1152x2048' | 'auto' | string;
@@ -96,7 +99,7 @@ async function parseResponse<T>(res: Response): Promise<T> {
   }
 }
 
-/** Text-to-image generation via GPT Image 2 */
+/** Text-to-image generation via GPT Image */
 export async function generateImage(
   apiKey: string,
   prompt: string,
@@ -104,7 +107,8 @@ export async function generateImage(
     n = 1,
     size = '1024x1024',
     quality = 'medium',
-  }: { n?: number; size?: GptImageSize; quality?: GptImageQuality } = {}
+    model = DEFAULT_IMAGE_MODEL,
+  }: { n?: number; size?: GptImageSize; quality?: GptImageQuality; model?: string } = {}
 ): Promise<GptImageResult[]> {
   const CONCURRENCY = 3;
   const DELAY_MS = 800;
@@ -119,7 +123,7 @@ export async function generateImage(
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({ model: 'gpt-image-2', prompt, n: 1, size, quality }),
+      body: JSON.stringify({ model, prompt, n: 1, size, quality }),
     });
     const data = await parseResponse<{
       created: number;
@@ -161,7 +165,7 @@ export async function generateImage(
   return results;
 }
 
-/** Image-to-image (edit) via GPT Image 2 — supports multiple reference images */
+/** Image-to-image (edit) via GPT Image — supports multiple reference images */
 export async function editImage(
   apiKey: string,
   prompt: string,
@@ -171,11 +175,13 @@ export async function editImage(
     size = '1024x1024',
     quality = 'medium',
     maskFile,
+    model = DEFAULT_IMAGE_MODEL,
   }: {
     n?: number;
     size?: GptImageSize;
     quality?: GptImageQuality;
     maskFile?: File;
+    model?: string;
   } = {}
 ): Promise<GptImageResult[]> {
   const files = Array.isArray(imageFiles) ? imageFiles : [imageFiles];
@@ -187,7 +193,7 @@ export async function editImage(
 
   const doOne = async (retries = 2): Promise<void> => {
     const form = new FormData();
-    form.append('model', 'gpt-image-2');
+    form.append('model', model);
     form.append('prompt', prompt);
     form.append('n', '1');
     form.append('size', size);
