@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { ImagePlus, Sparkles, User, Shirt, MapPin, Plus } from 'lucide-react';
 import { ImageUploader } from '../components/ImageUploader';
+import { DaotaiImagePanel } from '../components/DaotaiImagePanel';
 import { GirlfriendSelector } from '../components/GirlfriendSelector';
 import { ParameterSlider } from '../components/ParameterSlider';
 import { GenerateButton } from '../components/GenerateButton';
@@ -1325,6 +1326,9 @@ export function ImageToImagePage({
         onClearCompleted={taskManager.clearCompleted}
         onRegenerate={taskManager.regenerateTask}
       />
+
+      {/* 导演台 Krea2-muse 生图面板（引擎切换：导演台免扣费 / 官方直连） */}
+      <DaotaiImagePanel apiKey={apiKey} onError={onError} onSuccess={onSuccess} defaultMode="krea2-muse" />
 
       {/* 图生图模型选择 */}
       <div className="rounded-xl bg-bg-surface border border-border p-4">

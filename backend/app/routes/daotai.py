@@ -9,6 +9,7 @@ import os
 import sys
 import json
 import re
+import threading
 import urllib.parse
 from pathlib import Path
 
@@ -81,6 +82,28 @@ def _clip_shots(prompt: str, shots_per_seg: int):
     return '[Shot 1] ' + prompt.strip()
 
 
+# 分镜标记归一化：画布切分链（TextFindAndReplace）锚点只认 [Shot N]，
+# 用户脚本可能是 [分镜 N]/[镜头 N]/行首 分镜N/镜头N/Shot N → 统一替换为 [Shot N]，
+# 否则 _clip_shots 不裁剪（整段注入 500）+ 1305/1306/1351/1304 提取失败输出原样 500
+# → 1307 合并 ≈ 19634 tokens → 15 LLM 节点 n_ctx 16384 爆窗任务失败。
+_SHOT_NORM = [
+    (re.compile(r'\[\s*分镜\s*(\d+)\s*\]'), r'[Shot \1]'),
+    (re.compile(r'\[\s*镜头\s*(\d+)\s*\]'), r'[Shot \1]'),
+    (re.compile(r'\[\s*Shot\s*(\d+)\s*\]', re.I), r'[Shot \1]'),
+    (re.compile(r'(?m)^\s*(?:分镜|镜头)\s*(\d+)\b'), r'[Shot \1]'),
+    (re.compile(r'(?m)^\s*Shot\s*(\d+)\b', re.I), r'[Shot \1]'),
+]
+
+
+def _normalize_shot_marks(prompt: str) -> str:
+    """统一分镜标记为 [Shot N]（画布切分链锚点），供 det16/global 提交使用。"""
+    if not prompt:
+        return prompt
+    for pat, repl in _SHOT_NORM:
+        prompt = pat.sub(repl, prompt)
+    return prompt
+
+
 @router.post('/video')
 async def submit_video(request: Request):
     try:
@@ -104,7 +127,12 @@ async def submit_video(request: Request):
 
     refs = _video_refs(body)
     shots_per_seg = max(1, int(body.get('shots_per_seg') or 1))
-    prompt = _clip_shots(prompt, shots_per_seg)
+    # 分镜标记归一化（[分镜 N]/[镜头 N]/行首 Shot N → [Shot N]），保证画布切分链锚点命中
+    prompt = _normalize_shot_marks(prompt)
+    # det16 工作流：500 需要完整全局提示词（画布按 503 目标段数确定性切分，forLoop 合并），
+    # shots_per_seg 对 det16 无意义，裁剪会丢剧情 → 仅非 det16 走裁剪
+    if rh.VIDEO_WFS.get(_wfid, {}).get('mode') != 'det16':
+        prompt = _clip_shots(prompt, shots_per_seg)
 
     # 参数锁定：开启时跟随导演台参数
     _pl = rh.PARAM_LOCK.get('video') or {}
@@ -153,7 +181,18 @@ async def query_task(request: Request):
     if not ent:
         return {'status': 'FAILED', 'message': 'unknown taskId: ' + tid}
     if ent['kind'] == 'image':
-        return {'status': 'FAILED', 'message': 'daotai 仅支持视频任务'}
+        try:
+            st, urls, local, th, logs = rh.img_poll(tid, ent.get('api_key') or '')
+        except Exception:
+            st = 'running'
+        if st == 'finished':
+            images = [_img_media_url(u) for u in (local or [])]
+            thumbs = [_img_media_url(u) for u in (th or [])]
+            return {'status': 'SUCCESS', 'images': images, 'thumbs': thumbs,
+                    'output': {'images': images, 'thumbs': thumbs}}
+        if st == 'failed':
+            return {'status': 'FAILED', 'message': '图片任务失败: ' + str(tid)}
+        return {'status': 'PROCESSING', 'taskId': tid}
     job = rh.JOBS.get(ent['job_id'])
     if not job:
         return {'status': 'FAILED', 'message': 'job lost'}
@@ -180,3 +219,139 @@ async def media(jobdir: str, filename: str):
     if not target.startswith(base + os.sep) or not os.path.isfile(target):
         return JSONResponse(status_code=404, content={'error': '文件不存在'})
     return FileResponse(target)
+
+
+# ═══════════════════════ 导演台 Krea2 / Krea2-muse 生图（独立复用，不依赖 8765） ═══════════════
+# 复用 rh_h3_web 的 img_submit/img_watch/IMG_WF_REGISTRY（内部直连 RunningHub 平台，
+# 自杀链免扣费机制与视频一致），8765 端口停用也能独立生成、获取图片。
+
+def _image_refs(body: dict):
+    """收集图生图参考图：显式 refs[] 为主，兼容 firstFrameUrl/imageUrl；下载为本地路径。
+    支持 data:image base64（前端本地图直传）→ 落盘 web/image/_uploads/ 供 img_submit 使用。"""
+    refs = []
+    seen = set()
+    _main = body.get('firstFrameUrl') or body.get('imageUrl') or body.get('first_frame')
+    if _main:
+        seen.add(str(_main))
+        rf = rh._rh_dl_ref(str(_main))
+        if rf:
+            refs.append(rf)
+    _reg_refs = body.get('refs') or []
+    if not isinstance(_reg_refs, list):
+        _reg_refs = [_reg_refs] if _reg_refs else []
+    for u in _reg_refs:
+        u = str(u or '').strip()
+        if not u or u in seen:
+            continue
+        seen.add(u)
+        rf = None
+        if u.startswith('data:image'):
+            try:
+                import base64 as _b64
+                _hdr, _data = u.split(',', 1)
+                _ext = 'png'
+                if 'png' in _hdr:
+                    _ext = 'png'
+                elif 'jpeg' in _hdr or 'jpg' in _hdr:
+                    _ext = 'jpg'
+                elif 'webp' in _hdr:
+                    _ext = 'webp'
+                _ud = os.path.abspath(os.path.join(rh.WEB_ROOT, 'image', '_uploads'))
+                os.makedirs(_ud, exist_ok=True)
+                _fp = os.path.join(_ud, 'ref_%s.%s' % (tid_suffix(), _ext))
+                with open(_fp, 'wb') as _f:
+                    _f.write(_b64.b64decode(_data))
+                rf = _fp
+            except Exception:
+                rf = None
+        else:
+            rf = rh._rh_dl_ref(u)
+        if rf and rf not in refs:
+            refs.append(rf)
+    return refs
+
+
+def tid_suffix():
+    import time as _t
+    return _t.strftime('%H%M%S') + ''.join(os.urandom(2).hex())
+
+
+def _img_media_url(rel: str):
+    """把 rh.img_poll 返回的 web/ 根相对路径（/image/20261018xxx/img.png）转本服务 URL。"""
+    rel = str(rel or '')
+    if rel.startswith('/image/'):
+        rest = rel[len('/image/'):].strip('/')
+        parts = [p for p in rest.split('/') if p]
+        if len(parts) >= 2:
+            return '/api/daotai/image/media/' + urllib.parse.quote(parts[0]) + '/' + '/'.join(
+                urllib.parse.quote(p) for p in parts[1:])
+        if len(parts) == 1:
+            return '/api/daotai/image/media/' + urllib.parse.quote(parts[0])
+    return rel
+
+
+@router.post('/image')
+async def submit_image(request: Request):
+    """提交图片生成任务（导演台 Krea2 / Krea2-muse / Qwen-Image 等，免扣费自杀链）。
+    body: model / workflow_id(可选) / prompt / refs[] / ratio / megapixels / batch / instance"""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(status_code=400, content={'error': 'bad json'})
+    key = ''
+    auth = request.headers.get('Authorization', '')
+    if auth.lower().startswith('bearer '):
+        key = auth[7:].strip()
+    if not key:
+        return JSONResponse(status_code=400, content={'error': '缺少 Authorization: Bearer <apiKey>'})
+    model = str(body.get('model') or body.get('key') or '')
+    if model not in rh.RH_IMAGE_MODELS:
+        model = 'krea2-muse' if (body.get('refs') or []) else 'krea2'
+    _wid = str(body.get('workflow_id') or body.get('wf') or '')
+    if not _wid:
+        for _wfid, _meta in rh.IMG_WF_REGISTRY.items():
+            if _meta.get('key') == model:
+                _wid = _wfid
+                break
+    if _wid not in rh.IMG_WF_REGISTRY:
+        _wid = rh.RH_IMG_WFID
+    cfg = {
+        'workflow_id': _wid, 'api_key': key,
+        'instance': body.get('instance') or 'plus',
+        'prompt': body.get('prompt') or '',
+        'mode': 'i2i' if (body.get('refs') or []) else 't2i', 'optimize': bool(body.get('optimize')),
+        'ratio': rh._rh_map_ratio(body.get('ratio') or body.get('size') or ''),
+        'megapixels': float(body.get('megapixels') or body.get('pixels') or 2),
+        'batch': int(body.get('n') or body.get('batch') or body.get('num') or 1),
+        'refs': _image_refs(body),
+    }
+    try:
+        tid, logs, nw = rh.img_submit(cfg)
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': str(e)})
+    rh.RH_OPENAPI[str(tid)] = {'kind': 'image', 'api_key': key, 'task_id': str(tid)}
+    rh.RH_OPENAPI_LIVE[str(tid)] = True
+    threading.Thread(target=rh.img_watch, args=(str(tid), key), daemon=True).start()
+    return {
+        'taskId': str(tid), 'task_id': str(tid),
+        'localDir': os.path.basename(rh.IMG_DIRS.get(str(tid), '') or ''),
+        'logs': logs,
+    }
+
+
+@router.get('/image/media/{jobdir}/{filename}')
+async def image_media(jobdir: str, filename: str):
+    """图片产物静态服务：web/image/年月日+随机/xxx.png。"""
+    if not _SAFE.match(jobdir) or not _SAFE.match(filename):
+        return JSONResponse(status_code=400, content={'error': '非法文件名'})
+    base = os.path.abspath(os.path.join(rh.WEB_ROOT, 'image'))
+    target = os.path.abspath(os.path.join(base, jobdir, filename))
+    if not target.startswith(base + os.sep) or not os.path.isfile(target):
+        return JSONResponse(status_code=404, content={'error': '文件不存在'})
+    return FileResponse(target)
+
+
+@router.get('/image/models')
+async def image_models():
+    """导演台图片模型列表（IMG_WF_REGISTRY），供前端引擎切换下拉。"""
+    return {'models': rh._img_workflows_json()}

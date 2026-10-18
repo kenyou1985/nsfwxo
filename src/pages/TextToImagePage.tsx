@@ -4,6 +4,7 @@ import { TagPanel } from '../components/TagPanel';
 import { ParameterSlider } from '../components/ParameterSlider';
 import { ParameterSelect } from '../components/ParameterSelect';
 import { RunningHubModelPicker } from '../components/RunningHubModelPicker';
+import { DaotaiImagePanel } from '../components/DaotaiImagePanel';
 import { GenerateButton } from '../components/GenerateButton';
 import { ImageGrid } from '../components/ImageGrid';
 import { TaskList } from '../components/TaskList';
@@ -412,6 +413,9 @@ export function TextToImagePage({
         onClearCompleted={taskManager.clearCompleted}
         onRegenerate={taskManager.regenerateTask}
       />
+
+      {/* 导演台 Krea2 生图面板（引擎切换：导演台免扣费 / 官方直连） */}
+      <DaotaiImagePanel apiKey={apiKey} onError={onError} onSuccess={onSuccess} defaultMode="krea2" />
 
       {/* Desktop: Two-column layout */}
       <div className="hidden xl:block">
