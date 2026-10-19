@@ -780,9 +780,9 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
                 _emit('  [路%d] P. #500.text 注入该路子提示词（分镜 %s-%s，%d 字，503=%d 段，分镜号已重排从 [Shot 1] 起）: %s…'
                       % (rng[0], rng[1], rng[2], len(_gp), _N_det, _gp[:80].replace('\n', ' ')))
             else:
-                # 单路：500 = 完整全局提示词原样（画布内确定性切分）
-                _emit('  [路%d] P. #500.text 注入完整全局提示词（%d 字，503=%d 段，画布内确定性切分；音频净化: %s）: %s…'
-                      % (rng[0], len(_gp_san), _N_det, _removed, _gp_san[:80].replace('\n', ' ')))
+                # 单路：500 = 完整全局提示词原样（画布内确定性切分，16段主线基底：不注入音频净化）
+                _emit('  [路%d] P. #500.text 注入完整全局提示词（%d 字，503=%d 段，画布内确定性切分；音频净化: 无）: %s…'
+                      % (rng[0], len(_gp), _N_det, _gp[:80].replace('\n', ' ')))
         _wf['501']['inputs']['value'] = True      # 全局模式（501=true → 505.tt=504=15 轮循环）
         # 2026-10-15 v12 修复音频污染：恢复 502=true（让 LLM 228 跑，生成 H3 听得懂的"cinematic"音频描述），
         # 对齐画布手动行为。LLM 228 会尊重 non_diegetic_music: None 指令，H3 据此生成干净音频；
