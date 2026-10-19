@@ -217,6 +217,7 @@ async def query_task(request: Request):
         u = _absolute_url(request, f'/api/daotai/media/{_dir}/{urllib.parse.quote(_fname)}')
         return {'status': 'SUCCESS', 'video_url': u, 'output': {'video_url': u}, 'url': u}
     if stt == 'finished' and not snap.get('final_url'):
+        # 兼容历史错误：status 应该是 failed 而非 finished；这里再做一次兜底
         return {'status': 'FAILED', 'message': '视频合成失败：最终视频未生成（段视频已落盘，可走 bind-local-video 兜底）'}
     if stt in ('failed', 'stopped'):
         # 提取最后一条错误/警告行作为真实原因（job.logs 包含 _emit 的所有行）
@@ -234,7 +235,28 @@ async def query_task(request: Request):
         _msg = '视频任务失败: ' + str(stt)
         if _reason:
             _msg = '%s | 原因: %s' % (_msg, _reason[:300])
-        return {'status': 'FAILED', 'message': _msg, 'reason': _reason[:500] if _reason else ''}
+        # ===== 段视频兜底：扫描 run_dir 把 seg_*.mp4 / route_*.mp4 列出来 =====
+        # 合成失败时任务标 failed，但段视频已落盘在容器里 —— 前端能直接放 / 下载
+        # 不再做"二阶段"提示，直接把 URL 列表塞进响应里
+        _segs = []
+        try:
+            _run_dir = job.run_dir
+            _dir = os.path.basename(_run_dir) if _run_dir else ''
+            if _dir and rh.VIDEOS_DIR and os.path.isdir(os.path.join(rh.VIDEOS_DIR, _dir)):
+                for _fn in sorted(os.listdir(os.path.join(rh.VIDEOS_DIR, _dir))):
+                    if _fn.endswith('.mp4') and (_fn.startswith('seg_') or _fn.startswith('route_')):
+                        _segs.append({
+                            'name': _fn,
+                            'url': _absolute_url(request, f'/api/daotai/media/{_dir}/{urllib.parse.quote(_fn)}'),
+                            'size': os.path.getsize(os.path.join(rh.VIDEOS_DIR, _dir, _fn)),
+                        })
+        except Exception:
+            pass
+        _resp = {'status': 'FAILED', 'message': _msg, 'reason': _reason[:500] if _reason else ''}
+        if _segs:
+            _resp['segments'] = _segs
+            _resp['message'] = '%s | 兜底：已返回 %d 段分段视频（多段合成失败时仍可单独播放/下载）' % (_msg, len(_segs))
+        return _resp
     return {'status': 'PROCESSING', 'taskId': tid}
 
 

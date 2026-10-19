@@ -11,6 +11,15 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
+# 安装 ffmpeg（多段视频合成 / 参考图裁头检测 / 缩略图抽取）
+# - python:3.11-slim (Debian bookworm) 仓库自带 ffmpeg，无需额外源
+# - 多段视频合成（_concat_videos）需要它，否则只能走"单段快速通道"兜底
+# - 安装包增量约 ~25MB（压缩层），可接受
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/* \
+    && ffmpeg -version | head -1
+
 # Install dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

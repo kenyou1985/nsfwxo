@@ -1781,8 +1781,29 @@ def _trim_video(job, src, trim_tail=False):
     return src
 
 def _concat_videos(job, paths, out):
+    """多段视频合成最终视频。优先 ffmpeg concat（多段需 ffmpeg）；
+    单段时直接 os.replace（不需要 ffmpeg，作为无 ffmpeg 环境的兜底）"""
     if not paths:
         return None
+    paths = [p for p in paths if p and os.path.exists(p)]
+    if not paths:
+        return None
+    # ===== 单段快速通道：直接搬过去，不需要 ffmpeg =====
+    # 解决 Railway / 极简镜像无 ffmpeg 时的"单段卡合成"问题。
+    if len(paths) == 1:
+        try:
+            if os.path.abspath(paths[0]) != os.path.abspath(out):
+                # 优先 rename（同盘零成本）；跨盘时退化为 copy
+                try:
+                    os.replace(paths[0], out)
+                except OSError:
+                    import shutil
+                    shutil.copyfile(paths[0], out)
+            _emit('  ✅ 单段快速通道（无 ffmpeg 也能合成）: %s (%.1f MB)' % (os.path.basename(out), os.path.getsize(out) / 1048576))
+            return out
+        except Exception as e:
+            _emit('  单段快速通道异常: %s（回落 ffmpeg 尝试）' % e)
+    # ===== 多段：ffmpeg concat =====
     lst = os.path.join(job.run_dir, 'concat_list_tmp.txt')
     with open(lst, 'w', encoding='utf-8') as f:
         for q in paths:
@@ -1796,7 +1817,7 @@ def _concat_videos(job, paths, out):
             return out
         _emit('  ffmpeg 失败: %s' % (r.stderr[-300:] if r.stderr else ''))
     except FileNotFoundError:
-        _emit('  未找到 ffmpeg（macOS: brew install ffmpeg）')
+        _emit('  未找到 ffmpeg（容器内: apt-get install ffmpeg；macOS: brew install ffmpeg）— 多段无法合成')
     except Exception as e:
         _emit('  合成异常: %s' % e)
     return None
@@ -2205,7 +2226,10 @@ def run_job(job):
                             job.set_status('failed')
                             _emit('没有任何路视频，无法合成')
                         else:
-                            job.set_status('finished')
+                            # 段视频已落盘但 _concat_videos 失败（多段且无 ffmpeg）→ failed
+                            # 兜底：前端 query 的 segments 字段会把每段 seg/route_X.mp4 URL 返回
+                            job.set_status('failed')
+                            _emit('❌ 段视频已生成但多段合成失败（无 ffmpeg/合成异常）— 详见上方 FFmpeg 日志；前端可走 segments 兜底')
                         return
                     ranges = [(1, 0, 0)]        # 整个循环作为一个任务提交
                     seg_map = {}
@@ -2348,7 +2372,9 @@ def run_job(job):
                         job.set_status('failed')
                         _emit('没有任何路视频，无法合成')
                     else:
-                        job.set_status('finished')
+                        # 段视频已落盘但 _concat_videos 失败 → failed（前端走 segments 兜底）
+                        job.set_status('failed')
+                        _emit('❌ 段视频已生成但多段合成失败（无 ffmpeg/合成异常）— 详见上方 FFmpeg 日志；前端可走 segments 兜底')
                     return
                 ranges = [(1, 0, 0)]
                 seg_map = {}
@@ -2467,8 +2493,10 @@ def run_job(job):
             job.set_status('failed')
             _emit('没有任何分段产物，无法合成')
         else:
-            job.set_status('finished')
-            _emit('已停止，保留已生成分段（未合成最终视频）')
+            # 段视频已落盘但 _concat_videos 失败（多段且无 ffmpeg）→ failed
+            # 兜底：前端 query 的 segments 字段会把每段 seg_*.mp4 URL 返回
+            job.set_status('failed')
+            _emit('❌ 段视频已生成但多段合成失败（无 ffmpeg/合成异常）— 详见上方 FFmpeg 日志；前端可走 segments 兜底')
     except Exception as e:
         import traceback
         _emit('任务异常: %s' % e)
