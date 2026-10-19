@@ -774,6 +774,9 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
         # 16段主线基底：500 文本原样直通（不注入音频净化，不做台词/BGM 摘除）
         _gp = (seg_prompt or (cfg.get('global_prompt') or '')).strip()
         if _gp:
+            # 防御：wf_json 拉取失败时 _wf 是空 dict，下面的字段写入会 KeyError 误导
+            if '500' not in _wf or 'inputs' not in _wf.get('500', {}):
+                raise RuntimeError('工作流 JSON 缺失 500 节点（wf_json 拉取失败或工作流不兼容）— 请检查 API Key 是否对该工作流有访问权限（平台返回 301/user not exist 即此原因）')
             _wf['500']['inputs']['text'] = _gp
             if seg_prompt:
                 # 多路并发：500 = 该路子提示词（分镜 lo-hi 重排从 [Shot 1] 起，画布正则切分才能命中）
