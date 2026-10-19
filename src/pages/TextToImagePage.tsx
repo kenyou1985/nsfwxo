@@ -399,7 +399,12 @@ export function TextToImagePage({
     }
   };
 
-  const txt2imgTasks = taskManager.tasks.filter((t: QueuedTask) => t.workflowType === 'txt2img');
+  // TextToImagePage 顶部 TaskList：显示官方 txt2img 工作流任务 + 导演台 Krea2 文生图任务
+  // 导演台任务的 workflowType 是 'daotai-img'，需要用 daotaiConfig.model === 'krea2' 区分 Krea2 文生图
+  const txt2imgTasks = taskManager.tasks.filter((t: QueuedTask) =>
+    t.workflowType === 'txt2img' ||
+    (t.workflowType === 'daotai-img' && t.daotaiConfig?.model === 'krea2')
+  );
   const allImages = txt2imgTasks.flatMap((t: QueuedTask) => t.images);
 
   const totalSelected = positiveTags.length + negativeTags.length;
