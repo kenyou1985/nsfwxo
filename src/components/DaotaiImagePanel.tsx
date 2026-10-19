@@ -5,6 +5,7 @@ import { MAX_TASKS } from '../hooks/useTaskManager';
 import { QUALITY_BOOST_PROMPT, KREA2_TXT2IMG_PARAMS } from '../constants';
 import { WORKFLOW } from '../services/runninghub';
 import { buildTxt2ImgNodeList } from '../utils/txt2imgNodeBuilder';
+import { getBackendUrl } from '../services/storage';
 
 // ─── 导演台 / 原官方 Krea2 文生图 ───────────────────────────────────────────
 // 导演台 + 原官方 双模式文生图面板（受控组件）。
@@ -95,7 +96,7 @@ export function DaotaiImagePanel({
   // 拉取导演台图片模型列表（用于下拉菜单显示）
   const loadModels = useCallback(async () => {
     try {
-      const resp = await fetch('/api/daotai/image/models');
+      const resp = await fetch(`${getBackendUrl().replace(/\/$/, '')}/api/daotai/image/models`);
       const data = await resp.json();
       if (Array.isArray(data.models)) {
         // 文生图模式只显示 t2i_only 模型 + 双向模型（qwen-image-2.1 同时支持文生图/图生图）

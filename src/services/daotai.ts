@@ -2,10 +2,10 @@
  * 导演台 (daotai) 后端 API 封装
  *
  * 与 RunningHub 不同，导演台任务走 nsfwxo 后端 /api/daotai/* 路由：
- * - 提交图片：POST /api/daotai/image
- * - 提交视频：POST /api/daotai/video
- * - 轮询：     POST /api/daotai/query
- * - 静态服务： GET  /api/daotai/image/media/...
+ * - 提交图片：POST {backendUrl}/api/daotai/image
+ * - 提交视频：POST {backendUrl}/api/daotai/video
+ * - 轮询：     POST {backendUrl}/api/daotai/query
+ * - 静态服务： GET  {backendUrl}/api/daotai/image/media/...
  *
  * 与 useTaskManager 的集成点：
  * 1. submitDaotaiImage / submitDaotaiVideo 走自定义 fetch，不调用 RunningHub
@@ -13,6 +13,7 @@
  *    （不需要 ZIP 解压环节）
  */
 import type { DaotaiImgConfig } from '../types';
+import { getBackendUrl } from './storage';
 
 export interface DaotaiSubmitResponse {
   taskId: string;
@@ -45,12 +46,19 @@ function authHeaders(apiKey: string): HeadersInit {
   };
 }
 
+/** 把相对路径 /api/daotai/... 解析为绝对 URL，避免前端在 Vercel 部署时打到
+ *  Vercel 自己的边缘（那里没有 serverless function，会返回 405）。 */
+function api(path: string): string {
+  const base = getBackendUrl().replace(/\/$/, '');
+  return `${base}${path.startsWith('/') ? path : '/' + path}`;
+}
+
 export async function submitDaotaiImage(
   apiKey: string,
   prompt: string,
   config: DaotaiImgConfig,
 ): Promise<DaotaiSubmitResponse> {
-  const resp = await fetch('/api/daotai/image', {
+  const resp = await fetch(api('/api/daotai/image'), {
     method: 'POST',
     headers: authHeaders(apiKey),
     body: JSON.stringify({
@@ -81,7 +89,7 @@ export async function pollDaotaiTask(
   apiKey: string,
   taskId: string,
 ): Promise<DaotaiPollResponse> {
-  const resp = await fetch('/api/daotai/query', {
+  const resp = await fetch(api('/api/daotai/query'), {
     method: 'POST',
     headers: authHeaders(apiKey),
     body: JSON.stringify({ taskId }),

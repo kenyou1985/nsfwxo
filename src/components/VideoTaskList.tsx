@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, forwardRef, useImperat
 import { X, Download, Clock, Coins, CheckCircle, XCircle, Loader2, ZoomIn } from 'lucide-react';
 import type { NodeInfo } from '../types';
 import { runTask, getTaskStatus, getTaskResults, extractImagesFromZipAsDataUrls } from '../services/runninghub';
+import { getBackendUrl } from '../services/storage';
 
 interface VideoTask {
   id: string;
@@ -577,7 +578,7 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
 
     const poll = async () => {
       try {
-        const resp = await fetch('/api/daotai/query', {
+        const resp = await fetch(`${getBackendUrl().replace(/\/$/, '')}/api/daotai/query`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ taskId: task.taskId }),
@@ -832,7 +833,7 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
     console.log(`[VideoTaskList] handleDaotaiSubmit: task ${id} added, QUEUEING. body keys:`, Object.keys(body));
 
     try {
-      const resp = await fetch('/api/daotai/video', {
+      const resp = await fetch(`${getBackendUrl().replace(/\/$/, '')}/api/daotai/video`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
