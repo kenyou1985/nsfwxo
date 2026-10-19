@@ -219,8 +219,47 @@ async def query_task(request: Request):
     if stt == 'finished' and not snap.get('final_url'):
         return {'status': 'FAILED', 'message': '视频合成失败：最终视频未生成（段视频已落盘，可走 bind-local-video 兜底）'}
     if stt in ('failed', 'stopped'):
-        return {'status': 'FAILED', 'message': '视频任务失败: ' + str(stt)}
+        # 提取最后一条错误/警告行作为真实原因（job.logs 包含 _emit 的所有行）
+        # 优先级：⚠/❌/任务异常/任务提交失败 > 最后一行非空日志
+        _logs = list(job.logs or [])
+        _reason = ''
+        for _line in reversed(_logs):
+            if not _line:
+                continue
+            if any(_line.startswith(p) for p in ('⚠', '❌', '任务异常', '提交失败', '平台拉取失败', '没有任何路', '单路视频缺失', '段视频已生成')):
+                _reason = _line
+                break
+        if not _reason and _logs:
+            _reason = _logs[-1]
+        _msg = '视频任务失败: ' + str(stt)
+        if _reason:
+            _msg = '%s | 原因: %s' % (_msg, _reason[:300])
+        return {'status': 'FAILED', 'message': _msg, 'reason': _reason[:500] if _reason else ''}
     return {'status': 'PROCESSING', 'taskId': tid}
+
+
+@router.post('/video/logs')
+async def video_logs(request: Request):
+    """返回视频任务完整日志（排查用：失败时第一时间看真正原因，不靠前端 alert）。
+    body: {taskId: '...'}"""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(status_code=400, content={'error': 'bad json'})
+    tid = str(body.get('taskId') or body.get('task_id') or '')
+    ent = rh.RH_OPENAPI.get(tid)
+    if not ent or ent.get('kind') != 'video':
+        return JSONResponse(status_code=404, content={'error': 'unknown taskId: ' + tid})
+    job = rh.JOBS.get(ent['job_id'])
+    if not job:
+        return JSONResponse(status_code=404, content={'error': 'job 已丢失（8765 重启后）'})
+    # 返回最后 200 条日志（job.logs 限制 4000 条，但通常失败时只关心尾部）
+    return {
+        'taskId': tid,
+        'status': job.status,
+        'logs': list(job.logs or [])[-200:],
+        'runDir': os.path.basename(job.run_dir) if job.run_dir else '',
+    }
 
 
 @router.get('/media/{jobdir}/{filename}')
