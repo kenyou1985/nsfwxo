@@ -95,8 +95,8 @@ export function ImageToImagePage({
   // Aspect ratio: 'portrait' (竖屏 9:16) or 'landscape' (横屏 16:9)
   const [aspectRatio, setAspectRatio] = useState<'portrait' | 'landscape'>('portrait');
 
-  // ─── 图生图（多图编辑）模式 ────────────────────────────────────────────────
-  type Img2ImgMode = 'single' | 'multi';
+  // ─── 图生图（多图编辑 / Krea2-muse）模式 ────────────────────────────────────────────────
+  type Img2ImgMode = 'single' | 'multi' | 'krea2-muse';
   const [img2imgMode, setImg2imgMode] = useState<Img2ImgMode>('single');
 
   interface MultiRefImage {
@@ -116,6 +116,13 @@ export function ImageToImagePage({
   const [multiRefCount, setMultiRefCount] = useState(2); // 187: 抽卡数（默认2）
   const [multiRefSubmitting, setMultiRefSubmitting] = useState(false);
   const [multiRefUploadErrors, setMultiRefUploadErrors] = useState<(string | null)[]>([null, null, null]);
+
+  // ── 导演台 Krea2-muse 模式专用状态 ──────────────────────────────────────────
+  // 复用 multiRefImages 三个槽位作为参考图上传槽位
+  // ratio/batch 是 Krea2-muse 引擎提交给后端 /api/daotai/image 的参数
+  const [krea2MuseRatio, setKrea2MuseRatio] = useState('16:9');
+  const [krea2MuseBatch, setKrea2MuseBatch] = useState(1); // 导演台后端固定返回 2 张图，默认 1 即可
+  const [krea2MuseSubmitting, setKrea2MuseSubmitting] = useState(false);
 
   // 锚定数字人：选中的数字人预设会各自占据一个参考图槽位（slot 0, 1, 2）
   // 第一个锚定 → 参考图1，第二个锚定 → 参考图2，以此类推
@@ -526,6 +533,60 @@ export function ImageToImagePage({
       setMultiRefSubmitting(false);
     }
   };
+
+  // 导演台 Krea2-muse 提交：复用 multiRefImages 3 个槽位的参考图，走 /api/daotai/image
+  // 后端固定返回 2 张图，krea2MuseBatch 只是占位（前端不强制按 batch 张数展示）
+  const handleKrea2MuseGenerate = useCallback(async (overridePrompt?: string) => {
+    // 至少需要 1 张图
+    const hasImage = multiRefImages.some((img) => img.path);
+    if (!hasImage) {
+      onError?.('请至少上传一张参考图');
+      return;
+    }
+    // 优先使用 overridePrompt（标签库生图走这条路径），否则用 multiRefPrompt
+    const promptForSubmit = (overridePrompt ?? multiRefPrompt).trim();
+    if (!promptForSubmit) {
+      onError?.('请输入描述提示词');
+      return;
+    }
+    if (taskManager.isFull) {
+      onError?.(`任务队列已满（最多 ${MAX_TASKS} 个任务），请等待当前任务完成`);
+      return;
+    }
+    // 同步覆盖 multiRefPrompt（让"描述提示词"编辑框也保持一致）
+    if (overridePrompt) {
+      setMultiRefPrompt(overridePrompt);
+    }
+
+    // 拼接身份锚点（多数字人：每个锚定数字人一条身份锁）
+    let finalPrompt = promptForSubmit;
+    if (multiRefGirlfriends.length > 0) {
+      const anchors = multiRefGirlfriends.map((gf, i) => {
+        const charName = gf.nameZh || gf.name;
+        const charId = gf.id.toUpperCase().slice(0, 4);
+        return `Strictly preserve the exact identity, character, and features of ${charName} (ID:${charId}) from reference image ${i + 1}. Do not alter the character at all.`;
+      });
+      finalPrompt = anchors.join(' ') + ' ' + finalPrompt;
+    }
+
+    setKrea2MuseSubmitting(true);
+    try {
+      // 收集所有非空参考图（data:URL 或 http(s) URL）
+      const refs = multiRefImages
+        .map((img) => img.preview || '')
+        .filter(Boolean);
+
+      await taskManager.addDaotaiImgTask(
+        { model: 'krea2-muse', ratio: krea2MuseRatio, batch: krea2MuseBatch, refs },
+        finalPrompt,
+      );
+      onSuccess?.('导演台 Krea2-muse 任务已提交');
+    } catch (err) {
+      onError?.(err instanceof Error ? err.message : '提交失败');
+    } finally {
+      setKrea2MuseSubmitting(false);
+    }
+  }, [multiRefImages, multiRefPrompt, multiRefGirlfriends, krea2MuseRatio, krea2MuseBatch, taskManager, onSuccess, onError]);
 
   const handlePoseSelect = useCallback((posePrompt: string, poseName: string) => {
     // Krea2 style: pose preset is a coherent English paragraph — join with
@@ -1270,8 +1331,10 @@ export function ImageToImagePage({
     }
   };
 
+  // ImageToImagePage 顶部 TaskList 显示的 task 类型：单图/多图/Krea2-muse（导演台 Krea2-muse 是 daotai-img workflow）
   const img2imgTasks = taskManager.tasks.filter((t: QueuedTask) =>
-    t.workflowType === 'img2img' || t.workflowType === 'multi-ref-img2img'
+    t.workflowType === 'img2img' || t.workflowType === 'multi-ref-img2img' ||
+    (t.workflowType === 'daotai-img' && t.daotaiConfig?.model === 'krea2-muse')
   );
   const allImages = img2imgTasks.flatMap((t: QueuedTask) => t.images);
   const totalSelected = positiveTags.length + negativeTags.length;
@@ -1328,9 +1391,9 @@ export function ImageToImagePage({
 
       {/* 图生图模型选择 */}
       <div className="rounded-xl bg-bg-surface border border-border p-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <span className="text-sm font-medium text-text-primary">图生图模型</span>
-          <div className="flex gap-1">
+          <div className="flex gap-1 flex-wrap">
             <button
               onClick={() => setImg2imgMode('single')}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
@@ -1353,11 +1416,27 @@ export function ImageToImagePage({
             >
               多图编辑
             </button>
+            <button
+              onClick={() => setImg2imgMode('krea2-muse')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                img2imgMode === 'krea2-muse'
+                  ? 'bg-primary text-white'
+                  : 'bg-bg-elevated text-text-tertiary hover:bg-bg-hover'
+              }`}
+              disabled={taskManager.isFull}
+            >
+              导演台 Krea2-muse<span className="ml-1 text-[10px] text-accent">免扣费</span>
+            </button>
           </div>
         </div>
         {img2imgMode === 'multi' && (
           <div className="mt-2 text-xs text-text-tertiary">
             支持同时上传3张参考图，生成融合多图元素的编辑结果
+          </div>
+        )}
+        {img2imgMode === 'krea2-muse' && (
+          <div className="mt-2 text-xs text-text-tertiary">
+            导演台 Krea2-muse 角色参考写真：支持 1-3 张参考图，提交走 /api/daotai/image（自杀式免扣分）。
           </div>
         )}
       </div>
@@ -1875,6 +1954,278 @@ export function ImageToImagePage({
                 await handleMultiRefGenerate(finalPrompt);
               }}
               isSubmittingGeneration={multiRefSubmitting}
+            />
+          </div>
+          <div className="text-[10px] text-text-tertiary leading-relaxed">
+            ✅ 已选 <span className="text-primary font-medium">{multiRefPositiveTags.length}</span> 个正向 tag
+            {multiRefNegativeTags.length > 0 && (
+              <span>，<span className="text-red-500 font-medium">{multiRefNegativeTags.length}</span> 个反向 tag</span>
+            )}
+          </div>
+        </div>
+        </>
+      )}
+
+      {/* ─── 导演台 Krea2-muse 模式 UI ────────────────────────────────────────────── */}
+      {img2imgMode === 'krea2-muse' && (
+        <>
+        {/* 锚定数字人（导演台 Krea2-muse） */}
+        <GirlfriendSelector
+          selectedIds={multiRefGirlfriends.map(g => g.isCustom ? `custom_${g.id}` : g.id)}
+          onSelect={handleMultiRefGirlfriendSelect}
+          disabled={multiRefGirlfriendsUploading.size > 0 || taskManager.isFull || krea2MuseSubmitting}
+        />
+
+        {/* 3 张参考图上传（复用 multiRefImages 槽位） */}
+        <div className="rounded-xl bg-bg-surface border border-border p-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {[0, 1, 2].map(idx => {
+              const lockedByGirlfriend = idx < multiRefGirlfriends.length && !!multiRefGirlfriends[idx];
+              return (
+                <div key={idx}>
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <span className="text-xs font-medium text-text-secondary">参考图 {idx + 1}</span>
+                    {lockedByGirlfriend && (
+                      <span className="px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-500 text-[10px] font-medium border border-red-200/50">
+                        锚定数字人
+                      </span>
+                    )}
+                  </div>
+                  <ImageUploader
+                    value={multiRefImages[idx]?.path || ''}
+                    previewUrl={multiRefImages[idx]?.preview || ''}
+                    onChange={(path, preview) => handleMultiRefImageChange(idx, path, preview)}
+                    onUpload={(file) => handleMultiRefUpload(idx, file)}
+                    disabled={taskManager.isFull || krea2MuseSubmitting || lockedByGirlfriend}
+                    error={multiRefUploadErrors[idx] || undefined}
+                    uploadLabel={lockedByGirlfriend ? '已锁定' : '上传'}
+                  />
+                </div>
+              );
+            })}
+          </div>
+          {multiRefUploading && (
+            <div className="mt-2 flex items-center gap-1 text-xs text-text-tertiary">
+              <div className="w-3 h-3 border border-text-tertiary/30 border-t-text-tertiary rounded-full animate-spin" />
+              上传中...
+            </div>
+          )}
+          {multiRefGirlfriends.length > 0 && (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              {multiRefGirlfriends.map((gf, idx) => {
+                const gfId = gf.isCustom ? `custom_${gf.id}` : gf.id;
+                const isUploading = multiRefGirlfriendsUploading.has(gfId);
+                return (
+                  <div key={gfId} className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 text-[10px] font-medium border border-red-200/50">
+                    <span>参考图{idx + 1}</span>
+                    <span>{gf.nameZh || gf.name}</span>
+                    {isUploading && (
+                      <div className="w-2.5 h-2.5 border border-red-500/30 border-t-red-500 rounded-full animate-spin" />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Krea2-muse 设置面板：比例 / 张数 / 描述提示词 */}
+        <div className="rounded-xl bg-bg-surface border border-border p-4 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-1.5">宽高比</label>
+              <select
+                value={krea2MuseRatio}
+                onChange={e => setKrea2MuseRatio(e.target.value)}
+                disabled={taskManager.isFull || krea2MuseSubmitting}
+                className="w-full px-3 py-2 rounded-lg bg-bg-elevated text-text-primary text-sm border border-border focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+              >
+                {['16:9', '9:16', '1:1', '4:3', '3:4', '21:9'].map(r => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-1.5">张数（后端固定返回 2 张）</label>
+              <select
+                value={krea2MuseBatch}
+                onChange={e => setKrea2MuseBatch(Number(e.target.value))}
+                disabled={taskManager.isFull || krea2MuseSubmitting}
+                className="w-full px-3 py-2 rounded-lg bg-bg-elevated text-text-primary text-sm border border-border focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+              >
+                {[1, 2, 3, 4].map(n => (
+                  <option key={n} value={n}>{n} 张</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-text-primary mb-1.5">
+              描述提示词 <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              value={multiRefPrompt}
+              onChange={e => setMultiRefPrompt(e.target.value)}
+              placeholder={multiRefGirlfriends.length > 0
+                ? `描述图片内容，例如：保持图1${multiRefGirlfriends[0].nameZh || multiRefGirlfriends[0].name}的姿态，背景换成海边日落`
+                : '描述图片内容，例如：保持参考图1的姿态与服装，背景换成海边日落'}
+              rows={3}
+              disabled={taskManager.isFull || krea2MuseSubmitting}
+              className="w-full px-3 py-2 rounded-lg bg-bg-elevated text-text-primary text-sm border border-border focus:outline-none focus:ring-1 focus:ring-primary resize-none disabled:opacity-50 placeholder:text-text-tertiary"
+            />
+
+            {/* 参考图快捷插入按钮（图1/图2/图3 占位符） */}
+            <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] text-text-tertiary">插入参考图:</span>
+              {[0, 1, 2].map(idx => {
+                const hasImage = !!multiRefImages[idx]?.path;
+                const isLocked = idx < multiRefGirlfriends.length && !!multiRefGirlfriends[idx];
+                const label = `图${idx + 1}`;
+                return (
+                  <button
+                    key={idx}
+                    onClick={() => {
+                      const current = multiRefPrompt.trim();
+                      const newPrompt = current ? `${current} ${label}` : label;
+                      setMultiRefPrompt(newPrompt);
+                    }}
+                    disabled={!hasImage || taskManager.isFull || krea2MuseSubmitting}
+                    title={hasImage
+                      ? `插入"${label}"到提示词开头（参考图 ${idx + 1} 已上传${isLocked ? '· 锚定数字人' : ''}）`
+                      : `请先上传参考图 ${idx + 1}（未上传时按钮置灰）`}
+                    className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition-all shrink-0 ${
+                      hasImage
+                        ? 'bg-primary/10 text-primary border border-primary/30 hover:bg-primary/20 cursor-pointer'
+                        : 'bg-bg-elevated text-text-tertiary border border-border cursor-not-allowed opacity-50'
+                    }`}
+                  >
+                    <Plus size={10} />
+                    {label}
+                    {isLocked && <span className="text-red-500 ml-0.5">●</span>}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Krea2-muse 模式姿势预设 */}
+            <div className="mt-3">
+              <PosePresetSelector
+                type="image"
+                onSelect={handleMultiRefPoseSelect}
+                disabled={taskManager.isFull || krea2MuseSubmitting}
+                selectedGirlfriends={multiRefGirlfriends}
+              />
+            </div>
+            {multiRefGirlfriends.length > 0 && (
+              <div className="mt-1.5 text-xs text-text-tertiary">
+                已锚定{multiRefGirlfriends.length > 1 ? `${multiRefGirlfriends.length} 位数字人` : `数字人「${multiRefGirlfriends[0].nameZh || multiRefGirlfriends[0].name}」`}，将自动注入角色身份锁定提示词
+              </div>
+            )}
+          </div>
+
+          {/* 提交按钮 */}
+          <GenerateButton
+            onClick={() => handleKrea2MuseGenerate()}
+            isLoading={krea2MuseSubmitting}
+            disabled={!multiRefImages.some(img => img.path) || !multiRefPrompt.trim() || taskManager.isFull}
+            label={krea2MuseSubmitting ? '提交中...' : taskManager.isFull ? '队列已满' : '开始生成（导演台 Krea2-muse · 免扣费）'}
+          />
+        </div>
+
+        {/* Krea2-muse 模式标签库 */}
+        <div className="rounded-xl bg-bg-surface border border-border p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-text-primary">📚 标签库</span>
+            <span className="text-[10px] text-text-tertiary">为 Krea2-muse 选 Tag，拼成提示词种子</span>
+          </div>
+          <p className="text-[10px] text-text-tertiary leading-relaxed">
+            💡 在标签库选择的 tag 会自动追加到上方"图1/图2/图3"提示词中，可与"插入参考图"组合使用。
+          </p>
+          {/* 移动端：紧凑版 */}
+          <div className="lg:hidden">
+            <TagPanel
+              positiveTags={multiRefPositiveTags}
+              negativeTags={multiRefNegativeTags}
+              customPrompt={multiRefTagCustomPrompt}
+              enableRandomPrompt={multiRefTagEn}
+              isR18Enabled={multiRefTagR18}
+              displayLang={multiRefTagLang}
+              onCustomPromptChange={setMultiRefTagCustomPrompt}
+              onAddTag={handleMultiRefAddTag}
+              onRemoveTag={handleMultiRefRemoveTag}
+              onUpdateTagWeight={handleMultiRefUpdateTagWeight}
+              onMoveTagUp={handleMultiRefMoveTagUp}
+              onMoveTagDown={handleMultiRefMoveTagDown}
+              onClearAll={handleMultiRefClearAll}
+              onEnableRandomPrompt={setMultiRefTagEn}
+              onEnableR18={() => setMultiRefTagR18(v => !v)}
+              onDisplayLangChange={setMultiRefTagLang}
+              disabled={taskManager.isFull || krea2MuseSubmitting}
+              expandedPrompt={multiRefTagExpanded}
+              onExpandedPromptChange={setMultiRefTagExpanded}
+              extraTextareaActions={renderMultiRefTagPanelImageButtons()}
+              onGenerateFromPrompt={async () => {
+                const finalPrompt = buildMultiRefTagPanelPrompt();
+                if (!finalPrompt) {
+                  onError?.('请先选择标签或输入自定义提示词');
+                  return;
+                }
+                setMultiRefPrompt(finalPrompt);
+                onSuccess?.('已根据标签/自定义提示词生成 Krea2-muse 种子');
+              }}
+              onSubmitGeneration={async () => {
+                const finalPrompt = buildMultiRefTagPanelPrompt();
+                if (!finalPrompt) {
+                  onError?.('请先选择标签或输入自定义提示词');
+                  return;
+                }
+                await handleKrea2MuseGenerate(finalPrompt);
+              }}
+              isSubmittingGeneration={krea2MuseSubmitting}
+            />
+          </div>
+          {/* 桌面端：双列展示 */}
+          <div className="hidden lg:block">
+            <TagPanel
+              positiveTags={multiRefPositiveTags}
+              negativeTags={multiRefNegativeTags}
+              customPrompt={multiRefTagCustomPrompt}
+              enableRandomPrompt={multiRefTagEn}
+              isR18Enabled={multiRefTagR18}
+              displayLang={multiRefTagLang}
+              onCustomPromptChange={setMultiRefTagCustomPrompt}
+              onAddTag={handleMultiRefAddTag}
+              onRemoveTag={handleMultiRefRemoveTag}
+              onUpdateTagWeight={handleMultiRefUpdateTagWeight}
+              onMoveTagUp={handleMultiRefMoveTagUp}
+              onMoveTagDown={handleMultiRefMoveTagDown}
+              onClearAll={handleMultiRefClearAll}
+              onEnableRandomPrompt={setMultiRefTagEn}
+              onEnableR18={() => setMultiRefTagR18(v => !v)}
+              onDisplayLangChange={setMultiRefTagLang}
+              disabled={taskManager.isFull || krea2MuseSubmitting}
+              expandedPrompt={multiRefTagExpanded}
+              onExpandedPromptChange={setMultiRefTagExpanded}
+              extraTextareaActions={renderMultiRefTagPanelImageButtons()}
+              onGenerateFromPrompt={async () => {
+                const finalPrompt = buildMultiRefTagPanelPrompt();
+                if (!finalPrompt) {
+                  onError?.('请先选择标签或输入自定义提示词');
+                  return;
+                }
+                setMultiRefPrompt(finalPrompt);
+                onSuccess?.('已根据标签/自定义提示词生成 Krea2-muse 种子');
+              }}
+              onSubmitGeneration={async () => {
+                const finalPrompt = buildMultiRefTagPanelPrompt();
+                if (!finalPrompt) {
+                  onError?.('请先选择标签或输入自定义提示词');
+                  return;
+                }
+                await handleKrea2MuseGenerate(finalPrompt);
+              }}
+              isSubmittingGeneration={krea2MuseSubmitting}
             />
           </div>
           <div className="text-[10px] text-text-tertiary leading-relaxed">
