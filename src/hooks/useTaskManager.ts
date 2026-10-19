@@ -9,6 +9,7 @@ import {
   extractImagesFromLocalZip,
   WORKFLOW,
 } from '../services/runninghub';
+import { submitDaotaiImage, pollDaotaiTask } from '../services/daotai';
 import { getDefaultWorkflow } from '../services/modelDefaultsService';
 import { cacheImages, getOrFetchTaskImages } from '../services/imageCacheService';
 import { fetchImageAsDataUrl } from '../services/runninghub';
@@ -16,6 +17,7 @@ import type {
   QueuedTask,
   TaskStatus,
   NodeInfo,
+  DaotaiImgConfig,
 } from '../types';
 
 const POLL_INTERVAL = 10000;
@@ -43,7 +45,7 @@ export interface PersistedTaskEntry {
   id: string;
   taskId: string | null;
   prompt: string;
-  workflowType: 'txt2img' | 'img2img' | 'img2vid' | 'multi-ref-img2img';
+  workflowType: 'txt2img' | 'img2img' | 'img2vid' | 'multi-ref-img2img' | 'daotai-img' | 'daotai-video';
   workflowIdOverride?: string;
   nodeInfoList: NodeInfo[];
   resultId?: string; // UI result identifier for matching restored tasks to UI state
@@ -51,11 +53,18 @@ export interface PersistedTaskEntry {
   zipUrl?: string | null; // Persisted for recovery after page refresh
   storyboardInfo?: { historyId: string; panelIdx: number }; // Storyboard panel association
   /** UI module that produced this task — used for history-page source tag. */
-  source?: 'expand' | 'random' | 'smart-storyboard' | 'storyboard' | 'txt2img' | 'img2img' | 'img2vid' | 'multi-ref-img2img';
+  source?: 'expand' | 'random' | 'smart-storyboard' | 'storyboard' | 'txt2img' | 'img2img' | 'img2vid' | 'multi-ref-img2img' | 'daotai-img' | 'daotai-video';
   /** Storyboard / random theme title — also displayed on history cards. */
   themeTitle?: string;
   /** 1-based panel number for storyboard tasks. */
   panelNumber?: number;
+  /** 导演台 (daotai) 图片任务专用：与 QueuedTask 同步持久化 */
+  daotaiConfig?: {
+    model: 'krea2' | 'krea2-muse' | 'qwen-image-2.1';
+    ratio: string;
+    batch: number;
+    refs: string[];
+  };
 }
 
 export function loadPersistedTasks(): PersistedTaskEntry[] {
@@ -114,24 +123,30 @@ export interface TaskManagerReturn {
   tasks: QueuedTask[];
   isFull: boolean;
   addTask: (
-    workflowType: 'txt2img' | 'img2img' | 'img2vid' | 'multi-ref-img2img',
+    workflowType: 'txt2img' | 'img2img' | 'img2vid' | 'multi-ref-img2img' | 'daotai-img' | 'daotai-video',
     nodeInfoList: NodeInfo[],
     prompt: string,
     workflowIdOverride?: string,
     resultId?: string,
     storyboardInfo?: { historyId: string; panelIdx: number },
-    source?: 'expand' | 'random' | 'smart-storyboard' | 'storyboard' | 'txt2img' | 'img2img' | 'img2vid' | 'multi-ref-img2img',
+    source?: 'expand' | 'random' | 'smart-storyboard' | 'storyboard' | 'txt2img' | 'img2img' | 'img2vid' | 'multi-ref-img2img' | 'daotai-img' | 'daotai-video',
     themeTitle?: string,
     panelNumber?: number
   ) => Promise<string>;
+  /** 导演台图片任务专用：走 nsfwxo 后端 /api/daotai/image，绕过 RunningHub。
+   *  任务会被加入全局任务列表 + 持久化 + 轮询显示在 TaskList 里。 */
+  addDaotaiImgTask: (
+    config: DaotaiImgConfig,
+    prompt: string,
+  ) => Promise<string>;
   addTaskWithNodeList: (
-    workflowType: 'txt2img' | 'img2img' | 'img2vid' | 'multi-ref-img2img',
+    workflowType: 'txt2img' | 'img2img' | 'img2vid' | 'multi-ref-img2img' | 'daotai-img' | 'daotai-video',
     nodeInfoList: NodeInfo[],
     prompt: string,
     workflowIdOverride?: string,
     resultId?: string,
     storyboardInfo?: { historyId: string; panelIdx: number },
-    source?: 'expand' | 'random' | 'smart-storyboard' | 'storyboard' | 'txt2img' | 'img2img' | 'img2vid' | 'multi-ref-img2img',
+    source?: 'expand' | 'random' | 'smart-storyboard' | 'storyboard' | 'txt2img' | 'img2img' | 'img2vid' | 'multi-ref-img2img' | 'daotai-img' | 'daotai-video',
     themeTitle?: string,
     panelNumber?: number
   ) => Promise<string>;
@@ -396,6 +411,72 @@ export function useTaskManager({
     pollingRef.current[task.id] = true;
 
     try {
+      // ── 导演台 (daotai) 任务走专用轮询通道 ────────────────────────────
+      // 与 RunningHub 不同：后端直接返回 images[] 列表，无需 zip 解压
+      if (task.workflowType === 'daotai-img' || task.workflowType === 'daotai-video') {
+        try {
+          const data = await pollDaotaiTask(currentApiKey, task.taskId);
+          if (data.status === 'PROCESSING') {
+            setTasks((prev) =>
+              prev.map((t) => (t.id === task.id ? { ...t, status: 'RUNNING' } : t))
+            );
+            onTaskStatusChangeRef.current?.(task.id, 'RUNNING');
+            return;
+          }
+          if (data.status === 'SUCCESS') {
+            // 重要：daotai 后端直接给出 images/thumbs 完整 URL 列表，
+            // 把它们全量塞进 QueuedTask.images，TaskList 的缩略图条 + 大图预览
+            // 都能直接复用现有渲染。
+            const images = data.images || data.thumbs || data.output?.images || [];
+            const isVideo = task.workflowType === 'daotai-video';
+            unpersistTask(task.id);
+            inFlightRef.current.delete(task.id);
+            drainPendingQueueRef.current();
+            setTasks((prev) =>
+              prev.map((t) =>
+                t.id === task.id
+                  ? {
+                      ...t,
+                      status: 'FINISHED',
+                      images: isVideo ? t.images : images, // 视频任务保持原 images 字段（只有 video_url 才有意义）
+                      error: null,
+                    }
+                  : t
+              )
+            );
+            onTaskStatusChangeRef.current?.(task.id, 'FINISHED');
+            const updatedTask: QueuedTask = {
+              ...task,
+              status: 'FINISHED',
+              images: isVideo ? task.images : images,
+            };
+            onTaskCompleteRef.current?.(updatedTask, task.elapsedSeconds);
+            return;
+          }
+          // FAILED
+          const errMsg = data.message || '导演台任务失败';
+          unpersistTask(task.id);
+          inFlightRef.current.delete(task.id);
+          drainPendingQueueRef.current();
+          setTasks((prev) =>
+            prev.map((t) =>
+              t.id === task.id ? { ...t, status: 'FAILED' as TaskStatus, error: errMsg } : t
+            )
+          );
+          tasksRef.current = tasksRef.current.map((t) =>
+            t.id === task.id ? { ...t, status: 'FAILED' as TaskStatus, error: errMsg } : t
+          );
+          onErrorRef.current?.(task.id, errMsg);
+          return;
+        } catch (err) {
+          console.warn('[pollTask] daotai poll error:', err);
+          // 网络抖动：保留 RUNNING，下一轮继续轮询
+          return;
+        } finally {
+          delete pollingRef.current[task.id];
+        }
+      }
+
       const statusResponse = await getTaskStatus(currentApiKey, task.taskId);
       const newStatus = mapTaskStatus(statusResponse.status);
 
@@ -624,6 +705,50 @@ export function useTaskManager({
       const workflowIdOverride = (task as QueuedTask & { workflowIdOverride?: string }).workflowIdOverride;
       const taskSource = task.source;
 
+      // ── 导演台 (daotai) 任务走 nsfwxo 后端专用通道，不调用 RunningHub ─────
+      if (workflowType === 'daotai-img' && task.daotaiConfig) {
+        inFlightRef.current.add(id);
+        submitDaotaiImage(currentApiKey, prompt, task.daotaiConfig)
+          .then((resp) => {
+            const taskId = resp.taskId;
+            setTasks((prev) =>
+              prev.map((t) =>
+                t.id === id
+                  ? { ...t, taskId, status: 'RUNNING', zipUrl: null, images: [], coins: null, elapsedSeconds: 0 }
+                  : t
+              )
+            );
+            // 持久化：保证刷新页面后能 auto-resume
+            persistTask({
+              id,
+              taskId,
+              prompt,
+              workflowType,
+              nodeInfoList: nodeInfoList || [],
+              timestamp: Date.now(),
+              zipUrl: null,
+              storyboardInfo,
+              source: taskSource,
+              daotaiConfig: task.daotaiConfig,
+            });
+            onTaskStatusChangeRef.current?.(id, 'RUNNING');
+          })
+          .catch((err) => {
+            inFlightRef.current.delete(id);
+            unpersistTask(id);
+            const msg = err instanceof Error ? err.message : '提交失败';
+            setTasks((prev) =>
+              prev.map((t) => (t.id === id ? { ...t, status: 'FAILED' as TaskStatus, error: msg } : t))
+            );
+            tasksRef.current = tasksRef.current.map((t) =>
+              t.id === id ? { ...t, status: 'FAILED' as TaskStatus, error: msg } : t
+            );
+            onErrorRef.current?.(id, msg);
+            drainPendingQueueRef.current();
+          });
+        return;
+      }
+
       const resolvedWorkflowId = workflowIdOverride
         || (workflowType === 'txt2img' ? getDefaultWorkflow()
           : workflowType === 'img2img' ? WORKFLOW.IMAGE_TO_IMAGE
@@ -783,15 +908,16 @@ export function useTaskManager({
 
   const addTask = useCallback(
     async (
-      workflowType: 'txt2img' | 'img2img' | 'img2vid' | 'multi-ref-img2img',
+      workflowType: 'txt2img' | 'img2img' | 'img2vid' | 'multi-ref-img2img' | 'daotai-img' | 'daotai-video',
       nodeInfoList: NodeInfo[],
       prompt: string,
       workflowIdOverride?: string,
       resultId?: string,
       storyboardInfo?: { historyId: string; panelIdx: number },
-      source?: 'expand' | 'random' | 'smart-storyboard' | 'storyboard' | 'txt2img' | 'img2img' | 'img2vid' | 'multi-ref-img2img',
+      source?: 'expand' | 'random' | 'smart-storyboard' | 'storyboard' | 'txt2img' | 'img2img' | 'img2vid' | 'multi-ref-img2img' | 'daotai-img' | 'daotai-video',
       themeTitle?: string,
       panelNumber?: number,
+      daotaiConfig?: DaotaiImgConfig,
     ): Promise<string> => {
       const currentApiKey = apiKeyRef.current;
       if (!currentApiKey) throw new Error('API Key not configured');
@@ -815,6 +941,7 @@ export function useTaskManager({
         source,
         themeTitle,
         panelNumber,
+        daotaiConfig,
       };
 
       setTasks((prev) => {
@@ -822,7 +949,7 @@ export function useTaskManager({
         return [...prev, newTask];
       });
 
-      persistTask({ id, taskId: null, prompt, workflowType, workflowIdOverride, nodeInfoList, resultId, timestamp: Date.now(), storyboardInfo: newTask.storyboardInfo, source, themeTitle, panelNumber });
+      persistTask({ id, taskId: null, prompt, workflowType, workflowIdOverride, nodeInfoList, resultId, timestamp: Date.now(), storyboardInfo: newTask.storyboardInfo, source, themeTitle, panelNumber, daotaiConfig });
 
       // Concurrency gate based on synchronous in-flight tracker.
       if (inFlightRef.current.size >= MAX_CONCURRENT) {
@@ -834,6 +961,21 @@ export function useTaskManager({
       return id;
     },
     [submitTask]
+  );
+
+  // 导演台图片任务专用入口：构造 QueuedTask 后复用 addTask 的持久化/并发门控。
+  // 与通用 addTask 的区别：daotaiConfig 字段直接放任务里，submitTask 会检测
+  // workflowType === 'daotai-img' 自动路由到 /api/daotai/image。
+  const addDaotaiImgTask = useCallback(
+    async (config: DaotaiImgConfig, prompt: string): Promise<string> => {
+      // nodeInfoList 必填但 daotai-img 不用它（后端只看 daotaiConfig），
+      // 传一个标记节点方便后续排查任务来源
+      const fakeNodeList: NodeInfo[] = [
+        { nodeId: 'daotai-img', fieldName: 'model', fieldValue: config.model, description: 'daotai-img' },
+      ];
+      return addTask('daotai-img', fakeNodeList, prompt, undefined, undefined, undefined, 'daotai-img', undefined, undefined, config);
+    },
+    [addTask]
   );
 
   const cancelTask = useCallback((id: string) => {
@@ -871,6 +1013,42 @@ export function useTaskManager({
 
       const currentApiKey = apiKeyRef.current;
       if (currentApiKey) {
+        // 导演台 (daotai) 任务的重新生成：复用原 daotaiConfig 直接调后端
+        if (task.workflowType === 'daotai-img' && task.daotaiConfig) {
+          submitDaotaiImage(currentApiKey, task.prompt, task.daotaiConfig)
+            .then((resp) => {
+              const taskId = resp.taskId;
+              setTasks((current) =>
+                current.map((t) =>
+                  t.id === newId ? { ...t, taskId, status: 'RUNNING' } : t
+                )
+              );
+              persistTask({
+                id: newId,
+                taskId,
+                prompt: task.prompt,
+                workflowType: 'daotai-img',
+                nodeInfoList: task.nodeInfoList,
+                timestamp: Date.now(),
+                zipUrl: null,
+                storyboardInfo: task.storyboardInfo,
+                source: task.source,
+                daotaiConfig: task.daotaiConfig,
+              });
+              onTaskStatusChangeRef.current?.(newId, 'RUNNING');
+            })
+            .catch((err) => {
+              const msg = err instanceof Error ? err.message : '提交失败';
+              setTasks((current) =>
+                current.map((t) =>
+                  t.id === newId ? { ...t, status: 'FAILED' as TaskStatus, error: msg } : t
+                )
+              );
+              onErrorRef.current?.(newId, msg);
+            });
+          return [...prev, newTask];
+        }
+
         const resolvedWorkflowId = task.workflowIdOverride
           || (task.workflowType === 'txt2img' ? getDefaultWorkflow()
             : task.workflowType === 'img2img' ? WORKFLOW.IMAGE_TO_IMAGE
@@ -950,6 +1128,16 @@ export function useTaskManager({
       const currentApiKey = apiKeyRef.current;
       const statusPromises = validEntries.map(async (e) => {
         try {
+          // 导演台 (daotai) 任务走专用轮询通道，返回的 status 字段名也不同
+          if (e.workflowType === 'daotai-img' || e.workflowType === 'daotai-video') {
+            const resp = await pollDaotaiTask(currentApiKey ?? '', e.taskId!);
+            return {
+              entry: e,
+              status: resp.status === 'SUCCESS' ? 'SUCCESS' : resp.status === 'FAILED' ? 'FAILED' : 'RUNNING',
+              results: null as Awaited<ReturnType<typeof getTaskResults>> | null,
+              daotaiData: resp,
+            };
+          }
           const statusResponse = await getTaskStatus(currentApiKey ?? '', e.taskId!);
           return { entry: e, status: statusResponse.status, results: null as Awaited<ReturnType<typeof getTaskResults>> | null };
         } catch {
@@ -982,12 +1170,28 @@ export function useTaskManager({
             workflowIdOverride: entry.workflowIdOverride,
             storyboardInfo: entry.storyboardInfo,
             source: entry.source,
+            daotaiConfig: entry.daotaiConfig,
           };
 
-          const mappedStatus = mapTaskStatus(status);
+          // 导演台任务：状态映射特殊处理（daotai 返回 SUCCESS/FAILED/PROCESSING）
+          const mappedStatus: TaskStatus =
+            status === 'SUCCESS' || status === 'FINISHED' ? 'FINISHED'
+            : status === 'FAILED' ? 'FAILED'
+            : status === 'RUNNING' || status === 'PROCESSING' || status === 'QUEUEING' || status === 'QUEUED' || status === 'PENDING' ? mapTaskStatus(status)
+            : 'RUNNING';
           console.log('[restoreTasks] Processing task:', task.id, 'status from API:', status, 'mapped:', mappedStatus, 'zipUrl:', task.zipUrl);
 
           if (mappedStatus === 'FINISHED') {
+            // 导演台任务：直接写入 images，跳过 extractFinishedTaskImages
+            if (task.workflowType === 'daotai-img' || task.workflowType === 'daotai-video') {
+              const data = statusResults.find(r => r.entry.id === task.id) as { daotaiData?: { images?: string[]; thumbs?: string[]; output?: { images?: string[] } } } | undefined;
+              const images = data?.daotaiData?.images || data?.daotaiData?.thumbs || data?.daotaiData?.output?.images || [];
+              task.status = 'FINISHED';
+              task.images = images;
+              unpersistTask(task.id);
+              restoredTasks.push(task);
+              continue;
+            }
             // Set QUEUEING initially — polling interval will skip it while we extract images
             task.status = 'QUEUEING';
             restoredTasks.push(task);
@@ -1052,6 +1256,7 @@ export function useTaskManager({
     isFull: tasks.length >= MAX_TASKS,
     addTask,
     addTaskWithNodeList: addTask,
+    addDaotaiImgTask,
     cancelTask,
     clearCompleted,
     regenerateTask,

@@ -16,6 +16,14 @@ export interface RunTaskRequest {
 
 export type TaskStatus = 'PENDING' | 'QUEUEING' | 'RUNNING' | 'FINISHED' | 'FAILED';
 
+/** 导演台 (daotai) 图片任务的参数：与 RunningHub 工作流无关 */
+export interface DaotaiImgConfig {
+  model: 'krea2' | 'krea2-muse' | 'qwen-image-2.1';
+  ratio: string;
+  batch: number;
+  refs: string[];
+}
+
 export interface TaskResult {
   url: string;
   nodeId: string;
@@ -115,7 +123,7 @@ export interface ImageToImageParams {
 export interface QueuedTask {
   id: string;
   taskId: string | null;
-  workflowType: 'txt2img' | 'img2img' | 'img2vid' | 'multi-ref-img2img';
+  workflowType: 'txt2img' | 'img2img' | 'img2vid' | 'multi-ref-img2img' | 'daotai-img' | 'daotai-video';
   workflowIdOverride?: string;
   status: TaskStatus;
   prompt: string;
@@ -135,7 +143,7 @@ export interface QueuedTask {
    * - random          → 随机抽卡
    * - smart-storyboard → 智能分镜 (StoryboardSection 在智能扩写页内触发的任务)
    * - storyboard      → 剧情分镜 (剧情分镜页面内的批量/单图任务) */
-  source?: 'expand' | 'random' | 'smart-storyboard' | 'storyboard' | 'txt2img' | 'img2img' | 'img2vid' | 'multi-ref-img2img';
+  source?: 'expand' | 'random' | 'smart-storyboard' | 'storyboard' | 'txt2img' | 'img2img' | 'img2vid' | 'multi-ref-img2img' | 'daotai-img' | 'daotai-video';
   /** Storyboard / random theme title. Displayed alongside the source badge in
    * the history page so users can tell which story/theme a finished image
    * belongs to. Optional — only set for sources that have a theme context. */
@@ -143,4 +151,12 @@ export interface QueuedTask {
   /** 1-based panel number this task belongs to. Combined with themeTitle it
    * gives users a clear "剧情: 主题名 · 第N镜" annotation. Optional. */
   panelNumber?: number;
+  /** 导演台 (daotai) 图片任务专用：调用 /api/daotai/image 所需的参数
+   * （与 RunningHub 工作流无关，submitTask 会路由到 nsfwxo 后端 daotai 路由） */
+  daotaiConfig?: {
+    model: 'krea2' | 'krea2-muse' | 'qwen-image-2.1';
+    ratio: string;
+    batch: number;
+    refs: string[];
+  };
 }

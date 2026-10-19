@@ -414,8 +414,14 @@ export function TextToImagePage({
         onRegenerate={taskManager.regenerateTask}
       />
 
-      {/* 导演台 Krea2 生图面板（引擎切换：导演台免扣费 / 官方直连） */}
-      <DaotaiImagePanel apiKey={apiKey} onError={onError} onSuccess={onSuccess} defaultMode="krea2" />
+      {/* 导演台 Krea2 生图面板（引擎切换：导演台免扣费 / 官方直连） — 任务进 taskManager 全局列表 */}
+      <DaotaiImagePanel
+        apiKey={apiKey}
+        onError={onError}
+        onSuccess={onSuccess}
+        defaultMode="krea2"
+        taskManager={taskManager}
+      />
 
       {/* Desktop: Two-column layout */}
       <div className="hidden xl:block">
