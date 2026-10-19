@@ -120,8 +120,14 @@ async def submit_video(request: Request):
     auth = request.headers.get('Authorization', '')
     if auth.lower().startswith('bearer '):
         key = auth[7:].strip()
+    # ===== 服务端默认 Key 兜底（推荐用环境变量配，避免前端没传/写错时任务直接挂）=====
+    # 优先级：前端 Bearer > DAOTAI_API_KEY > RUNNINGHUB_API_KEY
     if not key:
-        return JSONResponse(status_code=400, content={'error': '缺少 Authorization: Bearer <apiKey>'})
+        key = (os.environ.get('DAOTAI_API_KEY')
+               or os.environ.get('RUNNINGHUB_API_KEY')
+               or '').strip()
+    if not key:
+        return JSONResponse(status_code=400, content={'error': '缺少 Authorization: Bearer <apiKey>（或服务端未配置 DAOTAI_API_KEY 环境变量）'})
 
     prompt = body.get('prompt') or ''
     if not prompt.strip():
@@ -393,7 +399,11 @@ async def submit_image(request: Request):
     if auth.lower().startswith('bearer '):
         key = auth[7:].strip()
     if not key:
-        return JSONResponse(status_code=400, content={'error': '缺少 Authorization: Bearer <apiKey>'})
+        key = (os.environ.get('DAOTAI_API_KEY')
+               or os.environ.get('RUNNINGHUB_API_KEY')
+               or '').strip()
+    if not key:
+        return JSONResponse(status_code=400, content={'error': '缺少 Authorization: Bearer <apiKey>（或服务端未配置 DAOTAI_API_KEY 环境变量）'})
     model = str(body.get('model') or body.get('key') or '')
     if model not in rh.RH_IMAGE_MODELS:
         model = 'krea2-muse' if (body.get('refs') or []) else 'krea2'
