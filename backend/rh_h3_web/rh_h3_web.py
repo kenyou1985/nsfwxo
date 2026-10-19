@@ -133,7 +133,7 @@ VIDEO_WFS = {
     #   自杀链：440/443 SaveImage（../x*4000 免扣费）+ 438/441 easy sleep 30（保留，禁止删除/绕过）。
     '2110330160000516098': {'name': '16段确定性切分·全局500输入(2110330160000516098·主线)', 'mode': 'det16',
                             'ref_nodes': ['28', '273', '285', '406', '420'],
-                            'prompt_node': '500', 'mode_node': '501', 'llm_node': '502', 'llm_value': False,
+                            'prompt_node': '500', 'mode_node': '501', 'llm_node': '502', 'llm_value': True,
                             'loop_count_node': '503', 'output_node': '205',
                             'suicide': ['440', '443'], 'delay_nodes': ['438', '441']},
 }
