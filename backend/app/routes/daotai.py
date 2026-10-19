@@ -16,13 +16,19 @@ from pathlib import Path
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, FileResponse
 
-# ── rh_h3_web 核心模块（8765 导演台，__main__ 保护可安全 import）──────────
-RH_H3_DIR = os.environ.get(
-    'RH_H3_DIR',
-    '/Users/kenyou/Doubao/chats/2026-09-17/new-chat-1/runninghub-h3-console/web',
+# ── rh_h3_web 核心模块：已迁移到本项目后端（backend/app/services/daotai_runtime/）────
+# 不再依赖外部 8765 项目的 rh_h3_web 目录。整个生图/生视频运行时（rh 模块、状态、产物落盘）
+# 都在 nsfwxo 后端内自洽，8765 端口可以安全停掉。
+#
+# 1. import 路径：app.services.daotai_runtime.rh_h3_web
+# 2. 产物落盘：rh.WEB_ROOT 自动指向 backend/app/services/daotai_runtime/，避免外部路径耦合
+# 3. 静态服务：/api/daotai/image/media/* 和 /api/daotai/media/* 都从 rh.WEB_ROOT 提供
+NSFWXO_DAOTAI_RUNTIME = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    'app', 'services', 'daotai_runtime',
 )
-if str(RH_H3_DIR) not in sys.path:
-    sys.path.insert(0, str(RH_H3_DIR))
+if NSFWXO_DAOTAI_RUNTIME not in sys.path:
+    sys.path.insert(0, NSFWXO_DAOTAI_RUNTIME)
 
 import rh_h3_web as rh  # noqa: E402
 
@@ -159,7 +165,14 @@ async def submit_video(request: Request):
     try:
         job = rh.Job(cfg)
     except Exception as e:
-        return JSONResponse(status_code=500, content={'error': f'Job 创建失败: {e}'})
+        _err = f'Job 创建失败: {e}'
+        if 'workflow not exists' in _err or 'workflow不存在' in _err:
+            return JSONResponse(status_code=502, content={'error': _err, 'kind': 'platform_workflow_missing'})
+        if 'API Key' in _err and ('无效' in _err or '失效' in _err):
+            return JSONResponse(status_code=401, content={'error': _err, 'kind': 'platform_auth_invalid'})
+        if '频率' in _err or 'rate' in _err.lower() or 'too many' in _err.lower():
+            return JSONResponse(status_code=429, content={'error': _err, 'kind': 'platform_rate_limit'})
+        return JSONResponse(status_code=500, content={'error': _err, 'kind': 'backend_error'})
     with rh.JOBS_LOCK:
         rh.JOBS[job.id] = job
     job.thread = __import__('threading').Thread(target=rh.run_job, args=(job,), daemon=True)
@@ -328,7 +341,24 @@ async def submit_image(request: Request):
     try:
         tid, logs, nw = rh.img_submit(cfg)
     except Exception as e:
-        return JSONResponse(status_code=500, content={'error': str(e)})
+        _err = str(e)
+        # 平台错误：work flow 失效 / 鉴权失败 / 限流 → 502（不要返回 500 让用户误以为是后端 bug）
+        if 'workflow not exists' in _err or 'workflow不存在' in _err:
+            _msg = ('RunningHub 工作流不可用（workflow not exists）。'
+                    '请到 https://www.runninghub.ai 确认该工作流还在你账户下，'
+                    '或更换 IMG_WF_REGISTRY 中的可用工作流 ID。'
+                    '原始错误: ') + _err
+            return JSONResponse(status_code=502, content={'error': _msg, 'kind': 'platform_workflow_missing'})
+        if 'user not exist' in _err or 'code 301' in _err or 'apiKey' in _err.lower():
+            return JSONResponse(status_code=401, content={'error': 'API Key 无效或账户不存在（' + _err + '）。请到 RunningHub 平台重新生成 API Key。', 'kind': 'platform_auth_invalid'})
+        if 'API Key' in _err and ('无效' in _err or '失效' in _err):
+            return JSONResponse(status_code=401, content={'error': _err, 'kind': 'platform_auth_invalid'})
+        if '频率' in _err or 'rate' in _err.lower() or 'too many' in _err.lower() or 'code 380' in _err or 'code 429' in _err:
+            return JSONResponse(status_code=429, content={'error': _err, 'kind': 'platform_rate_limit'})
+        # 真后端 bug 才返回 500
+        import traceback as _tb
+        _tb.print_exc()
+        return JSONResponse(status_code=500, content={'error': _err, 'kind': 'backend_error', 'trace': _tb.format_exc()[-500:]})
     rh.RH_OPENAPI[str(tid)] = {'kind': 'image', 'api_key': key, 'task_id': str(tid)}
     rh.RH_OPENAPI_LIVE[str(tid)] = True
     threading.Thread(target=rh.img_watch, args=(str(tid), key), daemon=True).start()

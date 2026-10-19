@@ -50,6 +50,19 @@ function migrateExistingRecords(): void {
           changed = true;
         }
       }
+      // 修复 2026-10-19 之前的 bug：saveRecord 强制 images=[]，导致 daotai-img 记录没图。
+      // 现在的 saveRecord 已经保留非 data URL 的 images；这里再兜底：daotai 记录 images=[] 但
+      // zipUrl 是 /api/daotai/image/media/... 时，把 zipUrl 拆成 images 数组，刷新后即可显示。
+      if (
+        (r.workflowType === 'daotai-img' || r.workflowType === 'daotai-video') &&
+        (!Array.isArray(r.images) || r.images.length === 0) &&
+        typeof r.zipUrl === 'string' &&
+        r.zipUrl.startsWith('/api/daotai/image/media/')
+      ) {
+        r.images = [r.zipUrl];
+        changed = true;
+        console.debug(`[historyService] Backfilled images for daotai record ${r.id} from zipUrl`);
+      }
     }
     if (changed) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
@@ -99,9 +112,14 @@ export function createRecord(
 export function saveRecord(record: HistoryRecord): void {
   // Strip data URLs from the record — they are retrieved from zip URL via cache on demand.
   // This prevents localStorage QuotaExceededError.
+  // 导演台 (daotai) 任务的 images 是直接 URL（/api/daotai/image/media/...），不是 data URL，
+  // 必须保留（saveTaskToHistory 已把 imagesToStore 设好），这里只清掉真正的 data URL。
+  const _stripped = (record.images || []).filter(
+    (u) => typeof u === 'string' && !u.startsWith('data:'),
+  );
   const recordToSave: HistoryRecord = {
     ...record,
-    images: [],
+    images: _stripped,
   };
 
   const saveWithRetry = (recordsToSave: HistoryRecord[]): boolean => {
@@ -199,6 +217,16 @@ export function saveTaskToHistory(task: QueuedTask): void {
     void cacheImages(task.zipUrl, images);
   }
 
+  // 导演台 (daotai) 任务没有 zipUrl —— 后端直接返回 images/thumbs 完整 URL 列表（路径如
+  // `/api/daotai/image/media/xxx/yyy.png`），它们不是 data URL，可以直接存在 record.images
+  // 里让 HistoryPage 渲染。不挤占 localStorage 配额（这些是路径字符串，不是 base64）。
+  const isDaotaiTask = task.workflowType === 'daotai-img' || task.workflowType === 'daotai-video';
+  const imagesToStore = isDaotaiTask ? images : [];
+  // 导演台任务的 zipUrl 设为第一张图 URL，让 HistoryPage 的 loadImagesForRecord 走 direct CDN 分支
+  const zipUrlToStore = isDaotaiTask
+    ? (images[0] || task.zipUrl)
+    : task.zipUrl;
+
   const record: HistoryRecord = {
     id: `${task.id}-${Date.now()}`,
     name: generateId(),
@@ -208,9 +236,10 @@ export function saveTaskToHistory(task: QueuedTask): void {
     params: {},
     nodeInfoList: task.nodeInfoList,
     workflowIdOverride: task.workflowIdOverride,
-    // images intentionally omitted — retrieved from zip URL cache on demand
-    images: [],
-    zipUrl: task.zipUrl,
+    // 导演台任务：保留直接 URL 数组（不是 data URL，体积小）
+    // 其他任务：空数组，由 zipUrl 缓存按需加载
+    images: imagesToStore,
+    zipUrl: zipUrlToStore,
     coins: task.coins,
     createdAt: Date.now(),
     source: task.source,

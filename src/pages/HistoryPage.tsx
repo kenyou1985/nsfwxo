@@ -38,6 +38,8 @@ function getSourceBadge(record: HistoryRecord): { label: string; className: stri
       return { label: '智能分镜', className: 'bg-purple-500/20 text-purple-500' };
     case 'storyboard':
       return { label: '剧情分镜', className: 'bg-indigo-500/20 text-indigo-500' };
+    case 'daotai-img':
+      return { label: '导演台 Krea2', className: 'bg-accent/20 text-accent' };
     default:
       return null;
   }
@@ -170,6 +172,12 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
   }, []);
 
   const loadImagesForRecord = useCallback(async (record: HistoryRecord) => {
+    // 导演台 (daotai) 任务的 images 已经在 record.images 里（直接 URL 数组，路径如
+    // `/api/daotai/image/media/xxx/yyy.png`），不需要走 zip/cache 流程。
+    // 让 getRecordImages 的 fallback 逻辑直接返回 record.images。
+    if (record.workflowType === 'daotai-img' || record.workflowType === 'daotai-video') {
+      return;
+    }
     if (!record.zipUrl) return;
     // Don't retry records we've already finished — either successfully or
     // unsuccessfully. Re-trying a 404 zip URL every render floods the console.
@@ -822,7 +830,11 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
                         </span>
                       )}
                       <span className="text-xs px-2 py-0.5 rounded-full bg-primary/20 text-primary text-[10px]">
-                        {record.workflowType === 'txt2img' ? '文生图' : '图生图'}
+                        {record.workflowType === 'txt2img' ? '文生图'
+                          : record.workflowType === 'daotai-img' ? '导演台生图'
+                          : record.workflowType === 'daotai-video' ? '导演台视频'
+                          : record.workflowType === 'img2vid' ? '图生视频'
+                          : '图生图'}
                       </span>
                       {showThemeBadge && !showPanelBadge && (
                         <span

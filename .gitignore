@@ -9,3 +9,15 @@ __pycache__/
 *.pyc
 .vercel
 src/_backup/
+
+# 导演台 (daotai) 运行时数据目录 —— 用户本机生成/参考图/视频/state
+# 电脑端存放在 backend/rh_h3_web/，开发副本在 backend/app/services/daotai_runtime/。
+# 这些都不进版本库（个人隐私数据 + 容器重启会丢），代码里用 os.makedirs 兜底创建。
+backend/rh_h3_web/image/
+backend/rh_h3_web/refs/
+backend/rh_h3_web/videos/
+backend/rh_h3_web/wf_json_local/
+backend/rh_h3_web/rh_state.json
+backend/app/services/daotai_runtime/image/
+backend/app/services/daotai_runtime/refs/
+backend/app/services/daotai_runtime/videos/

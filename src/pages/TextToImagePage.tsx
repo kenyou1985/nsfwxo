@@ -4,7 +4,7 @@ import { TagPanel } from '../components/TagPanel';
 import { ParameterSlider } from '../components/ParameterSlider';
 import { ParameterSelect } from '../components/ParameterSelect';
 import { RunningHubModelPicker } from '../components/RunningHubModelPicker';
-import { DaotaiImagePanel } from '../components/DaotaiImagePanel';
+import { DaotaiImagePanel, type DaotaiGenerationMode } from '../components/DaotaiImagePanel';
 import { GenerateButton } from '../components/GenerateButton';
 import { ImageGrid } from '../components/ImageGrid';
 import { TaskList } from '../components/TaskList';
@@ -81,6 +81,18 @@ export function TextToImagePage({
     if (wf === WORKFLOW.THREE_LORA) return '3LoRA 模型';
     return '3LoRA 模型';
   })();
+
+  // ── 导演台 / 原官方 Krea2 文生图（受控状态由本组件持有，传给 DaotaiImagePanel） ──
+  // 原本在 DaotaiImagePanel 内部 useState 的几个状态现在上提到这里：
+  //   - 底部「开始生成」按钮要根据 generationMode 走不同分派（daotai vs 原官方）
+  //   - 标签库 / 图片姿势预设 需要在 daotai 模式下写入 daotaiPrompt
+  //   - 单向数据流：props 传入 DaotaiImagePanel，state 变更通过 onXxxChange 回传
+  const [generationMode, setGenerationMode] = useState<DaotaiGenerationMode>('daotai');
+  const [daotaiPrompt, setDaotaiPrompt] = useState('');
+  const [daotaiModelKey, setDaotaiModelKey] = useState<string>('krea2');
+  // 默认竖屏 9:16（用户要求：默认导演台 Krea2 文生图比例 = 9:16 竖屏）
+  const [daotaiRatio, setDaotaiRatio] = useState<string>('9:16');
+  const [daotaiBatch, setDaotaiBatch] = useState<number>(1);
 
   // Tag management
   const [positiveTags, setPositiveTags] = useState<SelectedTag[]>([]);
@@ -189,7 +201,18 @@ export function TextToImagePage({
     // Tags should always go to positiveTags regardless of R18 mode
     // so that expand can properly use them for prompt generation
     setPositiveTags((prev) => [...prev, { tag, weight: 'none', order: tagCounter }]);
-  }, [positiveTags, negativeTags, tagCounter]);
+
+    // 导演台 Krea2 模式：把 tag 同步追加到 DaotaiImagePanel 的提示词输入框（截图2位置）。
+    // 原官方模式：保持原行为（只写入 positiveTags，customPrompt 不动）。
+    if (generationMode === 'daotai') {
+      setDaotaiPrompt((prev) => {
+        const cur = prev.trim();
+        // 避免重复追加同一个 tag（已存在就直接返回原值）
+        if (cur && cur.toLowerCase().includes(tag.toLowerCase())) return prev;
+        return cur ? `${prev.trimEnd()}, ${tag}` : tag;
+      });
+    }
+  }, [positiveTags, negativeTags, tagCounter, generationMode]);
 
   const handleRemoveTag = useCallback((tag: string) => {
     setPositiveTags((prev) => prev.filter((t) => t.tag !== tag));
@@ -262,14 +285,23 @@ export function TextToImagePage({
     setCustomPrompt('');
     setEnableRandomPrompt(true);
     setTagCounter(0);
-  }, []);
+    // 导演台模式：清空 DaotaiImagePanel 提示词输入框，保证两侧状态一致
+    if (generationMode === 'daotai') {
+      setDaotaiPrompt('');
+    }
+  }, [generationMode]);
 
   const handlePoseSelect = useCallback((posePrompt: string, poseName: string) => {
-    // Replace entire prompt with the selected pose (don't append)
-    // This prevents duplicate pose descriptions when selecting multiple poses
+    // 导演台 Krea2 模式：姿势预设直接替换 DaotaiImagePanel 的提示词输入框（截图2位置）
+    if (generationMode === 'daotai') {
+      setDaotaiPrompt(posePrompt);
+      onSuccess(`已切换姿势到导演台 Krea2: ${poseName}`);
+      return;
+    }
+    // 原官方模式：保持原行为（覆盖 customPrompt）
     setCustomPrompt(posePrompt);
     onSuccess(`已切换姿势: ${poseName}`);
-  }, [onSuccess]);
+  }, [generationMode, onSuccess]);
 
   const handleToggleFavorite = (imageUrl: string) => {
     // Use imageRef for lookup since addFavorite stores the URL in imageRef field
@@ -380,6 +412,32 @@ export function TextToImagePage({
   }, [params, buildFinalPrompt, buildNegativePrompt]);
 
   const handleGenerate = async () => {
+    // 导演台模式：底部「开始生成」按钮走导演台 Krea2 / Krea2-muse 通道（免扣费）
+    if (generationMode === 'daotai') {
+      const userText = daotaiPrompt.trim();
+      if (!userText) {
+        onError('请在导演台 Krea2 提示词框输入提示词，或点击标签库标签 / 图片姿势预设自动填入');
+        return;
+      }
+      if (taskManager.isFull) {
+        onError(`任务队列已满（最多 ${MAX_TASKS} 个任务），请等待当前任务完成`);
+        return;
+      }
+      try {
+        const finalModel = daotaiModelKey === 'qwen-image-2.1' ? 'qwen-image-2.1' : 'krea2';
+        const finalPrompt = `${QUALITY_BOOST_PROMPT}, ${userText}`;
+        await taskManager.addDaotaiImgTask(
+          { model: finalModel, ratio: daotaiRatio, batch: 1, refs: [] },
+          finalPrompt,
+        );
+        onSuccess(`已提交导演台 ${finalModel === 'qwen-image-2.1' ? 'Qwen-Image-2.1' : 'Krea2'}`);
+        setDaotaiPrompt('');
+      } catch (err) {
+        onError(err instanceof Error ? err.message : '提交失败');
+      }
+      return;
+    }
+    // 原官方 Krea2 模式：底部「开始生成」按钮走 RunningHub WORKFLOW.KREA2
     const finalPrompt = buildFinalPrompt();
     if (!finalPrompt.trim() && !params.prompt.trim()) {
       onError('请输入提示词或选择至少一个标签');
@@ -399,12 +457,16 @@ export function TextToImagePage({
     }
   };
 
-  // TextToImagePage 顶部 TaskList：显示官方 txt2img 工作流任务 + 导演台 Krea2 文生图任务
-  // 导演台任务的 workflowType 是 'daotai-img'，需要用 daotaiConfig.model === 'krea2' 区分 Krea2 文生图
+  // TextToImagePage 顶部 TaskList：显示官方 txt2img 工作流任务 + 导演台文生图任务
+  // 导演台文生图任务 workflowType 是 'daotai-img'，需要用 daotaiConfig.model 区分：
+  // - krea2 / qwen-image-2.1：文生图，在 TextToImagePage 显示
+  // - krea2-muse：图生图，在 ImageToImagePage 显示
   const txt2imgTasks = taskManager.tasks.filter((t: QueuedTask) =>
     t.workflowType === 'txt2img' ||
-    (t.workflowType === 'daotai-img' && t.daotaiConfig?.model === 'krea2')
+    (t.workflowType === 'daotai-img' &&
+      (t.daotaiConfig?.model === 'krea2' || t.daotaiConfig?.model === 'qwen-image-2.1'))
   );
+  // 全量收集每个任务的图片（导演台后端固定返回 2 张图，前端不过滤不裁剪，全部展示）
   const allImages = txt2imgTasks.flatMap((t: QueuedTask) => t.images);
 
   const totalSelected = positiveTags.length + negativeTags.length;
@@ -419,12 +481,22 @@ export function TextToImagePage({
         onRegenerate={taskManager.regenerateTask}
       />
 
-      {/* 导演台 Krea2 文生图面板 — 任务进 taskManager 全局列表 */}
+      {/* 导演台 Krea2 文生图面板 — 状态由本组件持有，传入受控 props */}
       <DaotaiImagePanel
         apiKey={apiKey}
         onError={onError}
         onSuccess={onSuccess}
         taskManager={taskManager}
+        generationMode={generationMode}
+        onGenerationModeChange={setGenerationMode}
+        prompt={daotaiPrompt}
+        onPromptChange={setDaotaiPrompt}
+        modelKey={daotaiModelKey}
+        onModelKeyChange={setDaotaiModelKey}
+        ratio={daotaiRatio}
+        onRatioChange={setDaotaiRatio}
+        batch={daotaiBatch}
+        onBatchChange={setDaotaiBatch}
       />
 
       {/* Desktop: Two-column layout */}

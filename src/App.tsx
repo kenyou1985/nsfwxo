@@ -115,6 +115,8 @@ function App() {
     (task: QueuedTask, elapsed: number) => {
       toast.success(`生成完成！用时 ${formatTime(elapsed)}${task.coins ? `，消耗 ${task.coins} 币` : ''}`);
       saveTaskToHistory(task);
+      // 任务完成后增量刷新历史页（HistoryPage 通过 refreshKey prop 触发 useEffect 重新拉取记录）
+      setHistoryRefreshKey((k) => k + 1);
     },
     [toast]
   );

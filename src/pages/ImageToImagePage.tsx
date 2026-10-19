@@ -120,7 +120,8 @@ export function ImageToImagePage({
   // ── 导演台 Krea2-muse 模式专用状态 ──────────────────────────────────────────
   // 复用 multiRefImages 三个槽位作为参考图上传槽位
   // ratio/batch 是 Krea2-muse 引擎提交给后端 /api/daotai/image 的参数
-  const [krea2MuseRatio, setKrea2MuseRatio] = useState('16:9');
+  // 默认竖屏 9:16（用户要求：krea2-muse 默认比例 = 9:16 竖屏）
+  const [krea2MuseRatio, setKrea2MuseRatio] = useState('9:16');
   const [krea2MuseBatch, setKrea2MuseBatch] = useState(1); // 导演台后端固定返回 2 张图，默认 1 即可
   const [krea2MuseSubmitting, setKrea2MuseSubmitting] = useState(false);
 
