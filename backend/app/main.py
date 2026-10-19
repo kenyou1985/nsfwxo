@@ -1,7 +1,9 @@
 """FastAPI Application - 主入口"""
 
 import os
+import re
 import traceback
+import logging
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,7 +16,6 @@ try:
     from app.routes.daotai import router as daotai_router
     _daotai_available = True
 except ImportError as e:
-    import logging
     logging.warning(
         "[main] daotai router 导入失败（RH_H3_DIR 未配置或路径不存在）: %s。"
         "如需导演台功能，请确保 RH_H3_DIR 环境变量指向 rh_h3_web 目录。", e
@@ -39,22 +40,56 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 # CORS 配置
-# 环境变量 ALLOWED_ORIGINS 逗号分隔，如: http://localhost:5173,https://yourdomain.com
-# 本地开发和测试时使用通配符（无需 cookie/session 认证，Bearer token 在 header 中）
-_allowed = os.environ.get("ALLOWED_ORIGINS", "").strip()
+# 优先级（从宽松到严格）：
+#   1. 未设 ALLOWED_ORIGINS → 通配符 *（最宽松，Bearer token 走 header 不需要 credentials）
+#   2. 设了 ALLOWED_ORIGINS → 放行该列表 + 永远附加常用开发/预览源
+#      （localhost / 127.0.0.1 / vercel/netlify/railway 任意子域）
+# 这样设了生产白名单也不会卡住本地调试或 Vercel 预览部署。Railway
+# dashboard 里把 ALLOWED_ORIGINS 留空即可全开放。
+#
+# 通配符子域用 allow_origin_regex 实现，FastAPI 的 allow_origins
+# 只支持精确匹配和「*」，不支持 https://*.vercel.app 这种 glob。
+_DEV_EXACT_ORIGINS = [
+    'http://localhost',
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://localhost:8080',
+    'http://127.0.0.1',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:8080',
+]
+# 覆盖 Vercel 预览/生产、Netlify、Railway 自定义域、任意 https 子域开发预览
+_DEV_ORIGIN_REGEX = re.compile(
+    r'^https://([a-z0-9-]+\.)?(vercel\.app|netlify\.app|netlify\.com|'
+    r'railway\.app|up\.railway\.app|render\.com|fly\.dev|herokuapp\.com)$',
+    re.IGNORECASE,
+)
+_allowed = os.environ.get('ALLOWED_ORIGINS', '').strip()
 if _allowed:
-    _origins = [o.strip() for o in _allowed.split(",") if o.strip()]
+    _origins = [o.strip() for o in _allowed.split(',') if o.strip()]
+    for _d in _DEV_EXACT_ORIGINS:
+        if _d not in _origins:
+            _origins.append(_d)
     _credentials = True
+    _origin_regex = _DEV_ORIGIN_REGEX.pattern
 else:
-    _origins = ["*"]
+    _origins = ['*']
     _credentials = False
+    _origin_regex = None  # 走 * 通配符，不需要 regex
+
+logging.getLogger('uvicorn').info(
+    '[cors] ALLOWED_ORIGINS env=%r, effective origins=%d, regex=%s',
+    _allowed or None, len(_origins), _origin_regex or '(wildcard *)',
+)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins,
+    allow_origin_regex=_origin_regex,
     allow_credentials=_credentials,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=['*'],
+    allow_headers=['*'],
 )
 
 app.include_router(prompt_router)
@@ -87,7 +122,6 @@ async def root():
 @app.on_event("startup")
 async def _startup_log():
     """应用就绪日志：方便 Railway 部署日志确认启动成功。"""
-    import logging
     logging.getLogger("uvicorn").info(
         "[startup] app ready — prompt=ok, daotai=%s", _daotai_available
     )
