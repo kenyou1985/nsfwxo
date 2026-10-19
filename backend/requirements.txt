@@ -4,3 +4,6 @@ pydantic>=2.0.0
 openai>=1.30.0
 python-dotenv>=1.0.0
 httpx>=0.25.0
+# rh_h3_web.py 用 websocket.create_connection() 监听 RunningHub 任务输出（图片/视频）
+# 不装的话 ws = None，会反复抛 'NoneType' object has no attribute 'create_connection'
+websocket-client>=1.6.0
