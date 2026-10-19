@@ -199,8 +199,8 @@ async def query_task(request: Request):
         except Exception:
             st = 'running'
         if st == 'finished':
-            images = [_img_media_url(u) for u in (local or [])]
-            thumbs = [_img_media_url(u) for u in (th or [])]
+            images = [_absolute_url(request, _img_media_url(u)) for u in (local or [])]
+            thumbs = [_absolute_url(request, _img_media_url(u)) for u in (th or [])]
             return {'status': 'SUCCESS', 'images': images, 'thumbs': thumbs,
                     'output': {'images': images, 'thumbs': thumbs}}
         if st == 'failed':
@@ -214,7 +214,7 @@ async def query_task(request: Request):
     if stt == 'finished' and snap.get('final_url'):
         _dir = os.path.basename(job.run_dir) if job.run_dir else ''
         _fname = os.path.basename(snap['final_url'])
-        u = f'/api/daotai/media/{_dir}/{urllib.parse.quote(_fname)}'
+        u = _absolute_url(request, f'/api/daotai/media/{_dir}/{urllib.parse.quote(_fname)}')
         return {'status': 'SUCCESS', 'video_url': u, 'output': {'video_url': u}, 'url': u}
     if stt == 'finished' and not snap.get('final_url'):
         return {'status': 'FAILED', 'message': '视频合成失败：最终视频未生成（段视频已落盘，可走 bind-local-video 兜底）'}
@@ -287,6 +287,22 @@ def _image_refs(body: dict):
 def tid_suffix():
     import time as _t
     return _t.strftime('%H%M%S') + ''.join(os.urandom(2).hex())
+
+
+def _absolute_url(request: Request, path: str) -> str:
+    """把相对路径（/api/daotai/...）拼成绝对 URL。
+
+    原因：前端部署在 Vercel，<img src="/api/daotai/..."> 会解析到 Vercel 域名 → 404。
+    后端用 request.base_url（uvicorn 默认开 proxy-headers，会读 X-Forwarded-Proto）
+    拼出真实部署 URL，前端无需任何转换就能正确加载。
+
+    - 本地开发：base_url = http://localhost:9000/
+    - Railway 生产：base_url = https://xxx.up.railway.app/
+    """
+    p = str(path or '')
+    if not p.startswith('/'):
+        return p
+    return str(request.base_url).rstrip('/') + p
 
 
 def _img_media_url(rel: str):
