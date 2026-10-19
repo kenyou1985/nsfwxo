@@ -7,7 +7,20 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.routes.prompt import router as prompt_router
-from app.routes.daotai import router as daotai_router
+
+# rh_h3_web 依赖本机 Mac 路径 /Users/kenyou/Doubao/...，容器里不存在。
+# 尝试导入，失败则跳过 daotai router（/api/daotai/* 不可用，但主服务正常）。
+try:
+    from app.routes.daotai import router as daotai_router
+    _daotai_available = True
+except ImportError as e:
+    import logging
+    logging.warning(
+        "[main] daotai router 导入失败（RH_H3_DIR 未配置或路径不存在）: %s。"
+        "如需导演台功能，请确保 RH_H3_DIR 环境变量指向 rh_h3_web 目录。", e
+    )
+    daotai_router = None
+    _daotai_available = False
 
 app = FastAPI(
     title="NSFW Multimodal Prompt Engine",
@@ -45,22 +58,36 @@ app.add_middleware(
 )
 
 app.include_router(prompt_router)
-app.include_router(daotai_router)
+if daotai_router is not None:
+    app.include_router(daotai_router)
 
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    return {"status": "ok", "daotai": _daotai_available}
 
 
 @app.get("/")
 async def root():
+    endpoints = {
+        "expand": "POST /api/prompt/expand",
+        "random": "POST /api/prompt/random",
+        "storyboard": "POST /api/prompt/storyboard",
+    }
+    if _daotai_available:
+        endpoints["daotai_video"] = "POST /api/daotai/video"
+        endpoints["daotai_image"] = "POST /api/daotai/image"
     return {
         "name": "NSFW Multimodal Prompt Engine",
         "version": "1.0.0",
-        "endpoints": {
-            "expand": "POST /api/prompt/expand",
-            "random": "POST /api/prompt/random",
-            "storyboard": "POST /api/prompt/storyboard",
-        },
+        "endpoints": endpoints,
     }
+
+
+@app.on_event("startup")
+async def _startup_log():
+    """应用就绪日志：方便 Railway 部署日志确认启动成功。"""
+    import logging
+    logging.getLogger("uvicorn").info(
+        "[startup] app ready — prompt=ok, daotai=%s", _daotai_available
+    )
