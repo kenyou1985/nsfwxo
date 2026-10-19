@@ -5,7 +5,9 @@ FROM python:3.11-slim
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    # 导演台 (daotai) 核心模块路径：容器内默认指向内置副本
+    RH_H3_DIR=/app/rh_h3_web
 
 WORKDIR /app
 
@@ -17,6 +19,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app/ ./app/
 COPY data/ ./data/
 COPY run.py .
+
+# Copy 内置导演台模块（rh_h3_web.py + 初始状态文件）
+# - 体积：~262KB（4443 行纯 Python，仅用标准库）
+# - 容器启动后会自动读写同目录下的 rh_state.json
+COPY rh_h3_web/ ./rh_h3_web/
 
 # Expose port
 EXPOSE 9000
