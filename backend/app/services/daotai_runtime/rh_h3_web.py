@@ -2610,17 +2610,26 @@ def _load_state():
     except Exception as e:
         print('[state] 读 rh_state.json 失败: %s（忽略）' % e)
         return
-    n_dir = n_api = 0
+    n_dir = n_api = n_vid = 0
     for tid, d in (s.get('img_dirs') or {}).items():
         abs_dir = d if os.path.isabs(d) else os.path.join(WEB_ROOT, d)
         if os.path.isdir(abs_dir):
             IMG_DIRS[tid] = abs_dir
             n_dir += 1
     for tid, ent in (s.get('rh_openapi') or {}).items():
-        # 只恢复图片类（视频类 JOBS 含 cfg/thread 不可序列化，跳过）
+        # 恢复图片类（视频类 JOBS 含 cfg/thread 不可序列化，不直接恢复内存对象）
         if isinstance(ent, dict) and ent.get('kind') == 'image':
             RH_OPENAPI[tid] = ent
             n_api += 1
+        # 视频类：只记 run_dir，不恢复内存 Job（避免线程 / cfg 不可序列化问题）
+        elif isinstance(ent, dict) and ent.get('kind') == 'video' and ent.get('run_dir'):
+            # 校验 run_dir 仍然存在（容器重启不丢目录，但保险起见）
+            _rd = ent['run_dir']
+            if not os.path.isabs(_rd):
+                _rd = os.path.join(WEB_ROOT, _rd) if not _rd.startswith(WEB_ROOT) else _rd
+            if os.path.isdir(_rd):
+                RH_OPENAPI[tid] = ent   # 保留 run_dir；query 路由会用它兜底
+                n_vid += 1
     _lk = s.get('model_lock') or {}
     if isinstance(_lk, dict):
         for _k in ('image', 'video'):
@@ -2632,11 +2641,12 @@ def _load_state():
             _ent = _pl.get(_k)
             if isinstance(_ent, dict) and _k in PARAM_LOCK:
                 PARAM_LOCK[_k].update({kk: vv for kk, vv in _ent.items() if kk in PARAM_LOCK[_k]})
-    print('[state] 状态恢复完成：IMG_DIRS=%d, RH_OPENAPI(image)=%d, MODEL_LOCK=%s, PARAM_LOCK=%s（来源：%s）'
-          % (n_dir, n_api, MODEL_LOCK, PARAM_LOCK, STATE_FILE))
+    print('[state] 状态恢复完成：IMG_DIRS=%d, RH_OPENAPI(image)=%d, RH_OPENAPI(video)=%d, MODEL_LOCK=%s, PARAM_LOCK=%s（来源：%s）'
+          % (n_dir, n_api, n_vid, MODEL_LOCK, PARAM_LOCK, STATE_FILE))
 
 def _save_state():
-    """落盘 IMG_DIRS + RH_OPENAPI(image) + MODEL_LOCK 到 rh_state.json。原子写入（tmp + replace）。"""
+    """落盘 IMG_DIRS + RH_OPENAPI(image+video 仅 run_dir) + MODEL_LOCK 到 rh_state.json。原子写入（tmp + replace）。
+    视频类只存 run_dir：容器重启后 query 路由能扫描目录给出视频 URL（兜底）。"""
     with _state_lock:
         try:
             data = {
@@ -2646,12 +2656,18 @@ def _save_state():
                 },
                 'rh_openapi': {
                     tid: ent for tid, ent in RH_OPENAPI.items()
-                    if isinstance(ent, dict) and ent.get('kind') == 'image'
+                    if isinstance(ent, dict) and ent.get('kind') in ('image', 'video')
+                    # video 类只保留 run_dir + kind，不存 api_key（避免泄漏 + 减少序列化负担）
+                    and (ent.get('kind') == 'image' or (ent.get('run_dir')))
                 },
                 'model_lock': dict(MODEL_LOCK),
                 'param_lock': {k: dict(v) for k, v in PARAM_LOCK.items()},
                 'updated_at': time.time(),
             }
+            # 视频类清洗：去掉 api_key 等敏感字段
+            for tid, ent in list(data['rh_openapi'].items()):
+                if isinstance(ent, dict) and ent.get('kind') == 'video':
+                    data['rh_openapi'][tid] = {k: v for k, v in ent.items() if k in ('kind', 'run_dir', 'job_id')}
             tmp = STATE_FILE + '.tmp'
             with open(tmp, 'w', encoding='utf-8') as f:
                 f.write(json.dumps(data, ensure_ascii=False))

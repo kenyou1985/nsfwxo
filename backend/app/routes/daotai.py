@@ -183,10 +183,58 @@ async def submit_video(request: Request):
         rh.JOBS[job.id] = job
     job.thread = __import__('threading').Thread(target=rh.run_job, args=(job,), daemon=True)
     job.thread.start()
-    rh.RH_OPENAPI[job.id] = {'kind': 'video', 'job_id': job.id, 'api_key': key}
+    rh.RH_OPENAPI[job.id] = {'kind': 'video', 'job_id': job.id, 'api_key': key,
+                             'run_dir': job.run_dir}
+    rh._save_state()   # 持久化 video taskId → run_dir 映射：容器重启后 query 仍能从磁盘恢复视频
     rh._emit(f'[daotai] 视频已提交 {job.id}（model=minimaxh3，refs={len([r for r in refs if r])}，'
              f'shots_per_seg={shots_per_seg}，loop_routes={cfg["loop_routes"]}）')
     return {'taskId': job.id, 'task_id': job.id}
+
+
+def _query_scan_run_dir(request: Request, tid: str, run_dir: str):
+    """容器重启兜底：内存 Job 丢失时，扫描 run_dir 把已落盘的最终视频（>1MB）返回。
+
+    优先按文件名顺序找：
+      1) 最终视频.mp4     （多段合并后的产物）
+      2) route_*.mp4      （det16 多路结果）
+      3) seg_*.mp4        （分段结果；多段时只取最大的，即合并后的产物）
+      4) 任意 *.mp4       （兜底）
+
+    文件小于 1MB 视为下载中/截断，跳过。"""
+    try:
+        cands = []
+        for _fn in os.listdir(run_dir):
+            if not _fn.endswith('.mp4'):
+                continue
+            _fp = os.path.join(run_dir, _fn)
+            try:
+                _sz = os.path.getsize(_fp)
+            except OSError:
+                continue
+            if _sz < 1 * 1024 * 1024:   # < 1MB 视为截断
+                continue
+            # 优先级排序：最终视频(0) > route_N(1) > seg_N(2) > 其他(3)
+            if _fn == '最终视频.mp4':
+                _prio = 0
+            elif _fn.startswith('route_'):
+                _prio = 1
+            elif _fn.startswith('seg_'):
+                _prio = 2
+            else:
+                _prio = 3
+            cands.append((_prio, _sz, _fn))
+        if not cands:
+            return {'status': 'PROCESSING', 'taskId': tid,
+                    'message': '容器重启后无内存 Job，run_dir 暂无视频（>1MB）—— 等待平台重提交或工作流未完成'}
+        cands.sort()   # 优先级 + 同优先级取大
+        _fn = cands[0][2]
+        _dir = os.path.basename(run_dir)
+        u = _absolute_url(request, f'/api/daotai/media/{_dir}/{urllib.parse.quote(_fn)}')
+        return {'status': 'SUCCESS', 'video_url': u, 'output': {'video_url': u}, 'url': u,
+                'restored': True,
+                'message': '容器重启后从 run_dir 恢复（>1MB 视为有效产物）'}
+    except Exception as e:
+        return {'status': 'FAILED', 'message': '扫描 run_dir 失败: %s' % e}
 
 
 @router.post('/query')
@@ -214,7 +262,13 @@ async def query_task(request: Request):
         return {'status': 'PROCESSING', 'taskId': tid}
     job = rh.JOBS.get(ent['job_id'])
     if not job:
-        return {'status': 'FAILED', 'message': 'job lost'}
+        # ===== 容器重启兜底：内存 JOBS 没了，但 run_dir 还在 → 扫描目录找视频 =====
+        # 触发场景：commit 部署 → Railway 重启容器 → RH_OPENAPI 内存清零；
+        # 但 _save_state 持久化的 run_dir 让我们能从磁盘恢复。
+        _run_dir = ent.get('run_dir') if isinstance(ent, dict) else None
+        if _run_dir and os.path.isdir(_run_dir):
+            return _query_scan_run_dir(request, tid, _run_dir)
+        return {'status': 'FAILED', 'message': 'job lost（容器已重启且 run_dir 也不在了）'}
     snap = rh.job_snapshot(job)
     stt = snap.get('status')
     if stt == 'finished' and snap.get('final_url'):
