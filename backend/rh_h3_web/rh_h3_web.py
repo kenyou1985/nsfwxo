@@ -154,16 +154,7 @@ RATIO_MAP = {
 # 当前模板 500 自带角色台词（引号内）+"non_diegetic_music: 电子氛围音乐"+speaker_mapping → 502=false
 # 确定性切分原样直通 → H3 塞入说话声与背景音乐（"莫名其妙的说话声/背景音"根因，与 #51 同源）。
 # 修复：提交前对提示词做净化（去台词引语/去 BGM 描述/去 speaker_mapping）+ 追加本硬约束块。
-_AUDIO_BLOCK = (
-    "\n\n=== AUDIO CONSTRAINTS (HARD RULES, MUST FOLLOW) ===\n"
-    "1. NO background music, NO BGM, NO soundtrack, NO cinematic score, NO instrumental \u2014 ABSOLUTELY ZERO music in the final audio.\n"
-    "2. NO narration, NO voice-over, NO commentary, NO inner monologue \u2014 characters do not speak to the audience.\n"
-    "3. NO singing, NO humming, NO vocal melody, NO synthesized vocal tracks, NO choir, NO vocals of any kind.\n"
-    "4. Audio must be diegetic ONLY \u2014 only sounds that exist within the scene world (footsteps, wind, objects, character grunts/breathing if natural).\n"
-    "=== END AUDIO CONSTRAINTS ===\n"
-    "\n"
-    "non_diegetic_music: None. No background music, no narration, no singing, no extra vocal tracks; only the natural sounds described in overall_soundscape."
-)
+_AUDIO_BLOCK = "\n\n=== AUDIO CONSTRAINTS (HARD RULES, MUST FOLLOW) ===\n1. NO background music, NO BGM, NO soundtrack, NO cinematic score, NO instrumental — ABSOLUTELY ZERO music in the final audio.\n2. NO narration, NO voice-over, NO commentary, NO inner monologue — characters do not speak to the audience.\n3. NO singing, NO humming, NO vocal melody, NO synthesized vocal tracks, NO choir, NO vocals of any kind.\n4. Audio must be diegetic ONLY — only sounds that exist within the scene world (footsteps, wind, objects, character grunts/breathing if natural).\n=== END AUDIO CONSTRAINTS ===\n\nnon_diegetic_music: None. No background music, no narration, no singing, no extra vocal tracks; only the natural sounds described in overall_soundscape."
 
 def _sanitize_audio(text):
     """提交前音频净化：移除角色台词引语、BGM/非配乐描述、speaker_mapping 与 <d> 台词，
@@ -198,10 +189,11 @@ def _sanitize_audio(text):
     # 4f) 清理 4e 可能遗留的悬空连接词与叠词（"女性主动的与喘息"→"女性主动的喘息"；"人群的声与声"→"人群的声"）
     t = re.sub(r'的(?:与|和|、)\s*', '的', t)
     t = re.sub(r'声(?:与|和|、)声', '声', t)
-    # 5) 若净化后已有 AUDIO CONSTRAINTS 块则不再追加（防重复）
-    if '=== AUDIO CONSTRAINTS' in t:
-        return t.strip()
-    return (t + _AUDIO_BLOCK).strip()
+    # 5) 统一追加 AUDIO_CONSTRAINTS 硬约束块（无论提示词是否已有，统一用正确格式追加）
+    #    先移除提示词中可能损坏的 AUDIO_CONSTRAINTS 块（防重复/格式错误）
+    t = re.sub(r'(?i)\s*=== AUDIO CONSTRAINTS.*?=== END AUDIO CONSTRAINTS ===\s*', '\n', t, flags=re.S)
+    t = re.sub(r'(?i)^\s*non_diegetic_music\s*:.*$', '', t, flags=re.M)
+    return (t.strip() + _AUDIO_BLOCK).strip()
 
 # MiniMax 开放平台官方系统音色（T2A Pro / speech-02-hd / H3 视频配音均可锚定）。
 # 中文普通话：青年男 / 中年男 / 青年女 / 中年女；英文：青年男 / 中年男 / 青年女 / 中年老年女。
@@ -702,7 +694,12 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
         L.append({'nodeId': str(nid), 'fieldName': f, 'fieldValue': v})
     ref_nodes = (wfc.get('ref_nodes') or REF_NODES)
     # ============ 纯注入工作流（plain）：提示词原样 + 参考图 + 自杀链，不做切分/改写 ============
+    # 修复（2026-10-20 参考图残留）：push 只能覆盖 cfg 中有图的 ref_nodes 槽位，未上传的槽位仍保留
+    #   平台 API JSON 默认值（画布上次保存的 fileName 残留）→ H3 ref_image_* 收到旧图。
+    #   解决：先 push 把全部 ref_nodes 清为 'None'，再按 cfg['refs'] 顺序推本次上传的图。
     if wfc.get('mode') == 'plain':
+        for _rn in ref_nodes:
+            push(_rn, 'image', 'None')
         for i, p in enumerate((cfg.get('refs') or [])[:len(ref_nodes)]):
             if p and os.path.exists(p):
                 if p not in job.uploaded:
@@ -770,7 +767,23 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
         _N_det = max(2, int(_N_req))
         _wf = copy.deepcopy(job.wf_json or {})   # 修改版工作流 JSON（submit 走 workflow 参数，覆盖 workflowId）
         # ===== 参考图（LoadImage 28/273/285/406/420 → H3 127/199.ref_image + 尺寸链 24/26）=====
+        # 修复（2026-10-20 参考图残留）：平台拉取的 API JSON 默认在节点 28/273/285 的 inputs.image
+        #   留有画布上次保存时的 fileName（如 700512e3...png / 956219f...jpg 等已上传哈希），
+        #   即使本次 cfg['refs'] 只含 1 张参考、只覆盖 node[0]=28，#273/#285 仍提交旧的 fileName →
+        #   H3 ref_image_1/ref_image_2 同时吃"本次新图 + 上次旧图"两路参考 → 出片人物面容非用户上传。
+        #   解决：先把全部 5 个 ref_nodes['inputs']['image'] 清空为 'None'（406/420 本就 None，清写兜底），
+        #   再按 cfg['refs'] 顺序覆盖真有图的槽位；未上传的空槽位 = 'None' → H3 ref_image_* 空输出不污染。
         # 285/406/420 保持 image='None'（LoadImage 无图 → 空输出；H3 ref_image_2-4 无图不污染；LLM 视觉由 9999 接管）
+        _ref_fix_log = []
+        for _rn in ref_nodes:
+            if _rn in _wf and 'image' in _wf[_rn].get('inputs', {}):
+                _old = _wf[_rn]['inputs'].get('image', 'None')
+                _wf[_rn]['inputs']['image'] = 'None'
+                if str(_old) != 'None' and str(_old) != '':
+                    _ref_fix_log.append('#%s 清掉残留 %s' % (_rn, str(_old)[:20]))
+        if _ref_fix_log:
+            _emit('  [路%d] ★ 修复参考图残留：%s（平台 API JSON 默认值）→ 全部置 None 后按上传顺序覆盖'
+                  % (rng[0], '; '.join(_ref_fix_log)))
         _refs = [p for p in (cfg.get('refs') or []) if p and os.path.exists(p)][:len(ref_nodes)]
         for i, p in enumerate(_refs):
             with UPLOAD_LOCK:
@@ -780,6 +793,11 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
                 else:
                     _emit('  [路%d] 复用参考图%d -> %s（已上传）' % (rng[0], i + 1, job.uploaded[p]))
             _wf[ref_nodes[i]]['inputs']['image'] = job.uploaded[p]
+        # 提交体核对：把本次实际生效的 5 个参考图 fileName 打出来，便于确认无残留
+        _emit('  [路%d] 参考图实际生效：%s'
+              % (rng[0],
+                 ' | '.join('#%s=%s' % (rn, str(_wf[rn].get('inputs', {}).get('image', 'None'))[:30])
+                            for rn in ref_nodes)))
         # ===== LLM 15/228 视觉置空：新增节点 9999 = LoadImage(1×1 透明) → 276/282 组合图全部图像槽 =====
         # 实证链（本次探测 taskId 2110428239992836097，1路×2段×ref1.jpg+ref2.png 同款爆窗大图 → 视频 26.17s 正常）：
         #   ①push None 无效 —— 平台忽略 null，276/282 保留默认直连 → LLM 15/228 吃大图 → 16384 爆窗；
@@ -789,21 +807,48 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
         #     → 276/282 全部图像槽 = [9999,0] → 组合图输出 1×1 透明 → LLM 15/228 视觉 tokens≈1 永不爆；
         #     28/273/285/406/420 不动 → H3 参考图（127/199.ref_image）与尺寸链（24/26）不受影响。
         _blank = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'refs', 'blank_1x1.png')
-        if os.path.exists(_blank):
-            with UPLOAD_LOCK:
-                if _blank not in job.uploaded:
-                    _emit('  [路%d] 上传 1×1 透明占位图 -> %s' % (rng[0], os.path.basename(_blank)))
-                    job.uploaded[_blank] = upload_file(job, _blank)
-                else:
-                    _emit('  [路%d] 复用 1×1 透明占位图 -> %s（已上传）' % (rng[0], job.uploaded[_blank]))
-            _wf['9999'] = {'class_type': 'LoadImage', 'inputs': {'image': job.uploaded[_blank]}}
-            for _i in range(1, 6):
-                _wf['276']['inputs']['图像%d' % _i] = ['9999', 0]
-            for _i in range(1, 5):
-                _wf['282']['inputs']['图像%d' % _i] = ['9999', 0]
-            _emit('  [路%d] LLM 视觉置空：#9999 LoadImage(1×1透明) → 276/282 组合图全部槽位 → 15/228 视觉空' % rng[0])
-        else:
-            _emit('  [路%d] ⚠ blank_1x1.png 缺失，LLM 视觉仍吃默认图（大参考图会爆窗）' % rng[0])
+        # 兜底创建 blank_1x1.png（平台侧要求：8765 导演台 workflow 已内置 9999=blank_1x1，
+        # nsfwxo 拉到的 API JSON 可能 9999 为旧版真实图，必须由后端强制覆盖为透明图）
+        if not os.path.exists(_blank):
+            import struct as _s, zlib as _z
+            def _mk_png():
+                w = h = 1
+                raw = b'\x00' + b'\x00\x00\x00\xff' * (w * h)
+                def _chunk(tag, data):
+                    c = _z.crc32(tag + data) & 0xffffffff
+                    return _s.pack('>I', len(data)) + tag + data + _s.pack('>I', c)
+                png = b'\x89PNG\r\n\x1a\n'
+                png += _chunk(b'IHDR', _s.pack('>IIBBBBB', w, h, 8, 6, 0, 0, 0))
+                png += _chunk(b'IDAT', _z.compress(raw, 9))
+                png += _chunk(b'IEND', b'')
+                return png
+            os.makedirs(os.path.dirname(_blank), exist_ok=True)
+            with open(_blank, 'wb') as f:
+                f.write(_mk_png())
+            _emit('  [路%d] ★ 自动创建 blank_1x1.png（70B 透明 PNG）' % rng[0])
+        with UPLOAD_LOCK:
+            if _blank not in job.uploaded:
+                _emit('  [路%d] 上传 1×1 透明占位图 -> %s' % (rng[0], os.path.basename(_blank)))
+                job.uploaded[_blank] = upload_file(job, _blank)
+            else:
+                _emit('  [路%d] 复用 1×1 透明占位图 -> %s（已上传）' % (rng[0], job.uploaded[_blank]))
+        # 强制覆盖 9999（平台 API JSON 可能 9999=旧版真实图，8765 最新已内置 blank_1x1）
+        _wf['9999'] = {'class_type': 'LoadImage', 'inputs': {'image': job.uploaded[_blank]}}
+        # 防御性设置 276/282 全部图像槽 → 9999（支持「图像N」和「图片N」两种 key 名）
+        _key_candidates = ['图像%d', '图片%d']
+        for _node in ('276', '282'):
+            if _node not in _wf:
+                continue
+            _inputs = _wf[_node].get('inputs', {})
+            for _kc in _key_candidates:
+                for _i in range(1, 6):
+                    _k = _kc % _i
+                    if _k in _inputs:
+                        _inputs[_k] = ['9999', 0]
+        _276_keys = list(_wf.get('276', {}).get('inputs', {}).keys())
+        _282_keys = list(_wf.get('282', {}).get('inputs', {}).keys())
+        _emit('  [路%d] LLM 视觉置空：#9999=LoadImage(1×1透明) → #276%s #282%s → 15/228 视觉空'
+              % (rng[0], _276_keys, _282_keys))
         # ===== 提示词 / 参数（直接改 wf 字段，workflow JSON 提交）=====
         # 2026-10-19 音频净化：任何形态的 500 文本提交前都走 _sanitize_audio——
         # 去台词引语/去 BGM 描述/去 speaker_mapping，末尾追加 AUDIO CONSTRAINTS 硬约束块
@@ -1027,11 +1072,15 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
         return ('WF_JSON', _wf)
     # ============ 循环拼接模式（loop，方案A）：一次提交，画布 forLoop 逐段生成 + 尾帧衔接 + 合并 ============
     # 适用于 2106729712572071938 的改造版（127.prompt 走循环连接 6000；ref_image_0/338 引导帧 = 上段尾帧）
+    # 修复（2026-10-20 参考图残留）：nodeInfoList 只能覆盖 cfg 中有图的 slot，未上传槽位保留平台 API JSON
+    #   默认值 → H3 ref_image_* 收到旧图。先把全部 ref_nodes 清 'None'，再按 cfg['refs'] 顺序推。
     if wfc.get('mode') in ('loop',) or cfg.get('loop_stitch'):
         loop_slots = wfc.get('prompt_slots') or wfc.get('loop_slots') or ['212', '508', '509', '510', '511', '210', '211', '6002']
         # 按画布实际存在性过滤：v15=5 槽，8段版 v16（6002/6003/6004 已接入 512，槽序前 8 个）自动对齐
         if job.wf_json:
             loop_slots = [s for s in loop_slots if str(s) in job.wf_json]
+        for _rn in ref_nodes:
+            push(_rn, 'image', 'None')
         for i, p in enumerate((cfg.get('refs') or [])[:len(ref_nodes)]):
             if p and os.path.exists(p):
                 if p not in job.uploaded:
@@ -1116,7 +1165,10 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
                     _emit('  G. 自杀链注入：#%s.delay = %d' % (dn, SUICIDE_DELAY))
         return L
     # ============ 原版全局/手动（原有逻辑，7 参考图节点按注册表） ============
-    # 参考图（最多 7 张；上传缓存复用）
+    # 修复（2026-10-20 参考图残留）：先清空再覆盖——平台 API JSON 在节点 image 字段保留画布上次
+    #   保存的 fileName，未上传槽位会被原样沿用。先 push 'None' 把全部槽位重置，再按 cfg['refs'] 推图。
+    for _rn in ref_nodes:
+        push(_rn, 'image', 'None')
     for i, p in enumerate((cfg.get('refs') or [])[:len(ref_nodes)]):
         if p and os.path.exists(p):
             if p not in job.uploaded:
