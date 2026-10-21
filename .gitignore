@@ -2,6 +2,7 @@ node_modules
 dist
 .DS_Store
 *.log
+.runlogs/
 .env
 .env.local
 backend/venv/
@@ -16,8 +17,13 @@ src/_backup/
 backend/rh_h3_web/image/
 backend/rh_h3_web/refs/
 backend/rh_h3_web/videos/
+backend/rh_h3_web/audio/
 backend/rh_h3_web/wf_json_local/
 backend/rh_h3_web/rh_state.json
 backend/app/services/daotai_runtime/image/
 backend/app/services/daotai_runtime/refs/
 backend/app/services/daotai_runtime/videos/
+backend/app/services/daotai_runtime/audio/
+
+# 本地临时探测脚本（含硬编码 API Key，不入库）
+test_det16_4seg_1route.py

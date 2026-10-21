@@ -659,12 +659,17 @@ def _seg_text_list_full(prompt, lo, hi, n_segs=2):
     nm = len(mine)
     n_segs = max(1, int(n_segs))
     segs = []
+    # 平均分配分镜（v11段直注不依赖画布切分链，不需要每段2个的旧假设）
+    import math
+    _a = 0
     for k in range(n_segs):
-        a = k * 2
-        if a >= nm:
-            segs.append(segs[-1] if segs else _seg_one(0, 1))
-        else:
-            segs.append(_seg_one(a, min(a + 2, nm)))
+        _rest = nm - _a
+        _after = n_segs - k - 1
+        _take = math.ceil(_rest / (_after + 1))
+        if _take < 1:
+            _take = 1
+        segs.append(_seg_one(_a, _a + _take))
+        _a += _take
     return segs
 
 

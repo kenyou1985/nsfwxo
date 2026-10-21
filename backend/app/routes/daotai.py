@@ -398,8 +398,12 @@ def _image_refs(body: dict):
                 rf = _fp
             except Exception:
                 rf = None
-        else:
+        elif u.startswith('http://') or u.startswith('https://'):
+            # 公网 URL → 下载到本地
             rf = rh._rh_dl_ref(u)
+        else:
+            # RunningHub fileName（如 api/xxx.png）→ 直接透传，工作流 LoadImage 节点认这个格式
+            rf = u
         if rf and rf not in refs:
             refs.append(rf)
     return refs

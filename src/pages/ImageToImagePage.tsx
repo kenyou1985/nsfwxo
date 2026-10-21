@@ -572,9 +572,9 @@ export function ImageToImagePage({
 
     setKrea2MuseSubmitting(true);
     try {
-      // 收集所有非空参考图（data:URL 或 http(s) URL）
+      // 收集所有非空参考图：手动上传的用 path（RunningHub fileName），数字人预设用 preview（公网URL）
       const refs = multiRefImages
-        .map((img) => img.preview || '')
+        .map((img) => img.path || img.preview || '')
         .filter(Boolean);
 
       await taskManager.addDaotaiImgTask(
