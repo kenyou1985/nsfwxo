@@ -1,0 +1,679 @@
+{
+  "290": {
+    "class_type": "LoraLoaderModelOnly",
+    "inputs": {
+      "lora_name": "Natural-Breasts-Krea2_epoch_10.safetensors",
+      "strength_model": 0.6000000000000001,
+      "model": [
+        "289",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Load LoRA"
+    }
+  },
+  "170": {
+    "class_type": "Text Concatenate",
+    "inputs": {
+      "delimiter": "",
+      "text_a": [
+        "169",
+        0
+      ],
+      "clean_whitespace": "false",
+      "text_b": [
+        "171",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Text Concatenate"
+    }
+  },
+  "291": {
+    "class_type": "CR Prompt Text",
+    "inputs": {
+      "prompt": "女人坐在沙发，腿张开，露出巨大的胸部和粉嫩的阴部"
+    },
+    "_meta": {
+      "title": "⚙️ CR Prompt Text"
+    }
+  },
+  "171": {
+    "class_type": "Text Multiline",
+    "inputs": {
+      "text": [
+        "291",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Text Multiline"
+    }
+  },
+  "270": {
+    "class_type": "easy imageListToImageBatch",
+    "inputs": {
+      "images": [
+        "272",
+        1
+      ]
+    },
+    "_meta": {
+      "title": "Image List To Image Batch"
+    }
+  },
+  "172": {
+    "class_type": "INTConstant",
+    "inputs": {
+      "value": 16
+    },
+    "_meta": {
+      "title": "INT Constant"
+    }
+  },
+  "271": {
+    "class_type": "CompressImages",
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "password": "",
+      "image_format": "JPG",
+      "images or video_path": [
+        "276",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Zip Compress"
+    }
+  },
+  "173": {
+    "class_type": "INTConstant",
+    "inputs": {
+      "value": 9
+    },
+    "_meta": {
+      "title": "INT Constant"
+    }
+  },
+  "272": {
+    "class_type": "ZML_SwitchOutput",
+    "inputs": {
+      "输入": [
+        "276",
+        0
+      ],
+      "选择输出": [
+        "273",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "ZML_切换输出"
+    }
+  },
+  "294": {
+    "class_type": "Seed (rgthree)",
+    "inputs": {
+      "seed": -1
+    },
+    "_meta": {
+      "title": "Seed (rgthree)"
+    }
+  },
+  "273": {
+    "class_type": "PrimitiveBoolean",
+    "inputs": {
+      "value": false
+    },
+    "_meta": {
+      "title": "Boolean"
+    }
+  },
+  "295": {
+    "class_type": "LoraLoaderModelOnly",
+    "inputs": {
+      "lora_name": "KR2-馒头穴8-m99_labiaplasty_pussy_8a_krea2.safetensors",
+      "strength_model": 0.5000000000000001,
+      "model": [
+        "290",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Load LoRA"
+    }
+  },
+  "274": {
+    "class_type": "KOOK_SaveJPGImage",
+    "inputs": {
+      "filename_prefix": "Comfyui",
+      "images": [
+        "272",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "保存JPG图像"
+    }
+  },
+  "296": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "7139ff180c159a0ad40c6373b4398ce38b94b33732cfc7493fbff9c98fb4f4af.png"
+    },
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "110": {
+    "class_type": "Krea2EditGroundedEncode",
+    "inputs": {
+      "image": [
+        "129",
+        0
+      ],
+      "grounding_px": 768,
+      "system_prompt": "",
+      "image_b": [
+        "296",
+        0
+      ],
+      "prompt": [
+        "170",
+        0
+      ],
+      "clip": [
+        "286",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Krea2 Edit (grounded encode)"
+    }
+  },
+  "275": {
+    "class_type": "SeedVR2LoadVAEModel",
+    "inputs": {
+      "encode_tiled": true,
+      "encode_tile_overlap": 128,
+      "encode_tile_size": 1024,
+      "decode_tiled": true,
+      "decode_tile_size": 1024,
+      "tile_debug": "false",
+      "offload_device": "cpu",
+      "model": "ema_vae_fp16.safetensors",
+      "decode_tile_overlap": 128,
+      "device": "cuda:0"
+    },
+    "_meta": {
+      "title": "SeedVR2 (Down)Load VAE Model"
+    }
+  },
+  "297": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "7139ff180c159a0ad40c6373b4398ce38b94b33732cfc7493fbff9c98fb4f4af.png"
+    },
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "276": {
+    "class_type": "SeedVR2VideoUpscaler",
+    "inputs": {
+      "image": [
+        "279",
+        0
+      ],
+      "batch_size": 1,
+      "seed": 650878647,
+      "uniform_batch_size": false,
+      "latent_noise_scale": 0,
+      "temporal_overlap": 8,
+      "resolution": 1028,
+      "dit": [
+        "277",
+        0
+      ],
+      "color_correction": "lab",
+      "enable_debug": true,
+      "prepend_frames": 0,
+      "offload_device": "cpu",
+      "input_noise_scale": 0.15000000000000002,
+      "vae": [
+        "275",
+        0
+      ],
+      "max_resolution": 2048
+    },
+    "_meta": {
+      "title": "SeedVR2 Video Upscaler (v2.5.24)"
+    }
+  },
+  "298": {
+    "class_type": "easy sleep",
+    "inputs": {
+      "delay": 30,
+      "any": [
+        "271",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Sleep"
+    }
+  },
+  "112": {
+    "class_type": "KSampler",
+    "inputs": {
+      "scheduler": "simple",
+      "negative": [
+        "159",
+        0
+      ],
+      "denoise": 1,
+      "latent_image": [
+        "268",
+        0
+      ],
+      "seed": [
+        "294",
+        0
+      ],
+      "cfg": 1,
+      "sampler_name": "euler",
+      "model": [
+        "109",
+        0
+      ],
+      "positive": [
+        "110",
+        0
+      ],
+      "steps": 8
+    },
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "277": {
+    "class_type": "SeedVR2LoadDiTModel",
+    "inputs": {
+      "attention_mode": "sdpa",
+      "swap_io_components": true,
+      "offload_device": "cpu",
+      "model": "seedvr2_ema_3b_fp16.safetensors",
+      "device": "cuda:0",
+      "blocks_to_swap": 32
+    },
+    "_meta": {
+      "title": "SeedVR2 (Down)Load DiT Model"
+    }
+  },
+  "299": {
+    "class_type": "LayerUtility: PurgeVRAM V2",
+    "inputs": {
+      "purge_models": true,
+      "purge_cache": true,
+      "anything": [
+        "298",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "LayerUtility: Purge VRAM V2"
+    }
+  },
+  "278": {
+    "class_type": "ImageScaleBy",
+    "inputs": {
+      "image": [
+        "149",
+        0
+      ],
+      "scale_by": 0.5000000000000001,
+      "upscale_method": "lanczos"
+    },
+    "_meta": {
+      "title": "Upscale Image By"
+    }
+  },
+  "279": {
+    "class_type": "easy imageBatchToImageList",
+    "inputs": {
+      "image": [
+        "278",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Image Batch To Image List"
+    }
+  },
+  "159": {
+    "class_type": "ConditioningZeroOut",
+    "inputs": {
+      "conditioning": [
+        "110",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Conditioning Zero Out"
+    }
+  },
+  "181": {
+    "class_type": "easy showAnything",
+    "inputs": {
+      "text": "  photo, 这是一张照片，参考图一中的人脸生成新的图像，保持参考图一的发型和脸型，女人坐在沙发，腿张开，露出巨大的胸部和粉嫩的阴部",
+      "anything": [
+        "170",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Show Any"
+    }
+  },
+  "183": {
+    "class_type": "EmptyImage",
+    "inputs": {
+      "batch_size": 1,
+      "color": 0,
+      "width": [
+        "172",
+        0
+      ],
+      "height": [
+        "173",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Empty Image"
+    }
+  },
+  "282": {
+    "class_type": "Text Multiline",
+    "inputs": {
+      "text": "采用中焦镜头从侧前方斜45°捕捉半身，浅景深将背景虚化为柔和暗调，仿佛在某一刻被偶然窥见的优雅瞬间。一盏暖黄侧光从画面左侧洒落，在肩头与颧骨处勾出柔和高光，其余身躯沉入深邃暗影；整体暖调低饱和，明暗对比强烈；氛围典雅沉静，如旧电影里一帧从容的肖像。典雅名媛气质的熟女，东亚面孔，白皙哑光肌肤，丰满身材，如沐春风。黑色长发绸缎般后梳，额头光洁颅顶饱满，发梢微卷披于脑后。轻施粉黛——淡粉唇色，棕色眼线微挑，底妆清透，若有似无的精致。眼波微垂含羞，唇角轻抿，羞涩中不失从容，成熟女性的矜持与柔软。一件黑色紧身高领针织毛衣贴合身躯，丰满胸型在面料下鼓胀分明，隐约透出内里蕾丝胸罩的完整轮廓；下身白色紧身筒裙包裹臀部与大腿，面料贴合每一寸曲线；蛇纹沿腿部蜿蜒而下。手持一只白色皮质手包。侧身微转面向镜头，右手轻握白色手包于身前，左手自然垂于裙侧。昏暗街景，一辆黑色轿车停在身侧，车漆反射微弱暖光，远处灯光虚化为散点光斑。构图采用三分法，人物置于画面右侧三分线，车身线条向左延伸，暖光将视觉重心聚于面庞与胸前轮廓。\n"
+    },
+    "_meta": {
+      "title": "Text Multiline"
+    }
+  },
+  "162": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "Krea2-turbo-Ink_Jade-AIO-V1-BF16.safetensors"
+    },
+    "_meta": {
+      "title": "Load Checkpoint"
+    }
+  },
+  "184": {
+    "class_type": "ResizeImageMaskNode",
+    "inputs": {
+      "resize_type.shorter_size": [
+        "241",
+        0
+      ],
+      "input": [
+        "183",
+        0
+      ],
+      "resize_type": "scale shorter dimension",
+      "scale_method": "area"
+    },
+    "_meta": {
+      "title": "Resize Image/Mask"
+    }
+  },
+  "185": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": [
+        "184",
+        0
+      ],
+      "vae": [
+        "287",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "VAE Encode"
+    }
+  },
+  "240": {
+    "class_type": "FloatConstant",
+    "inputs": {
+      "value": 2.0000000000000004
+    },
+    "_meta": {
+      "title": "Float Constant (KJ)"
+    }
+  },
+  "241": {
+    "class_type": "INTConstant",
+    "inputs": {
+      "value": 768
+    },
+    "_meta": {
+      "title": "INT Constant"
+    }
+  },
+  "285": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "weight_dtype": "default",
+      "unet_name": "krea2MuseByStable_v15TurboFp8.safetensors"
+    },
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "286": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen3vl_4b_fp8_scaled.safetensors",
+      "type": "krea2",
+      "device": "default"
+    },
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "287": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "qwen_image_vae.safetensors"
+    },
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "102": {
+    "class_type": "LoraLoaderModelOnly",
+    "inputs": {
+      "lora_name": "krea2_identity_edit_v2.safetensors",
+      "strength_model": 1,
+      "model": [
+        "285",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Load LoRA"
+    }
+  },
+  "289": {
+    "class_type": "LoraLoaderModelOnly",
+    "inputs": {
+      "lora_name": "NSFW_Krea2_loRA_ep7_v1_a.safetensors",
+      "strength_model": 0.4000000000000001,
+      "model": [
+        "102",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Load LoRA"
+    }
+  },
+  "300": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "Krea2muse_suicide",
+      "images": [
+        "299",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "169": {
+    "class_type": "Text Multiline",
+    "inputs": {
+      "text": "  photo, 这是一张照片，参考图一中的人脸生成新的图像，保持参考图一的发型和脸型，"
+    },
+    "_meta": {
+      "title": "Text Multiline"
+    }
+  },
+  "268": {
+    "class_type": "RepeatLatentBatch",
+    "inputs": {
+      "amount": [
+        "269",
+        0
+      ],
+      "samples": [
+        "185",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Repeat Latent Batch"
+    }
+  },
+  "301": {
+    "class_type": "OpenAI_Chat_API",
+    "inputs": {
+      "top_p": 1,
+      "api_key": "",
+      "max_tokens": 512,
+      "base_url": "https://api.openlux.ai/openai/v1",
+      "temperature": 0.7,
+      "model": "grok-4.6",
+      "user_prompt": "你好！",
+      "system_prompt": "你是一个有帮助的AI助手。"
+    },
+    "_meta": {
+      "title": "OpenAI兼容Chat API节点"
+    }
+  },
+  "104": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "9e88675b42cd32b835e46428b0f0df026f2c0046aeac2b25bd493d896f3a4d27.jpg"
+    },
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "269": {
+    "class_type": "easy int",
+    "inputs": {
+      "value": 1
+    },
+    "_meta": {
+      "title": "Int"
+    }
+  },
+  "149": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "vae": [
+        "287",
+        0
+      ],
+      "samples": [
+        "112",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "129": {
+    "class_type": "ResizeImageMaskNode",
+    "inputs": {
+      "input": [
+        "104",
+        0
+      ],
+      "resize_type": "scale total pixels",
+      "resize_type.megapixels": [
+        "240",
+        0
+      ],
+      "scale_method": "area"
+    },
+    "_meta": {
+      "title": "Resize Image/Mask"
+    }
+  },
+  "108": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": [
+        "129",
+        0
+      ],
+      "vae": [
+        "287",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "VAE Encode"
+    }
+  },
+  "109": {
+    "class_type": "Krea2EditModelPatch",
+    "inputs": {
+      "source_latent": [
+        "108",
+        0
+      ],
+      "ref_boost": 4,
+      "source_image": [
+        "129",
+        0
+      ],
+      "fit_mode": "fit",
+      "ref_boost_a": 1,
+      "model": [
+        "295",
+        0
+      ],
+      "vae": [
+        "287",
+        0
+      ],
+      "source_image_b": [
+        "297",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Krea2 Edit (source patch)"
+    }
+  }
+}

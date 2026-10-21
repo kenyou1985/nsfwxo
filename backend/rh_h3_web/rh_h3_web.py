@@ -2551,7 +2551,7 @@ IMG_WF_REGISTRY = {
         'prompt_classes': ['CLIPTextEncode'], 'switch_class': None,
         'has_ref': False,
     },
-    '2101585569259577346': {
+    '2112778471972896770': {
         'name': 'Krea2-muse 角色参考写真（图生图）', 'key': 'krea2-muse',
         'prompt_classes': [], 'prompt_node': '169',   # Text Multiline.text（widget 直通主提示词）
         'switch_class': None,
@@ -2560,7 +2560,7 @@ IMG_WF_REGISTRY = {
         'batch_nodes': ['269'],                       # easy int value → RepeatLatentBatch.amount
         'batch_size_node': '183',                     # EmptyImage.batch_size
         'api_template': os.path.join(WEB_ROOT, 'wf_krea2muse_api.json'),   # 画布导出 API 格式模板：完整 workflow JSON 提交（对齐画布，人物保真）
-        'prompt_clean': {},                           # 不清 291：291 是画布默认人物细节描述（保持参考图一致性），画布提交保留它，8765 需对齐画布行为
+        'prompt_clean': {},                           # 不清 291：画布默认人物细节描述保持，169 锚定词 + 用户提示词合并注入
     },
 }
 
@@ -2756,7 +2756,7 @@ def img_submit(cfg):
     def _em(m):
         _logs.append(m)
         _emit('[图片] ' + m)
-    # 0) API 模板接入（krea2-muse 2101585569259577346）：
+    # 0) API 模板接入（krea2-muse 2112778471972896770）：
     #    用画布导出的 API 格式 JSON 作为完整 workflow 提交（/task/openapi/create 的 workflow 参数覆盖 workflowId），
     #    对齐画布行为：169 锚定词（参考图一人脸/发型/脸型）保留 + 291 默认剧情清空 + 用户提示词拼入 169，
     #    参考图 296/297/104 三槽、比例 172/173、batch 269/183 注入，自杀链 300/298/299/272/273 全部保留。

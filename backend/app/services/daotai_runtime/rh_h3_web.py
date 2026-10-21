@@ -2549,15 +2549,16 @@ IMG_WF_REGISTRY = {
         'prompt_classes': ['CLIPTextEncode'], 'switch_class': None,
         'has_ref': False,
     },
-    '2101585569259577346': {
+    '2112778471972896770': {
         'name': 'Krea2-muse 角色参考写真（图生图）', 'key': 'krea2-muse',
         'prompt_classes': [], 'prompt_node': '169',   # Text Multiline.text（widget 直通主提示词）
         'switch_class': None,
         'has_ref': True, 'ref_count': 3,              # 参考图 3 张（296/297/104，dict 顺序恰好对应）
-        'ratio_nodes': {'172': 16, '173': 9},         # INTConstant value：16:9 横屏默认（截图1位置）
+        'ratio_nodes': {'172': 16, '173': 9},         # INTConstant value：16:9 横屏默认
         'batch_nodes': ['269'],                       # easy int value → RepeatLatentBatch.amount
         'batch_size_node': '183',                     # EmptyImage.batch_size
-        'prompt_clean': {'291': 'prompt'},            # 清 291 CR Prompt Text 固定残留提示词
+        'api_template': os.path.join(WEB_ROOT, 'wf_krea2muse_api.json'),   # 完整 workflow JSON 提交（对齐画布，人物保真）
+        'prompt_clean': {},                           # 不清 291：画布默认人物细节描述保持，169 锚定词 + 用户提示词合并注入
     },
 }
 
@@ -2764,6 +2765,99 @@ def img_submit(cfg):
     def _em(m):
         _logs.append(m)
         _emit('[图片] ' + m)
+    # ===== API 模板接入（krea2-muse 2112778471972896770） =====
+    # 用画布导出的 API 格式 JSON 作为完整 workflow 提交（/task/openapi/create 的 workflow 参数覆盖 workflowId），
+    # 对齐画布行为：169 锚定词（参考图一人脸/发型/脸型）保留 + 291 默认剧情保持 + 用户提示词拼入 169，
+    # 参考图 104/296/297 三槽、比例 172/173、batch 269/183 注入，自杀链 300/298/299/272/273 全部保留。
+    _tpl = _reg.get('api_template')
+    if _tpl and os.path.exists(_tpl):
+        try:
+            import copy as _copy
+            with open(_tpl, 'r', encoding='utf-8') as _ft:
+                _wf_tpl = json.load(_ft)
+        except Exception as _e:
+            _em('API 模板加载失败 %s: %s（回退 nodeInfoList 方式）' % (_tpl, _e))
+            _wf_tpl = None
+        if _wf_tpl is not None:
+            wf2 = _copy.deepcopy(_wf_tpl)
+            _mode = cfg.get('mode', 't2i')
+            # 1) 提示词：169 = 模板锚定词 + 用户提示词；291 保持（不清，画布默认人物细节描述保留）
+            _anchor = ''
+            _nd169 = wf2.get('169')
+            if _nd169 and 'text' in _nd169.get('inputs', {}):
+                _anchor = str(_nd169['inputs']['text'] or '').strip()
+            _prompt = (cfg.get('prompt') or '').strip()
+            _full = (_anchor + ' ' + _prompt).strip() if _anchor else _prompt
+            if _nd169 and 'text' in _nd169.get('inputs', {}):
+                wf2['169']['inputs']['text'] = _full
+            _em('API模板：169.text = 锚定词(%d字) + 用户提示词(%d字)，共 %d 字' % (len(_anchor), len(_prompt), len(_full)))
+            _nd291 = wf2.get('291')
+            if _nd291 and 'prompt' in _nd291.get('inputs', {}):
+                _em('API模板：291.prompt 保持画布默认值（%d字）' % len(str(_nd291['inputs'].get('prompt', '') or '')))
+            # 2) 参考图 104/296/297 三槽（104 是主参考：129←104→110.image 与 109.source_image/source_latent，
+            #    必须先填用户图；296=110.image_b、297=109.source_image_b 次之；不足补中性图）
+            _refs2 = [r for r in (cfg.get('refs') or []) if r]
+            if not _reg.get('has_ref', True) or _mode == 't2i':
+                _refs2 = []
+                _em('API模板：文生图/无参考图模式，跳过参考图注入')
+            else:
+                while len(_refs2) < _reg.get('ref_count', 3):
+                    _refs2.append(_neutral_fn(api_key))
+            _lk = 0
+            for _lnid in ('104', '296', '297'):
+                _lnd = wf2.get(_lnid)
+                if _lnd and _lnd.get('class_type') == 'LoadImage' and _lk < len(_refs2):
+                    _p = _refs2[_lk]
+                    _up = _p if (_p.startswith('api/') or _p.startswith('http')) else (_img_upload(api_key, _p) if os.path.exists(_p) else _p)
+                    _lnd['inputs']['image'] = _up
+                    _em('API模板：参考图%d(%s) -> %s' % (_lk + 1, _lnid, os.path.basename(_p)))
+                    _lk += 1
+            # 3) 比例 172/173
+            _rp2 = _ratio_pair(cfg.get('ratio', ''))
+            if _rp2:
+                if '172' in wf2 and 'value' in wf2['172'].get('inputs', {}):
+                    wf2['172']['inputs']['value'] = _rp2[0]
+                if '173' in wf2 and 'value' in wf2['173'].get('inputs', {}):
+                    wf2['173']['inputs']['value'] = _rp2[1]
+                _em('API模板：比例 %d:%d（172/173）' % (_rp2[0], _rp2[1]))
+            # 4) batch 269/183
+            _bn2 = int(cfg.get('batch', 1))
+            if '269' in wf2 and 'value' in wf2['269'].get('inputs', {}):
+                wf2['269']['inputs']['value'] = _bn2
+            if '183' in wf2 and 'batch_size' in wf2['183'].get('inputs', {}):
+                wf2['183']['inputs']['batch_size'] = _bn2
+            _em('API模板：生成张数 %d（269/183）' % _bn2)
+            _em('API模板：自杀链保留（300 SaveImage → 299 PurgeVRAM → 298 easy sleep，红线不越）')
+            # 5) 提交完整 workflow JSON
+            _payload = json.dumps({'apiKey': api_key, 'workflowId': wid,
+                                   'workflow': json.dumps(wf2),
+                                   'instanceType': cfg.get('instance', 'plus')})
+            for _at in range(1, 6):
+                try:
+                    _conn2 = _conn()
+                    _conn2.request('POST', '/task/openapi/create', _payload,
+                                   {'Host': HOST, 'Content-Type': 'application/json'})
+                    _j = json.loads(_conn2.getresponse().read().decode())
+                    if _j.get('code') == 0 and _j.get('data', {}).get('taskId'):
+                        _tid = _j['data']['taskId']
+                        _nw = (_j.get('data') or {}).get('netWssUrl') or ''
+                        _bt = (cfg.get('batch_tag') or '').strip()
+                        _d = os.path.join(IMAGES_DIR, _bt) if _bt else os.path.join(IMAGES_DIR, time.strftime('%Y%m%d') + ''.join(_rnd.choices('0123456789', k=8)))
+                        os.makedirs(_d, exist_ok=True)
+                        IMG_DIRS[_tid] = _d
+                        IMG_SHOT[_tid] = (cfg.get('shot_tag') or '').strip()
+                        _em('已提交图片任务(id, workflow JSON 模式): %s' % _tid)
+                        _em('图片产物目录: web/image/%s/' % os.path.basename(_d))
+                        if _nw:
+                            WS_SEG[_tid] = None
+                            start_ws(types.SimpleNamespace(cfg={'api_key': api_key}), _tid, _nw, None)
+                            _em('已启动 WS 监听 %s（提交即连）...' % _tid[-6:])
+                        return _tid, _logs, _nw
+                    raise RuntimeError('提交失败: ' + json.dumps(_j)[:300])
+                except Exception as _e:
+                    _em('提交异常(%s)，%d 秒后重试 (第%d/5次)...' % (_e, 2 * _at, _at))
+                    time.sleep(2 * _at)
+            raise RuntimeError('图片任务提交失败（重试5次仍失败）')
     wf = IMG_WF_CACHE.get(wid)
     if not wf:
         conn = _conn()
