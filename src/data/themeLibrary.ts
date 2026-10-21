@@ -19217,7 +19217,7 @@ export function 主题转视频提示词(主题: ThemeEntry, 时长: 15 | 30 | 6
   // ── 1. subject_definitions ──
   const subjectDefLines: string[] = ['subject_definitions:'];
   subjectDefLines.push(
-    `<Picture 1> 是视频主角的参考图，由用户上传，图中女性作为目标视频的核心角色，全程面部、发型、妆容、身材比例完全保留。`
+    `<Picture 1> 是视频主角的面部参考图，由用户上传。仅保留该女性的面部五官特征（脸型、眼睛、鼻子、嘴巴、痣的位置）与发型发色一致；不要保留参考图的背景、服装、姿势、构图，所有场景、服装、动作、镜头均按本提示词详细描述生成。`
   );
   if (needMale) {
     // 当主题涉及性行为时，男性主体必须明确为"肌肉健壮男性"，避免模型
@@ -19275,15 +19275,15 @@ export function 主题转视频提示词(主题: ThemeEntry, 时长: 15 | 30 | 6
   //   - needMale=false（女同情欲/奇异猎奇）：只描述女性服装脱衣逻辑，不提男性
   let retention: string;
   if (!needNudity) {
-    retention = `retention_analysis:\n<Picture 1>中的女性在所有镜头中 fully_preserved（面部 / 发型 / 妆容 / 身材比例完全保留）。`;
+    retention = `retention_analysis:\n<Picture 1>中的女性在所有镜头中面部五官特征保持一致（脸型、五官、痣的位置、发型发色不变）；背景、服装、姿势按提示词描述生成，不沿用参考图的场景与服饰。`;
   } else if (needMale) {
-    retention = `retention_analysis:\n<Picture 1>中的女性在所有镜头中 fully_preserved（面部 / 发型 / 妆容 / 身材比例完全保留）。女性服装在出场时完整保留，前戏过程中逐渐被主动脱去或撤除；性行为阶段女性全裸。男性主体面部不展示特写（避免抢镜头），出场时${元素.男性服装 || '穿日常休闲装'}，前戏阶段开始脱去，性行为阶段男性全裸。`;
+    retention = `retention_analysis:\n<Picture 1>中的女性在所有镜头中面部五官特征保持一致（脸型、五官、痣的位置、发型发色不变）；背景、服装、姿势按提示词描述生成，不沿用参考图的场景与服饰。女性服装在出场时完整保留，前戏过程中逐渐被主动脱去或撤除；性行为阶段女性全裸。男性主体面部不展示特写（避免抢镜头），出场时${元素.男性服装 || '穿日常休闲装'}，前戏阶段开始脱去，性行为阶段男性全裸。`;
   } else if (主题.multiRef) {
     // 女同情欲：两个女性，无男性
-    retention = `retention_analysis:\n<Picture 1>与<Picture 2>中的两位女性在所有镜头中 fully_preserved（面部 / 发型 / 妆容 / 身材比例完全保留）。女性服装在出场时完整保留，前戏过程中逐渐被主动脱去或撤除；性行为阶段两位女性全裸亲密。`;
+    retention = `retention_analysis:\n<Picture 1>与<Picture 2>中的两位女性在所有镜头中面部五官特征保持一致（脸型、五官、发型发色不变）；背景、服装、姿势按提示词描述生成，不沿用参考图的场景与服饰。女性服装在出场时完整保留，前戏过程中逐渐被主动脱去或撤除；性行为阶段两位女性全裸亲密。`;
   } else {
     // 奇异猎奇：触手场景（不是真实男性）
-    retention = `retention_analysis:\n<Picture 1>中的女性在所有镜头中 fully_preserved（面部 / 发型 / 妆容 / 身材比例完全保留）。女性服装在出场时完整保留，前戏过程中逐渐被触手/异形分泌物侵蚀脱去或撤除；性行为阶段女性全裸。`;
+    retention = `retention_analysis:\n<Picture 1>中的女性在所有镜头中面部五官特征保持一致（脸型、五官、发型发色不变）；背景、服装、姿势按提示词描述生成，不沿用参考图的场景与服饰。女性服装在出场时完整保留，前戏过程中逐渐被触手/异形分泌物侵蚀脱去或撤除；性行为阶段女性全裸。`;
   }
 
   // ── 4. detailed_description ──
