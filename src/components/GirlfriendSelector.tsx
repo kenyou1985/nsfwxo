@@ -42,6 +42,7 @@ export function GirlfriendSelector({
   const activeSelectedIds: string[] =
     selectedIds ?? (selectedId ? [selectedId] : []);
   const [activeTab, setActiveTab] = useState<'presets' | 'custom'>('presets');
+  const [genderFilter, setGenderFilter] = useState<'all' | 'female' | 'male'>('all');
   const [customGirlfriends, setCustomGirlfriends] = useState<CustomGirlfriend[]>(() =>
     getCustomGirlfriends()
   );
@@ -163,7 +164,9 @@ export function GirlfriendSelector({
     setPreviewModal(gf);
   };
 
-  const presets = DEFAULT_GIRLFRIEND_PRESETS;
+  const presets = DEFAULT_GIRLFRIEND_PRESETS.filter(
+    (p) => genderFilter === 'all' || (p.gender ?? 'female') === genderFilter,
+  );
 
   return (
     <>
@@ -172,7 +175,7 @@ export function GirlfriendSelector({
         <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-bg-elevated">
           <div className="flex items-center gap-1.5">
             <Heart size={12} className="text-red-400" />
-            <span className="text-xs font-medium text-text-primary">AI 女友</span>
+            <span className="text-xs font-medium text-text-primary">AI 角色</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] text-text-tertiary">
@@ -223,6 +226,29 @@ export function GirlfriendSelector({
           </button>
         </div>
 
+        {/* 性别分类 */}
+        {activeTab === 'presets' && (
+          <div className="flex items-center gap-1 px-3 pt-2">
+            {([
+              ['all', '全部'],
+              ['female', '女'],
+              ['male', '男'],
+            ] as const).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setGenderFilter(key)}
+                className={`px-2.5 py-1 rounded-full text-[10px] font-medium transition-all ${
+                  genderFilter === key
+                    ? 'bg-red-500 text-white'
+                    : 'bg-bg-elevated text-text-tertiary hover:bg-bg-hover'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Grid — compact circular avatars */}
         <div className="p-3">
           {activeTab === 'presets' && (
@@ -266,7 +292,7 @@ export function GirlfriendSelector({
             <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-bg-elevated">
               <div className="flex items-center gap-2">
                 <Heart size={13} className="text-red-400" />
-                <span className="text-sm font-semibold text-text-primary">保存新女友</span>
+                <span className="text-sm font-semibold text-text-primary">保存新角色</span>
               </div>
               <button
                 onClick={handleCloseModal}

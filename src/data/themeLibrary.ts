@@ -18225,6 +18225,9 @@ const 地点名词列表: string[] = [
     '水晶宫', '珊瑚', '深海', '海底', '熔岩', '火山口',
     '火山', '冰川', '冰宫', '花田', '草原', '绿洲', '沙丘',
     '山巅', '山崖', '峡谷', '山洞', '石洞', '迷宫', '回廊',
+    // 魔幻系列 scenario 第 2 段里出现、但白名单原先没收的地点锚点：
+    //   「深紫梦境」(魅魔入梦) /「月夜礁石」(海妖塞壬) /「千年古树之巅」(精灵弓箭手)
+    '梦境', '礁石', '古树', '夜色', '梦境', '天穹',
     // 运动 / 训练类
     '瑜伽房', '瑜伽室', '舞蹈室', '舞蹈房', '排练厅', '排练室', '训练馆', '训练室',
     '拳击馆', '拳击场', '拳馆', '搏击馆', '攀岩馆', '攀岩墙', '滑雪场',
@@ -18237,6 +18240,15 @@ const 地点名词列表: string[] = [
     '写字楼', '办公楼', '银行', '放映厅', '直播间', '演播厅',
     '摄影棚内', '休息室', '储物柜', '观众席', '看台',
     '摩天轮', '客舱', '中庭', '连廊', '甬道', '巷道', '长廊',
+    // ── 分镜文案里真实出现、但白名单没收，导致"分镜定位不到地点"的词 ──────────
+    // 这些词都是**场所/区域**，不是道具：家具（沙发/桌面/梳妆台/大床/铁架…）、
+    // 地面（木地板/水泥地/台阶/地毯…）、身体部位一律不收 —— 收了就会把
+    // "男性双手揉捏臀部"之类误判成地点。
+    //
+    // ⚠️ 别收"樱花"这种植物名：theme_012「JK 水手服」的 scenario 是
+    // 「樱花树下校园风」，收了它会让前缀路径认定"樱花"是地点，
+    // 把更合适的「明亮教室」（校园风 → 教室）顶掉。树是"樱花林"这个地点。
+    '部落', '化妆镜', '雪原', '玩偶之家', '派对', '擂台', '楼梯', '温泉池',
 ];
 
 const 地点名词库 = new RegExp(地点名词列表.join('|'));
@@ -18423,7 +18435,11 @@ const 场景关键词库: Array<[RegExp, string]> = [
   [/婚礼|奢华酒店/, '奢华酒店房间，柔光打光，浪漫氛围'],
   [/审讯室|逼供/, '昏暗审讯室，单向灯光，铁桌椅'],
   [/玩偶之家|玩偶|囚禁/, '暗黑玩偶之家，金属与皮革，装饰华丽的囚笼'],
-  [/缚灵之殿|祭祀|诡异|魔幻/, '缚灵之殿，哥特式建筑，神秘符号，诡异光影'],
+  // ⚠️ 「魔幻」「诡异」必须排除后面跟着"电影风格/奇幻风格/光影"的情形：
+  //    「魔幻电影风格」「暗黑奇幻风格」「诡异光影」是**风格词**不是地点词。
+  //    写成 /魔幻|诡异/ 会让 20 个魔幻主题（明明写了"幽蓝月光森林""黑曜石祭坛"）
+  //    全部被判成「缚灵之殿」。这两系列由「风格前缀」路径接管，见 提取风格前缀场景。
+  [/缚灵之殿|祭祀|诡异(?!光影)|魔幻(?!电影风格|奇幻)/, '缚灵之殿，哥特式建筑，神秘符号，诡异光影'],
   [/虐恋教堂|教堂内/, '暗黑教堂，红黑色调，烛光与圣歌'],
   [/主奴|主人|性奴|驯化/, '暗黑主奴房间，金属与皮革，项圈和链条'],
   [/锁链|缠绕/, '暗黑房间，银色锁链从头到脚缠绕'],
@@ -18466,6 +18482,12 @@ const 场景关键词库: Array<[RegExp, string]> = [
   [/吧台|酒廊/, '主题酒吧吧台，深色木质台面与成排酒瓶，暖黄射灯'],
   [/车顶|天台/, '城市天台，夜风与远处车流光带，霓虹反射'],
   [/阳台/, '住宅阳台，晾衣绳与绿植，午后斜阳'],
+  // ── 兜底到"私密空间"之前补的最后两个漏网主题 ──────────────────────────────
+  // theme_018「白色丝袜腿控」的 scenario 是「纯白背景」——不是地点名词白名单里的词，
+  //   以前一路落到底，只能给出"私密空间"（实际画面是纯白影棚）。
+  [/纯白背景|纯色背景|白色背景|无缝背景/, '纯白无缝影棚背景，柔和均匀布光，无环境元素'],
+  // theme_074「闺蜜按摩」的 scenario 直接写了"水疗馆"。
+  [/水疗馆|按摩馆|养生馆|SPA/, '水疗馆，温泉池与氤氲水汽，柔和暖光，竹石点缀'],
 ];
 
 /** 道具关键词 → 完整描述映射 */
@@ -18612,46 +18634,112 @@ const 男性服装对应场景: Array<[RegExp, string]> = [
 ];
 
 /**
- * 暗黑电影风格系列的 scenario 形如：
+ * 「风格前缀 + 地点 + 陈设」型 scenario 的前缀词表。
+ * 形如：
  *   「暗黑电影风格，红黑主色调，强光阴影，酒店房间」
  *   「暗黑电影风格，红黑主色调，强光阴影，废弃仓库，水泥地、铁架、昏暗灯光」
- * 风格前缀之后的第 1 段就是作者指定的地点。剥掉前缀并去掉时间/状态修饰词后，
- * 若剩下的短语命中"地点名词"，就把它作为该主题的场景。
+ *   「魔幻电影风格，黑曜石祭坛，血红月光，黑雾弥漫，……」
+ * 剥掉前缀之后的第一段就是作者指定的地点。
+ *
+ * ⚠️ 必须收全魔幻 / 暗黑奇幻两个系列（各 20 个主题）。否则
+ * 「魔幻电影风格」里的"魔幻"二字会命中关键词库里的「缚灵之殿」、
+ * 「暗黑奇幻风格」里的"暗黑"会命中「暗黑地下室」，
+ * 于是这些主题明明写了"幽蓝月光森林""黑曜石祭坛"却被改成通用场景。
  */
 const 场景风格前缀 = [
-  '暗黑电影风格', '真实感电影级成人片风格', '电影实拍质感', '写实电影风',
-  '红黑主色调', '强光阴影', '电影级', '真实感', '无打码',
+  '暗黑电影风格', '真实感电影级成人片风格', '电影实拍质感', '写实电影风格',
+  '魔幻电影风格', '暗黑奇幻风格',
+  '红黑主色调', '强光阴影', '诡异光影', '哥特布景', '神秘符号',
+  '电影级', '真实感', '无打码',
 ];
 
-/** 地点短语前面的时间/状态修饰词（"夜间"、"行驶中的"、"废弃"…） */
-const 地点修饰词 = [
-  '行驶中的', '行驶的', '夜间', '清晨', '黄昏', '深夜', '午后', '白天', '正午',
-  '现代', '豪华', '高级', '私人', '废弃', '荒废', '老旧', '空荡', '闹市', '市郊',
-];
+/**
+ * 「策划型」风格前缀：这些系列的 scenario 第一段**一定**是作者手写的地点
+ * （暗黑电影风格 40 个 + 魔幻电影风格 20 个，都是按「前缀 + 地点 + 陈设」模板批量写的）。
+ * 它们的权威性高于"标题命中关键词猜出来的地点"——
+ * 例如 theme_464「地下通道暴雨凌辱」标题里有"暴雨"，关键词库会给出
+ * 「暴雨倾泻的夜晚街道」，而作者实际指定的地点是"城市地下人行通道"。
+ *
+ * 「写实电影风格」（348 个）不在此列：它第一段经常只是光线/氛围描述，
+ * 例如 theme_001「主光源为清晨斜射阳光」，只能当兜底，仍排在标题之后。
+ */
+const 场景策划型前缀 = new Set([
+  '暗黑电影风格', '魔幻电影风格', '真实感电影级成人片风格', '电影实拍质感',
+]);
 
-/** 从「风格前缀 + 地点 + 陈设」型 scenario 里取出地点短语；不匹配则返回空串 */
-function 提取风格前缀场景(scenario: string): string {
+/**
+ * 找出短语里**最靠后**的地点名词，返回它的词与结束下标。
+ *
+ * 用"最靠后"而不是"最长"：`原始森林战营` 里「森林」在前、「战营」在后，
+ * 战营才是作者真正指定的地点，前半段只是修饰；
+ * 同结束位置时取更长的词（`地下停车场` 优先认「停车场」而不是「车」）。
+ */
+function 末尾地点名词(短语: string): { 词: string; 结束: number } | null {
+  let 最长词 = '';
+  let 结束 = -1;
+  for (const 名 of 地点名词列表) {
+    const i = 短语.lastIndexOf(名);
+    if (i < 0) continue;
+    const e = i + 名.length;
+    if (e > 结束 || (e === 结束 && 名.length > 最长词.length)) {
+      最长词 = 名;
+      结束 = e;
+    }
+  }
+  return 结束 < 0 ? null : { 词: 最长词, 结束 };
+}
+
+/**
+ * 从「风格前缀 + 地点 + 陈设」型 scenario 里取出地点短语；不匹配则返回空串。
+ *
+ * 剥离前缀要同时处理两种写法（库里两种都有 340+ 处）：
+ *   ① 前缀与地点各占一段：「暗黑电影风格，**酒店房间**」
+ *      → 只有"整段等于前缀"才剥得掉
+ *   ② 前缀与地点粘在同一段：「**写实电影风格**昏暗暖色调卧室灯光」
+ *      → 只认整段相等会一个都剥不掉，地点会退化成
+ *        「写实电影风格昏暗暖色调卧室灯光」这种整句
+ *      （此前词表里写的是 `写实电影风`，少了"格"字，
+ *        导致 348 个写实电影风格主题整条路径都没走到）
+ */
+function 提取风格前缀场景(scenario: string): { 地点: string; 策划型: boolean } {
+  const 空 = { 地点: '', 策划型: false };
   const 原句 = scenario.trim();
-  let 是否风格开头 = false;
+  let 起始前缀 = '';
   for (const p of 场景风格前缀) {
-    if (原句.startsWith(p)) { 是否风格开头 = true; break; }
+    if (原句.startsWith(p)) { 起始前缀 = p; break; }
   }
-  if (!是否风格开头) return '';
+  if (!起始前缀) return 空;
 
-  // 逐段剥离前缀
   const 段 = 原句.split(/[，,]/).map(s => s.trim()).filter(Boolean);
-  let i = 0;
-  while (i < 段.length && 场景风格前缀.includes(段[i])) i++;
-  if (i >= 段.length) return '';
+  if (!段.length) return 空;
 
-  let 地点 = 段[i];
-  for (const m of 地点修饰词) {
-    if (地点.startsWith(m)) { 地点 = 地点.slice(m.length); break; }
+  // 写法②：首段剥掉前缀后还剩下内容 → 首段自己就是地点
+  const 首段残留 = 段[0].startsWith(起始前缀) ? 段[0].slice(起始前缀.length).trim() : '';
+  let 候选 = 首段残留;
+  if (候选.length < 2) {
+    // 写法①：逐段跳过后续的风格前缀段
+    候选 = '';
+    let i = 1;
+    while (i < 段.length && 场景风格前缀.some(p => 段[i].startsWith(p))) i++;
+    if (i < 段.length) 候选 = 段[i];
   }
-  地点 = 地点.trim();
-  if (地点.length < 2) return '';
-  if (!地点名词库.test(地点)) return '';
-  return 地点;
+  if (候选.length < 2) return 空;
+
+  // 【必须先验"这是不是地点"】候选段经常是**人物动作描述**而不是地点，例如
+  //   「苗条年轻女性被按在酒店高层落地窗前双手压在玻璃上」
+  //   「苗条年轻女性跪在镜子前双手持超长紫色硅胶假阴茎缓慢深喉自己」
+  // 不校验就会把"酒店""阳台"从动作句里抠出来当地点，
+  // 把 theme_413 / theme_381 这类主题的场景写成一句荒谬的动作描述。
+  // 复用 看起来像地点() 的同一套排除规则（人物词 / 氛围画质词 / 顿号罗列）。
+  if (!看起来像地点(候选)) return 空;
+
+  // 截到最后一个地点名词结束：地点后面粘的陈设/道具不要
+  // （「昏暗密室悬浮符咒」的地点是「昏暗密室」，不是"悬浮符咒"）
+  const 名 = 末尾地点名词(候选);
+  if (!名) return 空;
+  const 地点 = 候选.slice(0, 名.结束).trim();
+  if (地点.length < 2) return 空;
+  return { 地点, 策划型: 场景策划型前缀.has(起始前缀) };
 }
 
 /**
@@ -18702,17 +18790,22 @@ function 提取主题元素(主题: ThemeEntry): 主题元素 & { 男性服装: 
   const 显式场景 = (主题.scenario.match(/场景[：:]\s*([^。；;]+)/)?.[1] || '').trim();
   const 标题场景 = 匹配关键词(titleText, 场景关键词库, '');
   const 服装对应场景_ = 匹配关键词(titleText, 服装对应场景, '');
-  const 风格前缀场景 = 提取风格前缀场景(主题.scenario);
+  const 风格前缀 = 提取风格前缀场景(主题.scenario);
   const scenario场景 = 匹配关键词(主题.scenario, 场景关键词库, '');
 
   // 【依据校验】只有"服装→标准场景"这一路需要额外校验：它是被**服装词**触发的
   // （"猫女"→"夜晚加油站"），服装词本身不是地点证据，必须在主题文本里能找到
   // 地点依据才采用。其余各路（显式 / 标题 / 风格前缀 / scenario 关键词）都是被
   // **地点词**命中的，命中本身就是依据。
+  //
+  // 【策划型前缀的优先级】"暗黑电影风格"/"魔幻电影风格"这类前缀后面的第一段
+  // 是作者手写的地点，权威性高于"标题命中关键词猜出来的地点"，所以排在标题之前；
+  // 而"写实电影风格"第一段常常只是光线描述，只能当兜底，仍排在标题之后。
   const 场景候选: Array<{ 值: string; 需依据: boolean }> = [
     { 值: 显式场景, 需依据: false },
+    { 值: 风格前缀.策划型 ? 风格前缀.地点 : '', 需依据: false },
     { 值: 标题场景, 需依据: false },
-    { 值: 风格前缀场景, 需依据: false },
+    { 值: 风格前缀.策划型 ? '' : 风格前缀.地点, 需依据: false },
     { 值: 服装对应场景_, 需依据: true },
     { 值: scenario场景, 需依据: false },
   ];
@@ -19371,7 +19464,7 @@ function 动态生成镜头序列(主题: ThemeEntry, shotCount: number): ThemeB
       .replace(/\{场景\}/g, 元素.场景)
       .replace(/\{氛围\}/g, 元素.氛围)
       .replace(/\{主体\}/g, 元素.主体描述)
-      .replace(/\{男性\}/g, 元素.男性服装);
+      .replace(/\{男性\}/g, i >= 3 ? '全裸男性' : 元素.男性服装);
 
     // 处理 {道具}：如果为空，移除整个 {道具} 段（包括前面的逗号）
     if (元素.道具) {
@@ -19517,6 +19610,11 @@ function _强化Soundscape_已废弃(text: string): string {
  *   - 文件无数据 / 数量不匹配 → fallback 到动态生成
  */
 function 获取主题镜头(主题: ThemeEntry, shotCount: number): ThemeBeat[] {
+  // 女同情欲：文件 beats 里混入了男性动作（"含住男性阴茎/男性深插"），与两位女性的
+  // subject_definitions 直接冲突 → 强制走 category 模板（模板只用 <Picture 2> 女性）
+  if (主题.category === '女同情欲') {
+    return 动态生成镜头序列(主题, shotCount);
+  }
   // ════════════════════════════════════════════════════════════════════════
   // 【强约束】强制凌辱分类：严格使用文件 beats，保证 UI 与 themeLibrary.ts 同步
   // ════════════════════════════════════════════════════════════════════════
@@ -19633,130 +19731,278 @@ function 主题是否需要显式男性主体(主题: ThemeEntry): boolean {
  * @param 主题 主题条目
  * @param 时长 视频时长（15 / 30 / 60 秒）
  */
+// ════════════════════════════════════════════════════════════════════════════
+// 主题提示词批处理（2026-10-22）
+// 一次修复 470 个主题共用的 4 类问题：
+//   ① 性行为阶段仍写"身穿X的男性" → 与 subject_definitions 的脱衣规则互斥
+//   ② 同一镜头同时写"后入 + 正脸表情 + 交合处特写" → H3 把人物扭成 180°
+//   ③ 模板复读"电影级光影氛围，电影级光影，8K，HDR"等噪声
+//   ④ 参考图锚点只标女性，男性/场景没有 <Subject N>/<Picture N>
+// ════════════════════════════════════════════════════════════════════════════
+
+/** 模板里反复拼接的风格噪声（保留一条全局风格行即可） */
+const 风格噪声RE =
+  /[，,、\s]*(电影级光影氛围|电影级光影|电影感光影|电影实拍质感|电影级成人片质感|高清8K|8K|HDR|4K|高清|细节丰富|稳定镜头|细腻阴影)/g;
+
+function 清理风格噪声(text: string): string {
+  return text
+    .replace(风格噪声RE, '')
+    .replace(/，{2,}/g, '，')
+    .replace(/^[，,、；;\s]+|[，,、；;\s]+$/g, '')
+    .replace(/，([。；！？])/g, '$1')
+    .replace(/。{2,}/g, '。');
+}
+
+/**
+ * 两阶段服装：Shot 1-3 穿衣出场 / Shot 4 起全裸。
+ * 模板的 {男性} 占位符在扩展镜头里被替换成"身穿X的男性"，直接导致"穿着衣服插入"。
+ * 这里按镜头序号强制改写，不依赖模板是否写对。
+ */
+function 阶段化服装(
+  text: string,
+  shotIndex: number,
+  cloth: { female: string; male: string },
+  needMale: boolean,
+  needNudity: boolean,
+  multiRef: boolean,
+  group = false,
+): string {
+  const 性行为阶段 = shotIndex >= 3; // 0-based → Shot 4 起
+  let s = text;
+
+  if (needMale) {
+    if (性行为阶段) {
+      if (cloth.male) s = s.split(cloth.male).join('全裸男性');
+      s = s.replace(/身穿[^，。；、]{1,26}?的(?:壮硕|健壮|肌肉)?男性/g, '全裸男性');
+      s = s.replace(/穿[^，。；、]{0,20}?的男性/g, '全裸男性');
+      s = s.replace(/身穿[^，。；、]{1,26}?的男性/g, '全裸男性');
+    } else {
+      s = s.replace(/全裸男性/g, cloth.male || '男性');
+    }
+  }
+
+  if (性行为阶段 && needNudity) {
+    if (cloth.female) {
+      s = s.split('褪去' + cloth.female).join('已褪去衣物');
+      s = s.split('穿' + cloth.female).join('全裸女性');
+      s = s.split(cloth.female).join('');
+    }
+    const 有男性 = needMale;
+    const 收尾 = /整理衣物|穿衣|离开|远去|离去|背影|走后|被遗弃|最终画面|蜷缩|独自/.test(s);
+    if (!收尾) {
+      const 状态 = multiRef && !有男性
+        ? '两位女性全裸'
+        : 有男性
+          ? (group ? '全员全裸' : '男女双方全裸')
+          : '女性全裸';
+      if (!/全裸|赤裸|裸体/.test(s)) s = `${s}；${状态}`;
+    }
+  }
+
+  return s;
+}
+
+/**
+ * 单人镜头 / 单一动作冲突修正。
+ * 核心规则：一个镜头只能有一个机位 + 一个主动作。
+ *   - 后入 + 正脸表情 + 特写 → 删表情句；有交合处特写就保留交合处，否则机位改"侧后方中景"
+ *   - 同镜头既口交又插入 → 删口交分句（保留主导动作）
+ *   - "转过身" + 插入 → 改"侧过身"（避免模型让角色 180° 扭头/转身）
+ */
+function 修正动作冲突(text: string): string {
+  let s = text;
+  const 后入 = /后入|从后方|背后|后进/.test(s);
+  const 脸部 = /表情|脸部|面部|眼神|回望|回头|转头|正脸|对镜头/.test(s);
+  const 特写 = /特写/.test(s);
+  const 交合 = /交合处|结合部|结合处|阴茎插入|插入阴部/.test(s);
+
+  if (后入 && 脸部 && (特写 || 交合)) {
+    s = s.replace(/[，,；;]?[^，。；;]*?(表情|眼神|回望|回头|转头|正脸|对镜头)[^，。；;]*/g, '');
+    if (交合) {
+      s = s.replace(/全身远景|全身镜头|中景镜头|近景特写|近景/g, '');
+      if (!/交合处特写|结合处特写/.test(s)) s = `交合处特写，${s}`;
+    } else {
+      s = s.replace(/近景特写|近景|特写/g, '侧后方中景');
+    }
+  }
+
+  if (/口交|深喉|含住/.test(s) && /插入|抽插|后入/.test(s)) {
+    s = s.replace(/[，,；;]?[^，。；;]*?(口交|深喉|含住)[^，。；;]*/g, '');
+  }
+
+  if (/转过身/.test(s) && /后入|插入|抽插/.test(s)) {
+    s = s.replace(/转过身正面面对自己/g, '侧身面对自己');
+    s = s.replace(/转过身/g, '侧过身');
+  }
+  if (/全身/.test(s) && /特写/.test(s)) s = s.replace(/全身远景|全身镜头/g, '');
+
+  // 重复动作去重（"侧卧后入缠绵猛烈后入抽插" / "口交强制深喉口交"）
+  s = s.replace(/后入([^，。；]{0,8})后入/g, '后入$1');
+  s = s.replace(/口交([^，。；]{0,8})口交/g, '口交$1');
+  s = s.replace(/抽插([^，。；]{0,6})抽插/g, '抽插$1');
+
+  // 节奏冲突：同一镜头既"慢磨"又"猛烈/加深/加快" → 保留后者
+  if (/慢磨|缓慢/.test(s) && /猛烈|加快|加深|冲刺|狂抽/.test(s)) {
+    s = s.replace(/缓慢?磨/g, '').replace(/慢磨/g, '');
+  }
+  // 姿势冲突：同一镜头同时"侧卧"和"跪/站立" → 保留先出现的姿势（模板按序拼接）
+  // 结尾镜头：整理衣物/离开/远去/事后 → 男性已穿衣，去掉"全裸"矛盾
+  if (/整理衣物|穿衣|离开|远去|离去|背影|走后|被遗弃|最终画面|事后|结束/.test(s)) {
+    s = s.replace(/全裸男性/g, '男性')
+      .replace(/；?男女双方全裸/g, '')
+      .replace(/；?两位女性全裸/g, '');
+  }
+
+  return s
+    .replace(/，{2,}/g, '，')
+    .replace(/^[，,；;\s]+|[，,；;\s]+$/g, '')
+    .replace(/，(?=[。；])/g, '');
+}
+
+/** 单镜头流水线：清噪 → 服装阶段 → 动作冲突 → 再清噪 */
+function 规范化分镜(
+  prompt: string,
+  shotIndex: number,
+  ctx: { femaleCloth: string; maleCloth: string; needMale: boolean; needNudity: boolean; multiRef: boolean; group?: boolean },
+): string {
+  let s = 清理风格噪声(prompt);
+  s = 阶段化服装(s, shotIndex, { female: ctx.femaleCloth, male: ctx.maleCloth }, ctx.needMale, ctx.needNudity, ctx.multiRef, ctx.group);
+  s = 修正动作冲突(s);
+  s = 清理风格噪声(s);
+  // 机位去重："中景镜头，近景特写，..." → 只保留第一个机位
+  const 机位 = '(全身远景|全身中景|全身镜头|中近景镜头|中景镜头|近景特写镜头|近景特写|近景镜头|近景|特写镜头|特写|中景|交合处特写)';
+  for (let k = 0; k < 2; k++) {
+    const m = s.match(new RegExp('^' + 机位 + '[，,、\\s]*'));
+    if (!m) break;
+    const rest = s.slice(m[0].length).replace(new RegExp('^(?:' + 机位 + ')[，,、\\s]*'), '');
+    s = `${m[1]}，${rest}`;
+  }
+  // 锚点补全：静态 beat 用"女性/男性"泛称，H3 需要 <Picture N> 才能锁人
+  if (!ctx.multiRef && !/<Picture 1>/.test(s)) s = s.replace(/(?<![位名个两])女性/g, '<Picture 1>');
+  if (ctx.needMale && !/<Picture 2>/.test(s)) s = s.replace(/(?<!全裸)(?<![名位个两])男性/g, '<Picture 2>');
+  return s;
+}
+
 export function 主题转视频提示词(主题: ThemeEntry, 时长: 15 | 30 | 60 | 120 | 180): string {
   const beats = 根据时长生成分镜(主题, 时长);
   const needNudity = 主题是否需要显式裸体(主题);
   const needMale = 主题是否需要显式男性主体(主题);
-
-  // 提前提取主题元素，让 subject_definitions 可以引用 男性服装
   const 元素 = 提取主题元素(主题);
 
-  // 主题本身没给出场景线索时（派生结果落到通用兜底"私密空间"），改用分镜自己的地点
-  // ——分镜地点通常是"卧室大床""客厅沙发前"这类更具体的信息，比通用兜底更贴合画面，
-  // 这样 summary 的"主题场景"与分镜里的地点就是同一个地方。
+  // 主题本身没给出场景线索时，用分镜地点；与 summary/分镜保持一致
   let 场景描述 = 元素.场景;
   if (主题.category !== '强制凌辱' && 通用兜底场景.has(场景描述.trim())) {
     const 分镜地点 = 定位分镜地点(beats);
     if (分镜地点.length >= 2) 场景描述 = 分镜地点;
   }
 
-  // ── 1. subject_definitions ──
+  const isCNC = 主题.category === '强制凌辱';
+
+  // ── 1. subject_definitions：女性 / 男性 / 场景 都用 <Subject N> + <Picture N> 锚定 ──
   const subjectDefLines: string[] = ['subject_definitions:'];
-  subjectDefLines.push(H3_REF_FACE_ONLY_LINE);
-  if (needMale) {
-    // 当主题涉及性行为时，男性主体必须明确为"肌肉健壮男性"，避免模型
-    // 让男性穿着短裤/长裤破坏穿衣性爱的问题（参考用户反馈）。
-    //
-    // 【关键修正】之前硬写"在所有涉及男性的镜头中持续保持全裸并主导动作，
-    // 不穿任何衣物"，与分镜 Shot 1-3（男性穿 {男性} 占位符对应的西装/医生服/
-    // 警服等）直接矛盾——模型收到这种互斥指令后，要么全程裸衣违和，要么
-    // 性行为阶段又给男性套上衣服破坏氛围。
-    //
-    // 正确做法：明确两阶段服装规则——
-    //   - 出场和前戏阶段（Shot 1-3）：男性穿主题对应的服装
-    //   - 前戏过渡阶段（Shot 4 开头）：男性在前戏过程中自然脱去所有衣物
-    //   - 性行为阶段（Shot 4 末尾 - Shot 9）：男性全裸主导动作
-    subjectDefLines.push(
-      `男性主体（不在参考图中）：一名肌肉健壮成年男性，年龄 25-35 岁，身材魁梧，胸肌和腹肌发达。出场和前戏阶段（Shot 1-3）：${元素.男性服装 || '穿日常休闲装'}，保持完整着装。 进入前戏过渡阶段（Shot 4 开头）：男性在前戏过程中自然脱去所有衣物。 性行为阶段（Shot 4 中后段至 Shot 9）：男性全裸主导动作，生殖器完全裸露。`
-    );
-  }
-  if (主题.multiRef) {
-    // 与 <Picture 1> 保持同一套约束口径：只锁面部/发型发色，
-    // 不写"身材比例完全保留"（那会让模型把参考图的服装/构图一起沿用，导致开场退化为参考图展示）
-    subjectDefLines.push(
-      `<Picture 2> 是第二张参考图，作为视频中的辅助角色。全程面部五官特征与发型发色保持一致；不要保留参考图的背景、服装、姿势、构图。`
-    );
-  }
-
-  // ── 2. summary ──
-  // 多参考图（女同情欲）：双方都是女性；否则按是否有男性区分主体描述。
-  const 主体描述 = 主题.multiRef
-    ? '<Picture 1>中的女性与<Picture 2>中的女性'
-    : needMale
-      ? '<Picture 1>中的女性与上述男性主体'
-      : '<Picture 1>中的角色';
-  const summaryLines: string[] = [
-    `summary:`,
-    `目标视频展示${主体描述}在「${主题.title}」主题下的完整场景。`,
-    `主题场景：${场景描述}。`,
-  ];
-  if (元素.服装 !== '精致服装' && 元素.服装 !== '紧身日常服装连体搭配' && 元素.服装 !== '传统中式服装') {
-    summaryLines.push(`服装设定：${元素.服装}。`);
-  }
-  if (元素.道具) {
-    summaryLines.push(`道具：${元素.道具}。`);
-  }
-  // 多参考图（女同情欲）的"双方"= 两个女性；其他 needNudity 类别"双方"= 男性 + 女性
-  const 双方描述 = 主题.multiRef ? '双方（两位女性）' : '双方';
-  summaryLines.push(
-    `视频采用真实感、电影级成人片风格，第一人称视角（男性视角）或第三人称全景，镜头稳定略带手持轻微晃动，${needNudity ? `全程${双方描述}赤裸，所有性行为镜头真实描写，无打码无马赛克。` : '画面构图与镜头语言紧扣主题氛围。'}`
+  subjectDefLines.push(
+    '<Subject 1> 是 @女主 <Picture 1> — 成年女性；仅保留面部五官与发型发色，身材、服装、场景按分镜生成。',
   );
-  const summary = summaryLines.join('\n');
-
-  // ── 3. retention_analysis ──
-  // 【修正】之前 needNudity 时硬写"全程双方赤裸"+ "男性主体..."，
-  // 导致女同情欲（无男性）和奇异猎奇（触手非真实男性）也被硬塞男性描述。
-  // 现在按 needMale 分支：
-  //   - needMale=true（纯性爱/户外野战/多人派对/SM重口）：保留女性+男性双轨
-  //   - needMale=false（女同情欲/奇异猎奇）：只描述女性服装脱衣逻辑，不提男性
-  let retention: string;
-  if (!needNudity) {
-    retention = `retention_analysis:\n<Picture 1>中的女性在所有镜头中面部五官特征保持一致（脸型、五官、痣的位置、发型发色不变）；背景、服装、姿势按提示词描述生成，不沿用参考图的场景与服饰。`;
-  } else if (needMale) {
-    retention = `retention_analysis:\n<Picture 1>中的女性在所有镜头中面部五官特征保持一致（脸型、五官、痣的位置、发型发色不变）；背景、服装、姿势按提示词描述生成，不沿用参考图的场景与服饰。女性服装在出场时完整保留，前戏过程中逐渐被主动脱去或撤除；性行为阶段女性全裸。男性主体面部不展示特写（避免抢镜头），出场时${元素.男性服装 || '穿日常休闲装'}，前戏阶段开始脱去，性行为阶段男性全裸。`;
-  } else if (主题.multiRef) {
-    // 女同情欲：两个女性，无男性
-    retention = `retention_analysis:\n<Picture 1>与<Picture 2>中的两位女性在所有镜头中面部五官特征保持一致（脸型、五官、发型发色不变）；背景、服装、姿势按提示词描述生成，不沿用参考图的场景与服饰。女性服装在出场时完整保留，前戏过程中逐渐被主动脱去或撤除；性行为阶段两位女性全裸亲密。`;
-  } else {
-    // 奇异猎奇：触手场景（不是真实男性）
-    retention = `retention_analysis:\n<Picture 1>中的女性在所有镜头中面部五官特征保持一致（脸型、五官、发型发色不变）；背景、服装、姿势按提示词描述生成，不沿用参考图的场景与服饰。女性服装在出场时完整保留，前戏过程中逐渐被触手/异形分泌物侵蚀脱去或撤除；性行为阶段女性全裸。`;
+  let subjectNo = 2;
+  const isLesbian = 主题.category === '女同情欲';
+  if (needMale) {
+    subjectDefLines.push(`<Subject ${subjectNo}> 是 @男主 <Picture 2> — 成年男性，25-35 岁，肌肉健壮；面部不做特写。`);
+    subjectNo += 1;
+    if (主题.multiRef) {
+      subjectDefLines.push(`<Subject ${subjectNo}> 是 @女二 <Picture 3> — 成年女性；仅保留面部五官与发型发色。`);
+      subjectNo += 1;
+    }
+  } else if (isLesbian) {
+    subjectDefLines.push(`<Subject ${subjectNo}> 是 @女二 <Picture 2> — 成年女性；仅保留面部五官与发型发色。`);
+    subjectNo += 1;
+  } else if (主题.category === '奇异猎奇') {
+    subjectDefLines.push(`<Subject ${subjectNo}> 是 @异形主体 — 触手/异形，按文字描述生成，不使用参考图。`);
+    subjectNo += 1;
   }
+  subjectDefLines.push(`<Subject ${subjectNo}> 是 @场景 <Picture ${subjectNo}> — ${场景描述}。`);
+  subjectDefLines.push('（未上传 <Picture 2>/<Picture 3> 时，对应主体按文字描述生成。）');
 
-  // ── 4. detailed_description ──
+  // ── 2. summary：一段话讲清主体、场景、阶段规则 ──
+  const 主体描述 = isLesbian
+    ? '<Subject 1> 与 <Subject 2> 两位女性'
+    : needMale
+      ? (主题.multiRef ? '<Subject 1>、<Subject 2> 与 <Subject 3>' : '<Subject 1> 与 <Subject 2>')
+      : '<Subject 1>';
+  const summaryLines: string[] = [
+    'summary:',
+    `[reference generation] ${主体描述} 在「${主题.title}」中的完整场景：${场景描述}。`,
+    isCNC
+      ? '双方为事先约定的 CNC 角色扮演（全程知情同意，可随时停止）。'
+      : '双方为自愿的成年人。',
+    needMale
+      ? '服装分两阶段：Shot 1-3 男主穿主题服装、女主保持出场服装；Shot 4 起男主全裸主导，女主衣物在前戏中褪去。'
+      : '',
+    '画面无文字、无字幕、无水印。',
+  ].filter(Boolean);
+
+  // ── 3. retention_analysis：只锁面部/发型，其他按分镜 ──
+  const retentionLines: string[] = [
+    'retention_analysis:',
+    '<Subject 1> <Picture 1>: fully_preserved — 面部五官、发型、发色一致；不沿用参考图的服装、姿势、构图。',
+  ];
+  if (needMale) {
+    retentionLines.push(
+      '<Subject 2> <Picture 2>: attribute_transfer — 体型与服装按分镜阶段变化，面部不特写。',
+    );
+  } else if (isLesbian) {
+    retentionLines.push('<Subject 2> <Picture 2>: fully_preserved — 面部五官与发型发色一致。');
+  } else if (主题.category === '奇异猎奇') {
+    retentionLines.push('<Subject 2>: 触手/异形按文字描述生成，不绑定参考图。');
+  }
+  retentionLines.push(`<Subject ${subjectNo}> <Picture ${subjectNo}>: fully_preserved — 场景结构与光线氛围一致。`);
+
+  // ── 4. detailed_description：全局风格一行 + 规范化分镜 ──
   const interval = 时长 / Math.max(beats.length, 1);
   const shotLines: string[] = [];
   for (let i = 0; i < beats.length; i++) {
-    const beat = beats[i];
     const seconds = i * interval;
     const mins = Math.floor(seconds / 60);
     const secs = (seconds % 60).toFixed(3).padStart(6, '0');
     const timestamp = `${String(mins).padStart(2, '0')}:${secs}`;
-    // H3 官方格式：[Shot N] 00:00.000  （时间戳独占一行）
-    shotLines.push(`[Shot ${i + 1}] ${timestamp}\n${beat.prompt}`);
+    const prompt = 规范化分镜(beats[i].prompt, i, {
+      femaleCloth: 元素.服装,
+      maleCloth: 元素.男性服装,
+      needMale,
+      needNudity,
+      multiRef: 主题.multiRef,
+      group: 主题.category === '多人派对',
+    });
+    shotLines.push(`[Shot ${i + 1}] ${timestamp}\n${prompt}`);
   }
-  // 使用提取的元素描述场景，而不是原始的 scenario 文本（后者可能有错误如"卧室"对"修女"主题）
-  // 关键优化：开头加入强动作引导，避免第一段变成参考图静态展示（用户反馈"第一段无意义"根因修复）
-  const detailedDesc = `detailed_description:\n视频采用真实感、电影级风格，${场景描述}，${元素.氛围}。\n${H3_OPENING_HARD_CONSTRAINT}\n镜头从第一个动作直接推进，全程动态连续，不要静止摆拍，不要只展示面部或身材特写。${元素.服装 !== '精致服装' && 元素.服装 !== '紧身日常服装连体搭配' && 元素.服装 !== '传统中式服装' ? `\n核心视觉：${元素.服装}。` : ''}\n${shotLines.join('\n\n')}`;
+  const 风格行 = 清理风格噪声(`真实感电影级画面，${场景描述}，${元素.氛围}`);
+  const detailedDesc = `detailed_description:\n${风格行}。\n【首帧约束】第一帧直接进入第一个分镜的场景，禁止参考图静止/特写开场。\n${shotLines.join('\n\n')}`;
 
   // ── 5. overall_soundscape ──
-  // 同样按 needMale 分支：女同情欲/奇异猎奇 不要出现"全裸男性"的声音描述
   const soundscape = needNudity
-    ? (needMale
-      ? `overall_soundscape:\n真实的环境氛围音、自然呼吸声、身体接触声（亲吻、拍打、插入、抽插时的湿润撞击声）、皮革与金属器具的摩擦声，以及角色反应性发声。女性有清晰的呼吸、呻吟、叫喊与高潮叫声，全裸男性有低沉的喘息、命令声和撞击声。全程声音与画面动作一致，无背景音乐遮盖。`
+    ? needMale
+      ? `overall_soundscape:\n环境氛围、呼吸、亲吻与身体接触声（拍打、湿润撞击）、衣物摩擦；女声呼吸/呻吟/求饶，男声低沉喘息与命令声。声音与画面动作同步，无背景音乐。`
       : 主题.multiRef
-        ? `overall_soundscape:\n真实的环境氛围音、自然呼吸声、身体接触声（亲吻、抚摸、舔阴、舔乳、振动棒和假阳具的湿润声）、以及角色反应性发声。两位女性有清晰的呼吸、亲吻声、呻吟、叫喊与高潮叫声。全程声音与画面动作一致，无背景音乐遮盖。`
-        : `overall_soundscape:\n真实的环境氛围音、自然呼吸声、触手/异形分泌物的湿润粘液声、身体接触声（缠绕、插入、抽插时的湿滑撞击声）、以及角色反应性发声。女性有清晰的呼吸、呻吟、叫喊与高潮叫声。全程声音与画面动作一致，无背景音乐遮盖。`)
-    : `overall_soundscape:\n真实的环境氛围音、自然呼吸声、身体动作声，以及角色反应性发声。全程声音与画面动作一致。`;
+        ? `overall_soundscape:\n环境氛围、呼吸、亲吻与身体接触声（抚摸、舔弄、振动棒湿润声）；两位女性的呼吸、呻吟与高潮声。声音与画面同步，无背景音乐。`
+        : `overall_soundscape:\n环境氛围、粘液摩擦与身体缠绕声、插入抽插的湿滑撞击声；女性的呼吸、呻吟与叫喊。声音与画面同步，无背景音乐。`
+    : 'overall_soundscape:\n环境氛围、呼吸、衣物与皮肤摩擦声；角色反应性发声。声音与画面同步，无背景音乐。';
 
-  // ── 6. non_diegetic_music ──
-  const music = `non_diegetic_music: N/A`;
+  // ── 6. 音乐 / 配音映射 ──
+  const music = 'non_diegetic_music: None';
+  const speaker = needMale
+    ? (主题.multiRef
+      ? 'speaker_mapping: {"女主": "Chinese (Mandarin)_Adult_Female_Soft", "男主": "Chinese (Mandarin)_Adult_Male_Low", "女二": "Chinese (Mandarin)_Adult_Female_Soft"}'
+      : 'speaker_mapping: {"女主": "Chinese (Mandarin)_Adult_Female_Soft", "男主": "Chinese (Mandarin)_Adult_Male_Low"}')
+    : isLesbian
+      ? 'speaker_mapping: {"女主": "Chinese (Mandarin)_Adult_Female_Soft", "女二": "Chinese (Mandarin)_Adult_Female_Soft"}'
+      : 'speaker_mapping: {"女主": "Chinese (Mandarin)_Adult_Female_Soft"}';
 
   return [
     subjectDefLines.join('\n'),
-    summary,
-    retention,
+    summaryLines.join('\n'),
+    retentionLines.join('\n'),
     detailedDesc,
     soundscape,
     music,
+    speaker,
   ].join('\n\n');
 }

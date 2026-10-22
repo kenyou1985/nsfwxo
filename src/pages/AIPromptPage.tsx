@@ -1132,7 +1132,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     }
     if (digitalHumanMode && selectedGirlfriend) {
       const charId = (selectedGirlfriend.id as string).toUpperCase().slice(0, 4);
-      const anchorPrompt = `【严格锁定】严格锁定图中22岁女性（ID:${charId}），完全保留原有面部特征，五官轮廓、脸型、眼睛、鼻子、嘴唇、发型、肤色、身材比例完全不变，不做任何面部修改，动作流畅不僵硬。超高清8K，写实细节，皮肤质感细腻，无畸变、无模糊、无穿模。`;
+      const anchorPrompt = `【严格锁定】严格锁定图中${selectedGirlfriend.gender === 'male' ? '22岁男性' : '22岁女性'}（ID:${charId}），完全保留原有面部特征，五官轮廓、脸型、眼睛、鼻子、嘴唇、发型、肤色、身材比例完全不变，不做任何面部修改，动作流畅不僵硬。超高清8K，写实细节，皮肤质感细腻，无畸变、无模糊、无穿模。`;
       const finalPrompt = `${anchorPrompt}\n\n${prompt}`;
       const nodes = buildImg2ImgNodeList({
         prompt: finalPrompt,
@@ -1271,7 +1271,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       const panelNum = panel.panel_number || (i + 1);
       if (digitalHumanMode && selectedGirlfriend) {
         const charId = (selectedGirlfriend.id as string).toUpperCase().slice(0, 4);
-        const anchorPrompt = `【严格锁定】严格锁定图中22岁女性（ID:${charId}），完全保留原有面部特征，五官轮廓、脸型、眼睛、鼻子、嘴唇、发型、肤色、身材比例完全不变，不做任何面部修改，动作流畅不僵硬。超高清8K，写实细节，皮肤质感细腻，无畸变、无模糊、无穿模。`;
+        const anchorPrompt = `【严格锁定】严格锁定图中${selectedGirlfriend.gender === 'male' ? '22岁男性' : '22岁女性'}（ID:${charId}），完全保留原有面部特征，五官轮廓、脸型、眼睛、鼻子、嘴唇、发型、肤色、身材比例完全不变，不做任何面部修改，动作流畅不僵硬。超高清8K，写实细节，皮肤质感细腻，无畸变、无模糊、无穿模。`;
         const finalPrompt = `${anchorPrompt}\n\n${panel.image_prompt}`;
         const nodes = buildImg2ImgNodeList({
           prompt: finalPrompt,
@@ -4872,7 +4872,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     }
     if (digitalHumanMode && selectedGirlfriend) {
       const charId = (selectedGirlfriend.id as string).toUpperCase().slice(0, 4);
-      const anchorPrompt = `【严格锁定】严格锁定图中22岁女性（ID:${charId}），完全保留原有面部特征，五官轮廓、脸型、眼睛、鼻子、嘴唇、发型、肤色、身材比例完全不变，不做任何面部修改，动作流畅不僵硬。超高清8K，写实细节，皮肤质感细腻，无畸变、无模糊、无穿模。`;
+      const anchorPrompt = `【严格锁定】严格锁定图中${selectedGirlfriend.gender === 'male' ? '22岁男性' : '22岁女性'}（ID:${charId}），完全保留原有面部特征，五官轮廓、脸型、眼睛、鼻子、嘴唇、发型、肤色、身材比例完全不变，不做任何面部修改，动作流畅不僵硬。超高清8K，写实细节，皮肤质感细腻，无畸变、无模糊、无穿模。`;
       const finalPrompt = `${anchorPrompt}\n\n${prompt}`;
       const nodes = buildImg2ImgNodeList({
         prompt: finalPrompt,
@@ -5939,7 +5939,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         if (digitalHumanMode && selectedGirlfriend) {
           const charName = selectedGirlfriend.nameZh || selectedGirlfriend.name;
           const charId = (selectedGirlfriend.id as string).toUpperCase().slice(0, 4);
-          const anchorPrompt = `【严格锁定】严格锁定图中22岁女性（ID:${charId}），完全保留原有面部特征，五官轮廓、脸型、眼睛、鼻子、嘴唇、发型、肤色、身材比例完全不变，不做任何面部修改，动作流畅不僵硬。超高清8K，写实细节，皮肤质感细腻，无畸变、无模糊、无穿模。`;
+          const anchorPrompt = `【严格锁定】严格锁定图中${selectedGirlfriend.gender === 'male' ? '22岁男性' : '22岁女性'}（ID:${charId}），完全保留原有面部特征，五官轮廓、脸型、眼睛、鼻子、嘴唇、发型、肤色、身材比例完全不变，不做任何面部修改，动作流畅不僵硬。超高清8K，写实细节，皮肤质感细腻，无畸变、无模糊、无穿模。`;
           const finalPrompt = `${anchorPrompt}\n\n${panel.image_prompt}`;
           const nodes = buildImg2ImgNodeList({
             prompt: finalPrompt,

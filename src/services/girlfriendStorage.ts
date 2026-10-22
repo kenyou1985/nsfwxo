@@ -105,6 +105,7 @@ export function toPreset(custom: CustomGirlfriend): GirlfriendPreset {
     thumbnailUrl: custom.thumbnailDataUrl,
     aspectRatio: custom.aspectRatio,
     isCustom: true,
+    gender: 'female',
   };
 }
 

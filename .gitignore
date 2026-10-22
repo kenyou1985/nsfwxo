@@ -27,3 +27,8 @@ backend/app/services/daotai_runtime/audio/
 
 # 本地临时探测脚本（含硬编码 API Key，不入库）
 test_det16_4seg_1route.py
+
+# 本地临时截图/调试产物（不入库）
+.tmp_shots/
+scripts/_tmp_*
+src/data/_head_themeLibrary.ts

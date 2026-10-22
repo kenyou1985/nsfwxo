@@ -177,6 +177,11 @@ VIDEO_WFS = {
     #   时长：159 Int(秒) → 9 帧数公式 → 127.length；25 PrimitiveFloat 0.2（分辨率）；输出 205 SaveVideo（video/ComfyUI）
     #   ⚠ 无 9000/1490/1491/1492/1495 节点（区别于 988/1921 分段输入版）→ 提交不 push 这些
     #   自杀链：440/443 SaveImage（../x*4000 免扣费）+ 438/441 easy sleep 30（保留，禁止删除/绕过）。
+    # ⚠ 首段(199)与 502 的耦合（2026-10-22 修复，勿再拆开）：
+    #   画布 #199.prompt = #515，而 #515.tt = #196（#15 Llama 对参考图的"看图说话"）、ff = #513（段1提取）。
+    #   → llm_value 一旦为 true，首段就变成"参考图贴图动画"（无分镜剧情）。
+    #   build_node_info_list 的 det16 分支已强制 #199.prompt 直注第1段文本 + #515.tt 改连 #513，
+    #   因此首段内容与 502 开关解耦；改回画布连线前务必先确认 199 注入仍生效。
     '2110330160000516098': {'name': '16段确定性切分·全局500输入(2110330160000516098·主线)', 'mode': 'det16',
                             'ref_nodes': ['28', '273', '285', '406', '420'],
                             'prompt_node': '500', 'mode_node': '501', 'llm_node': '502', 'llm_value': True,
@@ -369,6 +374,78 @@ def _best_shot_pattern(zone):
         best, best_n = _LINE_SHOT, n
     return best, best_n
 
+
+# ===== 首帧/开场硬约束（后端兜底，与前端 h3FirstFrameConstraint.ts 同义）=====
+# H3 是图生视频模型：参考图天然就是成片第 1 帧。提示词里若没有"开场即进入剧情"的约束，
+# 模型会把开头当成"参考图展示"来做 —— 画面变成静止贴图，剧情迟迟不进入
+# （用户反馈的"第一段无意义视频"）。前端的主题库 / 情色创作面板都会带上这段约束，
+# 但 API 直连（OpenAPI 提交）与 LLM 自由生成的提示词可能没有 → 后端兜底补齐。
+#
+# ⚠ 文案里绝不能出现字面量 "[Shot N]"：
+#   det16 用正则 \[\s*Shot\s*\d+\s*\] 切分 detailed_description 区，
+#   约束文字里出现 "[Shot 1]" 会被当成一个分镜边界 → 凭空多出一段
+#   "只有约束文字、没有画面内容"的假分镜（第 1 段无意义 / 末尾镜头被挤掉）。
+#   统一改用「第一个分镜」这类自然语言表述。
+_H3_OPENING_CONSTRAINT = (
+    '【首帧约束】第一帧直接呈现第一个分镜的剧情场景；禁止以参考图静止/特写开场，场景与服装按分镜执行。'
+)
+
+
+def _has_opening_constraint(text):
+    """提示词里是否已有开场/首帧硬约束（幂等判断）。"""
+    t = (text or '')
+    return ('不作为开场画面内容' in t or '开场硬约束' in t
+            or '首帧约束' in t or '开场即进入剧情' in t)
+
+
+def _ensure_opening_constraint(prompt):
+    """提示词缺少「开场/首帧硬约束」时补一段（幂等）。
+
+    补的位置 = detailed_description 标签之后、**第一个 [Shot N] 之前**：
+    这个位置在 _seg_text_det16 / _seg_text_list_full / _seg_text_first_raw
+    三种切分口径里都属于"分镜前的正文(pre)"，切分时会被原样带到每段提示词里。
+    """
+    p = (prompt or '').strip()
+    if not p or _has_opening_constraint(p):
+        return p
+    m = re.search(r'(?:detailed_description|详细画面描述)\s*[:：]', p, re.I)
+    if not m:
+        # 没有 detailed_description 标签 → 全文兜底放在最前面
+        return _H3_OPENING_CONSTRAINT + '\n\n' + p
+    head = p[:m.end()].rstrip()
+    rest = p[m.end():]
+    sm = re.search(r'\[\s*Shot\s*\d+\s*\]', rest, re.I)
+    if sm:
+        body = rest[:sm.start()].rstrip()
+        tail = rest[sm.start():]
+    else:
+        body = rest.rstrip()
+        tail = ''
+    out = head + '\n' + body
+    if out.strip():
+        out += '\n'
+    out += _H3_OPENING_CONSTRAINT
+    if tail:
+        out += '\n' + tail
+    return out.strip()
+
+
+def _split_pre_shots(zone):
+    """切分分镜区 → (分镜前的正文 pre, 分镜列表)。
+
+    pre = 第一个 [Shot N] 标记之前的全部内容（场景设定 / 【开场硬约束】段落）。
+    三个切分函数（_seg_text_det16 / _seg_text_list_full / _seg_text_first_raw）
+    都必须原样保留 pre —— 丢掉它等于丢掉首帧约束，首段会退化成"参考图贴图动画"。
+    """
+    pat, _n = _best_shot_pattern(zone)
+    if pat:
+        parts = re.split(pat, zone)
+        pre = (parts[0] or '').strip()
+        shots = [x.strip() for x in parts[1:] if x.strip()]
+        return pre, shots
+    blocks = [b.strip() for b in re.split(r'\n\s*\n', zone) if b.strip()]
+    return '', (blocks or [zone])
+
 def _split_shots(prompt):
     """智能分镜切分：返回 (全局描述, 分镜列表)。"""
     head, zone = _extract_desc_zone(prompt)
@@ -479,13 +556,7 @@ def _seg_text_global_full(prompt, lo, hi, dur=None):
     # speaker_mapping 保留：H3 模型依据 Sx→音色映射选择音色；摘除会回退默认音色。
     # （summary 已在 tags/body 摘除，speaker_mapping 仅含映射无叙事，不会引发旁白）
     # 分镜切分（复用智能切分）
-    pat, _n = _best_shot_pattern(zone)
-    if pat:
-        parts = re.split(pat, zone)
-        shots = [x.strip() for x in parts[1:] if x.strip()]
-    else:
-        blocks = [b.strip() for b in re.split(r'\n\s*\n', zone) if b.strip()]
-        shots = blocks or [zone]
+    pre, shots = _split_pre_shots(zone)
     n = len(shots)
     if n == 0:
         return prompt.strip()
@@ -517,7 +588,11 @@ def _seg_text_global_full(prompt, lo, hi, dur=None):
     # （已实测：移除标记 + 移除 speaker_mapping 后 summary 仍被读）→ summary 仅在 500 全局提示词保留，127 段文本不再携带
     tags = re.sub(r'\n*\s*summary\s*:.*?(?=\n\s*(?:retention_analysis|retention\b|subject_definitions|detailed_description|overall_soundscape|soundscape\b|non_diegetic_music|speaker_mapping)\s*[:：])', '\n', tags, flags=re.I | re.S)
     tags = re.sub(r'\n*\s*summary\s*:.*$', '\n', tags, flags=re.I | re.S)
-    out = (tags + '\n' + body + ('\n\n' + after if after else '')).strip()
+    # 【v16 修复】保留分镜前的正文(pre)：里面是【开场硬约束】+ 风格/氛围前置说明 +
+    # 「不要静止摆拍」的动态推进要求。丢掉它 = 首段失去首帧约束 →
+    # H3 退回"参考图人物特写/静止贴图开场"（2026-10-22 首段无意义视频的直接诱因之一）。
+    _pre_blk = (pre + '\n') if pre else ''
+    out = (tags + '\n' + _pre_blk + body + ('\n\n' + after if after else '')).strip()
     # 保留 speaker_mapping（音色映射）：H3 模型依据 Sx→音色选择配音音色，
     # 摘除会回退默认音色（实测少女音）；summary 已摘除，此处仅含映射不会引发旁白
     _m_sm = re.search(r'\n*\s*speaker_mapping\s*:.*$', prompt, flags=re.I | re.S)
@@ -539,13 +614,7 @@ def _seg_text_det16(prompt, lo, hi):
     _rest = prompt[_m.end():] if _m else ''
     _m2 = re.search(r'(?:overall_soundscape|整体音效|soundscape)\s*[:：]', _rest, re.I)
     after = _rest[_m2.start():].strip() if _m2 else ''
-    pat, _n = _best_shot_pattern(zone)
-    if pat:
-        parts = re.split(pat, zone)
-        shots = [x.strip() for x in parts[1:] if x.strip()]
-    else:
-        blocks = [b.strip() for b in re.split(r'\n\s*\n', zone) if b.strip()]
-        shots = blocks or [zone]
+    pre, shots = _split_pre_shots(zone)
     n = len(shots)
     if n == 0:
         return prompt.strip()
@@ -577,7 +646,11 @@ def _seg_text_det16(prompt, lo, hi):
     # 防止 LLM 228 把整体提示词改写成"cinematic 配乐"版本。
     _sc = re.search(r'overall_soundscape\s*[:：]\s*(.*?)(?=\n\s*(?:non_diegetic_music|speaker_mapping)\s*[:：]|\Z)', prompt, re.I | re.S)
     _sm2 = re.search(r'speaker_mapping\s*[:：].*$', prompt, re.I | re.S)
-    _out = (tags + '\n' + body).strip()
+    # 【v16 修复】保留分镜前的正文(pre)：【开场硬约束】+ 风格/氛围前置说明 +
+    # 「不要静止摆拍」的动态推进要求。多路 det16 之前把 pre 整段丢掉，
+    # 于是每路的第 1 段都拿不到首帧约束 → H3 退回"参考图人物特写/静止贴图开场"。
+    _pre_blk = (pre + '\n') if pre else ''
+    _out = (tags + '\n' + _pre_blk + body).strip()
     if _sc and _sc.group(1).strip():
         _out += '\n\noverall_soundscape: ' + _sc.group(1).strip()
     # v12 强化版：4 条硬性约束，禁止任何形式的音乐/旁白/合成人声（v11 的简短版被 LLM 覆盖）
@@ -591,6 +664,44 @@ def _seg_text_det16(prompt, lo, hi):
     if _sm2 and _sm2.group(0).strip():
         _out += '\n\n' + _sm2.group(0).strip()
     return _out
+
+
+def _seg_text_first_raw(prompt, m=2):
+    """取第 1 段的**原始切片**（不走重建、不丢开场约束）：
+
+    subject_definitions / summary / retention_analysis + `detailed_description:` 之后的原样文本，
+    直到第 m+1 个 [Shot N] 之前——即保留 [Shot 1] 上方的场景设定与【开场硬约束】段落，
+    再拼回 overall_soundscape 之后的声音/音乐段。
+
+    为什么不用 _seg_text_det16 重建：它只保留 `[Shot k]` 行，会把 detailed_description 下方
+    “视频第一帧必须直接呈现第一个分镜…禁止以参考图人物单独特写/静止贴图开场”这段硬约束丢掉，
+    首段失去首帧约束后就会退回“参考图人物特写/贴图动画”（2026-10-22 首段无意义视频的直接诱因之一）。
+    画布 #1219 掐头去尾取段的口径 = 本函数；差别只在于不会像画布一样把开场约束一并剪掉。
+    """
+    p = (prompt or '').strip()
+    if not p:
+        return ''
+    mm = re.search(r'(?:detailed_description|详细画面描述)\s*[:：]', p, re.I)
+    if not mm:
+        return p
+    head = p[:mm.end()].rstrip()
+    rest = p[mm.end():]
+    hits = list(re.finditer(r'\[\s*Shot\s+\d+\s*\]', rest, re.I))
+    if not hits:
+        return p
+    cut = hits[m].start() if len(hits) > m else len(rest)
+    body = rest[:cut].rstrip()
+    tail = ''
+    if cut < len(rest):
+        mt = re.search(r'(?:overall_soundscape|整体音效|soundscape)\s*[:：]', rest[cut:], re.I)
+        if mt:
+            tail = rest[cut + mt.start():].strip()
+    out = head + '\n' + body
+    if tail:
+        out += '\n\n' + tail
+    return out.strip()
+
+
 def _seg_text_list_full(prompt, lo, hi, n_segs=2):
     """det16 v11 全局修复版：每路 N 段的纯净提示词（绕开画布切分链，直接注入 199/1318 节点）——
 
@@ -623,13 +734,7 @@ def _seg_text_list_full(prompt, lo, hi, n_segs=2):
     _rest = prompt[_m.end():] if _m else ''
     _m2 = re.search(r'(?:overall_soundscape|整体音效|soundscape)\s*[:：]', _rest, re.I)
     after = _rest[_m2.start():].strip() if _m2 else ''
-    pat, _n = _best_shot_pattern(zone)
-    if pat:
-        parts = re.split(pat, zone)
-        shots = [x.strip() for x in parts[1:] if x.strip()]
-    else:
-        blocks = [b.strip() for b in re.split(r'\n\s*\n', zone) if b.strip()]
-        shots = blocks or [zone]
+    pre, shots = _split_pre_shots(zone)
     n = len(shots)
     if n == 0:
         return [prompt.strip()] * max(1, int(n_segs))
@@ -652,7 +757,10 @@ def _seg_text_list_full(prompt, lo, hi, n_segs=2):
     def _seg_one(idx0, idx1):
         _b = '\n'.join('[Shot %d] %s' % (i + 1, _clean(mine[j]))
                        for i, j in enumerate(range(idx0, min(idx1, len(mine)))))
-        _out = (tags + '\n' + _b).strip()
+        # 【v16 修复】保留 pre（【开场硬约束】等）：每段提示词都必须带首帧约束，
+        # 否则第 1 段（以及每段的第 1 帧）会退回"参考图人物特写/静止贴图开场"。
+        _pre_blk = (pre + '\n') if pre else ''
+        _out = (tags + '\n' + _pre_blk + _b).strip()
         if after:
             _out += '\n\n' + after
         return _out
@@ -799,6 +907,31 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
         _wf['503']['inputs']['value'] = _N_det    # 总段数（504 = 503-1 = N-1 轮循环 + 首段 = N 段）
         _wf['159']['inputs']['value'] = int(cfg.get('duration', 15))   # 159→9 帧数→93/95 length→127.length
         _wf['25']['inputs']['value'] = cfg.get('resolution', 0.2)      # 像素清晰度
+        # ===== v16 节点级调优（2026-10-22，均为可选环境变量，默认保持画布值）=====
+        # #228 是每段都跑一次的视觉 LLM（gemma-4-26B q4）：
+        #   max_frames=24（从 5 张参考图里抽 24 帧）+ max_tokens=4096（#19 共享）
+        #   实测是单段耗时大头之一。参考图是静态图，8-10 帧足够；输出改写文本约 1-1.5k token。
+        #   用 RH_LLM_MAX_FRAMES / RH_LLM_MAX_TOKENS 做 A/B，确认画质不降再固化。
+        try:
+            # 2026-10-22 固化：参考图是静态图，8 帧足够；六段式输出 ≈1-1.5k token，2560 够用。
+            _mf = int(os.environ.get('RH_LLM_MAX_FRAMES', '8') or 8)
+            for _n in ('228', '15'):
+                if _n in _wf and 'max_frames' in _wf[_n].get('inputs', {}):
+                    _wf[_n]['inputs']['max_frames'] = _mf
+            _mt = int(os.environ.get('RH_LLM_MAX_TOKENS', '2560') or 2560)
+            if '19' in _wf:
+                _wf['19']['inputs']['max_tokens'] = _mt
+            _emit('  [路%d] N. #228.max_frames=%d #19.max_tokens=%d（LLM 视觉抽帧/输出预算）'
+                  % (rng[0], _mf, _mt))
+            # 画布压缩参数：#269 VideoCombine crf 19→16；去掉 #270 zip（它只喂 #438 sleep，纯耗时）
+            if '269' in _wf and 'crf' in _wf['269'].get('inputs', {}):
+                _wf['269']['inputs']['crf'] = int(os.environ.get('RH_VIDEO_CRF', '16'))
+            if '438' in _wf and 'any' in _wf['438'].get('inputs', {}):
+                _wf['438']['inputs']['any'] = ['205', 0]
+                _emit('  [路%d] N. #269.crf=%s；#438 改接 #205（跳过 #270 zip 压缩）'
+                      % (rng[0], _wf['269']['inputs'].get('crf', '?')))
+        except Exception as _e:
+            _emit('  [路%d] ⚠ 节点调优参数解析失败: %s' % (rng[0], _e))
         _emit('  [路%d] M. #501=true(全局) #502=%s(LLM%s) #503=%d → 画布内循环 %d 轮 + 首段 = %d 段'
               % (rng[0],
                  'true' if wfc.get('llm_value', True) else 'false',
@@ -835,6 +968,50 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
                   % rng[0])
         _emit('  [路%d] T. #159.value = %d 秒/段 | R. #25.value = %s（workflow JSON 提交，自杀链保持画布默认）'
               % (rng[0], int(cfg.get('duration', 15)), cfg.get('resolution', 0.2)))
+
+        # ===== v15 首段(#199)解耦修复（2026-10-22）=====
+        # 现象：5173 导演台单路出片，首段 = 参考图动一动的无意义视频，第 2 段起才进分镜。
+        # 根因链（对照 8765 正常日志逐节点比对）：
+        #   ① 单路走 seg_map={}（2026-10-19 假成功修复）→ 本函数 seg_prompt='' → 不注入 #199；
+        #   ② #199.prompt 保持画布连线 #515；
+        #   ③ commit 2d40dea 把 #502(llm_value) 从 false 改成 true →
+        #      #515.tt_value = #196 = #15(Llama, custom_prompt 被下面强制置空) 对 5 张参考图的"看图说话"；
+        #   ④ 于是首段 H3 收到的是图像描述而非 [Shot 1..M]，生成"参考图贴图动画"。
+        #      平台侧铁证：WS 事件 #196 output = "Since the user provided only images and asked to
+        #      \"Describe this image\"..."。
+        #   8765 同提示词正常，是因为它把 #199.prompt 直连第 1 段分镜文本（日志里是字面量，非 ["515",0]）。
+        # 修复：单路也把 #199.prompt 直注为第 1 段原始切片（[Shot 1]..[Shot M]，M=#1269 每段分镜数），
+        #   并把 #515.tt_value 改连 #513（画布段1提取）做双保险 —— 此后 #502 开/关都不再影响首段内容。
+        # 注：#515 常驻改连（多路 v11 也会覆盖 #199，这里同样断掉 196 分支，避免遗留消费者再吃图像描述）。
+        if '515' in _wf and 'tt_value' in _wf['515'].get('inputs', {}):
+            _wf['515']['inputs']['tt_value'] = ['513', 0]
+            _emit('  [路%d] #515.tt_value → 513（画布段1提取），禁用 502=true 时的 196 参考图描述分支' % rng[0])
+        if not seg_prompt and _gp and '199' in _wf and 'prompt' in _wf['199'].get('inputs', {}):
+            if count_shots(_gp) > 0:
+                _M1 = 2
+                try:
+                    _M1 = int(_wf.get('1269', {}).get('inputs', {}).get('value') or 2)
+                except Exception:
+                    _M1 = 2
+                _M1 = max(1, _M1)
+                # 分镜覆盖检查：画布 #1269=每段分镜数、#503=段数 → 最多覆盖 1269×503 个分镜。
+                # 超出部分不会出现在成片里（提取链只到第 16 个 [SEGMENT] 锚点），提前告警而不是静默丢镜头。
+                _n_sh = count_shots(_gp)
+                _cap = _M1 * _N_det
+                if _n_sh > _cap:
+                    _emit('  [路%d] ⚠ 提示词有 %d 个分镜，但 503=%d 段 × 1269=%d 分镜/段 只覆盖前 %d 个 → '
+                          '最后 %d 个分镜不会出现；建议段数提到 %d（或减少分镜）'
+                          % (rng[0], _n_sh, _N_det, _M1, _cap, _n_sh - _cap,
+                             -(-_n_sh // _M1)))
+                _seg1 = _seg_text_first_raw(_gp, _M1)
+                if _seg1 and _seg1.strip():
+                    _wf['199']['inputs']['prompt'] = _seg1
+                    _emit('  [路%d] v15 首段修复：#199.prompt 直注第1段（[Shot 1]-[Shot %d] 原始切片，%d 字，'
+                          '保留开场硬约束）' % (rng[0], _M1, len(_seg1)))
+                else:
+                    _emit('  [路%d] ⚠ v15 首段修复：第1段切片为空，保持画布 #515 连线' % rng[0])
+            else:
+                _emit('  [路%d] ⚠ v15 首段修复：未检测到 [Shot N] 分镜锚点，保持画布 #515 连线' % rng[0])
 
         # ===== v11 段提示词直接注入（2026-10-15 全局最优修复）=====
         # 绕过画布 mark chain → JjkConcat → TextFindAndReplace 提取链，直接注入预格式化的 per-segment 提示词。
@@ -1827,6 +2004,210 @@ def _concat_videos(job, paths, out):
         _emit('  合成异常: %s' % e)
     return None
 
+
+def _smooth_seams(job, path, seams=None):
+    """段间接缝修复 + 响度归一（2026-10-22）：
+    ① 切除段尾黑场帧（视频+音频同切，A/V 同步不变）；
+    ② 接缝音频淡化：黑场切口 60ms，纯段边界（seams 预测）30ms；
+    ③ 全片 loudnorm 到 -14 LUFS / TP -1.5dB（H3 原始音频实测 -10.1 LUFS，偏热）。
+    仅检测到问题或显式传 seams 时才重编码；任何异常回退原片。SEAM_SMOOTH=0 关闭。
+
+    实证（task 1792649946435 / 4 段 9:16）：
+      H3 每段末尾会带 ~3 帧纯黑（Y=16，125ms）+ 电平骤降，`VideoCombine` 直接拼接后
+      在 26.04–26.17 / 39.13–39.25 出现两次黑闪，音频在接缝处 -36dB→-8dB 硬跳。
+    处理：blackdetect 找中段黑场（排除片头/片尾、只处理 ≤0.6s 的短黑），把黑场区间整段
+      切掉（视频+音频同切，A/V 同步不变），并在每个切口做 60ms 音频淡入淡出消除爆音。
+      检测不到短黑场 → 原样返回，不重编码；任何异常/校验失败 → 保留原片。
+    环境变量 SEAM_SMOOTH=0 可整体关闭。
+    """
+    if os.environ.get('SEAM_SMOOTH', '1') == '0':
+        return path
+    try:
+        rp = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                             '-of', 'csv=p=0', path], capture_output=True, text=True, timeout=60)
+        dur = float((rp.stdout or '').strip() or 0)
+        if dur < 5:
+            return path
+        pr = subprocess.run(['ffmpeg', '-v', 'info', '-i', path, '-vf',
+                             'blackdetect=d=0.04:pix_th=0.10', '-an', '-f', 'null', '-'],
+                            capture_output=True, text=True, timeout=600)
+        runs = [(float(a), float(b)) for a, b in
+                re.findall(r'black_start:([\d.]+) black_end:([\d.]+)', pr.stderr or '')]
+        # 只处理"段尾短黑"：不在片头/片尾、长度 ≤0.6s。片尾淡出到黑是正常收尾，不动。
+        runs = [(a, b) for a, b in runs if a > 0.4 and b < dur - 0.4 and (b - a) <= 0.6]
+        # ===== 2026-10-22 追加：暗闪（非纯黑）检测 =====
+        # 实测 task 1792653093948：段尾除纯黑 3 帧外，前面还有 1-2 帧亮度骤降（Y≈31，pix_th 0.10 抓不到），
+        # 用户看到的就是"黑屏闪一下"。用 pix_th=0.24 再扫一遍，只取落在预测段边界 ±0.8s 内、
+        # 长度 ≤0.5s 的暗帧段并入切除列表；无 seams（多路）时不做，避免把正常夜景当暗闪。
+        if seams:
+            try:
+                pr2 = subprocess.run(['ffmpeg', '-v', 'info', '-i', path, '-vf',
+                                      'blackdetect=d=0.02:pix_th=0.24', '-an', '-f', 'null', '-'],
+                                     capture_output=True, text=True, timeout=600)
+                dark = [(float(a), float(b)) for a, b in
+                        re.findall(r'black_start:([\d.]+) black_end:([\d.]+)', pr2.stderr or '')]
+                for a, b in dark:
+                    if (b - a) > 0.5:
+                        continue
+                    if not any(_s - 0.8 <= a <= _s + 0.4 for _s in seams):
+                        continue
+                    if any(abs(a - x) < 0.05 and abs(b - y) < 0.05 for x, y in runs):
+                        continue
+                    runs.append((a, b))
+                    _emit('  ✂ 接缝暗闪命中：%.3fs-%.3fs（Y≈暗帧，非纯黑）' % (a, b))
+            except Exception as _e:
+                _emit('  ⚠ 暗闪检测失败（忽略）: %s' % _e)
+        fps = 24.0
+        f1 = 1.0 / fps
+        cuts = [(max(0.0, a - f1), min(dur, b + f1)) for a, b in runs]
+        # 段边界音频门：预测的段起点（k×每段净长），没被黑场覆盖的单独切一刀（不动视频）
+        gates = []
+        for st in (seams or []):
+            if st <= 0.8 or st >= dur - 0.8:
+                continue
+            if any(a - 0.05 <= st <= b + 0.35 for a, b in cuts):
+                continue
+            gates.append(st)
+        if not cuts and not gates:
+            return path
+        # 构造保留区间 + 每个边界的淡化时长
+        events = [('cut', a, b, 0.06) for a, b in cuts] + [('gate', s, s, 0.03) for s in gates]
+        events.sort(key=lambda e: e[1])
+        chunks = []
+        prev = 0.0
+        fin = 0.0
+        for typ, a, b, f in events:
+            if a > prev + 0.06:
+                chunks.append((prev, a, fin, f))
+            elif chunks:
+                # 区间过短（<60ms）：并到上一块，避免空块
+                _st, _en, _fi, _fo = chunks[-1]
+                chunks[-1] = (_st, a, _fi, f)
+            prev = max(prev, b)
+            fin = f
+        if prev < dur - 0.06:
+            chunks.append((prev, dur, fin, 0.0))
+        chunks = [c for c in chunks if c[1] - c[0] > 0.05]
+        if len(chunks) < 2:
+            return path
+        n = len(chunks)
+        # 只有音频门、没有黑场切口时：视频流直接 copy，避免二次压缩（画质零损失，速度更快）
+        if not cuts:
+            afc = ['[0:a]asplit=%d%s' % (n, ''.join('[as%d]' % i for i in range(n)))]
+            for i, (st, en, fin, fout) in enumerate(chunks):
+                ln = en - st
+                a = '[as%d]atrim=start=%.4f:end=%.4f,asetpts=PTS-STARTPTS' % (i, st, en)
+                if fin > 0 and ln > 2 * fin + 0.02:
+                    a += ',afade=t=in:st=0:d=%.3f' % fin
+                if fout > 0 and ln > 2 * fout + 0.02:
+                    a += ',afade=t=out:st=%.3f:d=%.3f' % (ln - fout, fout)
+                afc.append(a + '[a%d]' % i)
+            afc.append(''.join('[a%d]' % i for i in range(n)) + 'concat=n=%d:v=0:a=1[aout]' % n)
+            out = path + '.seam.mp4'
+            r = subprocess.run(['ffmpeg', '-y', '-v', 'error', '-i', path, '-filter_complex', ';'.join(afc),
+                                '-map', '0:v', '-map', '[aout]', '-c:v', 'copy',
+                                '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', out],
+                               capture_output=True, text=True, timeout=900)
+            if r.returncode == 0 and os.path.exists(out) and os.path.getsize(out) > 50000:
+                os.replace(out, path)
+                _emit('  ✂ 接缝修复完成：0 处黑场、%d 处段边界 30ms 音频门（视频流直拷，无二次压缩）' % len(gates))
+            else:
+                _emit('  ⚠ 音频门失败，保留原片: %s' % (r.stderr or '')[-160:])
+                if os.path.exists(out):
+                    os.remove(out)
+            return path
+        fc = ['[0:v]split=%d%s' % (n, ''.join('[vs%d]' % i for i in range(n))),
+              '[0:a]asplit=%d%s' % (n, ''.join('[as%d]' % i for i in range(n)))]
+        for i, (st, en, fin, fout) in enumerate(chunks):
+            ln = en - st
+            fc.append('[vs%d]trim=start=%.4f:end=%.4f,setpts=PTS-STARTPTS[v%d]' % (i, st, en, i))
+            a = '[as%d]atrim=start=%.4f:end=%.4f,asetpts=PTS-STARTPTS' % (i, st, en)
+            if fin > 0 and ln > 2 * fin + 0.02:
+                a += ',afade=t=in:st=0:d=%.3f' % fin
+            if fout > 0 and ln > 2 * fout + 0.02:
+                a += ',afade=t=out:st=%.3f:d=%.3f' % (ln - fout, fout)
+            fc.append(a + '[a%d]' % i)
+        fc.append(''.join('[v%d]' % i for i in range(n)) + 'concat=n=%d:v=1:a=0[vout]' % n)
+        fc.append(''.join('[a%d]' % i for i in range(n)) + 'concat=n=%d:v=0:a=1[araw]' % n)
+        # 响度归一改到 _normalize_audio() 两遍法（更准），这里只做拼接
+        fc.append('[araw]anull[aout]')
+        graph = ';'.join(fc)
+        out = path + '.seam.mp4'
+        r = subprocess.run(['ffmpeg', '-y', '-v', 'error', '-i', path, '-filter_complex', graph,
+                            '-map', '[vout]', '-map', '[aout]',
+                            '-c:v', 'libx264', '-crf', os.environ.get('RH_SMOOTH_CRF', '16'),
+                            '-preset', 'fast', '-pix_fmt', 'yuv420p',
+                            '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', out],
+                           capture_output=True, text=True, timeout=1800)
+        if r.returncode != 0 or not os.path.exists(out) or os.path.getsize(out) < 50000:
+            _emit('  ⚠ 接缝修复失败，保留原片: %s' % (r.stderr or '')[-200:])
+            if os.path.exists(out):
+                os.remove(out)
+            return path
+        rp2 = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                              '-of', 'csv=p=0', out], capture_output=True, text=True, timeout=60)
+        dur2 = float((rp2.stdout or '').strip() or 0)
+        expect = dur - sum(b - a for a, b in cuts)
+        if abs(dur2 - expect) > 0.6:
+            _emit('  ⚠ 接缝修复时长异常（%.2fs vs 预期 %.2fs），保留原片' % (dur2, expect))
+            os.remove(out)
+            return path
+        os.replace(out, path)
+        _emit('  ✂ 接缝修复完成：切除 %d 处黑场（共 %.2fs）、%d 处段边界 30ms 音频门；时长 %.2fs → %.2fs'
+              % (len(cuts), sum(b - a for a, b in cuts), len(gates), dur, dur2))
+        return path
+    except Exception as e:
+        _emit('  ⚠ 接缝修复异常(%s)，保留原片' % e)
+        return path
+
+
+def _normalize_audio(job, path):
+    """两遍法响度归一：目标 -14 LUFS / TP -1.5 dB（H3 原始音频实测 -10.1 LUFS、峰值 0dBFS）。
+
+    第一遍只解码音频测 measured_*，第二遍 -c:v copy 只重编音频，画质零损失。
+    RH_LOUDNORM=0 关闭；任何异常保留原片。
+    """
+    if os.environ.get('RH_LOUDNORM', '1') == '0':
+        return path
+    try:
+        tgt = os.environ.get('RH_LOUDNORM_TARGET', 'I=-14:TP=-1.5:LRA=11')
+        pr = subprocess.run(['ffmpeg', '-v', 'info', '-i', path, '-af',
+                             'loudnorm=%s:print_format=json' % tgt, '-f', 'null', '-'],
+                            capture_output=True, text=True, timeout=900)
+        m = re.search(r'\{[^{}]*"input_i"[^{}]*\}', pr.stderr or '', re.S)
+        if not m:
+            _emit('  ⚠ 响度测量失败，跳过归一')
+            return path
+        d = json.loads(m.group(0))
+        vals = dict(measured_I=d.get('input_i'), measured_TP=d.get('input_tp'),
+                    measured_LRA=d.get('input_lra'), measured_thresh=d.get('input_thresh'),
+                    offset=d.get('target_offset'))
+        if any(v in (None, '', '-inf', 'inf') for v in vals.values()):
+            _emit('  ⚠ 响度测量值异常（%s），跳过归一' % vals)
+            return path
+        af = ('loudnorm=%s:measured_I=%s:measured_TP=%s:measured_LRA=%s:'
+              'measured_thresh=%s:offset=%s:linear=true'
+              % (tgt, vals['measured_I'], vals['measured_TP'], vals['measured_LRA'],
+                 vals['measured_thresh'], vals['offset']))
+        out = path + '.loud.mp4'
+        r = subprocess.run(['ffmpeg', '-y', '-v', 'error', '-i', path, '-c:v', 'copy',
+                            '-af', af, '-c:a', 'aac', '-b:a', '160k',
+                            '-movflags', '+faststart', out],
+                           capture_output=True, text=True, timeout=900)
+        if r.returncode != 0 or not os.path.exists(out) or os.path.getsize(out) < 50000:
+            _emit('  ⚠ 响度归一失败，保留原片: %s' % (r.stderr or '')[-160:])
+            if os.path.exists(out):
+                os.remove(out)
+            return path
+        os.replace(out, path)
+        _emit('  🔊 响度归一：I=%s → 目标 %s（峰值 %s dB）'
+              % (d.get('input_i'), tgt.split(':')[0], d.get('input_tp')))
+        return path
+    except Exception as e:
+        _emit('  ⚠ 响度归一异常(%s)，保留原片' % e)
+        return path
+
+
 # ---------- 任务执行 ----------
 def run_job(job):
     _tls.job = job
@@ -1872,6 +2253,15 @@ def run_job(job):
             _routes_det = max(1, int(cfg.get('loop_routes') or 1))   # 并发路数：设置多少就多少，不自动提升
             # 每路段数 = ceil(总目标段数 / 路数)：16 段 ÷ 4 路 = 每路 4 段；地板 2（503=1 → forLoop total=0 → 假成功）
             _N_det = max(2, -(-int(cfg.get('target_segs') or 16) // _routes_det))
+            # ===== v16 兜底：全局提示词缺少「开场/首帧硬约束」时补一段 =====
+            # 主题库 / 情色创作面板都会带这段约束，但 API 直连（OpenAPI）与 LLM 自由生成的
+            # 提示词可能没有。没有它，H3 会把开头当成"参考图展示"来做 —— 静止贴图、剧情不进。
+            # 补在 detailed_description 标签后、第一个 [Shot N] 前（= 切分口径里的 pre 区），
+            # 三个切分函数都会原样带到每段提示词。
+            if not _has_opening_constraint(global_prompt):
+                global_prompt = _ensure_opening_constraint(global_prompt)
+                cfg['global_prompt'] = global_prompt
+                _emit('  v16 兜底：全局提示词缺少开场硬约束，已自动补入（防止首段退化成参考图贴图）')
             _ns_det = count_shots(global_prompt)
             # ===== 提示词长度说明（502=false 后 LLM 已关，历史 6000 字爆窗预警已失效）=====
             _gp_len = len(global_prompt or '')
@@ -1970,6 +2360,11 @@ def run_job(job):
                     src = os.path.join(job.run_dir, 'route_%d.mp4' % ok_routes[0])
                     if os.path.exists(src):
                         os.replace(src, final)
+                        # 段边界（单路：平台内部 forLoop 合并，边界 = k × 每段净长）
+                        _dl = int(cfg.get('duration', 15))
+                        _sl = h3_frames(_dl) / 24.0 - 48 / 24.0
+                        _seams = [round(k * _sl, 4) for k in range(1, _N_det) if k * _sl > 0.8]
+                        final = _normalize_audio(job, _smooth_seams(job, final, seams=_seams))
                         job.final_path = final
                         job.final_url = '/media/%s/最终视频.mp4' % os.path.basename(job.run_dir)
                         job.set_status('finished')
@@ -1991,6 +2386,12 @@ def run_job(job):
                 if trimmed and not job.stop_flag:
                     final = os.path.join(job.run_dir, '最终视频.mp4')
                     if _concat_videos(job, [q for _, q in sorted(trimmed)], final):
+                        # 单路（1 段视频文件）时同样按 k×净段长 传段边界，补 30ms 音频门
+                        _seams = None
+                        if len(trimmed) == 1:
+                            _sl = h3_frames(int(cfg.get('duration', 15))) / 24.0 - 48 / 24.0
+                            _seams = [round(k * _sl, 4) for k in range(1, _N_det) if k * _sl > 0.8]
+                        final = _normalize_audio(job, _smooth_seams(job, final, seams=_seams))
                         job.final_path = final
                         job.final_url = '/media/%s/最终视频.mp4' % os.path.basename(job.run_dir)
                         job.set_status('finished')
@@ -2019,8 +2420,10 @@ def run_job(job):
                       % (_ns_det, _N_old, _need1, _N_det))
             ranges = [(1, 1, _ns_det)]
             # 2026-10-19 假成功修复：单路改画布原生形态（对齐下午成功版日志 503=4/159=13/1313..1317 全空/无 2022/无 222 直注）
-            # seg_map 置空 → build_node_info_list 收到 seg_prompt='' → 不注入 199/1313/213/512
-            #   → 段1 走画布 515→199、段2..N 走 514→1219 掐头去尾确定性切分（1305/1306/1351/1307 合并链全由画布执行）
+            # seg_map 置空 → build_node_info_list 收到 seg_prompt='' → 不走多路 v11 列表注入
+            #   → 段1 由 build_node_info_list 的 "v15 首段修复" 直注 #199.prompt（原先是画布 515→199，
+            #     502=true 时 515.tt=196 会变成参考图描述，2026-10-22 已解耦）；
+            #     段2..N 走 514→1219 掐头去尾确定性切分（1305/1306/1351/1307 合并链全由画布执行）
             # 旧逻辑（seg_map={1:global_prompt} → v11 直注 1313 + 2022 音频注入）与成功版形态不符，已废弃
             seg_map = {}
             n_segs = 1
@@ -2221,6 +2624,11 @@ def run_job(job):
                         if trimmed and not job.stop_flag:
                             final = os.path.join(job.run_dir, '最终视频.mp4')
                             if _concat_videos(job, [q for _, q in sorted(trimmed)], final):
+                                _seams = None
+                                if len(trimmed) == 1:
+                                    _sl = h3_frames(int(cfg.get('duration', 15))) / 24.0 - 48 / 24.0
+                                    _seams = [round(k * _sl, 4) for k in range(1, _N_det) if k * _sl > 0.8]
+                                final = _normalize_audio(job, _smooth_seams(job, final, seams=_seams))
                                 job.final_path = final
                                 job.final_url = '/media/%s/最终视频.mp4' % os.path.basename(job.run_dir)
                                 _emit('\n✅ 最终视频生成: %s (%.1f MB)'
@@ -2367,6 +2775,12 @@ def run_job(job):
                     if trimmed_m and not job.stop_flag:
                         final_m = os.path.join(job.run_dir, '最终视频.mp4')
                         if _concat_videos(job, [q for _, q in sorted(trimmed_m)], final_m):
+                            if len(trimmed_m) == 1:
+                                _sl = h3_frames(int(cfg.get('duration', 15))) / 24.0 - 48 / 24.0
+                                _seams = [round(k * _sl, 4) for k in range(1, _N_det) if k * _sl > 0.8]
+                            else:
+                                _seams = None
+                            final_m = _normalize_audio(job, _smooth_seams(job, final_m, seams=_seams))
                             job.final_path = final_m
                             job.final_url = '/media/%s/最终视频.mp4' % os.path.basename(job.run_dir)
                             _emit('\n✅ 最终视频生成: %s (%.1f MB, %d 路)'
@@ -2488,6 +2902,12 @@ def run_job(job):
         if trimmed and not job.stop_flag:
             final = os.path.join(job.run_dir, '最终视频.mp4')
             if _concat_videos(job, [q for _, q in sorted(trimmed)], final):
+                if len(trimmed) == 1:
+                    _sl = h3_frames(int(cfg.get('duration', 15))) / 24.0 - 48 / 24.0
+                    _seams = [round(k * _sl, 4) for k in range(1, _N_det) if k * _sl > 0.8]
+                else:
+                    _seams = None
+                final = _normalize_audio(job, _smooth_seams(job, final, seams=_seams))
                 job.final_path = final
                 job.final_url = '/media/%s/最终视频.mp4' % os.path.basename(job.run_dir)
                 _emit('\n✅ 最终视频生成: %s (%.1f MB)'
@@ -2700,22 +3120,66 @@ def _rh_abs(u):
     return RH_BASE_URL + ('' if u.startswith('/') else '/') + u
 
 def _rh_dl_ref(url):
-    """下载第三方传入的参考图（firstFrameUrl 等）到 refs 目录，返回本地路径；失败返回 None。"""
+    """下载第三方传入的参考图（firstFrameUrl 等）到 refs 目录，返回本地路径；失败返回 None。
+
+    2026-10-22 加固：RunningHub `/media/upload/binary` 返回的下载域名偶发 TLS 直接断连
+    （`EOF occurred in violation of protocol (_ssl.c:1129)`，见 13:40 那次提交），
+    单次 urllib 失败会让 refs 变成 [''] → 画布 LoadImage 保留上一次的旧参考图，
+    生成结果"人是别人"且首段变成参考图贴图动画。这里按 3 级降级重试：
+      ① 原样（带 UA）
+      ② 复用 download() 的 URL 编码实现（不带 UA）
+      ③ 关闭证书校验（部分 CDN 节点的证书链在 macOS Python3.9 下拉不起）
+    """
     url = (url or '').strip()
     if not url or not (url.startswith('http://') or url.startswith('https://')):
         return None
+    fp = os.path.join(REFS_DIR, 'rh_api_ref_%d.png' % int(time.time() * 1000))
+    errs = []
+
+    # ① 原样下载
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
         data = urllib.request.urlopen(req, timeout=60).read()
-        if len(data) < 500:
-            return None
-        fp = os.path.join(REFS_DIR, 'rh_api_ref_%d.png' % int(time.time() * 1000))
-        with open(fp, 'wb') as f:
-            f.write(data)
-        return fp
+        if len(data) >= 500:
+            with open(fp, 'wb') as f:
+                f.write(data)
+            return fp
+        errs.append('短响应 %dB' % len(data))
     except Exception as e:
-        _emit('[开放API] 参考图下载失败: %s' % e)
-        return None
+        errs.append(str(e))
+
+    # ② 走 download()（URL 编码 + 无 UA）
+    try:
+        tmp = fp + '.part'
+        download(url, tmp)
+        if os.path.exists(tmp) and os.path.getsize(tmp) >= 500:
+            os.replace(tmp, fp)
+            _emit('  [开放API] 参考图已通过降级通道下载: %s' % os.path.basename(fp))
+            return fp
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        errs.append('降级下载为空')
+    except Exception as e:
+        errs.append(str(e))
+
+    # ③ 关闭证书校验
+    try:
+        import ssl as _ssl
+        ctx = _ssl._create_unverified_context()
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        data = urllib.request.urlopen(req, timeout=60, context=ctx).read()
+        if len(data) >= 500:
+            with open(fp, 'wb') as f:
+                f.write(data)
+            _emit('  [开放API] 参考图已通过免校验通道下载: %s' % os.path.basename(fp))
+            return fp
+        errs.append('免校验响应过短')
+    except Exception as e:
+        errs.append(str(e))
+
+    _emit('[开放API] 参考图下载失败（3 级重试全部失败）: %s | %s'
+          % (url[:100], ' ; '.join(errs)[:300]))
+    return None
 
 def _img_find(wf, cls=None, nid=None):
     """在平台 API JSON（dict key=节点id字符串）中按 class_type 或 id 找节点。"""
@@ -3450,6 +3914,15 @@ def rerun_seg(job, seg, prompt):
         if trimmed:
             final = os.path.join(job.run_dir, '最终视频.mp4')
             if _concat_videos(job, [q for _, q in trimmed], final):
+                try:
+                    _N_t = int((job.cfg or {}).get('total_segs') or 0)
+                    _seams = None
+                    if len(trimmed) == 1 and _N_t >= 2:
+                        _sl = h3_frames(int(job.cfg.get('duration', 15))) / 24.0 - 48 / 24.0
+                        _seams = [round(k * _sl, 4) for k in range(1, _N_t) if k * _sl > 0.8]
+                    final = _normalize_audio(job, _smooth_seams(job, final, seams=_seams))
+                except Exception:
+                    pass
                 job.final_path = final
                 job.final_url = '/media/%s/最终视频.mp4' % os.path.basename(job.run_dir)
                 _emit('✅ 最终视频已重新合成: %s (%.1f MB, %d 段)'

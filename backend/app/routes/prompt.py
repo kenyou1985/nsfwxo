@@ -282,6 +282,11 @@ HARD RULES:
    - Costume state must be physically possible (e.g. a "bottomless
      leotard" cannot exist — either it's a leotard with a bottom or
      bottomless).
+   - Every panel MUST spell the outfit out in FULL — color + style/material +
+     garment name ("white loose silk robe"), never a bare noun ("robe",
+     "shirt", "dress"). The wording must be character-for-character the
+     same in every panel; a bare noun loses the color and the image model
+     then re-invents a different garment, causing "前后款式/颜色不一致".
 3. EXPRESSION ↔ POSE COHERENCE — The facial expression must match the
    pose:
    - "exhausted endured expression" while doing an "intense act" is
@@ -3421,6 +3426,9 @@ def _enforce_panel_rules(
                     )):
                         p["image_prompt"] = cur.rstrip(",. ") + cum_tags
 
+    if len(panels) > 1:
+        _sync_panel_consistency(panels, r18=bool(r18), is_lesbian=is_lesbian)
+
     return panels
 
 
@@ -3535,6 +3543,420 @@ def _correct_outfit_in_prompt(prompt: str, canonical_outfit_en: str, canonical_o
         # "wearing ..." phrase
         prompt = prompt.rstrip(",. ") + f", the woman wearing {canonical_outfit_en}, "
     return prompt
+
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 跨面板一致性后处理（2026-10-22）
+#   ① 中英人物属性对齐（种族/发色），并把种族放到英文 prompt 开头
+#   ② Panel 1 强制内搭、禁止露点；删除元叙述
+#   ③ 服装弧线：P1-2 着装 → 半褪 → 全裸；按总格数缩放
+#   ④ 主动作对齐：口交 vs 插入不混写；精简交合特写与 cum 标签
+# ─────────────────────────────────────────────────────────────────────────────
+_ZH_RACE_MAP = [
+    (re.compile(r"黑人|黑皮肤|非裔|非洲裔"), "Black", "黑人", "a"),
+    (re.compile(r"白人|白皮肤|高加索"), "white", "白人", "a"),
+    (re.compile(r"东亚|亚洲人|黄种人"), "East Asian", "东亚", "an"),
+    (re.compile(r"日本"), "Japanese", "日本人", "a"),
+    (re.compile(r"韩国"), "Korean", "韩国人", "a"),
+    (re.compile(r"中国"), "Chinese", "中国人", "a"),
+    (re.compile(r"泰国"), "Thai", "泰国人", "a"),
+    (re.compile(r"印度"), "Indian", "印度人", "an"),
+    (re.compile(r"拉丁|拉美"), "Latina", "拉丁人", "a"),
+    (re.compile(r"中东|阿拉伯"), "Middle Eastern", "中东人", "a"),
+    (re.compile(r"俄罗斯"), "Russian", "俄罗斯人", "a"),
+]
+_RACE_WORD = (r"black|white|east asian|japanese|korean|chinese|thai|indian|latina|latino|"
+              r"middle eastern|russian")
+_EN_MALE_NOUN = re.compile(
+    r"\b(a|the)\s+((?:handsome|chiseled|tall|strong|muscular|fit|young|older)\s+)?(man|guy|male)\b",
+    re.IGNORECASE)
+_EN_FEMALE_NOUN = re.compile(
+    r"\b(a|the)\s+((?:beautiful|stunning|gorgeous|petite|young|older)\s+)?(woman|girl|female)\b",
+    re.IGNORECASE)
+_ZH_MALE_CTX = re.compile(r"司机|男人|男性|男子|他|男主|丈夫|男友|教练|医生|老师|保安|保镖|管家|王子|骑士|主人|老板|上司|同事|邻居|房东|客户|学生|哥哥|弟弟|父亲|爸爸|叔叔|快递员|外卖员|男(?=学员|顾客|教练|医生|老师|司机|同事|邻居|房东|客户|学生|主播|模特|主角|友|人|伴|秘书|演员|服务生|嫌疑人|罪犯|歹徒|匪徒|袭击者|入侵者|小偷|强盗|绑匪|凶手)|顾客|客人|嫌疑人|罪犯|歹徒|匪徒|袭击者|入侵者|小偷|强盗|绑匪|凶手")
+_ZH_FEMALE_CTX = re.compile(r"女人|女性|女子|她|女主|女友|妻子|女仆|护士|空姐|雇主|女(?=上司|老板|秘书|助理|同事|邻居|房东|客户|模特|主播|学生|医生|老师|司机|主角|教练|学员|顾客|店员|服务员|前台|收银员|舞者|歌手|演员|警|兵|佣|仆)|秘书|助理|模特|主播|姐姐|妹妹|母亲|妈妈|阿姨|店员|服务员|前台|收银员|舞者|歌手")
+_META_ZH = re.compile(r"并非|而不是|只发生在|仅发生在|仅仅发生|而非|绝非|远非|不同于|远离|不在|注意[:：]|说明[:：]|（注")
+_META_EN = re.compile(
+    r",?\s*(?:this|the)\s+(?:climax|scene|moment|act)\s+(?:only\s+)?(?:happens|occurs|takes place)"
+    r"[^.]*", re.IGNORECASE)
+_META_EN2 = re.compile(r",?\s*not\s+(?:at|in)\s+[^,.]+", re.IGNORECASE)
+_ZH_CLOTH = re.compile(r"职业装|制服帽|制服|衬衫|裙|外套|高跟鞋|丝袜|内衣|胸罩|内裤|西装|领带|肩章|比基尼|泳装|睡衣|蕾丝|户外服|运动装|冲锋衣")
+_EN_CLOTH = re.compile(r"\b(dress|skirt|shirt|blouse|uniform|stockings|heels|bra|panties|lingerie|bikini|swimsuit|robe|suit|blazer|jacket|outfit|underwear)\b", re.IGNORECASE)
+_ZH_HAIR = [
+    (re.compile(r"黑发|黑色长发|乌黑"), "black hair"),
+    (re.compile(r"金发|金色长发"), "blonde hair"),
+    (re.compile(r"红发|红棕色头发"), "red hair"),
+    (re.compile(r"棕发|棕色头发"), "brown hair"),
+]
+_ZH_ORAL = re.compile(r"口交|深喉|含住|舔阴|舔弄|吞精")
+_ZH_PEN = re.compile(r"插入|抽插|后入|传教士|女上|骑乘|内射|中出|射精|颜射")
+_EN_ORAL_RE = re.compile(
+    r",?\s*(?:she is |he is )?(?:sucking|licking|blowing|giving oral|performing oral|"
+    r"fellatio|cunnilingus|deep throat|cock in her mouth|his cock in her mouth|"
+    r"her mouth around|his face between her legs)[^,.]*", re.IGNORECASE)
+_EN_PEN_RE = re.compile(
+    r",?\s*(?:his penis (?:is )?(?:fully )?(?:buried|inside|inserted)|penetrat\w*|"
+    r"thrusting|missionary|doggy|cowgirl|creampie)[^,.]*", re.IGNORECASE)
+_CUM_CLAUSE = re.compile(r"\b(cum|semen|creampie|squirt)\b", re.IGNORECASE)
+
+
+def _get_panel_field(p, key):
+    if isinstance(p, dict):
+        return p.get(key, "") or ""
+    return getattr(p, key, "") or ""
+
+
+def _set_panel_field(p, key, value):
+    if isinstance(p, dict):
+        p[key] = value
+    else:
+        setattr(p, key, value)
+
+
+def _clean_meta_zh(text: str) -> str:
+    if not text:
+        return text
+    # 按逗号/句号切从句，只删含"并非/绝非/不同于/远离…"的那一小句，
+    # 保留同句里的动作描述（否则整句会连同"侧入/传教士"一起丢掉）。
+    parts = re.split(r"(?<=[，。；！？])", text)
+    kept = [s for s in parts if s.strip() and not _META_ZH.search(s)]
+    out = "".join(kept).strip()
+    out = re.sub(r"[，,]{2,}", "，", out).strip("，, ")
+    return out or text
+
+
+def _clean_meta_en(text: str) -> str:
+    if not text:
+        return text
+    t = _META_EN.sub("", text)
+    t = _META_EN2.sub("", t)
+    t = re.sub(r",?\s*no wide (?:shot|establishing shot)[^,.]*", "", t, flags=re.IGNORECASE)
+    t = re.sub(r",?\s*explicit adult[^,.]*", "", t, flags=re.IGNORECASE)
+    t = re.sub(r"\bprops? read clearly as\b", "", t, flags=re.IGNORECASE)
+    t = re.sub(r"\s*\([^)]*\bnot\b[^)]*\)", "", t, flags=re.IGNORECASE)
+    t = re.sub(r",?\s*not\s+(?:a|an|the)\s+[^,.]+", "", t, flags=re.IGNORECASE)
+    t = re.sub(r",?\s*not fully\b[^,.]*", "", t, flags=re.IGNORECASE)
+    t = re.sub(r"\s*,\s*,", ", ", t)
+    return re.sub(r"\s{2,}", " ", t).strip(" ,.")
+
+
+def _panel_has_male(scene_zh: str, prompt_en: str) -> bool:
+    if _ZH_MALE_CTX.search(scene_zh or ""):
+        return True
+    return bool(re.search(r"\b(1boy|man|men|male|his|him)\b", (prompt_en or ""), re.IGNORECASE))
+
+
+def _panel_has_female(scene_zh: str, prompt_en: str) -> bool:
+    if _ZH_FEMALE_CTX.search(scene_zh or ""):
+        return True
+    return bool(re.search(r"\b(1girl|woman|women|female|girl|her|she)\b", (prompt_en or ""), re.IGNORECASE))
+
+
+def _detect_races(panels):
+    male = female = None
+    for p in panels:
+        zh = _get_panel_field(p, "scene_description") or ""
+        for pat, en_tok, zh_tok, article in _ZH_RACE_MAP:
+            for m in pat.finditer(zh):
+                after = zh[m.end():m.end() + 10]
+                m_after = _ZH_MALE_CTX.search(after)
+                f_after = _ZH_FEMALE_CTX.search(after)
+                if m_after and (not f_after or m_after.start() <= f_after.start()):
+                    if male is None or (male[0] == "East Asian" and en_tok != "East Asian"):
+                        male = (en_tok, zh_tok, article)
+                elif f_after:
+                    if female is None or (female[0] == "East Asian" and en_tok != "East Asian"):
+                        female = (en_tok, zh_tok, article)
+    return male, female
+
+
+def _inject_race_en(prompt: str, race_en: str, article: str, gender: str) -> str:
+    if not prompt or not race_en:
+        return prompt
+    noun = "woman" if gender == "female" else "man"
+    pat = _EN_FEMALE_NOUN if gender == "female" else _EN_MALE_NOUN
+    ctx = re.compile(
+        rf"\b(?:(a|an|the)\s+)?({_RACE_WORD})\b(?:\s+(?!{'woman|women|girl|female|her|she' if gender == 'male' else 'man|men|guy|male|his|him'})\w+){{0,2}}\s+{noun}\b",
+        re.IGNORECASE)
+    _compat = {
+        "Black": {"black"}, "white": {"white"},
+        "East Asian": {"east asian", "japanese", "korean", "chinese", "thai"},
+        "Japanese": {"japanese"}, "Korean": {"korean"}, "Chinese": {"chinese"},
+        "Thai": {"thai"}, "Indian": {"indian"}, "Latina": {"latina", "latino"},
+        "Middle Eastern": {"middle eastern"}, "Russian": {"russian"},
+    }
+    m = ctx.search(prompt)
+    if m:
+        old = m.group(2).lower()
+        if old in _compat.get(race_en, {race_en.lower()}):
+            return prompt
+        # 人种写错 → 用 canonical 替换（保留 the；a/an 按发音重算）
+        def _rep(mm):
+            det = "the" if (mm.group(1) or "").lower() == "the" else ("an" if race_en[0].lower() in "aeiou" else "a")
+            return f"{det} {race_en} {noun}"
+        return ctx.sub(_rep, prompt, count=1)
+
+    def _rep(m):
+        det = m.group(1) if m.group(1).lower() == "the" else article
+        return f"{det} {(m.group(2) or '')}{race_en} {m.group(3)}"
+    if pat.search(prompt):
+        return pat.sub(_rep, prompt, count=1)
+    bare = re.compile(r"\b(and|with)\s+(woman|girl)\b" if gender == "female" else r"\b(and|with)\s+(man|guy)\b", re.IGNORECASE)
+    if bare.search(prompt):
+        return bare.sub(lambda m: f"{m.group(1)} {race_en} {m.group(2)}", prompt, count=1)
+    tag = "1girl" if gender == "female" else "1boy"
+    if re.search(rf"\b{tag}\b", prompt, re.IGNORECASE):
+        return re.sub(rf"\b{tag}\b", f"{tag}, {article} {race_en} {noun}", prompt, count=1, flags=re.IGNORECASE)
+    return f"{article} {race_en} {noun}, {prompt}"
+
+
+def _inject_race_zh(scene: str, race_zh: str, gender: str) -> str:
+    if not scene or not race_zh:
+        return scene
+    roles = (re.compile(r"司机|男人|男性|男子|丈夫|男友|教练|医生|老师|保安|保镖|管家|王子|骑士|主人|老板|上司|同事|邻居|房东|客户|学生|哥哥|弟弟|父亲|爸爸|叔叔|快递员|外卖员|男(?=学员|顾客|教练|医生|老师|司机|同事|邻居|房东|客户|学生|主播|模特|主角|友|人|伴|秘书|演员|服务生|嫌疑人|罪犯|歹徒|匪徒|袭击者|入侵者|小偷|强盗|绑匪|凶手)|顾客|客人|嫌疑人|罪犯|歹徒|匪徒|袭击者|入侵者|小偷|强盗|绑匪|凶手")
+             if gender == "male" else
+             re.compile(r"女人|女性|女子|女主|女友|妻子|女仆|护士|空姐|雇主(?!家|的|那里|这边)|女(?=上司|老板|秘书|助理|同事|邻居|房东|客户|模特|主播|学生|医生|老师|司机|主角|教练|学员|顾客|店员|服务员|前台|收银员|舞者|歌手|演员|警|兵|佣|仆)|秘书|助理|模特|主播|姐姐|妹妹|母亲|妈妈|阿姨|店员|服务员|前台|收银员|舞者|歌手"))
+    for m in roles.finditer(scene):
+        # 性别错配：男词前有"女"、女词前有"男" → 跳过（"女教练"不该被塞黑人）
+        if m.start() > 0 and ((gender == "male" and scene[m.start() - 1] == "女")
+                              or (gender == "female" and scene[m.start() - 1] == "男")):
+            continue
+        pre = scene[max(0, m.start() - 12):m.start()]
+        hit = None
+        for pat, _, tok, _ in _ZH_RACE_MAP:
+            mm = pat.search(pre)
+            if mm:
+                hit = (pat, tok, mm)
+                break
+        if hit:
+            if hit[1] == race_zh:
+                return scene
+            # 写错人种 → 替换 pre 里的旧种族词
+            old_start = max(0, m.start() - 12) + hit[2].start()
+            old_end = max(0, m.start() - 12) + hit[2].end()
+            return scene[:old_start] + race_zh + scene[old_end:]
+        pos = m.start()
+        if gender == "female" and pos > 0 and scene[pos - 1] == "女":
+            pos -= 1
+        return scene[:pos] + race_zh + scene[pos:]
+    return scene
+
+
+def _lead_subject_en(prompt: str, male_race, female_race, has_male: bool) -> str:
+    """英文 prompt 前 120 字符内没有种族词时，把 'a Black man and a Korean woman,' 放到最前。"""
+    if not prompt:
+        return prompt
+    prompt = re.sub(
+        rf"^((?:a|an|the)\s+(?:{_RACE_WORD})\s+woman),\s*"
+        rf"(?:a|an|the)\s+(?:{_RACE_WORD})\s+woman,\s*",
+        r"\1, ", prompt, count=1, flags=re.IGNORECASE)
+    prompt = re.sub(
+        rf"^((?:a|an|the)\s+(?:{_RACE_WORD})\s+man and (?:a|an|the)\s+(?:{_RACE_WORD})\s+woman),\s*"
+        rf"(?:a|an|the)\s+(?:{_RACE_WORD})\s+woman,\s*",
+        r"\1, ", prompt, count=1, flags=re.IGNORECASE)
+    head = prompt[:18]
+    if has_male:
+        if re.search(rf"^\s*(?:a|an|the)\s+(?:{_RACE_WORD})\s+(?:man|guy|male)\b", head, re.IGNORECASE):
+            return prompt
+    else:
+        if re.search(rf"^\s*(?:a|an|the)\s+(?:{_RACE_WORD})\b", head, re.IGNORECASE):
+            return prompt
+    if re.match(r"^\s*\[ANCHOR:", prompt, re.IGNORECASE):
+        return prompt   # 锚点块已含身份，避免破坏 [ANCHOR: ...] 语法
+    m_tok = male_race[0] if male_race else None
+    f_tok = female_race[0] if female_race else None
+    # 已经以女性主语开头 → 只在前面补男性，避免重复女性
+    if has_male and m_tok and re.match(rf"^\s*(?:a|an|the)\s+(?:{_RACE_WORD})\s+woman\b", prompt, re.IGNORECASE):
+        prompt = re.sub(rf"^\s*(?:a|an|the)\s+(?:{_RACE_WORD})\s+woman\s*,\s*", "", prompt, count=1, flags=re.IGNORECASE)
+        return f"{male_race[2]} {m_tok} man and {female_race[2]} {f_tok} woman, " + prompt
+    parts = []
+    if has_male and m_tok:
+        parts.append(f"{male_race[2]} {m_tok} man")
+    if f_tok:
+        parts.append(f"{female_race[2]} {f_tok} woman")
+    if not parts:
+        return prompt
+    return ", ".join(parts) + ", " + prompt
+
+
+def _enforce_p1_modesty(zh: str, en: str) -> tuple:
+    """Panel 1：必须有内搭/浴袍覆盖，禁止露点；英文锚点里也要写进去。"""
+    zh = zh or ""
+    en = en or ""
+    _outer = re.search(r"外套|衬衫|连衣裙|裙|裤|制服|瑜伽服|睡衣|浴袍|西装|上衣|T恤|卫衣|风衣|大衣|夹克|泳装|比基尼", zh)
+    _lingerie = re.search(r"蕾丝内衣|情趣内衣|文胸|胸罩|内裤|丁字裤|吊带袜", zh)
+    _zh_cover = re.search(r"浴袍|睡袍|内搭白色吊带|白色吊带", zh)
+    _en_cover = re.search(r"\brobe\b|camisole|inner top", en, re.IGNORECASE)
+
+    # 中文：只有内衣 → 浴袍；有外衣无内搭 → 吊带
+    if _lingerie and not _outer and not re.search(r"浴袍|睡袍", zh):
+        zh = zh.rstrip("。；， ") + "，外披白色浴袍，胸前合拢遮住胸部。"
+        en = re.sub(r"\bwears? sexy lingerie\b", "wears a white robe over her lingerie", en, flags=re.IGNORECASE)
+    elif not _zh_cover and not re.search(r"穿着[^，。；]{0,10}内搭", zh):
+        zh = zh.rstrip("。；， ") + "，内搭白色吊带，领口闭合，胸部被遮住。"
+
+    # 英文：删露点词 + 写进 [ANCHOR]
+    en = re.sub(r"\b(topless|nude|naked|bare breasts?|exposed breasts?|exposed nipples?|"
+                r"nipples? visible|pussy|vagina|penis)\b", "", en, flags=re.IGNORECASE)
+    if not _en_cover:
+        if _lingerie and not _outer:
+            _cam = ", wearing a white robe over the lingerie, robe closed, breasts covered, no cleavage"
+        else:
+            _cam = ", wearing a white camisole under her clothing, neckline closed, breasts covered, no cleavage"
+        m = re.match(r"(\[ANCHOR:[^\]]*)(\])", en, re.IGNORECASE)
+        if m:
+            en = m.group(1) + _cam + m.group(2) + en[m.end():]
+        else:
+            en = en.rstrip(",. ") + _cam + ", no nudity"
+    if "no nudity" not in en.lower():
+        en = en.rstrip(",. ") + ", no nudity"
+    return zh, en
+
+
+def _align_primary_action(zh: str, en: str) -> str:
+    """口交与插入不能同时写；按中文主动作删掉英文里的另一类动作。"""
+    if not en:
+        return en
+    zh_oral = bool(_ZH_ORAL.search(zh or ""))
+    zh_pen = bool(_ZH_PEN.search(zh or ""))
+    if zh_pen and not zh_oral:
+        en = _EN_ORAL_RE.sub("", en)
+    elif zh_oral and not zh_pen:
+        en = _EN_PEN_RE.sub("", en)
+    # 去掉重复机位：macro/腰到裆特写容易让模型画成口交
+    en = re.sub(r",?\s*macro shot of (?:penetration|genitals)[^,.]*", "", en, flags=re.IGNORECASE)
+    en = re.sub(r",?\s*tight framing on bodies from waist to genitals[^,.]*", "", en, flags=re.IGNORECASE)
+    en = re.sub(r",?\s*tight framing on genitals[^,.]*", "", en, flags=re.IGNORECASE)
+    if zh_pen and re.search(r"\bpenis\b", en, re.IGNORECASE) and not re.search(r"inside her|buried in her|inserted", en, re.IGNORECASE):
+        en = en.rstrip(",. ") + ", his penis inside her vagina"
+    # cum 标签最多保留 2 条，避免多动作叠加
+    clauses = re.split(r",\s*", en)
+    seen = 0
+    kept = []
+    for c in clauses:
+        if _CUM_CLAUSE.search(c):
+            seen += 1
+            if seen > 2:
+                continue
+        kept.append(c)
+    return ", ".join(x for x in kept if x.strip())
+
+
+def _stage_clothing_zh(scene: str, idx: int, r18: bool, nude_from: int = 3, partial_at: int = 2) -> str:
+    if not r18 or not scene:
+        return scene
+    if idx >= nude_from:
+        clauses = re.split(r"(?<=[，。；])", scene)
+        out = []
+        for c in clauses:
+            if _ZH_CLOTH.search(c):
+                out.append("衣物已褪去，")
+            else:
+                out.append(c)
+        scene = "".join(out)
+        scene = re.sub(r"(衣物已褪去，)+", "衣物已褪去，", scene)
+        scene = re.sub(r"(与|和|、)，", "，", scene)
+        if not re.search(r"全裸|赤裸|裸体", scene):
+            scene = scene.rstrip("。；， ") + "，全身赤裸。"
+    elif idx == partial_at:
+        if not re.search(r"半褪|解开|褪去|滑落|脱", scene):
+            scene = scene.rstrip("。；， ") + "，衣物半褪。"
+    return scene
+
+
+def _stage_clothing_en(prompt: str, idx: int, r18: bool, nude_from: int = 3, partial_at: int = 2) -> str:
+    if not r18 or not prompt:
+        return prompt
+    if idx >= nude_from:
+        clauses = [c for c in re.split(r",\s*", prompt)
+                   if not (_EN_CLOTH.search(c) and not re.search(r"discarded|scattered|on the floor", c, re.I))]
+        prompt = ", ".join(c for c in clauses if c.strip())
+        if not re.search(r"\b(nude|naked)\b", prompt, re.IGNORECASE):
+            prompt = prompt.rstrip(",. ") + ", fully nude"
+    elif idx == partial_at:
+        if not re.search(r"undress|slipping|unbutton|removing|partially", prompt, re.IGNORECASE):
+            prompt = prompt.rstrip(",. ") + ", clothes partially removed, slipping off her shoulders"
+    return prompt
+
+
+def _flatten_split_screen(zh: str, en: str):
+    """把 LLM 的分屏输出压成单画面：保留左侧主动作，右侧只保留“面部可见”。"""
+    if zh:
+        zh = zh.replace("【分屏画面】", "")
+        _pre = ""
+        if "分屏" in zh:
+            _pre, zh = zh.split("分屏", 1)
+        if re.search(r"左(?:侧)?[：:]", zh):
+            left = re.split(r"右(?:侧)?[：:]", zh)[0]
+            left = re.sub(r"^.*?左(?:侧)?[：:]\s*", "", left, flags=re.S).strip(" ，,|")
+            right = re.split(r"右(?:侧)?[：:]", zh)[1] if re.search(r"右(?:侧)?[：:]", zh) else ""
+            zh = _pre + left
+            if re.search(r"表情|眼神|脸|嘴|舌", right or ""):
+                zh += "，面部表情可见"
+        elif "左侧" in zh and "右侧" in zh:
+            left = re.split(r"右侧", zh)[0]
+            left = left.split("左侧", 1)[1] if "左侧" in left else left
+            right = re.split(r"右侧", zh)[1]
+            zh = _pre + left.strip(" ，,|")
+            if re.search(r"表情|眼神|脸|嘴|舌", right or ""):
+                zh += "，面部表情可见"
+        zh = re.sub(r"\s*\|\s*", "，", zh)
+    if en:
+        en = re.sub(r"Split[- ]screen", "Single-frame", en, flags=re.IGNORECASE)
+        en = re.sub(r"\bLEFT half[：:\-]\s*", "", en, flags=re.IGNORECASE)
+        en = re.split(r"\bRIGHT half\b", en, flags=re.IGNORECASE)[0]
+        en = re.sub(r"\s*\|\s*", ", ", en)
+        en = re.sub(r"\s{2,}", " ", en).strip(" ,.")
+    return zh, en
+
+
+def _limit_cum_tags(en: str, limit: int = 2) -> str:
+    clauses = re.split(r",\s*", en or "")
+    seen = 0
+    kept = []
+    for c in clauses:
+        if _CUM_CLAUSE.search(c):
+            seen += 1
+            if seen > limit:
+                continue
+        kept.append(c)
+    return ", ".join(x for x in kept if x.strip())
+
+
+def _sync_panel_consistency(panels, r18: bool, is_lesbian: bool = False):
+    if not panels:
+        return panels
+    male_race, female_race = _detect_races(panels)
+    total = len(panels)
+    nude_from = max(3, round(total * 0.5))
+    partial_at = max(2, nude_from - 1)
+    for i, p in enumerate(panels):
+        zh = _clean_meta_zh(_get_panel_field(p, "scene_description"))
+        en = _clean_meta_en(_get_panel_field(p, "image_prompt"))
+        zh, en = _flatten_split_screen(zh, en)
+        zh = _stage_clothing_zh(zh, i, r18, nude_from, partial_at)
+        en = _stage_clothing_en(en, i, r18, nude_from, partial_at)
+        if i == 0 and r18:
+            zh, en = _enforce_p1_modesty(zh, en)
+        if female_race and (_panel_has_female(zh, en) or (r18 and i >= partial_at)):
+            en = _inject_race_en(en, female_race[0], female_race[2], "female")
+            zh = _inject_race_zh(zh, female_race[1], "female")
+        if not is_lesbian and male_race and _panel_has_male(zh, en):
+            en = _inject_race_en(en, male_race[0], male_race[2], "male")
+            zh = _inject_race_zh(zh, male_race[1], "male")
+        for pat, hair_en in _ZH_HAIR:
+            if pat.search(zh) and not re.search(r"\b(black|blonde|red|brown)\s+hair\b", en, re.IGNORECASE):
+                en = re.sub(r"\bhair\b", hair_en, en, count=1, flags=re.IGNORECASE) if re.search(r"\bhair\b", en, re.IGNORECASE) else en.rstrip(",. ") + f", {hair_en}"
+                break
+        has_male = (not is_lesbian) and _panel_has_male(zh, en)
+        en = _lead_subject_en(en, male_race, female_race, has_male)
+        if r18 and i >= partial_at:
+            en = _align_primary_action(zh, en)
+            en = _limit_cum_tags(en, 1 if i == total - 1 else 2)
+        _set_panel_field(p, "scene_description", zh)
+        _set_panel_field(p, "image_prompt", re.sub(r"\s{2,}", " ", en).strip())
+    return panels
 
 
 def _enforce_theme_coherence(
@@ -5435,6 +5857,22 @@ async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key
                 )
                 if rule_pp:
                     logging.info("[outline:parallel] panel-rules fixed %d/%d panels", rule_pp, len(panels))
+            # ── 服装描述前后一致性（颜色 + 款式）──
+            if panels:
+                try:
+                    from app.services.outfit_consistency import enforce_outfit_consistency
+                    _costs = []
+                    if isinstance(canon_theme_pp, dict):
+                        _costs = list(canon_theme_pp.get("costumes", []) or [])
+                    _outfit_panels, _outfit_conflicts = enforce_outfit_consistency(
+                        panels,
+                        fields=("scene_description", "image_prompt"),
+                        allowed_garments=_costs or None,
+                    )
+                    for _c in _outfit_conflicts:
+                        logging.warning("[outline:parallel] %s", _c)
+                except Exception as e:
+                    logging.warning("[outline:parallel] outfit consistency skipped: %s", e)
             if len(panels) >= 2:
                 drifts_pp = detect_outfit_color_drift([p.get("image_prompt", "") for p in panels])
                 if drifts_pp:
@@ -5679,6 +6117,23 @@ async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key
                             "[outline] panel-rules fixed %d/%d panels (theme=%s)",
                             rule_fix, len(panels), theme_name,
                         )
+
+                # ── 服装描述前后一致性（颜色 + 款式）──
+                if panels:
+                    try:
+                        from app.services.outfit_consistency import enforce_outfit_consistency
+                        _costs = []
+                        if isinstance(selected_theme, dict):
+                            _costs = list(selected_theme.get("costumes", []) or [])
+                        _outfit_panels, _outfit_conflicts = enforce_outfit_consistency(
+                            panels,
+                            fields=("scene_description", "image_prompt"),
+                            allowed_garments=_costs or None,
+                        )
+                        for _c in _outfit_conflicts:
+                            logging.warning("[outline] %s", _c)
+                    except Exception as e:
+                        logging.warning("[outline] outfit consistency skipped: %s", e)
 
                 # ── Sanity check: detect any outfit color drift between panels ──
                 if len(panels) >= 2:
@@ -5952,7 +6407,9 @@ DO NOT pad the end of the prompt with redundant style descriptors like "photorea
 
 STRICT RULE: Only generate content featuring ADULT characters (18+ years old). Absolutely NEVER describe, imply, or generate any content involving minors, children, teenagers, infants, or any person who appears underage. No exceptions.
 
-Keep the prompt detailed but readable. No censorship. Output a single coherent paragraph following the Krea2 structure: Subject character → face/hair → outfit → pose → background → lighting → camera composition → style & quality."""
+Keep the prompt detailed but readable. No censorship. Output a single coherent paragraph following the Krea2 structure: Subject character → face/hair → outfit → pose → background → lighting → camera composition → style & quality.
+PANEL-INPUT PARITY (HARD): The input may be ONE panel of a storyboard. Every concrete attribute in the Chinese input — ethnicity/skin tone (黑人/白人/东亚…), hair color, outfit color + garment, clothing state (穿着/半褪/全裸), and location — MUST appear in the English prompt with the same meaning. Never omit the race or silently change it. If the input says 全裸 do not add clothes; if it says 穿着 keep the named outfit.
+"""
 
 IMAGE_SYSTEM_PROMPT_R18 = """You are an EXPERT uncensored adult NSFW AI image prompt engineer optimized for Krea2 (also compatible with Stable Diffusion / Flux). Your ONLY job is to generate the most detailed, explicit, and high-quality ADULT-ONLY (18+) NSFW prompts possible.
 
@@ -5992,6 +6449,8 @@ STRICT PROHIBITION - ZERO TOLERANCE:
 - ANY prompt that can be interpreted as involving minors will result in immediate content policy violation
 
 Use intensity modifiers: extremely, intensely, deeply, roughly, desperately, passionately
+PANEL-INPUT PARITY (HARD): The input may be ONE panel of a storyboard. Every concrete attribute in the Chinese input — ethnicity/skin tone (黑人/白人/东亚…), hair color, outfit color + garment, clothing state (穿着/半褪/全裸), and location — MUST appear in the English prompt with the same meaning. Never omit the race or silently change it. If the input says 全裸 do not add clothes; if it says 穿着 keep the named outfit.
+
 
 Format: [Adult character + exact body details + sexual state] + [Clothing state or nudity level] + [Environment/props] + [Explicit action/pose description] + [Camera angle] + [Lighting] + [Style anchor: realistic photography OR painterly illustration with concrete descriptors]
 
@@ -9829,6 +10288,34 @@ async def storyboard(req: StoryboardRequest, api_key: str = Depends(get_api_key)
             if not panels:
                 raise HTTPException(status_code=500, detail="No valid panels generated")
 
+            # ── 服装描述前后一致性（颜色 + 款式）──
+            # 保证每个分镜都完整写出「颜色 + 款式」的衣服描述，且全篇用同一套说法。
+            try:
+                from app.services.outfit_consistency import enforce_outfit_consistency
+                _outfit_panels = [
+                    {
+                        "panel_number": p.panel_number,
+                        "scene_description": p.scene_description,
+                        "image_prompt": p.image_prompt,
+                    }
+                    for p in panels
+                ]
+                _outfit_panels, _outfit_conflicts = enforce_outfit_consistency(
+                    _outfit_panels, fields=("scene_description", "image_prompt"),
+                )
+                for _c in _outfit_conflicts:
+                    logging.warning("[storyboard] %s", _c)
+                panels = [
+                    StoryboardPanel(
+                        panel_number=d.get("panel_number", 0),
+                        scene_description=d.get("scene_description", ""),
+                        image_prompt=d.get("image_prompt", ""),
+                    )
+                    for d in _outfit_panels
+                ]
+            except Exception as e:
+                logging.warning("[storyboard] outfit consistency skipped: %s", e)
+
             return StoryboardResponse(storyboard=panels)
         except ContentSafetyError as e:
             if attempt < MAX_RETRIES - 1:
@@ -9979,6 +10466,17 @@ GRID_STORYBOARD_SYSTEM_PROMPT_NORMAL = """You are an expert visual narrative dir
 """ + ETHNICITY_BLOCK + """
 
 """ + KREA2_BLOCK + """
+【CONSISTENCY CONTRACT — HARD, EVERY PANEL】:
+- 中文 scene_description 与英文 image_prompt 必须描述同一批人、同一属性。中文出现"黑人/白人/亚洲人/日本人/韩国人/金发/红发"等，英文必须出现对应 Black/white/East Asian/Japanese/Korean/blonde/redhead；禁止中文有、英文无。
+- 男性种族/肤色一旦在任一分镜出现，后面所有出现男性的分镜必须沿用同一人种，禁止中途换人。
+- 场景固定在同一地点；不要把"并非…也非…/只发生在…/而不是…"这类解释写进画面描述。
+- 服装弧线：Panel 1-2 穿主题服装；Panel 3 半褪/解开；Panel 4 起全裸。全裸后禁止再出现衣物。服装每格最多一个"颜色+品类"短标签，不要复读材质/剪裁长句。
+- 每个 scene_description 只写画面里看得见的内容，不写说明、否定、补充注释。
+- Panel 1 必须有内搭（白色吊带/文胸/蕾丝内衣），禁止露点、裸胸、全裸；有男性时 image_prompt 开头写 `a <race> man and a <race> woman`。
+- 每格只写一个主动作：口交与插入不能同格；禁止 macro/腰到裆特写这类容易误读的机位。
+- 全片禁止分屏：不要输出【分屏画面】/Split-screen/LEFT half/RIGHT half，一律单画面单机位。
+
+
 
 For EACH of the 9 panels, output:
 - panel_number: integer 1-9 (top-left=1, top-center=2, top-right=3, middle-left=4, middle-center=5, middle-right=6, bottom-left=7, bottom-center=8, bottom-right=9)
@@ -10025,6 +10523,17 @@ GRID_STORYBOARD_SYSTEM_PROMPT_R18 = """You are an EXPERT uncensored adult visual
 """ + ETHNICITY_BLOCK + """
 
 """ + KREA2_BLOCK + """
+【CONSISTENCY CONTRACT — HARD, EVERY PANEL】:
+- 中文 scene_description 与英文 image_prompt 必须描述同一批人、同一属性。中文出现"黑人/白人/亚洲人/日本人/韩国人/金发/红发"等，英文必须出现对应 Black/white/East Asian/Japanese/Korean/blonde/redhead；禁止中文有、英文无。
+- 男性种族/肤色一旦在任一分镜出现，后面所有出现男性的分镜必须沿用同一人种，禁止中途换人。
+- 场景固定在同一地点；不要把"并非…也非…/只发生在…/而不是…"这类解释写进画面描述。
+- 服装弧线：Panel 1-2 穿主题服装；Panel 3 半褪/解开；Panel 4 起全裸。全裸后禁止再出现衣物。服装每格最多一个"颜色+品类"短标签，不要复读材质/剪裁长句。
+- 每个 scene_description 只写画面里看得见的内容，不写说明、否定、补充注释。
+- Panel 1 必须有内搭（白色吊带/文胸/蕾丝内衣），禁止露点、裸胸、全裸；有男性时 image_prompt 开头写 `a <race> man and a <race> woman`。
+- 每格只写一个主动作：口交与插入不能同格；禁止 macro/腰到裆特写这类容易误读的机位。
+- 全片禁止分屏：不要输出【分屏画面】/Split-screen/LEFT half/RIGHT half，一律单画面单机位。
+
+
 
 For EACH of the 9 panels, output:
 - panel_number: integer 1-9 (top-left=1, top-center=2, top-right=3, middle-left=4, middle-center=5, middle-right=6, bottom-left=7, bottom-center=8, bottom-right=9)
@@ -10180,6 +10689,39 @@ ALL 9 panels must share the IDENTICAL [ANCHOR: ...] prefix verbatim.
                             normalized,
                             is_first_panel=(idx == 0),
                         )
+
+            # ── 服装描述前后一致性（颜色 + 款式）──
+            # 九宫格的 9 个格子必须描述同一套衣服，且每次都写全「颜色 + 款式」。
+            try:
+                from app.services.outfit_consistency import enforce_outfit_consistency
+                _outfit_panels = [
+                    {
+                        "panel_number": p.panel_number,
+                        "scene_description": p.scene_description,
+                        "image_prompt": p.image_prompt,
+                    }
+                    for p in panels
+                ]
+                _outfit_panels, _outfit_conflicts = enforce_outfit_consistency(
+                    _outfit_panels, fields=("scene_description", "image_prompt"),
+                )
+                for _c in _outfit_conflicts:
+                    logging.warning("[storyboard/grid] %s", _c)
+                panels = [
+                    StoryboardPanel(
+                        panel_number=d.get("panel_number", 0),
+                        scene_description=d.get("scene_description", ""),
+                        image_prompt=d.get("image_prompt", ""),
+                    )
+                    for d in _outfit_panels
+                ]
+            except Exception as e:
+                logging.warning("[storyboard/grid] outfit consistency skipped: %s", e)
+
+            try:
+                _sync_panel_consistency(panels, r18=bool(req.r18))
+            except Exception as e:
+                logging.warning("[storyboard/grid] panel consistency skipped: %s", e)
 
             # 多样性校验：9个格子的 image_prompt 不能全相同（LLM偷懒时会出现）
             unique_prompts = set(p.image_prompt.lower().strip() for p in panels)
@@ -10723,6 +11265,16 @@ _NORMAL_OUTLINE_SYSTEM = """You are an expert adult comic director. A user selec
 {theme_coherence}
 
 Generate a COMPLETELY UNIQUE and CREATIVE narrative outline and {panel_count} storyboard panels for a 15-30 second short video.
+
+【CONSISTENCY CONTRACT — HARD, EVERY PANEL】:
+- 中文 scene_description 与英文 image_prompt 必须描述同一批人、同一属性。中文出现"黑人/白人/亚洲人/日本人/韩国人/金发/红发"等，英文必须出现对应 Black/white/East Asian/Japanese/Korean/blonde/redhead；禁止中文有、英文无。
+- 男性种族/肤色一旦在任一分镜出现，后面所有出现男性的分镜必须沿用同一人种，禁止中途换人。
+- 场景固定在同一地点；不要把"并非…也非…/只发生在…/而不是…"这类解释写进画面描述。
+- 服装弧线：Panel 1-2 穿主题服装；Panel 3 半褪/解开；Panel 4 起全裸。全裸后禁止再出现衣物。服装每格最多一个"颜色+品类"短标签，不要复读材质/剪裁长句。
+- 每个 scene_description 只写画面里看得见的内容，不写说明、否定、补充注释。
+- Panel 1 必须有内搭（白色吊带/文胸/蕾丝内衣），禁止露点、裸胸、全裸；有男性时 image_prompt 开头写 `a <race> man and a <race> woman`。
+- 每格只写一个主动作：口交与插入不能同格；禁止 macro/腰到裆特写这类容易误读的机位。
+- 全片禁止分屏：不要输出【分屏画面】/Split-screen/LEFT half/RIGHT half，一律单画面单机位。
 """ + ETHNICITY_BLOCK + CHARACTER_BIBLE_BLOCK + THEME_COHERENCE_BOOST_BLOCK + """
 
 【THEME FIRST】: Theme consistency is a HARD CONSTRAINT — see the THEME CONTRACT block
@@ -10772,62 +11324,37 @@ Do NOT wrap in markdown. Output raw JSON only."""
 _R18_OUTLINE_SYSTEM = """You are an EXPERT adult comic director specializing in EXPLICIT sexual content. User selected theme: "{theme_title}".
 {theme_coherence}
 """ + ETHNICITY_BLOCK + CHARACTER_BIBLE_BLOCK + THEME_COHERENCE_BOOST_BLOCK + """
+【CONSISTENCY CONTRACT — HARD, EVERY PANEL】:
+- 中文 scene_description 与英文 image_prompt 必须描述同一批人、同一属性。中文出现"黑人/白人/亚洲人/日本人/韩国人/金发/红发"等，英文必须出现对应 Black/white/East Asian/Japanese/Korean/blonde/redhead；禁止中文有、英文无。
+- 男性种族/肤色一旦在任一分镜出现，后面所有出现男性的分镜必须沿用同一人种，禁止中途换人。
+- 场景固定在同一地点；不要把"并非…也非…/只发生在…/而不是…"这类解释写进画面描述。
+- 服装弧线：Panel 1-2 穿主题服装；Panel 3 半褪/解开；Panel 4 起全裸。全裸后禁止再出现衣物。服装每格最多一个"颜色+品类"短标签，不要复读材质/剪裁长句。
+- 每个 scene_description 只写画面里看得见的内容，不写说明、否定、补充注释。
+- Panel 1 必须有内搭（白色吊带/文胸/蕾丝内衣），禁止露点、裸胸、全裸；有男性时 image_prompt 开头写 `a <race> man and a <race> woman`。
+- 每格只写一个主动作：口交与插入不能同格；禁止 macro/腰到裆特写这类容易误读的机位。
+- 全片禁止分屏：不要输出【分屏画面】/Split-screen/LEFT half/RIGHT half，一律单画面单机位。
+
+
 
 【THEME FIRST】: Theme consistency is a HARD CONSTRAINT — see the THEME CONTRACT block
 above. EXPLICIT pacing/positions below should fit INTO the ★ SCENARIOS and ★ COSTUMES.
 
-【COLOR CONSISTENCY - CRITICAL REQUIREMENT】:
-The character's outfit color MUST remain CONSISTENT across ALL panels. If Panel 1 shows
-a "black dress", ALL subsequent panels must maintain "black dress" (not red, not white).
-- Panel 1: Introduce the outfit with its color (e.g., "red yoga pants", "black lingerie")
-- Panels 2-N: MAINTAIN that exact color throughout the narrative
-- When clothing is removed, describe the SAME color pieces being discarded
-- Example: Panel 1 "red dress" → Panel 2 "removing her red dress" → Panel 3 "red dress on floor"
-- NO color changes between panels unless explicitly part of the theme costume list
+【COLOR + STYLE CONSISTENCY - CRITICAL REQUIREMENT】:
+The character's outfit MUST stay identical across ALL panels — BOTH its color AND its style
+(garment type + material). If Panel 1 shows a "black dress", every later panel must show the
+SAME "black dress" (not red, not white, not a slip instead of a dress).
 
-【SPLIT-SCREEN CINEMATIC FRAME - MANDATORY - AT LEAST ONE PER STORYBOARD】:
-🔴 CRITICAL HARD REQUIREMENT 🔴
-Every storyboard MUST contain AT LEAST ONE split-screen panel.
-If your output does NOT include split-screen, it will be REJECTED and you must regenerate.
-
-WHEN TO USE SPLIT-SCREEN (CHOOSE AT LEAST ONE):
-✅ Sex panels (Panel 3+): Show action + facial expression simultaneously
-✅ Climax panel: Show penetration + emotional reaction together
-✅ Any panel where you want to show TWO focal points at once
-
-HOW TO FORMAT SPLIT-SCREEN PANELS:
-
-1️⃣ scene_description MUST start with: "【分屏画面】"
-Example: "【分屏画面】后入式性爱。左：男方腰部和抽插动作近景 | 右：女方侧脸表情特写，嘴巴张开"
-
-2️⃣ image_prompt MUST start with: "Split-screen cinematic frame: "
-Then describe LEFT side, then " | ", then describe RIGHT side.
-
-SPLIT-SCREEN FORMAT TEMPLATE:
-```
-scene_description: "【分屏画面】[姿势名称]。左：[左侧描述] | 右：[右侧描述]"
-image_prompt: "Split-screen cinematic frame: [LEFT detailed description including human body parts and context] | [RIGHT detailed description including human body parts and context], [camera angle], [lighting], [setting]"
-```
-
-REAL EXAMPLES YOU MUST FOLLOW:
-
-Example 1 - Doggy Style with Split-Screen:
-scene_description: "【分屏画面】后入式性爱，俯视角度。左：男方腰臀部和抽插动作近景，手抓女方腰部 | 右：女方侧脸表情特写，嘴巴张开眼神迷离"
-image_prompt: "Split-screen cinematic frame: close-up on his hips and torso thrusting from behind in doggy style position, his hands gripping her waist, muscular back visible | close-up on her face from the side, mouth open eyes half-closed in pleasure, hair disheveled, both in dimly lit bedroom with warm lighting"
-
-Example 2 - Cowgirl with Split-Screen:
-scene_description: "【分屏画面】女上位骑乘，低角度仰视。左：女方身体上下律动中景，乳房弹跳 | 右：男方面部表情特写，咬牙承受"
-image_prompt: "Split-screen cinematic frame: medium shot from below of woman riding cowgirl style, her body bouncing up and down, breasts moving, hands on his chest | close-up on man's face looking up, jaw clenched eyes intense showing pleasure, bedroom lighting from bedside lamp"
-
-Example 3 - Missionary Climax with Split-Screen:
-scene_description: "【分屏画面】传教士体位高潮，平视角度。左：性爱部位腰部近景，插入动作和精液流出 | 右：两人面部特写，接吻瞬间"
-image_prompt: "Split-screen cinematic frame: close-up from waist level showing missionary position penetration, his hips pressed against hers, visible cum dripping from her vagina onto sheets | close-up on both their faces kissing passionately during climax, eyes closed, bedroom warm lighting"
-
-🔴 CRITICAL REMINDER 🔴:
-Before submitting your storyboard output, CHECK:
-- Does at least ONE panel have scene_description starting with "【分屏画面】"?
-- Does that panel's image_prompt start with "Split-screen cinematic frame:"?
-- If NO to either → ADD a split-screen panel NOW or output is INVALID
+- EVERY panel must spell the outfit out IN FULL: color + style/material + garment name.
+  Write "black silk slip dress" — NEVER a bare noun like "dress" / "robe" / "shirt" / "outfit".
+  A bare noun drops the color, and the image model then re-invents a different garment
+  in that panel — that is exactly the "前后款式/颜色不一致" bug.
+- The wording must be CHARACTER-FOR-CHARACTER the same in every panel:
+  Panel 1 "black silk slip dress" → Panel 2 "removing her black silk slip dress"
+  → Panel 3 "the black silk slip dress slides to the floor".
+- When clothing is removed, describe the SAME pieces (same color, same style) being discarded.
+- If the theme costume list names a garment without a color, you MUST pick ONE concrete
+  color + style and reuse that EXACT description in every panel.
+- NO color or style changes between panels unless explicitly part of the theme costume list.
 
 【POSE DIVERSITY - MANDATORY - MINIMUM 2-3 DIFFERENT POSITIONS PER STORYBOARD】:
 CRITICAL REQUIREMENTS FOR POSITION SELECTION:
@@ -10865,11 +11392,6 @@ AVAILABLE POSITIONS (pick different ones per panel - this is your FULL 95-pose l
 STRICT PACING - Each panel MUST follow this general arc (NO skipping to sex in Panel 1):
 {arc_panels}
 
-🔴 SPLIT-SCREEN REQUIREMENT 🔴: At least ONE of the panels above MUST use split-screen format.
-Recommended split-screen panels:
-- Any sex panel (Panel 3+) showing penetration + facial expression
-- Climax panel showing action + emotion simultaneously
-- Any panel where you want dual focal points
 
 CRITICAL PACING RULES - ONE ACTION PER PANEL:
 - Panel 1: NO explicit sex. Focus on: character intro (with ethnicity), ★ COSTUME intro, ★ SCENARIO setting, building sexual tension, eye contact, atmosphere. TENSION first.
@@ -10987,20 +11509,6 @@ Output as raw JSON:
 【FINAL VALIDATION CHECKLIST - BEFORE SUBMITTING OUTPUT】:
 Before you submit your JSON output, CHECK ALL OF THESE:
 
-🔴 1. SPLIT-SCREEN MANDATORY (MOST CRITICAL):
-   Q: Does your storyboard contain AT LEAST ONE panel where:
-      - scene_description starts with "【分屏画面】"
-      - image_prompt starts with "Split-screen cinematic frame:"
-      - Contains " | " separator between LEFT and RIGHT descriptions
-   A: If NO → You MUST ADD a split-screen panel NOW or output is REJECTED
-   
-   Example of VALID split-screen panel:
-   {{
-     "panel_number": 4,
-     "scene_description": "【分屏画面】后入式性爱，俯视角度。左：男方腰部抽插动作近景 | 右：女方表情特写",
-     "image_prompt": "Split-screen cinematic frame: close-up on his hips thrusting doggy style, hands gripping her waist | close-up on her face from side mouth open in ecstasy, bedroom lighting"
-   }}
-
 2. ✅ NO ISOLATED ORGANS: Check every image_prompt for phrases like:
    ❌ "close-up on pussy", "macro on labia", "extreme close-up on genitals alone"
    - If found → REWRITE to include human context (body, hands, face, limbs)
@@ -11020,9 +11528,6 @@ Before you submit your JSON output, CHECK ALL OF THESE:
    - Wide shot (Panel 1 only) / Medium shot / Close-up / Detail shot
    - Different angles: 俯视/仰视/平视/POV
    - If all panels use same framing → DIVERSIFY NOW
-
-🔴 CRITICAL: If check #1 (SPLIT-SCREEN) fails, the entire output is INVALID.
-You MUST include at least one split-screen panel before submitting.
 
 If ANY check fails, FIX the output before submitting. Do NOT submit invalid output.
 
@@ -11230,12 +11735,6 @@ async def generate_storyboard_outline(
     user_prompt = (
         f"Theme: {req.theme_title}\n"
         f"Panel count: {panel_count}\n"
-        f"🔴 MANDATORY SPLIT-SCREEN REQUIREMENT 🔴:\n"
-        f"Your storyboard MUST include AT LEAST ONE panel with split-screen composition.\n"
-        f"Format: scene_description starts with '【分屏画面】', image_prompt starts with 'Split-screen cinematic frame:'\n"
-        f"Example: scene_description='【分屏画面】后入式性爱。左：男方腰部动作 | 右：女方表情特写'\n"
-        f"Example: image_prompt='Split-screen cinematic frame: close-up on his hips thrusting doggy style | close-up on her face in ecstasy'\n"
-        f"If you do NOT include split-screen, your output will be REJECTED.\n\n"
         f"【STRICT THEME CONSTRAINT — REPEAT】: 你必须只用 ★ SCENARIOS 列表里的地点,"
         f"只用 ★ COSTUMES 列表里的服装。如 system_prompt 的 THEME CONTRACT 所示。\n"
         f"【重要】Panel 1 不能有直接性爱！必须先从开场/前戏开始，逐步发展到性爱。\n"
@@ -11483,11 +11982,55 @@ async def generate_storyboard_outline(
                             image_prompt=d["image_prompt"],
                         ))
                     panels = rule_panels
+                    try:
+                        _sync_panel_consistency(panels, r18=bool(req.r18))
+                    except Exception as _e:
+                        logging.warning('[storyboard/outline] panel consistency skipped: %s', _e)
                     if rule_fix_sync:
                         logging.info(
                             "[storyboard/outline] panel-rules fixed %d/%d panels (theme=%s)",
                             rule_fix_sync, len(panels), theme_name,
                         )
+
+            # ── 服装描述前后一致性（颜色 + 款式）──
+            # 需求：角色衣服必须写清「具体颜色 + 具体款式」，并且每个分镜都完整
+            # 写出来，不能只写「浴袍」这种省略说法，否则跨分镜会出现换色 / 换款。
+            if panels:
+                try:
+                    from app.services.outfit_consistency import enforce_outfit_consistency
+                    _theme_dict = None
+                    for _cand in (locals().get("canon_theme_sync"), locals().get("selected_theme")):
+                        if isinstance(_cand, dict):
+                            _theme_dict = _cand
+                            break
+                    _theme_costumes = []
+                    if _theme_dict:
+                        _theme_costumes = list(_theme_dict.get("costumes", []) or [])
+                    _outfit_panels = [
+                        {
+                            "panel_number": p.panel_number,
+                            "scene_description": p.scene_description,
+                            "image_prompt": p.image_prompt,
+                        }
+                        for p in panels
+                    ]
+                    _outfit_panels, _outfit_conflicts = enforce_outfit_consistency(
+                        _outfit_panels,
+                        fields=("scene_description", "image_prompt"),
+                        allowed_garments=_theme_costumes or None,
+                    )
+                    for _c in _outfit_conflicts:
+                        logging.warning("[storyboard/outline] %s", _c)
+                    panels = [
+                        StoryboardPanel(
+                            panel_number=d.get("panel_number", 0),
+                            scene_description=d.get("scene_description", ""),
+                            image_prompt=d.get("image_prompt", ""),
+                        )
+                        for d in _outfit_panels
+                    ]
+                except Exception as e:
+                    logging.warning("[storyboard/outline] outfit consistency skipped: %s", e)
 
             # ── Sanity check: detect any outfit color drift between panels ──
             if len(panels) >= 2:
@@ -11546,12 +12089,6 @@ async def generate_storyboard_outline(
                 user_prompt = (
                     f"Theme: {req.theme_title}\n"
                     f"Panel count: {panel_count}\n"
-                    f"🔴 MANDATORY SPLIT-SCREEN REQUIREMENT 🔴:\n"
-                    f"Your storyboard MUST include AT LEAST ONE panel with split-screen composition.\n"
-                    f"Format: scene_description starts with '【分屏画面】', image_prompt starts with 'Split-screen cinematic frame:'\n"
-                    f"Example: scene_description='【分屏画面】后入式性爱。左：男方腰部动作 | 右：女方表情特写'\n"
-                    f"Example: image_prompt='Split-screen cinematic frame: close-up on his hips thrusting doggy style | close-up on her face in ecstasy'\n"
-                    f"If you do NOT include split-screen, your output will be REJECTED.\n\n"
                     f"【STRICT THEME CONSTRAINT — REPEAT】: 你必须只用 ★ SCENARIOS 列表里的地点,"
                     f"只用 ★ COSTUMES 列表里的服装。如 system_prompt 的 THEME CONTRACT 所示。\n"
                     f"【重要】Panel 1 不能有直接性爱！必须先从开场/前戏开始，逐步发展到性爱。\n"

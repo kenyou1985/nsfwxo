@@ -679,7 +679,7 @@ export function GridStoryboardMode({
       if (digitalHumanMode && selectedGirlfriend) {
         const charId = (selectedGirlfriend.id as string).toUpperCase().slice(0, 4);
         anchorText =
-          `【严格锁定】严格锁定图中22岁女性（ID:${charId}），完全保留原有面部特征，` +
+          `【严格锁定】严格锁定图中${selectedGirlfriend.gender === 'male' ? '22岁男性' : '22岁女性'}（ID:${charId}），完全保留原有面部特征，` +
           `五官轮廓、脸型、眼睛、鼻子、嘴唇、发型、肤色、身材比例完全不变，不做任何面部修改，` +
           `动作流畅不僵硬。超高清8K，写实细节，皮肤质感细腻，无畸变、无模糊、无穿模。`;
       }
@@ -1627,7 +1627,7 @@ export function GridStoryboardMode({
 
         const charId = (selectedGirlfriend.id as string).toUpperCase().slice(0, 4);
         const anchorPrompt =
-          `【严格锁定】严格锁定图中22岁女性（ID:${charId}），完全保留原有面部特征，` +
+          `【严格锁定】严格锁定图中${selectedGirlfriend.gender === 'male' ? '22岁男性' : '22岁女性'}（ID:${charId}），完全保留原有面部特征，` +
           `五官轮廓、脸型、眼睛、鼻子、嘴唇、发型、肤色、身材比例完全不变，不做任何面部修改，` +
           `动作流畅不僵硬。超高清8K，写实细节，皮肤质感细腻，无畸变、无模糊、无穿模。`;
 
@@ -1938,7 +1938,7 @@ export function GridStoryboardMode({
           console.warn('[Redraw] img2img upload failed:', e);
         }
         const charId = (selectedGirlfriend.id as string).toUpperCase().slice(0, 4);
-        const anchorPrompt = `【严格锁定】严格锁定图中22岁女性（ID:${charId}），完全保留原有面部特征，五官轮廓、脸型、眼睛、鼻子、嘴唇、发型、肤色、身材比例完全不变，不做任何面部修改，动作流畅不僵硬。超高清8K，写实细节，皮肤质感细腻，无畸变、无模糊、无穿模。`;
+        const anchorPrompt = `【严格锁定】严格锁定图中${selectedGirlfriend.gender === 'male' ? '22岁男性' : '22岁女性'}（ID:${charId}），完全保留原有面部特征，五官轮廓、脸型、眼睛、鼻子、嘴唇、发型、肤色、身材比例完全不变，不做任何面部修改，动作流畅不僵硬。超高清8K，写实细节，皮肤质感细腻，无畸变、无模糊、无穿模。`;
         const imgFinalPrompt = `${anchorPrompt}\n\n${finalPrompt}`;
         const nodes = [
           { nodeId: '291', fieldName: 'prompt', fieldValue: imgFinalPrompt, description: 'prompt' },

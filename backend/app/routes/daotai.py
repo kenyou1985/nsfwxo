@@ -138,6 +138,20 @@ async def submit_video(request: Request):
         _wfid = rh.MODEL_LOCK['video']
 
     refs = _video_refs(body)
+    # 2026-10-22 防"参考图静默丢失"：请求里带了参考图但一张都没落地时直接报错。
+    # 否则工作流 LoadImage 28/273/285 会沿用画布上一次保存的旧图 →
+    # 生成出来的不是用户选的人（首段尤其明显：等于把旧参考图做成贴图动画）。
+    _want_refs = bool(
+        body.get('firstFrameUrl') or body.get('first_frame') or body.get('imageUrl')
+        or (isinstance(body.get('media'), list)
+            and any(isinstance(m, dict) and m.get('url') for m in body['media']))
+    )
+    if _want_refs and not any(refs):
+        return JSONResponse(status_code=400, content={
+            'error': '参考图下载失败（平台 CDN 连接被断开 / 下载 URL 失效）——已中止提交，'
+                     '避免工作流沿用画布旧参考图生成错误人物。请重新上传参考图后重试。',
+            'kind': 'ref_download_failed',
+        })
     shots_per_seg = max(1, int(body.get('shots_per_seg') or 1))
     # 分镜标记归一化（[分镜 N]/[镜头 N]/行首 Shot N → [Shot N]），保证画布切分链锚点命中
     prompt = _normalize_shot_marks(prompt)
