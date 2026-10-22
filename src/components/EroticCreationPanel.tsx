@@ -4,6 +4,7 @@ import { streamGenerateH3DnaPrompt, type ImageDnaResult } from '../services/prom
 import { ImageDnaPanel } from './ImageDnaPanel';
 import { SeriesWorkbench } from './SeriesWorkbench';
 import { compressDataUrlIfNeeded, isHeicDataUrl } from '../utils/imagePreprocess';
+import { 构建首帧约束块 } from '../utils/h3FirstFrameConstraint';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 共享「情色创作模式」面板
@@ -563,31 +564,25 @@ export function EroticCreationPanel({
 4. 分镜结构：倒数第二个镜头是持续抽插/高潮前奏，最后一个镜头立即转入射精收尾（高潮 → 射精 → 精液溢出/覆盖）。`
       : '';
 
-    // ── 首帧锚点约束（仅在未显式换场景时启用）──────────────────────────
-    const SCENE_CHANGE_KEYWORDS = [
-      '换场景', '切换到', '切到', '场景换成', '转到', '场景切换',
-      '在另一', '去另一', '场景改为', '场景换', '场景变',
-      'moved to', 'switch scene', 'change scene', 'at the ', 'in the hotel',
-    ];
-    const allSuppText = [supplementaryRaw || '', ...supplementaryItems.filter(Boolean)].join('\n');
-    const sceneExplicitlyChanged = SCENE_CHANGE_KEYWORDS.some(kw => allSuppText.includes(kw));
-    const FIRST_FRAME_ANCHOR = sceneExplicitlyChanged
-      ? ''
-      : `【首帧锚点 - 最高优先级】
-1. 默认行为：[Shot 1] 必须以参考图作为首帧视觉起点，画面构图、角色站位/姿势/朝向、背景环境、服装必须紧贴参考图。
-2. 角色一致性：全程必须严格复用参考图的角色外观（面部、发型、妆容、身材、肤色、服装）。如用户提示词要求换服装，按提示词执行；否则沿用参考图。
-3. 场景默认沿用参考图：参考图所在的场景即首帧场景。提示词中如果仅指定姿势/道具/动作，仍在参考图场景内执行；只有显式提到"换场景/切换/转到某地"时才允许替换。`;
-
-    // 组合 userHint
+    // ── 首帧约束（统一口径：参考图只锚定外观，绝不作为开场画面）──────────────────────────
+    // 【2026-10-22 修复】原先默认注入的是正向「首帧锚点」（"[Shot 1] 必须以参考图作为首帧
+    // 视觉起点 / 场景默认沿用参考图"），LLM 会照抄成 "以参考图为首帧、场景沿用参考图"，
+    // 于是视频开头退化成参考图静止贴图 / 参考图场景动画，剧情迟迟不进入。
+    //
+    // 现在与 470 主题库（themeLibrary.ts）、后端 det16 兜底注入完全同口径：
+    //   参考图只锚定外观（面部/发型/发色）→ 成片第 1 帧直接呈现 [Shot 1] 剧情场景。
+    // 只有用户显式说"以参考图为首帧 / 沿用参考图场景"时才回到正向锚点。
+    const anchorBlock = 构建首帧约束块(userHintRaw, supplementaryRaw, supplementaryItems);
+    const anchorSep = anchorBlock ? '\n\n' : '';
     let userHint: string | undefined;
     if (userHintRaw) {
-      userHint = `${FIRST_FRAME_ANCHOR}${FIRST_FRAME_ANCHOR ? '\n\n' : ''}${userHintRaw}${UNIFIED_SUPPLEMENTARY_REQUIREMENT}${INDIVIDUAL_SUPPLEMENTARY_REQUIREMENT}${DIVERSITY_CONSTRAINT}`;
+      userHint = `${anchorBlock}${anchorSep}${userHintRaw}${UNIFIED_SUPPLEMENTARY_REQUIREMENT}${INDIVIDUAL_SUPPLEMENTARY_REQUIREMENT}${DIVERSITY_CONSTRAINT}`;
     } else if (hasUnifiedSupplementary) {
-      userHint = `${FIRST_FRAME_ANCHOR}${FIRST_FRAME_ANCHOR ? '\n\n' : ''}【用户自定义补充信息】\n${supplementaryRaw}${DIVERSITY_CONSTRAINT}`;
+      userHint = `${anchorBlock}${anchorSep}【用户自定义补充信息】\n${supplementaryRaw}${DIVERSITY_CONSTRAINT}`;
     } else if (hasIndividualSupplementary) {
-      userHint = `${FIRST_FRAME_ANCHOR}${FIRST_FRAME_ANCHOR ? '\n\n' : ''}${INDIVIDUAL_SUPPLEMENTARY_REQUIREMENT}${DIVERSITY_CONSTRAINT}`;
-    } else if (FIRST_FRAME_ANCHOR) {
-      userHint = FIRST_FRAME_ANCHOR;
+      userHint = `${anchorBlock}${anchorSep}${INDIVIDUAL_SUPPLEMENTARY_REQUIREMENT}${DIVERSITY_CONSTRAINT}`;
+    } else if (anchorBlock) {
+      userHint = anchorBlock;
     }
 
     const count = eroticCount;

@@ -861,7 +861,7 @@ export const ImageDnaPanel: React.FC<ImageDnaPanelProps> = ({
         {/* 折叠状态下的简要说明 + 一键展开 */}
         {!isSupplementaryPanelOpen && (
           <div className="mt-2 text-[10px] text-emerald-600/80 leading-relaxed">
-            💡 用于指定必须出现的姿势 / 道具 / 场景元素。除非明确改变场景，否则 H3 提示词默认以参考图作为首帧。
+            💡 用于指定必须出现的姿势 / 道具 / 场景元素。参考图仅用于锚定角色外观（面部/发型/发色），成片第一帧直接呈现提示词 [Shot 1] 的剧情场景。
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); setIsSupplementaryPanelOpen(true); }}

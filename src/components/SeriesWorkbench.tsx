@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Sparkles, Loader2, Copy, Check, RefreshCw, Upload, Image as ImageIcon,
   Clapperboard, MapPin, Package, Play, ChevronDown, ChevronUp, Layers, Zap, GitMerge,
@@ -14,6 +14,7 @@ import {
 } from '../services/promptApi';
 import { generateImage, DEFAULT_IMAGE_MODEL } from '../services/gptImage2Api';
 import { getYunwuKey } from '../services/storage';
+import { 构建首帧约束块 } from '../utils/h3FirstFrameConstraint';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 系列工作台：并行/硬承接模式切换 + 大纲卡片 + 逐集脚本 + 角色/场景/道具资产
@@ -272,6 +273,15 @@ export function SeriesWorkbench({
 
   const firstImage = images.find(img => img.path && img.path !== 'None');
 
+  // ── 参考图锚定统一口径 ──────────────────────────────────────────────────────
+  // 参考图只锚定外观（面部/发型/发色），成片第 1 帧直接呈现 [Shot 1] 剧情场景，
+  // 不沿用参考图的背景/服装/姿势/构图（与情色创作面板、470 主题库、后端 det16 兜底同口径）。
+  const seriesUserHint = useMemo(() => {
+    const base = (userHint || '').trim();
+    const anchor = 构建首帧约束块(base);
+    return base ? `${anchor}\n\n${base}` : anchor;
+  }, [userHint]);
+
   // ── 生成系列大纲（outline + assets 流式） ──────────────────────────────────
   const handleGenerateOutline = useCallback(async () => {
     if (!firstImage?.path || firstImage.path === 'None') {
@@ -294,7 +304,7 @@ export function SeriesWorkbench({
           dna: imageDna,
           eroticLevel,
           duration,
-          userHint: userHint || undefined,
+          userHint: seriesUserHint,
           count,
         },
         {
@@ -314,7 +324,7 @@ export function SeriesWorkbench({
       setOutlineLoading(false);
       onError(`大纲生成失败: ${e instanceof Error ? e.message : String(e)}`);
     }
-  }, [firstImage, imageDna, eroticLevel, duration, count, userHint, onError, onSuccess]);
+  }, [firstImage, imageDna, eroticLevel, duration, count, seriesUserHint, onError, onSuccess]);
 
   // ── 一键生成全部脚本（count=N + mode 一次流式） ───────────────────────────
   const handleGenerateAllScripts = useCallback(async () => {
@@ -340,7 +350,7 @@ export function SeriesWorkbench({
           dna: imageDna,
           eroticLevel,
           duration,
-          userHint: userHint || undefined,
+          userHint: seriesUserHint,
           count: total,
           mode,
         },
@@ -369,7 +379,7 @@ export function SeriesWorkbench({
       setScriptLoadingAll(false);
       onError(`脚本生成失败: ${e instanceof Error ? e.message : String(e)}`);
     }
-  }, [firstImage, imageDna, eroticLevel, duration, mode, outline.length, userHint, onError, onSuccess]);
+  }, [firstImage, imageDna, eroticLevel, duration, mode, outline.length, seriesUserHint, onError, onSuccess]);
 
   // ── 单集脚本 ──────────────────────────────────────────────────────────────
   const handleGenerateScript = useCallback(async (ep: number) => {
@@ -389,7 +399,7 @@ export function SeriesWorkbench({
           dna: imageDna,
           eroticLevel,
           duration,
-          userHint: userHint || undefined,
+          userHint: seriesUserHint,
           count: 1,
           mode,
         },
