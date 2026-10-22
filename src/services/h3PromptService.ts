@@ -1147,3 +1147,96 @@ export function generateH3PromptsForPanelsV2(
     commonParts: generateH3CommonParts(panels, options),
   };
 }
+
+/**
+ * 单个分镜图 → H3 图生视频提示词（2-3 个 Shot，分镜图作为首帧）。
+ *
+ * 与旧的 generateH3ShotPrompt 不同：
+ *  - 旧版把「全片 N 个分镜」拆成 [Shot 1..N]，每个分镜卡只拿到其中一个镜头；
+ *  - 线性分镜是「一图一视频」，每个分镜需要自己的 2-3 个镜头，
+ *    并且始终引用 <Picture 1>（该分镜图本身），不是全片第 N 张图。
+ */
+export function buildPanelH3Prompt(
+  panel: { image_prompt?: string; scene_description?: string },
+  options: { r18?: boolean; duration?: number } = {},
+): string {
+  const r18 = options.r18 ?? false;
+  const zh = (panel.scene_description || '').replace(/\s+/g, ' ').trim();
+  const en = (panel.image_prompt || '').replace(/\s+/g, ' ').trim();
+  const text = `${zh} ${en}`;
+  const sceneZh = (zh || '室内私密场景').slice(0, 160);
+
+  const hasMale = /男人|男性|男主|他|男伴|man\b|male\b|his\b/i.test(text);
+  const isOral = /口交|深喉|含住|舔阴|舔弄|吞精|blowjob|fellatio|deepthroat|cunnilingus/i.test(text);
+  const isDoggy = /后入|背后|跪姿后入|doggy|from behind/i.test(text);
+  const isCowgirl = /女上|骑乘|cowgirl|riding/i.test(text);
+  const isMissionary = /传教士|missionary|face.to.face/i.test(text);
+  const isSex = isOral || isDoggy || isCowgirl || isMissionary || /插入|抽插|penetrat|thrust|creampie|内射/i.test(text);
+
+  let action2 = 'the woman shifts her posture naturally, breathing deeper, her hands moving along his shoulders';
+  let action3 = 'she looks up at him, lips parted, body relaxing into the afterglow';
+  let line2 = '慢一点……';
+  let line3 = '抱紧我……';
+  if (isOral) {
+    action2 = 'she lowers her head and takes him into her mouth, her head moving slowly, one hand braced on his thigh';
+    action3 = 'she looks up without pulling away, eyes wet, lips glossy';
+    line2 = '看着我……';
+    line3 = '别停……';
+  } else if (isDoggy) {
+    action2 = 'he enters her from behind, hips thrusting steadily, both hands gripping her waist';
+    action3 = 'the pace quickens, her back arches, she turns her head to breathe';
+    line2 = '太深了……';
+    line3 = '再快一点……';
+  } else if (isCowgirl) {
+    action2 = 'she straddles him and rolls her hips, hands braced on his chest, moving up and down';
+    action3 = 'she leans forward, hair falling, breathing broken as the rhythm tightens';
+    line2 = '我要自己来……';
+    line3 = '要到了……';
+  } else if (isMissionary) {
+    action2 = 'he settles between her legs and pushes in slowly, his hips flush against hers';
+    action3 = 'she wraps her legs around his waist, pulling him deeper as they kiss';
+    line2 = '抱紧我……';
+    line3 = '别出去……';
+  } else if (isSex) {
+    action2 = 'their bodies join, the rhythm moving from slow to urgent, hands gripping arms and waist';
+    action3 = 'the pace deepens, her breathing breaks, her body trembling';
+    line2 = '轻一点……';
+    line3 = '要到了……';
+  } else if (/亲吻|接吻|kiss|抚摸|caress|foreplay/i.test(text)) {
+    action2 = 'she leans in and kisses him, her palm sliding from his neck to his waist';
+    action3 = 'they part just enough to breathe, foreheads touching';
+    line2 = '靠近一点……';
+    line3 = '别走……';
+  }
+
+  const subjectLines = [
+    `<Subject 1> is @Woman <Picture 1> — the woman in the first-frame storyboard image; preserve her face, hair, body proportions and clothing exactly as shown in <Picture 1>.`,
+  ];
+  if (hasMale) {
+    subjectLines.push(`<Subject 2> is @Man <Picture 1> — the man in the first-frame storyboard image; preserve his face, hair and build exactly as shown in <Picture 1>.`);
+  }
+  subjectLines.push(`<Subject 3> is @Identity <Picture 2> — a clear face reference of the primary character; use it ONLY to lock facial identity when the camera cuts to a new angle, never to replace the action in <Picture 1>.`);
+  subjectLines.push(`<Subject 4> is @Scene — ${sceneZh}; keep the same location, lighting and props in every shot.`);
+
+  const shots = [
+    `[Shot 1] Live-action, cinematic. The first frame is exactly <Picture 1>: ${sceneZh}. The characters hold the composition of <Picture 1>, with only subtle breathing, eye movement and a very slow camera push-in. No text, no subtitles.`,
+    `[Shot 2] At 00:05.000, ${action2}. When the camera cuts to a new angle, lock the face with <Picture 2> so it remains the same person. ${hasMale ? `The woman whispers (S1): <d>[Chinese] ${line2}</d>` : `She whispers (S1): <d>[Chinese] ${line2}</d>`}`,
+  ];
+  if (isSex || r18) {
+    shots.push(`[Shot 3] At 00:10.000, ${action3}. Keep the action from <Picture 1> continuous, and use <Picture 2> only for facial identity. ${hasMale ? `She breathes out (S1): <d>[Chinese] ${line3}</d> He answers low (S2): <d>[Chinese] 我在。</d>` : `She breathes out (S1): <d>[Chinese] ${line3}</d>`}`);
+  }
+
+  return `subject_definitions:
+${subjectLines.join('\n')}
+summary:
+[reference generation] ${sceneZh}${hasMale ? '，男女双方在明确同意下进入亲密互动' : ''}。画面无文字、无字幕、无水印。
+retention_analysis:
+<Subject 1> @Woman <Picture 1>: fully_preserved — face, hair and body consistent with the first frame.
+${hasMale ? '<Subject 2> @Man <Picture 1>: fully_preserved — face, hair and build consistent with the first frame.\n' : ''}<Subject 3> @Identity <Picture 2>: fully_preserved — used only for facial identity on camera cuts.
+<Subject 4> @Scene: fully_preserved — same location, lighting and props in all shots.
+detailed_description:
+${shots.join('\n')}
+overall_soundscape: quiet room tone, fabric friction, skin contact, breathing and soft involuntary moans close to the mic.
+non_diegetic_music: low, warm ambient synth pads with a slow heartbeat-like pulse; never louder than the voices.
+speaker_mapping: {"S1": "Chinese (Mandarin)_Adult_Female_Soft"${hasMale ? ', "S2": "Chinese (Mandarin)_Adult_Male_Low"' : ''}}`;
+}

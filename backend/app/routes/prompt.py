@@ -3574,8 +3574,8 @@ _EN_MALE_NOUN = re.compile(
 _EN_FEMALE_NOUN = re.compile(
     r"\b(a|the)\s+((?:beautiful|stunning|gorgeous|petite|young|older)\s+)?(woman|girl|female)\b",
     re.IGNORECASE)
-_ZH_MALE_CTX = re.compile(r"司机|男人|男性|男子|他|男主|丈夫|男友|教练|医生|老师|保安|保镖|管家|王子|骑士|主人|老板|上司|同事|邻居|房东|客户|学生|哥哥|弟弟|父亲|爸爸|叔叔|快递员|外卖员|男(?=学员|顾客|教练|医生|老师|司机|同事|邻居|房东|客户|学生|主播|模特|主角|友|人|伴|秘书|演员|服务生|嫌疑人|罪犯|歹徒|匪徒|袭击者|入侵者|小偷|强盗|绑匪|凶手)|顾客|客人|嫌疑人|罪犯|歹徒|匪徒|袭击者|入侵者|小偷|强盗|绑匪|凶手")
-_ZH_FEMALE_CTX = re.compile(r"女人|女性|女子|她|女主|女友|妻子|女仆|护士|空姐|雇主|女(?=上司|老板|秘书|助理|同事|邻居|房东|客户|模特|主播|学生|医生|老师|司机|主角|教练|学员|顾客|店员|服务员|前台|收银员|舞者|歌手|演员|警|兵|佣|仆)|秘书|助理|模特|主播|姐姐|妹妹|母亲|妈妈|阿姨|店员|服务员|前台|收银员|舞者|歌手")
+_ZH_MALE_CTX = re.compile(r"司机|男人|男性|男子|他|男主|丈夫|男友|教练|医生|老师|保安|保镖|管家|王子|骑士|主人|老板|上司|同事|邻居|房东|客户|学生|哥哥|弟弟|父亲|爸爸|叔叔|快递员|外卖员|水手|船员|海员|船长|渔夫|海盗|水兵|正骨师|按摩师|理疗师|技师|治疗师|牙医|兽医|教授|学长|摄影师|画家|作家|律师|男(?=学员|顾客|教练|医生|老师|司机|同事|邻居|房东|客户|学生|主播|模特|主角|友|人|伴|秘书|演员|服务生|嫌疑人|罪犯|歹徒|匪徒|袭击者|入侵者|小偷|强盗|绑匪|凶手)|顾客|客人|嫌疑人|罪犯|歹徒|匪徒|袭击者|入侵者|小偷|强盗|绑匪|凶手")
+_ZH_FEMALE_CTX = re.compile(r"女人|女性|女子|她|女主|女友|妻子|女仆|护士|空姐|雇主|女(?=上司|老板|秘书|助理|同事|邻居|房东|客户|模特|主播|学生|医生|老师|司机|主角|教练|学员|顾客|店员|服务员|前台|收银员|舞者|歌手|演员|警|兵|佣|仆|水手|船员|水兵|船长)|秘书|助理|模特|主播|姐姐|妹妹|母亲|妈妈|阿姨|店员|服务员|前台|收银员|舞者|歌手")
 _META_ZH = re.compile(r"并非|而不是|只发生在|仅发生在|仅仅发生|而非|绝非|远非|不同于|远离|不在|注意[:：]|说明[:：]|（注")
 _META_EN = re.compile(
     r",?\s*(?:this|the)\s+(?:climax|scene|moment|act)\s+(?:only\s+)?(?:happens|occurs|takes place)"
@@ -3642,7 +3642,9 @@ def _clean_meta_en(text: str) -> str:
 
 
 def _panel_has_male(scene_zh: str, prompt_en: str) -> bool:
-    if _ZH_MALE_CTX.search(scene_zh or ""):
+    # "女水手/女警/女仆" 里的职业词不能被当成男性
+    _zh = re.sub(r"女(?:水手|船员|水兵|船长|警|兵|佣|仆)", "", scene_zh or "")
+    if _ZH_MALE_CTX.search(_zh):
         return True
     return bool(re.search(r"\b(1boy|man|men|male|his|him)\b", (prompt_en or ""), re.IGNORECASE))
 
@@ -3686,16 +3688,16 @@ def _inject_race_en(prompt: str, race_en: str, article: str, gender: str) -> str
         "Thai": {"thai"}, "Indian": {"indian"}, "Latina": {"latina", "latino"},
         "Middle Eastern": {"middle eastern"}, "Russian": {"russian"},
     }
-    m = ctx.search(prompt)
-    if m:
-        old = m.group(2).lower()
-        if old in _compat.get(race_en, {race_en.lower()}):
-            return prompt
-        # 人种写错 → 用 canonical 替换（保留 the；a/an 按发音重算）
+    _allowed = _compat.get(race_en, {race_en.lower()})
+    _matches = list(ctx.finditer(prompt))
+    if _matches:
         def _rep(mm):
+            old_tok = (mm.group(2) or "").lower()
+            if old_tok in _allowed:
+                return mm.group(0)
             det = "the" if (mm.group(1) or "").lower() == "the" else ("an" if race_en[0].lower() in "aeiou" else "a")
             return f"{det} {race_en} {noun}"
-        return ctx.sub(_rep, prompt, count=1)
+        return ctx.sub(_rep, prompt)
 
     def _rep(m):
         det = m.group(1) if m.group(1).lower() == "the" else article
@@ -3714,9 +3716,9 @@ def _inject_race_en(prompt: str, race_en: str, article: str, gender: str) -> str
 def _inject_race_zh(scene: str, race_zh: str, gender: str) -> str:
     if not scene or not race_zh:
         return scene
-    roles = (re.compile(r"司机|男人|男性|男子|丈夫|男友|教练|医生|老师|保安|保镖|管家|王子|骑士|主人|老板|上司|同事|邻居|房东|客户|学生|哥哥|弟弟|父亲|爸爸|叔叔|快递员|外卖员|男(?=学员|顾客|教练|医生|老师|司机|同事|邻居|房东|客户|学生|主播|模特|主角|友|人|伴|秘书|演员|服务生|嫌疑人|罪犯|歹徒|匪徒|袭击者|入侵者|小偷|强盗|绑匪|凶手)|顾客|客人|嫌疑人|罪犯|歹徒|匪徒|袭击者|入侵者|小偷|强盗|绑匪|凶手")
+    roles = (re.compile(r"司机|男人|男性|男子|丈夫|男友|教练|医生|老师|保安|保镖|管家|王子|骑士|主人|老板|上司|同事|邻居|房东|客户|学生|哥哥|弟弟|父亲|爸爸|叔叔|快递员|外卖员|水手|船员|海员|船长|渔夫|海盗|水兵|正骨师|按摩师|理疗师|技师|治疗师|牙医|兽医|教授|学长|摄影师|画家|作家|律师|男(?=学员|顾客|教练|医生|老师|司机|同事|邻居|房东|客户|学生|主播|模特|主角|友|人|伴|秘书|演员|服务生|嫌疑人|罪犯|歹徒|匪徒|袭击者|入侵者|小偷|强盗|绑匪|凶手)|顾客|客人|嫌疑人|罪犯|歹徒|匪徒|袭击者|入侵者|小偷|强盗|绑匪|凶手")
              if gender == "male" else
-             re.compile(r"女人|女性|女子|女主|女友|妻子|女仆|护士|空姐|雇主(?!家|的|那里|这边)|女(?=上司|老板|秘书|助理|同事|邻居|房东|客户|模特|主播|学生|医生|老师|司机|主角|教练|学员|顾客|店员|服务员|前台|收银员|舞者|歌手|演员|警|兵|佣|仆)|秘书|助理|模特|主播|姐姐|妹妹|母亲|妈妈|阿姨|店员|服务员|前台|收银员|舞者|歌手"))
+             re.compile(r"女人|女性|女子|女主|女友|妻子|女仆|护士|空姐|雇主(?!家|的|那里|这边)|女(?=上司|老板|秘书|助理|同事|邻居|房东|客户|模特|主播|学生|医生|老师|司机|主角|教练|学员|顾客|店员|服务员|前台|收银员|舞者|歌手|演员|警|兵|佣|仆|水手|船员|水兵|船长)|秘书|助理|模特|主播|姐姐|妹妹|母亲|妈妈|阿姨|店员|服务员|前台|收银员|舞者|歌手"))
     for m in roles.finditer(scene):
         # 性别错配：男词前有"女"、女词前有"男" → 跳过（"女教练"不该被塞黑人）
         if m.start() > 0 and ((gender == "male" and scene[m.start() - 1] == "女")
@@ -3743,18 +3745,40 @@ def _inject_race_zh(scene: str, race_zh: str, gender: str) -> str:
     return scene
 
 
+def _dedupe_leading_subject(en: str) -> str:
+    """只去掉重复的女性主语，不能把 "a Black man, an East Asian woman," 里的女性删掉。"""
+    f = rf"(?:a|an|the)\s+(?:{_RACE_WORD})\s+woman"
+    m = rf"(?:a|an|the)\s+(?:{_RACE_WORD})\s+man"
+    en = re.sub(rf"^({f}),\s*{f},\s*", r"\1, ", en, count=1, flags=re.IGNORECASE)
+    en = re.sub(rf"^({m}\s+and\s+{f}),\s*{f},\s*", r"\1, ", en, count=1, flags=re.IGNORECASE)
+    en = re.sub(rf"^({m},\s*{f}),\s*{f},\s*", r"\1, ", en, count=1, flags=re.IGNORECASE)
+    return en
+
+
 def _lead_subject_en(prompt: str, male_race, female_race, has_male: bool) -> str:
     """英文 prompt 前 120 字符内没有种族词时，把 'a Black man and a Korean woman,' 放到最前。"""
     if not prompt:
         return prompt
-    prompt = re.sub(
-        rf"^((?:a|an|the)\s+(?:{_RACE_WORD})\s+woman),\s*"
-        rf"(?:a|an|the)\s+(?:{_RACE_WORD})\s+woman,\s*",
-        r"\1, ", prompt, count=1, flags=re.IGNORECASE)
+    # "a Black woman, a Black woman," → "a Black woman,"
+    for _ in range(2):
+        prompt = re.sub(
+            rf"^((?:a|an|the)\s+(?:{_RACE_WORD})\s+woman),\s*"
+            rf"(?:a|an|the)\s+(?:{_RACE_WORD})\s+woman,\s*",
+            r"\1, ", prompt, count=1, flags=re.IGNORECASE)
     prompt = re.sub(
         rf"^((?:a|an|the)\s+(?:{_RACE_WORD})\s+man and (?:a|an|the)\s+(?:{_RACE_WORD})\s+woman),\s*"
         rf"(?:a|an|the)\s+(?:{_RACE_WORD})\s+woman,\s*",
         r"\1, ", prompt, count=1, flags=re.IGNORECASE)
+    # 男性被注入到开头（a Black man, ... a Korean woman）时，把女性主主体移到最前，
+    # 避免 Krea2 把整张图/女性也染成黑人。
+    if has_male and male_race and female_race:
+        _m_lead = rf"(?:a|an|the)\s+{re.escape(male_race[0])}\s+man"
+        _f_lead = rf"(?:a|an|the)\s+{re.escape(female_race[0])}\s+woman"
+        _mm = re.match(rf"^\s*{_m_lead}\s*,\s*", prompt, re.IGNORECASE)
+        if _mm:
+            _rest = prompt[_mm.end():]
+            _rest = re.sub(rf"^{_f_lead}\s*,\s*", "", _rest, count=1, flags=re.IGNORECASE)
+            return f"{female_race[2]} {female_race[0]} woman and {male_race[2]} {male_race[0]} man, " + _rest
     head = prompt[:18]
     if has_male:
         if re.search(rf"^\s*(?:a|an|the)\s+(?:{_RACE_WORD})\s+(?:man|guy|male)\b", head, re.IGNORECASE):
@@ -3767,17 +3791,20 @@ def _lead_subject_en(prompt: str, male_race, female_race, has_male: bool) -> str
     m_tok = male_race[0] if male_race else None
     f_tok = female_race[0] if female_race else None
     # 已经以女性主语开头 → 只在前面补男性，避免重复女性
+    # Krea2 官方模板习惯「主主体在前」：女性是画面主主体，男性作为 partner 放在后面。
+    # 之前 "a Black man, a Korean woman" 会让模型把女性也画成黑人。
     if has_male and m_tok and re.match(rf"^\s*(?:a|an|the)\s+(?:{_RACE_WORD})\s+woman\b", prompt, re.IGNORECASE):
         prompt = re.sub(rf"^\s*(?:a|an|the)\s+(?:{_RACE_WORD})\s+woman\s*,\s*", "", prompt, count=1, flags=re.IGNORECASE)
-        return f"{male_race[2]} {m_tok} man and {female_race[2]} {f_tok} woman, " + prompt
+        f_lead = f"{female_race[2]} {f_tok} woman" if f_tok else "the woman"
+        return f"{f_lead} and {male_race[2]} {m_tok} man, " + prompt
     parts = []
-    if has_male and m_tok:
-        parts.append(f"{male_race[2]} {m_tok} man")
     if f_tok:
         parts.append(f"{female_race[2]} {f_tok} woman")
+    if has_male and m_tok:
+        parts.append(f"{male_race[2]} {m_tok} man")
     if not parts:
         return prompt
-    return ", ".join(parts) + ", " + prompt
+    return " and ".join(parts) + ", " + prompt
 
 
 def _enforce_p1_modesty(zh: str, en: str) -> tuple:
@@ -3841,6 +3868,34 @@ def _align_primary_action(zh: str, en: str) -> str:
                 continue
         kept.append(c)
     return ", ".join(x for x in kept if x.strip())
+
+
+def _trim_final_panel_en(en: str) -> str:
+    """收尾格只保留「人物 + 一个动作 + 场景 + 精液/裸体」，删掉叠加的机位/风格/表情长句。"""
+    if not en:
+        return en
+    # "In tight macro close-up on the missionary creampie," → "missionary creampie,"
+    en = re.sub(r"In\s+tight\s+(?:macro\s+)?close-up\s+on\s+the\s+([^,]+),",
+                r"\1,", en, flags=re.IGNORECASE)
+    for pat in (
+        r",?\s*highly detailed[^,]*",
+        r",?\s*realistic adult comic style[^,]*",
+        r",?\s*intimate framing[^,]*",
+        r",?\s*warm dramatic lighting[^,]*",
+        r",?\s*highlighting[^,]*",
+        r",?\s*tight (?:macro )?close-up[^,]*",
+        r",?\s*glasses askew[^,]*",
+        r",?\s*office in total chaos[^,]*",
+        r",?\s*papers and books fallen[^,]*",
+    ):
+        en = re.sub(pat, "", en, flags=re.IGNORECASE)
+    en = re.sub(r",\s*,", ",", en)
+    # 超过 360 字符时按逗号截断，避免多动作互相打架
+    if len(en) > 360:
+        en = en[:360].rsplit(",", 1)[0].rstrip(" ,.")
+        if not re.search(r"\b(nude|naked)\b", en, re.IGNORECASE):
+            en += ", fully nude"
+    return en
 
 
 def _stage_clothing_zh(scene: str, idx: int, r18: bool, nude_from: int = 3, partial_at: int = 2) -> str:
@@ -3949,11 +4004,14 @@ def _sync_panel_consistency(panels, r18: bool, is_lesbian: bool = False):
             if pat.search(zh) and not re.search(r"\b(black|blonde|red|brown)\s+hair\b", en, re.IGNORECASE):
                 en = re.sub(r"\bhair\b", hair_en, en, count=1, flags=re.IGNORECASE) if re.search(r"\bhair\b", en, re.IGNORECASE) else en.rstrip(",. ") + f", {hair_en}"
                 break
-        has_male = (not is_lesbian) and _panel_has_male(zh, en)
+        has_male = (not is_lesbian) and i > 0 and _panel_has_male(zh, en)
         en = _lead_subject_en(en, male_race, female_race, has_male)
+        en = _dedupe_leading_subject(en)
         if r18 and i >= partial_at:
             en = _align_primary_action(zh, en)
             en = _limit_cum_tags(en, 1 if i == total - 1 else 2)
+        if i == total - 1:
+            en = _trim_final_panel_en(en)
         _set_panel_field(p, "scene_description", zh)
         _set_panel_field(p, "image_prompt", re.sub(r"\s{2,}", " ", en).strip())
     return panels
@@ -5584,18 +5642,21 @@ async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key
         }
 
         if req.r18:
-            arc_panels = _R18_ARC_PANELS.get(panel_count, _R18_ARC_PANELS[5])
+            arc_panels = (_build_long_arc(panel_count, True) if panel_count > 10
+                          else _R18_ARC_PANELS.get(panel_count, _R18_ARC_PANELS[5]))
             system_template = _R18_OUTLINE_SYSTEM
             arc_label = "开场遇见 → 升温调情 → 脱衣前戏 → 性爱进行 → 高潮射精"
             # Randomly select 2-3 diverse poses with detailed prompts
             pool_poses = get_random_poses(3)
             pose_list_str = "\n".join(f"  - {p['name']}: {p['prompt']}" for p in pool_poses)
         else:
-            arc_panels = _NORMAL_ARC_PANELS.get(panel_count, _NORMAL_ARC_PANELS[4])
+            arc_panels = (_build_long_arc(panel_count, False) if panel_count > 10
+                          else _NORMAL_ARC_PANELS.get(panel_count, _NORMAL_ARC_PANELS[4]))
             system_template = _NORMAL_OUTLINE_SYSTEM
             arc_label = "开场 → 发展 → 亲密 → 高潮 → 结尾"
             pose_list_str = ""
 
+        arc_panels = [_sanitize_arc_panel(p) for p in arc_panels]
         arc_panels_str = "\n".join(f"  - {p}" for p in arc_panels)
 
         # ── Build coherence context for the system prompt ──────────────────────
@@ -5741,7 +5802,7 @@ async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key
 
         # Wall-clock for total task duration logging + progress reporting.
         t0_run = time.monotonic()
-        deadline = t0_run + OUTLINE_TIME_BUDGET_SECONDS
+        deadline = t0_run + max(OUTLINE_TIME_BUDGET_SECONDS, panel_count * 20)
         store.set_progress(task_id, f"准备生成大纲（主题：{theme_name}，{panel_count} 个分镜）...")
 
         # Out-of-budget marker — thrown when we've spent too long retrying and
@@ -5942,7 +6003,10 @@ async def _run_outline_task(task_id: str, req: StoryboardOutlineRequest, api_key
                 t0 = time.monotonic()
                 store.set_progress(task_id, "正在调用 LLM 生成大纲（最长约 2-3 分钟）...")
                 logging.info("[outline] task=%s theme=%s attempt=%d — calling LLM (budget=%.0fs)", task_id, theme_name, attempt + 1, budget)
-                raw = await call_grok(api_key, system_prompt, user_prompt, model_order=model_order)
+                _kw = {'model_order': model_order}
+                if panel_count > 10:
+                    _kw['max_tokens'] = 32768
+                raw = await call_grok(api_key, system_prompt, user_prompt, **_kw)
                 llm_elapsed = time.monotonic() - t0
                 logging.info("[outline] task=%s theme=%s — LLM returned in %.1fs (%d chars)", task_id, theme_name, llm_elapsed, len(raw))
                 store.set_progress(task_id, f"LLM 已返回（{llm_elapsed:.1f} 秒），正在解析...")
@@ -11184,6 +11248,43 @@ _NORMAL_ARC_PANELS = {
     10: ["Panel 1: 开场 - 场景介绍、人物出现", "Panel 2: 发展 - 暧昧互动、调情", "Panel 3: 升温 - 情感升温、身体接触", "Panel 4: 亲密 - 脱衣、亲吻、爱抚", "Panel 5: 前戏 - 深入前戏、身体反应", "Panel 6: 进行 - 深入亲密", "Panel 7: 高潮 - 高潮、情感爆发", "Panel 8: 余韵 - 温馨时刻、情感表达", "Panel 9: 回落 - 情感回落、亲密时刻", "Panel 10: 结尾 - 情感升华、开放式结局"],
 }
 
+_LONG_ARC_POSITIONS = ["后入式", "女上位", "传教士体位", "侧入", "站立后入", "跪姿后入", "抱姿", "69互舔"]
+
+
+def _sanitize_arc_panel(text: str) -> str:
+    t = str(text or "")
+    t = t.replace("【分屏画面】", "")
+    t = re.sub(r"分屏格式：左=([^|\n]+)\|\s*右=([^\n]+)", r"单画面：\1，面部表情可见", t)
+    t = re.sub(r"分屏格式：", "单画面：", t)
+    return t
+
+
+def _build_long_arc(n: int, r18: bool) -> list:
+    out = []
+    for i in range(n):
+        if i == 0:
+            out.append("Panel 1: 开场 - 女人单独出场，主题场景与服装，建立氛围（NO man yet，NO sex yet）")
+            continue
+        if i == 1:
+            out.append("Panel 2: 男人加入 - 对视、靠近、第一次身体接触，服装完整")
+            continue
+        if i == n - 1:
+            out.append(f"Panel {n}: 结尾 - 高潮余韵/相拥/整理，情绪落地")
+            continue
+        if i == n - 2:
+            out.append(f"Panel {i+1}: 高潮 - 最终体位，表情与身体反应，画面可见精液/体液")
+            continue
+        progress = (i - 2) / max(1, n - 4)
+        if progress < 0.25:
+            out.append(f"Panel {i+1}: 脱衣前戏 - 衣物逐步褪去，亲吻/抚摸/口交前戏，单画面单动作")
+        elif progress < 0.75:
+            pos2 = _LONG_ARC_POSITIONS[(i - 2) % len(_LONG_ARC_POSITIONS)]
+            out.append(f"Panel {i+1}: 性爱进行 - {pos2}，抽插节奏与身体反应，单画面单机位")
+        else:
+            out.append(f"Panel {i+1}: 高潮前段 - 节奏加快，表情失控，汗水与体液，准备最终高潮")
+    return out
+
+
 _R18_ARC_PANELS = {
     2: [
         "Panel 1: 开场前戏 - 【女人单独出场】场景介绍、女人首次亮相、主题服装描述（非全裸）、暗示性表情（NO man yet，NO sex yet）【中景】",
@@ -11543,8 +11644,8 @@ async def generate_storyboard_outline(
     panel_count = req.panel_count
     if panel_count < 2:
         panel_count = 2
-    if panel_count > 10:
-        panel_count = 10
+    if panel_count > 30:
+        panel_count = 30
 
     # ── 异步模式：立即返回 task_id，后台执行 ──
     if req.async_mode:

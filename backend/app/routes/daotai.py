@@ -11,6 +11,14 @@ import json
 import re
 import threading
 import urllib.parse
+import urllib.request
+import base64
+import io
+import asyncio
+import subprocess
+import shutil
+import uuid
+import time
 from pathlib import Path
 
 from fastapi import APIRouter, Request
@@ -133,11 +141,45 @@ async def submit_video(request: Request):
     if not prompt.strip():
         return JSONResponse(status_code=400, content={'error': 'prompt 不能为空'})
 
+    # ===== 火宝桥接：复用 8765 导演台（已验证可出片），绕开本地 det16 假成功 =====
+    if body.get('use_bridge'):
+        _media = []
+        if body.get('firstFrameUrl'):
+            _media.append({'type': 'first_frame', 'url': body.get('firstFrameUrl')})
+        for m in (body.get('media') or []):
+            if isinstance(m, dict) and m.get('url'):
+                _media.append({'type': m.get('type') or 'reference_image', 'url': m['url']})
+        _p = {
+            'prompt': prompt,
+            'media': _media,
+            'workflow_id': str(body.get('workflow_id') or '2110330160000516098'),
+            'target_segs': int(body.get('target_segs') or 2),
+            'duration': int(body.get('duration') or 15),
+            'resolution': float(body.get('resolution') or 0.4),
+            'shots_per_segment': int(body.get('shots_per_seg') or 1),
+            'generate_audio': False,
+        }
+        try:
+            _req = urllib.request.Request(
+                'http://127.0.0.1:8765/openapi/v2/minimaxh3',
+                data=json.dumps(_p).encode(),
+                headers={'Content-Type': 'application/json',
+                         'Authorization': 'Bearer ' + key})
+            _raw = await asyncio.to_thread(lambda: urllib.request.urlopen(_req, timeout=60).read().decode())
+            _resp = json.loads(_raw)
+            _tid = str(_resp.get('taskId') or _resp.get('task_id') or '')
+            if not _tid:
+                return JSONResponse(status_code=502, content={'error': '8765 未返回 taskId', 'raw': _resp})
+            rh.RH_OPENAPI[_tid] = {'kind': 'video_bridge', 'api_key': key, 'task_id': _tid}
+            return {'taskId': _tid, 'task_id': _tid, 'bridge': True}
+        except Exception as _e:
+            return JSONResponse(status_code=502, content={'error': '8765 桥接提交失败: ' + str(_e)})
+
     _wfid = str(body.get('workflow_id') or rh.RH_VIDEO_WFID)
     if not body.get('workflow_id') and rh.MODEL_LOCK.get('video'):
         _wfid = rh.MODEL_LOCK['video']
 
-    refs = _video_refs(body)
+    refs = await asyncio.to_thread(_video_refs, body)
     # 2026-10-22 防"参考图静默丢失"：请求里带了参考图但一张都没落地时直接报错。
     # 否则工作流 LoadImage 28/273/285 会沿用画布上一次保存的旧图 →
     # 生成出来的不是用户选的人（首段尤其明显：等于把旧参考图做成贴图动画）。
@@ -181,9 +223,10 @@ async def submit_video(request: Request):
         'target_segs': int(body['target_segs']) if str(body.get('target_segs') or '').isdigit() else None,
         # 并发路数：det16 多路并行（设置多少就多少）
         'loop_routes': max(1, int(body.get('loop_routes') or 1)),
+        'no_llm': bool(body.get('no_llm')),
     }
     try:
-        job = rh.Job(cfg)
+        job = await asyncio.to_thread(rh.Job, cfg)
     except Exception as e:
         _err = f'Job 创建失败: {e}'
         if 'workflow not exists' in _err or 'workflow不存在' in _err:
@@ -263,7 +306,8 @@ async def query_task(request: Request):
         return {'status': 'FAILED', 'message': 'unknown taskId: ' + tid}
     if ent['kind'] == 'image':
         try:
-            st, urls, local, th, logs = rh.img_poll(tid, ent.get('api_key') or '')
+            st, urls, local, th, logs = await asyncio.to_thread(
+                rh.img_poll, tid, ent.get('api_key') or '')
         except Exception:
             st = 'running'
         if st == 'finished':
@@ -274,6 +318,30 @@ async def query_task(request: Request):
         if st == 'failed':
             return {'status': 'FAILED', 'message': '图片任务失败: ' + str(tid)}
         return {'status': 'PROCESSING', 'taskId': tid}
+    if ent.get('kind') == 'video_bridge':
+        try:
+            _req = urllib.request.Request(
+                'http://127.0.0.1:8765/openapi/v2/query',
+                data=json.dumps({'taskId': tid}).encode(),
+                headers={'Content-Type': 'application/json',
+                         'Authorization': 'Bearer ' + (ent.get('api_key') or '')})
+            _raw = await asyncio.to_thread(lambda: urllib.request.urlopen(_req, timeout=30).read().decode())
+            _data = json.loads(_raw)
+        except Exception as _e:
+            return {'status': 'PROCESSING', 'taskId': tid, 'message': '8765 query: ' + str(_e)}
+        _st = str(_data.get('status') or '').upper()
+        if _st in ('SUCCESS', 'COMPLETED', 'FINISHED'):
+            _u = (_data.get('video_url') or _data.get('url')
+                  or (_data.get('output') or {}).get('video_url') or '')
+            if isinstance(_u, str) and _u.startswith('/'):
+                _u = 'http://127.0.0.1:8765' + _u
+            if _u:
+                return {'status': 'SUCCESS', 'video_url': _u, 'output': {'video_url': _u}, 'url': _u}
+            return {'status': 'FAILED', 'message': '8765 返回成功但没有 video_url'}
+        if _st in ('FAILED', 'ERROR', 'STOPPED'):
+            return {'status': 'FAILED', 'message': _data.get('message') or _data.get('error') or '8765 任务失败'}
+        return {'status': 'PROCESSING', 'taskId': tid}
+
     job = rh.JOBS.get(ent['job_id'])
     if not job:
         # ===== 容器重启兜底：内存 JOBS 没了，但 run_dir 还在 → 扫描目录找视频 =====
@@ -356,6 +424,14 @@ async def video_logs(request: Request):
         'logs': list(job.logs or [])[-200:],
         'runDir': os.path.basename(job.run_dir) if job.run_dir else '',
     }
+
+
+@router.get('/joblog/{jid}')
+async def job_log(jid: str):
+    job = rh.JOBS.get(jid)
+    if not job:
+        return {'error': 'no job', 'jid': jid}
+    return {'jid': jid, 'status': getattr(job, 'status', ''), 'logs': (getattr(job, 'logs', []) or [])[-150:]}
 
 
 @router.get('/media/{jobdir}/{filename}')
@@ -458,6 +534,115 @@ def _img_media_url(rel: str):
     return rel
 
 
+def _read_image_bytes(src: str) -> bytes:
+    if str(src).startswith('data:'):
+        return base64.b64decode(str(src).split(',', 1)[1])
+    req = urllib.request.Request(str(src), headers={'User-Agent': 'Mozilla/5.0'})
+    return urllib.request.urlopen(req, timeout=60).read()
+
+
+def _crop_save_portrait(raw: bytes, request: Request) -> str:
+    from PIL import Image, ImageOps
+    im = Image.open(io.BytesIO(raw)).convert('RGB')
+    w, h = im.size
+    cw = int(w * 0.60)
+    ch = int(h * 0.42)
+    x0 = max(0, (w - cw) // 2)
+    y0 = max(0, int(h * 0.12))
+    crop = im.crop((x0, y0, x0 + cw, y0 + ch))
+    crop = ImageOps.fit(crop, (512, 640), method=Image.LANCZOS, centering=(0.5, 0.35))
+    d = os.path.join(rh.VIDEOS_DIR, 'portraits')
+    os.makedirs(d, exist_ok=True)
+    fn = uuid.uuid4().hex[:12] + '.jpg'
+    crop.save(os.path.join(d, fn), quality=92)
+    return _absolute_url(request, f'/api/daotai/media/portraits/{fn}')
+
+
+@router.post('/portrait')
+async def extract_portrait(request: Request):
+    """从分镜图里裁一张人物头像（启发式：画面中上部、水平居中），
+    保存到 videos/portraits/ 并返回 URL，用于 H3 的 <Picture 2> 人物锚定。
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(status_code=400, content={'error': 'bad json'})
+    src = body.get('image_url') or body.get('imageUrl') or body.get('data_url') or ''
+    if not src:
+        return JSONResponse(status_code=400, content={'error': 'image_url 不能为空'})
+    try:
+        raw = await asyncio.to_thread(_read_image_bytes, str(src))
+        url = await asyncio.to_thread(_crop_save_portrait, raw, request)
+        return {'portrait_url': url, 'url': url}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={'error': '头像提取失败: %s' % e})
+
+
+@router.post('/concat')
+async def concat_videos(request: Request):
+    """把多个分镜视频按顺序合成一个最终视频（ffmpeg concat）。
+
+    body: {"videos": ["/api/daotai/media/xxx/a.mp4", ...], "name": "storyboard_final"}
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(status_code=400, content={'error': 'bad json'})
+    videos = body.get('videos') or body.get('urls') or []
+    if not isinstance(videos, list) or len(videos) < 1:
+        return JSONResponse(status_code=400, content={'error': 'videos 不能为空'})
+    if shutil.which('ffmpeg') is None:
+        return JSONResponse(status_code=500, content={'error': '服务器未安装 ffmpeg，无法合成'})
+
+    out_dir = os.path.join(rh.VIDEOS_DIR, 'concat_' + uuid.uuid4().hex[:12])
+    os.makedirs(out_dir, exist_ok=True)
+    local_paths = []
+    for idx, u in enumerate(videos):
+        u = str(u or '')
+        local = None
+        # 同源 /api/daotai/media/{dir}/{file} → 直接映射本地文件
+        m = re.search(r'/api/daotai/media/([^/]+)/([^?#]+)', u)
+        if m:
+            d = urllib.parse.unquote(m.group(1))
+            f = urllib.parse.unquote(m.group(2))
+            cand = os.path.join(rh.VIDEOS_DIR, d, f)
+            if os.path.isfile(cand):
+                local = cand
+        if not local:
+            # 远程 URL / 绝对地址 → 下载
+            try:
+                dst = os.path.join(out_dir, f'src_{idx}.mp4')
+                urllib.request.urlretrieve(u, dst)
+                local = dst
+            except Exception as e:
+                return JSONResponse(status_code=400, content={'error': f'第 {idx + 1} 个视频下载失败: {e}'})
+        local_paths.append(local)
+
+    out_path = os.path.join(out_dir, 'final_concat.mp4')
+    list_path = os.path.join(out_dir, 'concat_list.txt')
+    with open(list_path, 'w') as f:
+        for pth in local_paths:
+            f.write("file '%s'\n" % pth.replace("'", "'\\''"))
+    # 统一重编码：分镜视频的 PTS 起点不一致，`-c copy` 会把时长累加成 2-3 倍
+    # （6 段 26s 合成后变成 6:30，后面全是黑屏）。concat filter 会重置时间戳。
+    cmd = ['ffmpeg', '-y']
+    for pth in local_paths:
+        cmd += ['-i', pth]
+    n = len(local_paths)
+    filt = ''.join(f'[{i}:v][{i}:a]' for i in range(n)) + f'concat=n={n}:v=1:a=1[v][a]'
+    cmd += ['-filter_complex', filt, '-map', '[v]', '-map', '[a]',
+            '-fflags', '+genpts', '-r', '30',
+            '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18',
+            '-c:a', 'aac', '-b:a', '192k', out_path]
+    r2 = subprocess.run(cmd, capture_output=True, text=True)
+    if r2.returncode != 0 or not os.path.exists(out_path) or os.path.getsize(out_path) < 10240:
+        return JSONResponse(status_code=500, content={'error': 'ffmpeg 合成失败: ' + (r2.stderr or '')[-800:]})
+
+    fname = urllib.parse.quote(os.path.basename(out_path))
+    return {'video_url': _absolute_url(request, f'/api/daotai/media/{os.path.basename(out_dir)}/{fname}'),
+            'filename': os.path.basename(out_path), 'count': len(local_paths)}
+
+
 @router.post('/image')
 async def submit_image(request: Request):
     """提交图片生成任务（导演台 Krea2 / Krea2-muse / Qwen-Image 等，免扣费自杀链）。
@@ -495,10 +680,10 @@ async def submit_image(request: Request):
         'ratio': rh._rh_map_ratio(body.get('ratio') or body.get('size') or ''),
         'megapixels': float(body.get('megapixels') or body.get('pixels') or 2),
         'batch': int(body.get('n') or body.get('batch') or body.get('num') or 1),
-        'refs': _image_refs(body),
+        'refs': await asyncio.to_thread(_image_refs, body),
     }
     try:
-        tid, logs, nw = rh.img_submit(cfg)
+        tid, logs, nw = await asyncio.to_thread(rh.img_submit, cfg)
     except Exception as e:
         _err = str(e)
         # 平台错误：work flow 失效 / 鉴权失败 / 限流 → 502（不要返回 500 让用户误以为是后端 bug）

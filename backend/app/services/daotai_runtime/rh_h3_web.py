@@ -169,7 +169,7 @@ VIDEO_WFS = {
     # 16段确定性切分版（2110330160000516098，用户 2026-10-14 重新发布修复版：1351 四级合并链 ≤5 路/级，text7 报错已修）：
     #   500 = JjkText 全局输入（text，完整全局提示词，须含 [Shot 1]..[Shot 2N-1] 锚点，M=2 → 31 分镜 16 段）
     #   501 = PrimitiveBoolean 全局模式（true → 505.tt=504；505.ff=254=1318 列表长度，两分支循环数一致）
-    #   502 = PrimitiveBoolean LLM 优化（模拟画布 → true：LLM 是分段引擎，127.prompt=516.tt=228 LLM 逐段输出）
+    #   502 = PrimitiveBoolean LLM 优化。对齐火宝导演台：false → 确定性切分，不消费 228，避免 5 图组合视觉 token 爆 16k
     #   503 = Int 总段数（默认 16，导演台可设 2/4/8…，注入 504(a-1 轮) → 505 → 174.total；段1 走 59/513/199 首段，循环 N-1 轮合并）
     #   确定性切分链：500 → 1335-1342 JjkConcat + 1343-1350 TextFindAndReplace（正则 [SEGMENT_K]）→ 1219 → 514 → 222 → 127.prompt
     #   合并链（四级 ≤5 路，text1-text5 上限）：1305(段1-5) → 1306(段6-10) → 1351(段11-15) → 1307(四路汇合+段16)
@@ -184,7 +184,7 @@ VIDEO_WFS = {
     #   因此首段内容与 502 开关解耦；改回画布连线前务必先确认 199 注入仍生效。
     '2110330160000516098': {'name': '16段确定性切分·全局500输入(2110330160000516098·主线)', 'mode': 'det16',
                             'ref_nodes': ['28', '273', '285', '406', '420'],
-                            'prompt_node': '500', 'mode_node': '501', 'llm_node': '502', 'llm_value': True,
+                            'prompt_node': '500', 'mode_node': '501', 'llm_node': '502', 'llm_value': False,
                             'loop_count_node': '503', 'output_node': '205',
                             'suicide': ['440', '443'], 'delay_nodes': ['438', '441']},
 }
@@ -859,6 +859,13 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
                 else:
                     _emit('  [路%d] 复用参考图%d -> %s（已上传）' % (rng[0], i + 1, job.uploaded[p]))
             _wf[ref_nodes[i]]['inputs']['image'] = job.uploaded[p]
+        # 对齐火宝：H3 参考图槽 0..3 都填有效图（火宝 4 张有效，第5槽 None）。
+        # 只填 2 槽时 #285/#406 为 None，部分 H3 版本会执行成功但不产出视频。
+        if _refs:
+            for i in range(len(_refs), min(4, len(ref_nodes))):
+                _src = _refs[i % len(_refs)]
+                if _src in job.uploaded:
+                    _wf[ref_nodes[i]]['inputs']['image'] = job.uploaded[_src]
         # ===== LLM 15/228 视觉置空：新增节点 9999 = LoadImage(1×1 透明) → 276/282 组合图全部图像槽 =====
         # 实证链（本次探测 taskId 2110428239992836097，1路×2段×ref1.jpg+ref2.png 同款爆窗大图 → 视频 26.17s 正常）：
         #   ①push None 无效 —— 平台忽略 null，276/282 保留默认直连 → LLM 15/228 吃大图 → 16384 爆窗；
@@ -904,6 +911,10 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
         # 对齐画布手动行为。LLM 228 会尊重 non_diegetic_music: None 指令，H3 据此生成干净音频；
         # v11 的 502=false 走确定性切分时，H3 内部默认行为会塞入背景音乐/说话声。
         _wf['502']['inputs']['value'] = wfc.get('llm_value', True)    # LLM 开（对齐画布手动，音频由 LLM 描述驱动）
+        if cfg.get('no_llm'):
+            # 单分镜图生视频：LLM 16k 上下文容易被多参考图撑爆（Context shift failed）。
+            # 关掉 228 LLM，走确定性切分，优先保证出片。
+            _wf['502']['inputs']['value'] = False
         _wf['503']['inputs']['value'] = _N_det    # 总段数（504 = 503-1 = N-1 轮循环 + 首段 = N 段）
         _wf['159']['inputs']['value'] = int(cfg.get('duration', 15))   # 159→9 帧数→93/95 length→127.length
         _wf['25']['inputs']['value'] = cfg.get('resolution', 0.2)      # 像素清晰度
@@ -915,6 +926,11 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
         try:
             # 2026-10-22 固化：参考图是静态图，8 帧足够；六段式输出 ≈1-1.5k token，2560 够用。
             _mf = int(os.environ.get('RH_LLM_MAX_FRAMES', '8') or 8)
+            # 双参考图（分镜首帧 + 人物形象照）时视觉 token 翻倍，8 帧/图会超过
+            # llama 的 16384 上下文（Context shift failed）。多图时压到 2 帧/图。
+            _ref_n = len([r for r in (cfg.get('refs') or []) if r])
+            if _ref_n > 1:
+                _mf = min(_mf, 1)
             for _n in ('228', '15'):
                 if _n in _wf and 'max_frames' in _wf[_n].get('inputs', {}):
                     _wf[_n]['inputs']['max_frames'] = _mf
@@ -928,8 +944,8 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
                 _wf['269']['inputs']['crf'] = int(os.environ.get('RH_VIDEO_CRF', '16'))
             if '438' in _wf and 'any' in _wf['438'].get('inputs', {}):
                 _wf['438']['inputs']['any'] = ['205', 0]
-                _emit('  [路%d] N. #269.crf=%s；#438 改接 #205（跳过 #270 zip 压缩）'
-                      % (rng[0], _wf['269']['inputs'].get('crf', '?')))
+            _emit('  [路%d] N. #269.crf=%s；#438 → #205（对齐火宝）'
+                  % (rng[0], _wf['269']['inputs'].get('crf', '?')))
         except Exception as _e:
             _emit('  [路%d] ⚠ 节点调优参数解析失败: %s' % (rng[0], _e))
         _emit('  [路%d] M. #501=true(全局) #502=%s(LLM%s) #503=%d → 画布内循环 %d 轮 + 首段 = %d 段'
@@ -1005,7 +1021,7 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
                              -(-_n_sh // _M1)))
                 _seg1 = _seg_text_first_raw(_gp, _M1)
                 if _seg1 and _seg1.strip():
-                    _wf['199']['inputs']['prompt'] = _seg1
+                    _wf['199']['inputs']['prompt'] = _gp
                     _emit('  [路%d] v15 首段修复：#199.prompt 直注第1段（[Shot 1]-[Shot %d] 原始切片，%d 字，'
                           '保留开场硬约束）' % (rng[0], _M1, len(_seg1)))
                 else:
@@ -1040,7 +1056,7 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
                 # 199.prompt 直接注入段1（199 是第一个段，走 515 → 513 → 1225）
                 if '199' in _wf and 'prompt' in _wf['199'].get('inputs', {}):
                     # 16段主线基底：段1 文本原样直通（不注入音频净化；non_diegetic_music 由用户提示词自带）
-                    _p0 = _segs[0]
+                    _p0 = _gp
                     _wf['199']['inputs']['prompt'] = _p0
                     _emit('  [路%d] v11: #199.prompt = 段1（直注，%d 字，含 subject_definitions）' % (rng[0], len(_p0)))
                 # 1318/213/512 列表注入段2..段N（forLoop iter i → 222 → ListSelect → 取 segments[i+1]）

@@ -101,3 +101,35 @@ export async function pollDaotaiTask(
   }));
   return data;
 }
+
+export async function submitDaotaiVideo(
+  apiKey: string,
+  prompt: string,
+  body: Record<string, unknown>,
+): Promise<DaotaiSubmitResponse> {
+  const resp = await fetch(api('/api/daotai/video'), {
+    method: 'POST',
+    headers: authHeaders(apiKey),
+    body: JSON.stringify({ prompt, ...body }),
+  });
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(data?.error || data?.message || `HTTP ${resp.status}`);
+  const tid = String(data.taskId || data.task_id || '');
+  if (!tid) throw new Error('提交成功但未返回 taskId');
+  return { taskId: tid, task_id: data.task_id, logs: data.logs };
+}
+
+export async function concatDaotaiVideos(
+  apiKey: string,
+  videos: string[],
+): Promise<{ video_url: string; count: number }> {
+  const resp = await fetch(api('/api/daotai/concat'), {
+    method: 'POST',
+    headers: authHeaders(apiKey),
+    body: JSON.stringify({ videos }),
+  });
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(data?.error || `HTTP ${resp.status}`);
+  if (!data.video_url) throw new Error('合成成功但未返回 video_url');
+  return { video_url: data.video_url, count: data.count || videos.length };
+}

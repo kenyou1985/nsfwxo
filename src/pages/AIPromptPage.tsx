@@ -2,7 +2,8 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { extractVideoPromptFromImagePrompt } from '../utils/videoPromptExtractor';
 import { makeThumbnailForStorage, makePreviewForStorage } from '../utils/imageThumbnail';
 import { AspectAwareImage } from '../components/AspectAwareImage';
-import { generateH3Prompt, generateH3PromptsForPanels, generateH3ShotPrompt, generateH3ShotPromptsForPanels, generateH3CommonParts, assembleH3Prompt, extractShotFromLLMOutput, type H3PanelShot, type H3CommonParts } from '../services/h3PromptService';
+import { OneClickProduce } from '../components/OneClickProduce';
+import { buildPanelH3Prompt, generateH3Prompt, generateH3PromptsForPanels, generateH3ShotPrompt, generateH3ShotPromptsForPanels, generateH3CommonParts, assembleH3Prompt, extractShotFromLLMOutput, type H3PanelShot, type H3CommonParts } from '../services/h3PromptService';
 import {
   Wand2, Shuffle, LayoutList, Copy, Check, Loader2,
   ChevronDown, ChevronUp, Sparkles, RotateCcw, Send,
@@ -254,6 +255,7 @@ import {
   getRandomHistory, addRandomHistory, removeRandomHistory, clearRandomHistory,
   getStoryboardHistory, addStoryboardHistory, removeStoryboardHistory, clearStoryboardHistory,
   updateStoryboardHistoryImages,
+  updateStoryboardHistoryPreview,
   getExpandSession, saveExpandSession, clearExpandSession,
   getRandomSession, saveRandomSession, clearRandomSession,
   getStoryboardSession, saveStoryboardSession, clearStoryboardSession,
@@ -3223,6 +3225,15 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
 }) {
   const savedStoryboard = getStoryboardSession();
   const [plot, setPlot] = useState(savedStoryboard?.plot || '');
+  type StoryboardModel = 'krea2-n' | 'qwen' | 'official' | 'single' | 'multi' | 'krea2-muse';
+  const [storyboardModel, setStoryboardModel] = useState<StoryboardModel>('krea2-n');
+  const prevDigitalHumanRef = useRef(false);
+  useEffect(() => {
+    if (digitalHumanMode !== prevDigitalHumanRef.current) {
+      prevDigitalHumanRef.current = digitalHumanMode;
+      setStoryboardModel(digitalHumanMode ? 'krea2-muse' : 'krea2-n');
+    }
+  }, [digitalHumanMode]);
   const [panelCount, setPanelCount] = useState(() => {
     const saved = getStoryboardSession()?.panelCount;
     // Clamp to legal UI range [5,10] so a stale localStorage value (e.g. 1)
@@ -3770,7 +3781,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     }
 
     if (Object.keys(initial).length > 0) {
-      setGenStates(initial);
+      // Merge, don't replace: switching theme tabs must keep peer themes' images.
+      setGenStates((prev) => ({ ...prev, ...initial }));
     }
 
     // Background: for any panel slot still empty, ask the per-panel zip
@@ -3820,6 +3832,43 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   const activeOutlineScenes = activeThemeTab !== null ? (themeOutlineStates[activeThemeTab]?.outlineScenes || []) : outlineScenes;
   const activePanels = activeThemeTab !== null ? (themeOutlineStates[activeThemeTab]?.panels || []) : panels;
   const activeThemeInfo = activeThemeTab !== null ? selectedThemes.find((t) => t.id === activeThemeTab) : (selectedTheme || (selectedThemes[0] ?? null));
+
+  // 主题切换兜底：优先当前 historyId；找不到时按主题标题回退到同主题的历史缓存，
+  // 避免切换 tab 后 genStates 键变化导致图片空白。
+  const findPanelGenState = (idx: number, hid: string) => {
+    const direct = genStates[`${hid}_${idx}`];
+    if (direct?.images?.length) return direct;
+    const title = activeThemeInfo?.title;
+    if (title) {
+      for (const h of getStoryboardHistory()) {
+        if (h.plot !== title || h.id === hid) continue;
+        const s = genStates[`${h.id}_${idx}`];
+        if (s?.images?.length) return s;
+      }
+    }
+    return direct;
+  };
+
+  // ── 分镜提示词生成时，顺带生成 2-3 Shot 的 H3 图生视频提示词 ──
+  // 线性分镜是「一图一视频」：每格以分镜图为首帧，不再用全片 [Shot 1..N] 的写法。
+  useEffect(() => {
+    if (!activePanels.length) return;
+    const hid = sbHistoryId || 'solo';
+    activePanels.forEach((p, idx) => {
+      const key = `${hid}_${idx}`;
+      // 旧版 [Shot 1..N] 提示词没有六段式头部 → 自动升级；六段式则保留用户编辑
+      if (panelH3Prompts[key] && panelH3Prompts[key].includes('subject_definitions')) return;
+      const text = buildPanelH3Prompt(p, { r18: r18Mode, duration: 15 });
+      setPanelH3Prompts(prev => ((prev[key]?.includes('subject_definitions')) ? prev : { ...prev, [key]: text }));
+      setPanelH3ShotMap(prev => {
+        const cur = new Map(prev[hid] || new Map<number, H3PanelShot>());
+        if (!cur.has(idx + 1)) {
+          cur.set(idx + 1, { panelIndex: idx + 1, pictureNumber: 1, shotPrompt: text });
+        }
+        return { ...prev, [hid]: cur };
+      });
+    });
+  }, [activePanels, sbHistoryId, r18Mode, panelH3Prompts]);
   // True when the user has selected a theme tab that has no panels yet
   // but is still generating or has failed. Used to keep the panels
   // section mounted (showing a generating placeholder) instead of
@@ -4015,13 +4064,13 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
           if (current?.images.length > 0 && current.images[0]?.startsWith('data:')) return prev;
           return { ...prev, [key]: { loading: false, images } };
         });
-        cacheStoryboardPanelImages(hid, panelIdx, images).then(() => {
-          // Don't write the recovered dataURLs back into
-          // history.panelImages — see the comment in the mount effect
-          // for the quota math. The unified store already holds the
-          // images (via cacheStoryboardPanelImages above), and the
-          // getCachedStoryboardPanelImages path in the preview list
-          // reads from there.
+        cacheStoryboardPanelImages(hid, panelIdx, images).then(async () => {
+          // 只把压缩缩略图写进 history.previewImages，供历史列表展示；
+          // 不写全尺寸 dataURL，避免 localStorage 配额爆炸。
+          try {
+            const thumbs = await Promise.all(images.slice(0, 2).map((u) => makeThumbnailForStorage(u)));
+            updateStoryboardHistoryPreview(hid, thumbs);
+          } catch {}
         });
 
         // 【自动 H3】图片生成成功后，自动调用 LLM 生成 H3 Shot 提示词，
@@ -4061,9 +4110,12 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
             if (current?.images.length > 0 && current.images[0]?.startsWith('data:')) return prev;
             return { ...prev, [key]: { loading: false, images } };
           });
-          cacheStoryboardPanelImages(hid, i, images);
-          // See the comment in the live path above for why we don't
-          // call updateStoryboardHistoryImages here.
+          cacheStoryboardPanelImages(hid, i, images).then(async () => {
+            try {
+              const thumbs = await Promise.all(images.slice(0, 2).map((u) => makeThumbnailForStorage(u)));
+              updateStoryboardHistoryPreview(hid, thumbs);
+            } catch {}
+          });
 
           // 【自动 H3】图片生成成功后自动调用 LLM（fallback 路径）
           const triggerKey = `${hid}_${i}`;
@@ -4870,35 +4922,35 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         onError('AI 女友图片上传失败'); return;
       }
     }
-    if (digitalHumanMode && selectedGirlfriend) {
-      const charId = (selectedGirlfriend.id as string).toUpperCase().slice(0, 4);
-      const anchorPrompt = `【严格锁定】严格锁定图中${selectedGirlfriend.gender === 'male' ? '22岁男性' : '22岁女性'}（ID:${charId}），完全保留原有面部特征，五官轮廓、脸型、眼睛、鼻子、嘴唇、发型、肤色、身材比例完全不变，不做任何面部修改，动作流畅不僵硬。超高清8K，写实细节，皮肤质感细腻，无畸变、无模糊、无穿模。`;
-      const finalPrompt = `${anchorPrompt}\n\n${prompt}`;
-      const nodes = buildImg2ImgNodeList({
-        prompt: finalPrompt,
-        imagePath: downloadUrl || imagePath,
-        aspectRatio: img2imgAspectRatio,
-      });
-      try {
+    try {
+      const charId = (selectedGirlfriend?.id || '').toUpperCase().slice(0, 4);
+      const anchorPrompt = selectedGirlfriend
+        ? `【严格锁定】严格锁定图中${selectedGirlfriend.gender === 'male' ? '22岁男性' : '22岁女性'}（ID:${charId}），完全保留原有面部特征，五官轮廓、脸型、眼睛、鼻子、嘴唇、发型、肤色、身材比例完全不变，不做任何面部修改，动作流畅不僵硬。超高清8K，写实细节，皮肤质感细腻，无畸变、无模糊、无穿模。`
+        : '';
+      const finalPrompt = withQualityBoost(anchorPrompt ? `${anchorPrompt}\n\n${prompt}` : prompt);
+      const refUrl = downloadUrl || imagePath;
+      const isImg2ImgMode = storyboardModel === 'single' || storyboardModel === 'multi';
+      if (isImg2ImgMode && refUrl) {
+        const nodes = buildImg2ImgNodeList({ prompt: finalPrompt, imagePath: refUrl, aspectRatio: img2imgAspectRatio });
         await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, storyboardInfo, 'storyboard', activeThemeInfo?.title || plot || undefined, panelIdx + 1);
-        onSuccess('分镜图片任务已提交');
-      } catch (err) {
-        onError(err instanceof Error ? err.message : '提交失败');
-        setGenStates((prev) => { const next = { ...prev }; delete next[key]; return next; });
+      } else if (storyboardModel === 'official') {
+        const nodes = buildTxt2ImgNodeList({ ...buildUnifiedTxt2ImgOptions(finalPrompt), workflowId: WORKFLOW.KREA2 });
+        await taskManager.addTask('txt2img', nodes, finalPrompt, WORKFLOW.KREA2, undefined, storyboardInfo, 'storyboard', activeThemeInfo?.title || plot || undefined, panelIdx + 1);
+      } else {
+        const daotaiModel = storyboardModel === 'qwen' ? 'qwen-image-2.1' : (storyboardModel === 'krea2-muse' ? 'krea2-muse' : 'krea2');
+        await taskManager.addTask('daotai-img', [], finalPrompt, undefined, undefined, storyboardInfo, 'storyboard', activeThemeInfo?.title || plot || undefined, panelIdx + 1, {
+          model: daotaiModel as 'krea2' | 'krea2-muse' | 'qwen-image-2.1',
+          ratio: img2imgAspectRatio || '9:16',
+          batch: 2,
+          refs: refUrl ? [refUrl] : [],
+        });
       }
-    } else {
-      const finalPrompt = withQualityBoost(prompt);
-      const nodes = buildTxt2ImgNodeList(buildUnifiedTxt2ImgOptions(finalPrompt));
-      try {
-        await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, storyboardInfo, 'storyboard', activeThemeInfo?.title || plot || undefined, panelIdx + 1);
-        console.log(`[handleStoryboardGenerateImage] submitted txt2img task, prompt length=${finalPrompt.length}, nodes=`, JSON.stringify(nodes));
-        onSuccess('分镜图片任务已提交');
-      } catch (err) {
-        onError(err instanceof Error ? err.message : '提交失败');
-        setGenStates((prev) => { const next = { ...prev }; delete next[key]; return next; });
-      }
+      onSuccess('分镜图片任务已提交');
+    } catch (err) {
+      onError(err instanceof Error ? err.message : '提交失败');
+      setGenStates((prev) => { const next = { ...prev }; delete next[key]; return next; });
     }
-  }, [taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, sbHistoryId, activeThemeInfo, plot]);
+  }, [taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, sbHistoryId, activeThemeInfo, plot, storyboardModel, img2imgAspectRatio]);
 
   /** 重新生成分镜的图片提示词（panel.image_prompt）。
    *
@@ -5320,15 +5372,23 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         await Promise.all(needLLMCall.map((idx) => processOne(idx)));
       }
 
-      // Step 2: 用确定的 scene_description 生成每个分镜的 [Shot N] 提示词
+      // Step 2: 每格生成 2-3 个 Shot（分镜图作为 <Picture 1> 首帧），不再用全片 [Shot 1..N]
+      const shotMap = new Map<number, H3PanelShot>();
+      const newPrompts: Record<string, string> = {};
+      activePanels.forEach((p, i) => {
+        const text = buildPanelH3Prompt(
+          { image_prompt: p.image_prompt || '', scene_description: sceneDescs[i] || p.scene_description },
+          { r18: r18Mode, duration: panelH3Duration },
+        );
+        shotMap.set(i + 1, { panelIndex: i + 1, pictureNumber: 1, shotPrompt: text });
+        newPrompts[promptKey(i, curHistoryId)] = text;
+      });
+
+      // Step 3: 共享部分保留（历史长视频 v1.1 兼容），但单格一键出片只用 shotPrompt
       const panelsWithVideo = activePanels.map((p, i) => ({
         image_prompt: p.image_prompt || '',
         scene_description: sceneDescs[i],
       }));
-
-      const shotMap = generateH3ShotPromptsForPanels(panelsWithVideo, panelH3Duration, r18Mode);
-
-      // Step 3: 一次性生成共享部分
       const commonParts = generateH3CommonParts(panelsWithVideo, {
         duration: panelH3Duration,
         r18: r18Mode,
@@ -5337,17 +5397,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       // Step 4: 缓存到 state（per-historyId 隔离，多主题互不冲突）
       setPanelH3ShotMap(prev => ({ ...prev, [curHistoryId]: new Map(shotMap) }));
       setPanelH3CommonParts(prev => ({ ...prev, [curHistoryId]: commonParts }));
-
-      // Step 5: 每个分镜只存自己的 [Shot N] 提示词到 panelH3Prompts（per-historyId 隔离）
-      // 不要把"全部 6 个 Shot 拼成的完整 H3"塞进每个分镜卡，
-      // 否则每个分镜会显示同样的、包含其它分镜内容的完整 H3 提示词。
-      // 完整 H3 提示词只在 handleBatchGotoLongVideoWithH3 中按需拼装给上传用。
-      const newPrompts: Record<string, string> = {};
-      const sortedShots = Array.from(shotMap.values()).sort((a, b) => a.panelIndex - b.panelIndex);
-      sortedShots.forEach((shot, idx) => {
-        newPrompts[promptKey(idx, curHistoryId)] = shot.shotPrompt;  // 每个分镜卡只显示自己的 Shot N 提示词
-      });
       setPanelH3Prompts(prev => ({ ...prev, ...newPrompts }));
+
       const usedLLM = needLLMCall.length > 0;
       const fromAnims = activePanels.length - needLLMCall.length;
       const sourceDesc = !usedLLM
@@ -5936,21 +5987,30 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       const panelNum = panel.panel_number || (i + 1);
       const themeForTask = activeThemeInfo?.title || plot || undefined;
       return async () => {
-        if (digitalHumanMode && selectedGirlfriend) {
-          const charName = selectedGirlfriend.nameZh || selectedGirlfriend.name;
-          const charId = (selectedGirlfriend.id as string).toUpperCase().slice(0, 4);
-          const anchorPrompt = `【严格锁定】严格锁定图中${selectedGirlfriend.gender === 'male' ? '22岁男性' : '22岁女性'}（ID:${charId}），完全保留原有面部特征，五官轮廓、脸型、眼睛、鼻子、嘴唇、发型、肤色、身材比例完全不变，不做任何面部修改，动作流畅不僵硬。超高清8K，写实细节，皮肤质感细腻，无畸变、无模糊、无穿模。`;
-          const finalPrompt = `${anchorPrompt}\n\n${panel.image_prompt}`;
-          const nodes = buildImg2ImgNodeList({
-            prompt: finalPrompt,
-            imagePath: downloadUrl || imagePath,
-            aspectRatio: img2imgAspectRatio,
-          });
+        const charName = selectedGirlfriend?.nameZh || selectedGirlfriend?.name || '';
+        const charId = (selectedGirlfriend?.id || '').toUpperCase().slice(0, 4);
+        const anchorPrompt = selectedGirlfriend
+          ? `【严格锁定】严格锁定图中${selectedGirlfriend.gender === 'male' ? '22岁男性' : '22岁女性'}（ID:${charId}），完全保留原有面部特征，五官轮廓、脸型、眼睛、鼻子、嘴唇、发型、肤色、身材比例完全不变，不做任何面部修改，动作流畅不僵硬。超高清8K，写实细节，皮肤质感细腻，无畸变、无模糊、无穿模。`
+          : '';
+        const finalPrompt = withQualityBoost(sanitizePromptForClip(
+          anchorPrompt ? `${anchorPrompt}\n\n${panel.image_prompt}` : panel.image_prompt,
+        ));
+        const refUrl = downloadUrl || imagePath;
+        const isImg2ImgMode = storyboardModel === 'single' || storyboardModel === 'multi';
+        if (isImg2ImgMode && refUrl) {
+          const nodes = buildImg2ImgNodeList({ prompt: finalPrompt, imagePath: refUrl, aspectRatio: img2imgAspectRatio });
           await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, panelStoryboardInfo, 'storyboard', themeForTask, panelNum);
+        } else if (storyboardModel === 'official') {
+          const nodes = buildTxt2ImgNodeList({ ...buildUnifiedTxt2ImgOptions(finalPrompt), workflowId: WORKFLOW.KREA2 });
+          await taskManager.addTask('txt2img', nodes, finalPrompt, WORKFLOW.KREA2, undefined, panelStoryboardInfo, 'storyboard', themeForTask, panelNum);
         } else {
-          const finalPrompt = withQualityBoost(sanitizePromptForClip(panel.image_prompt));
-          const nodes = buildTxt2ImgNodeList(buildUnifiedTxt2ImgOptions(finalPrompt));
-          await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, panelStoryboardInfo, 'storyboard', themeForTask, panelNum);
+          const daotaiModel = storyboardModel === 'qwen' ? 'qwen-image-2.1' : (storyboardModel === 'krea2-muse' ? 'krea2-muse' : 'krea2');
+          await taskManager.addTask('daotai-img', [], finalPrompt, undefined, undefined, panelStoryboardInfo, 'storyboard', themeForTask, panelNum, {
+            model: daotaiModel as 'krea2' | 'krea2-muse' | 'qwen-image-2.1',
+            ratio: img2imgAspectRatio || '9:16',
+            batch: 2,
+            refs: refUrl ? [refUrl] : [],
+          });
         }
       };
     });
@@ -6054,10 +6114,31 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         <div className="flex items-center gap-3 mb-3">
           <span className="text-xs text-text-tertiary">分镜数量:</span>
           <div className="flex gap-1">
-            {[5, 6, 7, 8, 9, 10].map((n) => (
+            {[5, 6, 7, 8, 9, 10, 12, 15, 20, 30].map((n) => (
               <button key={n} onClick={() => setPanelCount(n)} className={`w-8 h-7 rounded-lg text-xs font-medium transition-all ${panelCount === n ? 'bg-primary text-white' : 'bg-bg-elevated text-text-tertiary hover:bg-bg-hover'}`}>{n}</button>
             ))}
           </div>
+        </div>
+
+        {/* 生图模型选择（与文生图/图生图模块一致） */}
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-xs text-text-tertiary whitespace-nowrap">生图模型:</span>
+          <select
+            value={storyboardModel}
+            onChange={(e) => setStoryboardModel(e.target.value as StoryboardModel)}
+            className="flex-1 min-w-0 bg-bg-elevated border border-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-primary"
+          >
+            <optgroup label="文生图">
+              <option value="krea2-n">Krea2 最强N版（文生图）</option>
+              <option value="qwen">Qwen-Image-2.1（文生图+图生图）</option>
+              <option value="official">原官方 Krea2（文生图）</option>
+            </optgroup>
+            <optgroup label="图生图">
+              <option value="single">单图编辑</option>
+              <option value="multi">多图编辑</option>
+              <option value="krea2-muse">导演台 Krea2-muse（免扣费）</option>
+            </optgroup>
+          </select>
         </div>
 
         {/* Theme library button + custom mode */}
@@ -6577,7 +6658,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                                     for (const [idx, imgs] of Object.entries(cached)) {
                                       initial[`${hid}_${idx}`] = { loading: false, images: imgs };
                                     }
-                                    setGenStates(initial);
+                                    setGenStates((prev) => ({ ...prev, ...initial }));
                                   }
                                 }
                               }}
@@ -6950,18 +7031,12 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                   {/* 一键批量上传到长视频 v1.1（多图 + 完整 H3 提示词） */}
                   <button
                     type="button"
-                    onClick={handleBatchGotoLongVideoWithH3}
-                    disabled={
-                      batchVideoLoading ||
-                      activePanels.length === 0 ||
-                      !panelH3CommonParts[sbHistoryId || 'solo'] ||
-                      !panelH3ShotMap[sbHistoryId || 'solo'] ||
-                      (panelH3ShotMap[sbHistoryId || 'solo']?.size ?? 0) === 0
-                    }
-                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="将所有分镜的图片批量上传到长视频 v1.1 的多个 slot，拼接完整 H3 提示词（一键多图生视频）"
+                    onClick={() => window.dispatchEvent(new Event('nsfwxo:oneclick'))}
+                    disabled={activePanels.length === 0}
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="每个分镜图作为首帧，逐格提交 det16 图生视频，全部完成后自动合成最终视频"
                   >
-                    {batchVideoLoading ? <><Loader2 size={10} className="animate-spin" /> 上传中...</> : <><Clapperboard size={10} />一键长视频v1.1</>}
+                    <Clapperboard size={10} />一键出片
                   </button>
                 </div>
               </div>
@@ -7025,7 +7100,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                 (normalizedPanelPrompt.length > 50 && taskPromptNorm.includes(normalizedPanelPrompt.substring(0, Math.min(normalizedPanelPrompt.length, 150))));
             });
             const genStateKey = `${sbHistoryId}_${idx}`;
-            const hasGenerated = (genStates[genStateKey]?.images?.length ?? 0) > 0;
+            const panelGenState = findPanelGenState(idx, sbHistoryId || 'solo');
+            const hasGenerated = (panelGenState?.images?.length ?? 0) > 0;
             return (
               <StoryboardPanelCard
                 key={selKey}
@@ -7036,7 +7112,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                 copiedPanel={copiedPanel}
                 onToggle={() => setExpandedPanel(expandedPanel === idx ? null : idx)}
                 onCopyPanel={() => handleCopyPanel(panel, idx)}
-                genState={genStates[genStateKey]}
+                genState={panelGenState}
                 onGenerateImage={() => handleStoryboardGenerateImage(idx, panel.image_prompt)}
                 onFavorited={(url) => handleToggleFavorite(url, panel.image_prompt)}
                 taskManager={taskManager}
@@ -7072,6 +7148,17 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
               />
             );
           })}
+
+          {activePanels.length > 0 && (
+            <OneClickProduce
+              panels={activePanels}
+              images={activePanels.map((_, i) => findPanelGenState(i, sbHistoryId || 'solo')?.images?.[0])}
+              h3Prompts={activePanels.map((_, i) => panelH3Prompts[`${sbHistoryId || 'solo'}_${i}`])}
+              apiKey={apiKey}
+              themeTitle={activeThemeInfo?.title || plot}
+              themeKey={activeThemeInfo?.title || sbHistoryId || 'default'}
+            />
+          )}
 
           {/* Generating / error placeholder for the currently-active theme tab.
               Shown when the user picked a theme tab that's still in flight
@@ -7228,6 +7315,11 @@ function StoryboardHistoryList({ history, onLoad, onDelete }: {
       // path that worked for older history rows; we must not regress it.
       const seen = new Set<string>();
       const collected: string[] = [];
+      // Tier -1: lightweight preview thumbnails (written on task completion).
+      if (h.previewImages && h.previewImages.length > 0) {
+        next[h.id] = h.previewImages.filter(Boolean).slice(0, 6);
+        continue;
+      }
       if (h.panelImages) {
         const resolved = resolvePanelImages(h.panelImages);
         for (let p = 0; p < h.panel_count && collected.length < 6; p++) {
@@ -7705,6 +7797,7 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
 
             {/* Video Prompt Section */}
             <div className={`rounded-xl border ${videoPrompt ? 'border-purple-200 bg-purple-50/30' : 'border-border bg-bg-elevated/50'} p-3 mt-3`}>
+              {!(panelH3Prompt && videoPrompt === panelH3Prompt) && (<>
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-1.5">
                   <Video size={12} className={videoPrompt ? 'text-purple-500' : 'text-text-tertiary'} />
@@ -7831,6 +7924,7 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
               ) : (
                 <div className="text-xs text-text-tertiary">生成图片后将自动生成动画提示词，或点击「智能扩写」生成</div>
               )}
+              </>)}
               {/* H3 提示词预览（可折叠，折叠态显示摘要 + 复制按钮） */}
               {panelH3Prompt && (
                 <div className="mt-2 rounded-xl border border-indigo-200 bg-indigo-50/20 overflow-hidden">
@@ -7866,7 +7960,20 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
                       )}
                       <button
                         type="button"
-                        onClick={() => { navigator.clipboard?.writeText(panelH3Prompt); }}
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(panelH3Prompt);
+                          } catch {
+                            const ta = document.createElement('textarea');
+                            ta.value = panelH3Prompt;
+                            ta.style.position = 'fixed';
+                            ta.style.opacity = '0';
+                            document.body.appendChild(ta);
+                            ta.select();
+                            try { document.execCommand('copy'); } catch {}
+                            document.body.removeChild(ta);
+                          }
+                        }}
                         className="text-[10px] text-indigo-500 hover:text-indigo-700 flex items-center gap-0.5 px-1 py-0.5 rounded hover:bg-indigo-100 transition-colors"
                       >
                         <Copy size={10} /> 复制

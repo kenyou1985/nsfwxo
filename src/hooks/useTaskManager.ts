@@ -22,7 +22,7 @@ import type {
 
 const POLL_INTERVAL = 10000;
 export const MAX_TASKS = 100;
-export const MAX_CONCURRENT = 5;
+export const MAX_CONCURRENT = 100;
 export const TASK_PERSIST_KEY = 'ai_task_persist';
 
 // Returns true if the ComfyUI error is a kernel-size mismatch, which can be
@@ -131,7 +131,8 @@ export interface TaskManagerReturn {
     storyboardInfo?: { historyId: string; panelIdx: number },
     source?: 'expand' | 'random' | 'smart-storyboard' | 'storyboard' | 'txt2img' | 'img2img' | 'img2vid' | 'multi-ref-img2img' | 'daotai-img' | 'daotai-video',
     themeTitle?: string,
-    panelNumber?: number
+    panelNumber?: number,
+    daotaiConfig?: DaotaiImgConfig
   ) => Promise<string>;
   /** 导演台图片任务专用：走 nsfwxo 后端 /api/daotai/image，绕过 RunningHub。
    *  任务会被加入全局任务列表 + 持久化 + 轮询显示在 TaskList 里。 */

@@ -226,6 +226,8 @@ export interface StoryboardHistoryItem {
   panels: { panel_number: number; scene_description: string; image_prompt: string }[];
   timestamp: number;
   panelImages?: Record<number, string[]>; // panelIdx -> cached data URL images (for direct storage)
+  /** 轻量历史缩略图（压缩后的 data URL），仅用于历史列表预览 */
+  previewImages?: string[];
   images?: string[]; // flat array of all images for easy display
   /**
    * zipUrl used to extract images — enables cache+zip fallback on restore.
@@ -488,6 +490,21 @@ export function updateStoryboardHistoryImages(
  * Resolve panel images from a history record, converting hash refs back to data URLs.
  * Uses the unified image cache for resolution. Returns an empty array on cache miss.
  */
+export function updateStoryboardHistoryPreview(id: string, previews: string[]): void {
+  const history = getStoryboardHistory();
+  const index = history.findIndex((h) => h.id === id);
+  if (index === -1) return;
+  const existing = history[index].previewImages || [];
+  const merged: string[] = [];
+  for (const u of [...existing, ...previews]) {
+    if (u && !merged.includes(u)) merged.push(u);
+    if (merged.length >= 12) break;
+  }
+  history[index] = { ...history[index], previewImages: merged };
+  saveHistory(STORYBOARD_HISTORY_KEY, history);
+}
+
+
 export function resolvePanelImages(panelImages: Record<number, string[]>): Record<number, string[]> {
   if (!panelImages) return {};
   const resolved: Record<number, string[]> = {};
