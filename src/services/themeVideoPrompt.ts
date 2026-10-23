@@ -62,15 +62,15 @@ export function buildGridCellH3Prompt(panel: any, index: number, total = 9): str
 <Subject 2> is @Scene — the same location, lighting and props as <Picture 1>.
 
 summary:
-[reference generation] A 7-second vertical shot continuing storyboard cell ${index + 1} of ${total}. Three micro-shots inside the same scene, same body state and same camera axis.
+[reference generation] A 15-second vertical shot continuing storyboard cell ${index + 1} of ${total}. Three micro-shots inside the same scene, same body state and same camera axis.
 
 retention_analysis:
 <Subject 1> <Picture 1>: fully_preserved — face, hair, body proportions and identity stay consistent.
 
 detailed_description:
 [Shot 1] At 00:00.000, ${cleaned} Hold the exact framing of <Picture 1> as the literal first frame with only breathing and a very slow push-in.
-[Shot 2] At 00:02.300, the same pose and same clothing state, cut to a closer angle on the primary action; keep hands, body contact and eye line continuous with Shot 1.
-[Shot 3] At 00:04.600, the same action continues, cut to a face or detail close-up, end on a small movement that leads into the next storyboard cell.
+[Shot 2] At 00:05.000, the same pose and same clothing state, cut to a closer angle on the primary action; keep hands, body contact and eye line continuous with Shot 1.
+[Shot 3] At 00:10.000, the same action continues, cut to a face or detail close-up, end on a small movement that leads into the next storyboard cell.
 
 overall_soundscape: room tone, fabric friction, skin contact and breathing. Only the exact dialogue inside <d>...</d> tags may be spoken; no improvised lines, no narrator.
 non_diegetic_music: None`;

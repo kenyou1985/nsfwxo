@@ -2166,7 +2166,7 @@ export function GridStoryboardMode({
           firstFrameUrl: frame,
           media: Array.from({ length: 5 }, () => ({ type: 'reference_image', url: frame })),
           workflow_id: '2106634937741975553',
-          duration: 7,
+          duration: 15,
           resolution: gridClarity,
           no_llm: true,
           use_bridge: false,
