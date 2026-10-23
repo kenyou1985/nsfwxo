@@ -3,6 +3,7 @@
 import asyncio
 import json
 import re
+import random
 import time
 import logging
 from typing import AsyncIterator, List, Optional
@@ -76,81 +77,29 @@ ETHNICITY_POOL = (
 )
 
 ETHNICITY_BLOCK = (
-    "\n\n【CHARACTER ETHNICITY / NATIONALITY DIVERSITY — MANDATORY PRIORITY ORDER】:\n"
-    "When generating characters, follow this STRICT PRIORITY ORDER for ethnicity/race selection.\n"
-    "Do NOT default to a single race. The priority order below MUST be respected so the cast\n"
-    "reflects the user\'s preference: muscular Black men and East Asian women first.\n"
+    "\n\n【CHARACTER ETHNICITY / NATIONALITY — DEFAULTS】:\n"
+    "The DEFAULT cast is East Asian. Do NOT inject Black/African characters unless the\n"
+    "Chinese scene explicitly contains 黑人 / 非裔 / 非洲裔 / Black.\n"
     "\n"
-    "═══════════════════════════════════════════════════════════════════════\n"
-    "  PRIORITY 1 (HIGHEST — use most often): MUSCULAR BLACK MEN (黑人 / 非洲裔)\n"
-    "═══════════════════════════════════════════════════════════════════════\n"
-    "  - Chiseled, muscular, broad-shouldered Black men (African / African-American / Caribbean descent)\n"
-    "  - Skin tone: rich dark brown / deep brown / ebony / chocolate\n"
-    "  - Build: muscular, athletic, broad shoulders, strong arms, well-defined chest and abs\n"
-    "  - Hair: short black hair, close-cropped fade, bald, or short Afro\n"
-    "  - Examples for English image_prompt:\n"
-    "    * \"a tall muscular Black man with rich dark brown skin, broad shoulders, short black hair, and strong arms\"\n"
-    "    * \"a chiseled African-American man with deep ebony skin, muscular chest and abs, and short-cropped black hair\"\n"
-    "    * \"a strong Black man with chocolate skin, athletic muscular build, and a bald head\"\n"
-    "    * \"a handsome Nigerian man with rich brown skin, muscular build, and short black hair\"\n"
-    "    * \"a fit Afro-Caribbean man with dark skin, broad shoulders, and powerful arms\"\n"
+    "DEFAULT WOMAN: East Asian (Korean / Japanese / Chinese), warm beige or fair skin,\n"
+    "silky black hair, dark almond eyes.\n"
+    "DEFAULT MAN: East Asian strong man (Korean / Japanese / Chinese), tall, muscular,\n"
+    "broad shoulders, defined chest and abs, short black hair, warm beige skin.\n"
+    "Examples: \"a tall muscular East Asian man with warm beige skin, broad shoulders,\n"
+    "short black hair and defined abs\"; \"a beautiful Korean woman with fair skin,\n"
+    "silky long black hair and dark almond eyes\".\n"
     "\n"
-    "═══════════════════════════════════════════════════════════════════════\n"
-    "  PRIORITY 2 (HIGH — use often): EAST ASIAN WOMEN (黄种人 / 东亚女性)\n"
-    "═══════════════════════════════════════════════════════════════════════\n"
-    "  - Korean (韩国女人), Japanese (日本女人), Chinese (中国女人) preferred — rotate freely\n"
-    "  - Skin tone: warm beige / fair / porcelain / ivory (East Asian complexion)\n"
-    "  - Features: dark almond eyes, silky black hair (long, straight or wavy)\n"
-    "  - Examples for English image_prompt:\n"
-    "    * \"a beautiful Korean woman with warm beige skin, silky long black hair, and dark almond eyes\"\n"
-    "    * \"a stunning Japanese woman with fair porcelain skin, silky straight black hair, and dark brown eyes\"\n"
-    "    * \"a gorgeous Chinese woman with warm ivory skin, long wavy black hair, and dark eyes\"\n"
-    "    * \"a beautiful Taiwanese woman with fair skin, silky black hair, and delicate features\"\n"
-    "    * \"a cute Thai woman with warm beige skin, long black hair, and soft brown eyes\" (acceptable secondary)\n"
+    "SECONDARY (only when explicitly requested or clearly present in the scene):\n"
+    "European white, Black/African, Latina, Middle Eastern, South Asian.\n"
     "\n"
-    "═══════════════════════════════════════════════════════════════════════\n"
-    "  PRIORITY 3 (MEDIUM — use as supporting/secondary): EUROPEAN WHITE WOMEN\n"
-    "═══════════════════════════════════════════════════════════════════════\n"
-    "  - Russian, Italian, French, German, Scandinavian, Spanish, Polish, etc.\n"
-    "  - Skin tone: pale / fair / olive / light\n"
-    "  - Examples:\n"
-    "    * \"a beautiful Russian woman with pale skin, light blonde hair, and blue eyes\"\n"
-    "    * \"a gorgeous Italian woman with olive skin, dark brown hair, and hazel eyes\"\n"
-    "\n"
-    "═══════════════════════════════════════════════════════════════════════\n"
-    "  PRIORITY 4 (LOWER — only when variety is needed): OTHER ETHNICITIES\n"
-    "═══════════════════════════════════════════════════════════════════════\n"
-    "  - Iranian / Persian, Turkish, Indian, Brazilian, Mexican, Cuban, Argentine, etc.\n"
-    "\n"
-    "═══════════════════════════════════════════════════════════════════════\n"
-    "  ABSOLUTE RULES:\n"
-    "═══════════════════════════════════════════════════════════════════════\n"
-    "1. **Default man archetype**: When the story has a male character, the DEFAULT is\n"
-    "   a MUSCULAR BLACK MAN (Priority 1). At least 70% of male roles must be Black/\n"
-    "   African-descent men with strong muscular builds. Do NOT default to white/Asian men.\n"
-    "2. **Default woman archetype**: When the story has a female character, the DEFAULT\n"
-    "   is an EAST ASIAN WOMAN (Korean / Japanese / Chinese, Priority 2). At least 60% of\n"
-    "   female roles must be East Asian women. Only use European white women as a\n"
-    "   secondary/supporting character (Priority 3).\n"
-    "3. **Skin tone MUST match ethnicity**: Dark skin for Black characters; warm beige/fair\n"
-    "   for East Asian; pale/olive for European.\n"
-    "4. **Same character across panels**: Once a character\'s ethnicity is set in Panel 1,\n"
-    "   NEVER change it. Same Black man in every panel; same East Asian woman in every panel.\n"
-    "5. **EXCEPTION — Lesbian theme**: If the theme is a LESBIAN / 女同 / 百合 / 双女主 theme\n"
-    "   (detected by theme name/tags), then BOTH main characters MUST be women —\n"
-    "   prioritize ONE East Asian woman + ONE European white woman (or two East\n"
-    "   Asian women). NO MAN appears in any panel. The Black male archetype does NOT apply.\n"
-    "6. In English image_prompts, ALWAYS start with the explicit ethnicity descriptor:\n"
-    "   * Man examples: \"a tall muscular Black man with rich dark brown skin, broad shoulders,\n"
-    "     short black hair, and well-defined muscular chest and abs\"\n"
-    "   * Woman examples: \"a beautiful Korean woman with warm beige skin, silky long black\n"
-    "     hair, and dark almond eyes\"\n"
-    "   * Lesbian examples: \"a beautiful Chinese woman with warm beige skin, silky long black\n"
-    "     hair\" paired with \"a stunning Russian woman with pale skin, light blonde hair\"\n"
-    "7. AVOID cliche single-race casts. Mix East Asian women + Black men as the default\n"
-    "   pairing for het stories; mix East Asian + European white women for lesbian stories."
+    "ABSOLUTE RULES:\n"
+    "1. Never change a character's ethnicity between panels.\n"
+    "2. Never turn an East Asian woman into a Black woman.\n"
+    "3. Never add a Black man unless the Chinese text explicitly says 黑人/非裔.\n"
+    "4. Skin tone must match the stated ethnicity.\n"
+    "5. Lesbian themes: both leads are women, no man in frame.\n"
+    "6. English image_prompt must start with the explicit ethnicity + gender descriptor.\n"
 )
-
 
 # ─── KREA2 PROMPT STYLE BLOCK ────────────────────────────────────────────────────────────────
 # Unified guidance injected into every image-prompt module (智能扩写 / 随机抽卡 /
@@ -2841,7 +2790,7 @@ def _pick_pose_for_panel(panel_index: int, total: int, r18: bool):
             pool = _ACTION_PRE_WARMUP
         else:
             pool = _ACTION_PRE_FORPLAY
-        idx = panel_index % len(pool)
+        idx = (panel_index + random.randrange(len(pool))) % len(pool)
         zh_clause = "暧昧互动，眼神交流" if panel_index == 0 else (
             "两人热烈亲吻，爱抚" if panel_index < total - 1 else
             "脱去衣物，亲密爱抚"
@@ -2862,7 +2811,7 @@ def _pick_pose_for_panel(panel_index: int, total: int, r18: bool):
     else:
         pool = _ACTION_SEX_CLIMAX
         zh_clause = "高潮射精，事后温存"
-    return pool[(panel_index - (0 if panel_index == 0 else sex_start)) % len(pool)], zh_clause
+    return pool[(panel_index - (0 if panel_index == 0 else sex_start) + random.randrange(len(pool))) % len(pool)], zh_clause
 
 
 # Outfit rotation — let the outfit change naturally across panels without
@@ -3575,7 +3524,7 @@ _EN_FEMALE_NOUN = re.compile(
     r"\b(a|the)\s+((?:beautiful|stunning|gorgeous|petite|young|older)\s+)?(woman|girl|female)\b",
     re.IGNORECASE)
 _ZH_MALE_CTX = re.compile(r"司机|男人|男性|男子|他|男主|丈夫|男友|教练|医生|老师|保安|保镖|管家|王子|骑士|主人|老板|上司|同事|邻居|房东|客户|学生|哥哥|弟弟|父亲|爸爸|叔叔|快递员|外卖员|水手|船员|海员|船长|渔夫|海盗|水兵|正骨师|按摩师|理疗师|技师|治疗师|牙医|兽医|教授|学长|摄影师|画家|作家|律师|男(?=学员|顾客|教练|医生|老师|司机|同事|邻居|房东|客户|学生|主播|模特|主角|友|人|伴|秘书|演员|服务生|嫌疑人|罪犯|歹徒|匪徒|袭击者|入侵者|小偷|强盗|绑匪|凶手)|顾客|客人|嫌疑人|罪犯|歹徒|匪徒|袭击者|入侵者|小偷|强盗|绑匪|凶手")
-_ZH_FEMALE_CTX = re.compile(r"女人|女性|女子|她|女主|女友|妻子|女仆|护士|空姐|雇主|女(?=上司|老板|秘书|助理|同事|邻居|房东|客户|模特|主播|学生|医生|老师|司机|主角|教练|学员|顾客|店员|服务员|前台|收银员|舞者|歌手|演员|警|兵|佣|仆|水手|船员|水兵|船长)|秘书|助理|模特|主播|姐姐|妹妹|母亲|妈妈|阿姨|店员|服务员|前台|收银员|舞者|歌手")
+_ZH_FEMALE_CTX = re.compile(r"女人|女性|女子|她|女主|女友|妻子|女仆|护士|空姐|雇主|女(?=上司|老板|秘书|助理|同事|邻居|房东|客户|模特|主播|学生|医生|老师|司机|主角|教练|学员|顾客|店员|服务员|前台|收银员|舞者|歌手|演员|警|兵|佣|仆|水手|船员|水兵|船长|摄影指导|摄影师|导演|编剧|画家|艺术家|设计师|化妆师|造型师|经纪人|制片人|记者|主持)|秘书|助理|模特|主播|姐姐|妹妹|母亲|妈妈|阿姨|店员|服务员|前台|收银员|舞者|歌手")
 _META_ZH = re.compile(r"并非|而不是|只发生在|仅发生在|仅仅发生|而非|绝非|远非|不同于|远离|不在|注意[:：]|说明[:：]|（注")
 _META_EN = re.compile(
     r",?\s*(?:this|the)\s+(?:climax|scene|moment|act)\s+(?:only\s+)?(?:happens|occurs|takes place)"
@@ -3670,6 +3619,12 @@ def _detect_races(panels):
                 elif f_after:
                     if female is None or (female[0] == "East Asian" and en_tok != "East Asian"):
                         female = (en_tok, zh_tok, article)
+    # 默认人物：女性一律东亚年轻女性；男性一律东亚强壮男性。
+    # 只有中文明确写“黑人/白人/..." 时才由上面的种族匹配覆盖。
+    if female is None and any(_panel_has_female(_get_panel_field(p, 'scene_description') or '', _get_panel_field(p, 'image_prompt') or '') for p in panels):
+        female = ('East Asian', '东亚', 'an')
+    if male is None and any(_panel_has_male(_get_panel_field(p, 'scene_description') or '', _get_panel_field(p, 'image_prompt') or '') for p in panels):
+        male = ('East Asian', '东亚', 'a')
     return male, female
 
 
@@ -3718,7 +3673,7 @@ def _inject_race_zh(scene: str, race_zh: str, gender: str) -> str:
         return scene
     roles = (re.compile(r"司机|男人|男性|男子|丈夫|男友|教练|医生|老师|保安|保镖|管家|王子|骑士|主人|老板|上司|同事|邻居|房东|客户|学生|哥哥|弟弟|父亲|爸爸|叔叔|快递员|外卖员|水手|船员|海员|船长|渔夫|海盗|水兵|正骨师|按摩师|理疗师|技师|治疗师|牙医|兽医|教授|学长|摄影师|画家|作家|律师|男(?=学员|顾客|教练|医生|老师|司机|同事|邻居|房东|客户|学生|主播|模特|主角|友|人|伴|秘书|演员|服务生|嫌疑人|罪犯|歹徒|匪徒|袭击者|入侵者|小偷|强盗|绑匪|凶手)|顾客|客人|嫌疑人|罪犯|歹徒|匪徒|袭击者|入侵者|小偷|强盗|绑匪|凶手")
              if gender == "male" else
-             re.compile(r"女人|女性|女子|女主|女友|妻子|女仆|护士|空姐|雇主(?!家|的|那里|这边)|女(?=上司|老板|秘书|助理|同事|邻居|房东|客户|模特|主播|学生|医生|老师|司机|主角|教练|学员|顾客|店员|服务员|前台|收银员|舞者|歌手|演员|警|兵|佣|仆|水手|船员|水兵|船长)|秘书|助理|模特|主播|姐姐|妹妹|母亲|妈妈|阿姨|店员|服务员|前台|收银员|舞者|歌手"))
+             re.compile(r"女人|女性|女子|女主|女友|妻子|女仆|护士|空姐|雇主(?!家|的|那里|这边)|女(?=上司|老板|秘书|助理|同事|邻居|房东|客户|模特|主播|学生|医生|老师|司机|主角|教练|学员|顾客|店员|服务员|前台|收银员|舞者|歌手|演员|警|兵|佣|仆|水手|船员|水兵|船长|摄影指导|摄影师|导演|编剧|画家|艺术家|设计师|化妆师|造型师|经纪人|制片人|记者|主持)|秘书|助理|模特|主播|姐姐|妹妹|母亲|妈妈|阿姨|店员|服务员|前台|收银员|舞者|歌手"))
     for m in roles.finditer(scene):
         # 性别错配：男词前有"女"、女词前有"男" → 跳过（"女教练"不该被塞黑人）
         if m.start() > 0 and ((gender == "male" and scene[m.start() - 1] == "女")
@@ -3752,6 +3707,29 @@ def _dedupe_leading_subject(en: str) -> str:
     en = re.sub(rf"^({f}),\s*{f},\s*", r"\1, ", en, count=1, flags=re.IGNORECASE)
     en = re.sub(rf"^({m}\s+and\s+{f}),\s*{f},\s*", r"\1, ", en, count=1, flags=re.IGNORECASE)
     en = re.sub(rf"^({m},\s*{f}),\s*{f},\s*", r"\1, ", en, count=1, flags=re.IGNORECASE)
+    return en
+
+
+def _expand_subject_refs(en: str, female_race, male_race, has_male: bool) -> str:
+    """所有分镜禁止用 she/he/her/his 指代；每次都写全人种+性别。"""
+    if not en:
+        return en
+    def _desc(race, gender):
+        if not race:
+            return None
+        return f"the {race[0]} {gender}"
+    f = _desc(female_race, "woman")
+    m = _desc(male_race, "man") if has_male else None
+    if f:
+        # 先统一 the woman，再处理代词，避免重复
+        en = re.sub(r"\bthe woman\b", f, en, flags=re.IGNORECASE)
+        en = re.sub(r"\bshe\b", f, en, flags=re.IGNORECASE)
+        en = re.sub(r"\bher\b", f + "'s", en, flags=re.IGNORECASE)
+    if m:
+        en = re.sub(r"\bthe man\b", m, en, flags=re.IGNORECASE)
+        en = re.sub(r"\bhe\b", m, en, flags=re.IGNORECASE)
+        en = re.sub(r"\bhim\b", m, en, flags=re.IGNORECASE)
+        en = re.sub(r"\bhis\b", m + "'s", en, flags=re.IGNORECASE)
     return en
 
 
@@ -3979,6 +3957,60 @@ def _limit_cum_tags(en: str, limit: int = 2) -> str:
     return ", ".join(x for x in kept if x.strip())
 
 
+_OUTFIT_COLOR_ZH = ('橙色','灰色','深蓝色','蓝色','黑色','白色','红色','绿色','卡其色','棕色','芥末黄','米色','粉色','紫色')
+_OUTFIT_NOUN_ZH = ('探视服','囚服','制服','连衣裙','裙子','衬衫','外套','运动服','睡衣','浴袍','田园裙','牧场裙','吊带裙','短裙')
+
+
+def _lock_outfit_colors(panels):
+    """同一场景内服装颜色一致：以第一个明确写了颜色+服装的分镜为准。"""
+    canonical = None
+    anchor = None
+    for p in panels:
+        _en0 = _get_panel_field(p, 'image_prompt') or ''
+        _m0 = re.match(r'\[ANCHOR:[^\]]+\]', _en0)
+        if _m0:
+            anchor = _m0.group(0)
+            break
+    for p in panels:
+        zh = _get_panel_field(p, 'scene_description') or ''
+        for col in _OUTFIT_COLOR_ZH:
+            for noun in _OUTFIT_NOUN_ZH:
+                if re.search(col + r'[^，。；]{0,4}' + noun, zh):
+                    canonical = (col, noun)
+                    break
+            if canonical:
+                break
+        if canonical:
+            break
+    if not canonical:
+        # 中文没写颜色时，从第一格英文 ANCHOR 反推
+        for p in panels:
+            _en0 = _get_panel_field(p, 'image_prompt') or ''
+            _mcol = re.search(r'(mustard[- ]yellow|orange|gray|grey|navy|blue|black|white|red|green|khaki|brown)\s+(?:floral\s+)?(?:pastoral\s+)?(?:dress|sundress|uniform|outfit|robe|shirt)', _en0, re.I)
+            if _mcol:
+                _en2zh = {'mustard-yellow':'芥末黄','mustard yellow':'芥末黄','orange':'橙色','gray':'灰色','grey':'灰色','navy':'深蓝色','blue':'蓝色','black':'黑色','white':'白色','red':'红色','green':'绿色','khaki':'卡其色','brown':'棕色'}
+                canonical = (_en2zh.get(_mcol.group(1).lower(), _mcol.group(1)), '裙子')
+                break
+    if not canonical:
+        return panels
+    col, noun = canonical
+    en_col = {'橙色':'orange','灰色':'gray','深蓝色':'navy','蓝色':'blue','黑色':'black','白色':'white','红色':'red','绿色':'green','卡其色':'khaki','棕色':'brown','芥末黄':'mustard-yellow','米色':'beige','粉色':'pink','紫色':'purple'}.get(col, col)
+    en_nouns = r'(?:jumpsuit|uniform|prison uniform|dress|shirt|coat|outfit|robe|pajamas?)'
+    for p in panels:
+        zh = _get_panel_field(p, 'scene_description') or ''
+        en = _get_panel_field(p, 'image_prompt') or ''
+        for c in _OUTFIT_COLOR_ZH:
+            if c == col:
+                continue
+            zh = re.sub(c + r'(?=[^，。；]{0,4}(?:' + '|'.join(_OUTFIT_NOUN_ZH) + r'))', col, zh)
+        en = re.sub(r'\b(?:orange|gray|grey|navy|blue|black|white|red|green|khaki|brown)\b(?=\s+' + en_nouns + r')', en_col, en, flags=re.IGNORECASE)
+        if anchor and '[ANCHOR:' not in en:
+            en = anchor + ' ' + en
+        p['scene_description'] = zh
+        p['image_prompt'] = en
+    return panels
+
+
 def _sync_panel_consistency(panels, r18: bool, is_lesbian: bool = False):
     if not panels:
         return panels
@@ -4007,6 +4039,7 @@ def _sync_panel_consistency(panels, r18: bool, is_lesbian: bool = False):
         has_male = (not is_lesbian) and i > 0 and _panel_has_male(zh, en)
         en = _lead_subject_en(en, male_race, female_race, has_male)
         en = _dedupe_leading_subject(en)
+        en = _expand_subject_refs(en, female_race, male_race, has_male)
         if r18 and i >= partial_at:
             en = _align_primary_action(zh, en)
             en = _limit_cum_tags(en, 1 if i == total - 1 else 2)
@@ -4014,6 +4047,7 @@ def _sync_panel_consistency(panels, r18: bool, is_lesbian: bool = False):
             en = _trim_final_panel_en(en)
         _set_panel_field(p, "scene_description", zh)
         _set_panel_field(p, "image_prompt", re.sub(r"\s{2,}", " ", en).strip())
+    _lock_outfit_colors(panels)
     return panels
 
 

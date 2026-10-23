@@ -3515,6 +3515,10 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
           r18: r18Mode,
           panels,
         });
+        setPanelH3Prompts({});
+        setPanelH3ShotMap({});
+        setPanelVideoPrompts({});
+        autoH3TriggeredRef.current.clear();
         if (themeKey !== undefined) {
           setThemeOutlineStates((prev) => ({
             ...prev,
@@ -3864,7 +3868,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       // 六段式但场景开头与当前分镜不一致 → 说明是上一个主题遗留的 H3 提示词，必须重建
       if (existing && existing.includes('subject_definitions')
           && (!sceneHead || existing.includes(sceneHead))) return;
-      const text = buildPanelH3Prompt(p, { r18: r18Mode, duration: 15 });
+      const text = buildPanelH3Prompt(p, { r18: r18Mode, duration: 15, isFinal: idx === activePanels.length - 1, index: idx, total: activePanels.length });
       setPanelH3Prompts(prev => ((prev[key]?.includes('subject_definitions')) ? prev : { ...prev, [key]: text }));
       setPanelH3ShotMap(prev => {
         const cur = new Map(prev[hid] || new Map<number, H3PanelShot>());
@@ -4075,7 +4079,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
           // 不写全尺寸 dataURL，避免 localStorage 配额爆炸。
           try {
             const thumbs = await Promise.all(images.slice(0, 2).map((u) => makeThumbnailForStorage(u)));
-            updateStoryboardHistoryPreview(hid, thumbs);
+            const valid = thumbs.filter(Boolean);
+            updateStoryboardHistoryPreview(hid, valid.length ? valid : images.slice(0, 2));
           } catch {}
         });
 
@@ -4119,7 +4124,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
           cacheStoryboardPanelImages(hid, i, images).then(async () => {
             try {
               const thumbs = await Promise.all(images.slice(0, 2).map((u) => makeThumbnailForStorage(u)));
-              updateStoryboardHistoryPreview(hid, thumbs);
+              const valid = thumbs.filter(Boolean);
+              updateStoryboardHistoryPreview(hid, valid.length ? valid : images.slice(0, 2));
             } catch {}
           });
 
@@ -4463,7 +4469,11 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       setExpandedPanel(null);
       setStoryStep('panels');
       setCurrentHistoryId(historyId);
+      // 新主题必须清空上一条主题的 H3/动画/分镜缓存，避免剧情残留
+      setPanelH3Prompts({});
+      setPanelH3ShotMap({});
       setPanelVideoPrompts({});
+      autoH3TriggeredRef.current.clear();
       saveStoryboardSession({
         plot: selectedTheme.title, panelCount, panels: res.storyboard, expandedPanel: null,
         themeId: selectedTheme.id, themeTitle: selectedTheme.title,
@@ -5384,7 +5394,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       activePanels.forEach((p, i) => {
         const text = buildPanelH3Prompt(
           { image_prompt: p.image_prompt || '', scene_description: sceneDescs[i] || p.scene_description },
-          { r18: r18Mode, duration: panelH3Duration },
+          { r18: r18Mode, duration: panelH3Duration, isFinal: i === activePanels.length - 1, index: i, total: activePanels.length },
         );
         shotMap.set(i + 1, { panelIndex: i + 1, pictureNumber: 1, shotPrompt: text });
         newPrompts[promptKey(i, curHistoryId)] = text;

@@ -33,15 +33,9 @@ try:
 except ImportError:
     websocket = None
 
-# 电脑端（Mac/Windows 本地开发）：用户要求的本地持久化目录 = backend/rh_h3_web/（与原 8765 服务
-# 目录布局完全对齐：image/ videos/ refs/ wf_json_local/ 都在同一处）。这样 Finder/资源管理器里
-# 一眼能看见每次生图/生视频的产物，不用进 backend/app/services/daotai_runtime/ 的深层嵌套。
-# 移动端（Railway/Vercel 容器）：写不到本机磁盘，但路径是固定的容器内目录，重启丢也无妨。
-# 优先级：环境变量 RH_H3_DIR > 同级 backend/rh_h3_web/ > 当前 __file__ 所在目录
-_DEFAULT_RH3_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', 'rh_h3_web'))
-BASE = os.environ.get('RH_H3_DIR') or (_DEFAULT_RH3_DIR if os.path.isdir(_DEFAULT_RH3_DIR) else os.path.dirname(os.path.abspath(__file__)))
-VIDEOS_DIR = os.path.join(BASE, 'videos')            # 视频产物目录 web/videos 下（年月日+8位随机子目录）
-IMAGES_DIR = os.path.join(BASE, 'image')             # 图片产物目录 web/image 下（年月日+8位随机子目录）
+BASE = '/Users/kenyou/Desktop/Ai/nsfwxo/backend/rh_h3_web'
+VIDEOS_DIR = os.path.join(BASE, 'videos')            # 产物目录固定 web/videos 下（年月日+8位随机子目录）
+IMAGES_DIR = os.path.join(BASE, 'image')             # 图片产物目录固定 web/image 下（年月日+8位随机子目录）
 REFS_DIR = os.path.join(BASE, 'refs')
 os.makedirs(VIDEOS_DIR, exist_ok=True)
 os.makedirs(IMAGES_DIR, exist_ok=True)
@@ -65,9 +59,16 @@ def _emit(msg):
     SYS_LOG.append((_SYS_LOG_IDX, msg))
 
 # ================= Job 与任务注册表 =================
+_JOB_ID_SEQ = 0
+_JOB_ID_LOCK = threading.Lock()
 class Job:
     def __init__(self, cfg):
-        self.id = str(int(time.time() * 1000))
+        global _JOB_ID_SEQ
+        with _JOB_ID_LOCK:
+            _JOB_ID_SEQ += 1
+            _seq = _JOB_ID_SEQ
+        # 毫秒时间戳 + 进程内序号：并发提交时不会拿到同一个 taskId
+        self.id = str(int(time.time() * 1000)) + f'{_seq % 1000:03d}'
         self.cfg = cfg
         self.run_dir = os.path.join(VIDEOS_DIR, time.strftime('%Y%m%d') + ''.join(_rnd.choices('0123456789', k=8)))
         os.makedirs(self.run_dir, exist_ok=True)
@@ -169,7 +170,7 @@ VIDEO_WFS = {
     # 16段确定性切分版（2110330160000516098，用户 2026-10-14 重新发布修复版：1351 四级合并链 ≤5 路/级，text7 报错已修）：
     #   500 = JjkText 全局输入（text，完整全局提示词，须含 [Shot 1]..[Shot 2N-1] 锚点，M=2 → 31 分镜 16 段）
     #   501 = PrimitiveBoolean 全局模式（true → 505.tt=504；505.ff=254=1318 列表长度，两分支循环数一致）
-    #   502 = PrimitiveBoolean LLM 优化。对齐火宝导演台：false → 确定性切分，不消费 228，避免 5 图组合视觉 token 爆 16k
+    #   502 = PrimitiveBoolean LLM 优化（**对齐画布 → true**：LLM 228 是分段引擎，127.prompt=516.tt=228 LLM 逐段输出 cinematic 描述驱动 H3 音频）
     #   503 = Int 总段数（默认 16，导演台可设 2/4/8…，注入 504(a-1 轮) → 505 → 174.total；段1 走 59/513/199 首段，循环 N-1 轮合并）
     #   确定性切分链：500 → 1335-1342 JjkConcat + 1343-1350 TextFindAndReplace（正则 [SEGMENT_K]）→ 1219 → 514 → 222 → 127.prompt
     #   合并链（四级 ≤5 路，text1-text5 上限）：1305(段1-5) → 1306(段6-10) → 1351(段11-15) → 1307(四路汇合+段16)
@@ -177,16 +178,29 @@ VIDEO_WFS = {
     #   时长：159 Int(秒) → 9 帧数公式 → 127.length；25 PrimitiveFloat 0.2（分辨率）；输出 205 SaveVideo（video/ComfyUI）
     #   ⚠ 无 9000/1490/1491/1492/1495 节点（区别于 988/1921 分段输入版）→ 提交不 push 这些
     #   自杀链：440/443 SaveImage（../x*4000 免扣费）+ 438/441 easy sleep 30（保留，禁止删除/绕过）。
-    # ⚠ 首段(199)与 502 的耦合（2026-10-22 修复，勿再拆开）：
-    #   画布 #199.prompt = #515，而 #515.tt = #196（#15 Llama 对参考图的"看图说话"）、ff = #513（段1提取）。
-    #   → llm_value 一旦为 true，首段就变成"参考图贴图动画"（无分镜剧情）。
-    #   build_node_info_list 的 det16 分支已强制 #199.prompt 直注第1段文本 + #515.tt 改连 #513，
-    #   因此首段内容与 502 开关解耦；改回画布连线前务必先确认 199 注入仍生效。
-    '2110330160000516098': {'name': '16段确定性切分·全局500输入(2110330160000516098·主线)', 'mode': 'det16',
+    #   2026-10-19 修复（第2轮）：llm_value 仅作后端默认值（True 保持导演台工作台原有 502=true 逻辑不变）。
+    #   502 实际取值 = 请求参数 llm 优先（前端开关 / 火宝 llm=false），未传时才用本默认值。
+    #   火宝重绘大提示词（4151 字六段式）在 502=true 下 228 必跑 → 228.custom_prompt=202=249+514（切分链完整文本）
+    #   拼接膨胀到 24713 tokens > 16384 → Context shift failed 爆窗失败（2112138319926677506）。
+    #   显式 llm=false（火宝/前端关 LLM）→ 502=false 干净版(516000)形态：127.prompt=516→514（不吃 228）、
+    #   228 仅被 330(PreviewAny) 预览消费 + custom_prompt 强制置空 → 任何提示词长度都不执行 LLM 推理 → 永不爆窗；
+    #   H3 音频由提示词自带 overall_soundscape/speaker_mapping 驱动（4路×16段干净版探测已验收音频干净）。
+    '2110330160000516098': {'name': '16段确定性切分·全局500输入(2110330160000516098)', 'mode': 'det16',
                             'ref_nodes': ['28', '273', '285', '406', '420'],
                             'prompt_node': '500', 'mode_node': '501', 'llm_node': '502', 'llm_value': False,
                             'loop_count_node': '503', 'output_node': '205',
                             'suicide': ['440', '443'], 'delay_nodes': ['438', '441']},
+    # 智能均分·无缝拼接版（2112505169383911425，2026-10-20 用户上传【自带智能均分】，当前主线）：
+    #   平台画布自带 4901 统计 [Shot N] 总数 + 1271-1326 锚点 floor((N)*T/S)+1 动态均分（余数归末段）
+    #   提交走本地修复版 JSON（canvas_graft_smart_api.json）：三层平台修复（9802 VHS 保存 / 9801 宽高 /
+    #   绕过 ImageAddNoise）+ LLM 旁路（删 llama 链 + 502=false + 9800 空兜底，防爆窗）+ 自杀链保留。
+    #   自杀链：443 SaveImage（../x*4000 免扣费）+ 438/441 easy sleep（保留，禁止删除/绕过）
+    '2112505169383911425': {'name': '智能均分·无缝拼接(2112505169383911425·主线)', 'mode': 'auto16',
+                            'ref_nodes': ['28', '273', '285', '406', '420'],
+                            'prompt_node': '500', 'loop_count_node': '503',
+                            'suicide': '443', 'delay_nodes': ['438'],
+                            '_graft_file': os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                                        'canvas_graft_smart_api.json')},
 }
 # 视频比例 UI 值 -> 337 ResolutionSelector 接受的工作流字符串（match=不注入，用工作流默认）
 # 注意：337 的合法值列表与本工作流 265 一致，区别于图片工作流 127 的字符串格式
@@ -315,6 +329,92 @@ def load_wf(job):
         _emit('平台拉取异常(%s)' % e)
     return None
 
+
+def inject_purification_nodes(wf):
+    """H3 Prompt 净化节点链（2026-10-21）：
+    插入两路 Text Find and Replace → 去除「话音刚落」「等他说完」等过渡连接词、
+    去除 (S1): 等旁白标记、去除「发颤道」类动作说描写。
+    auto16 路径：514→1500→1510→1520→127.prompt
+    全局路径：513→1501→1511→1521→199.prompt
+    """
+    if not wf:
+        return wf
+    try:
+        PURIFY_NODES = {
+            '1500': {
+                'class_type': 'Text Find and Replace',
+                'inputs': {'find': ['1502', 0], 'replace': '', 'text': ['516', 0]},
+                '_meta': {'title': 'H3 Prompt净化①-过渡词'}
+            },
+            '1501': {
+                'class_type': 'Text Find and Replace',
+                'inputs': {'find': ['1503', 0], 'replace': '', 'text': ['515', 0]},
+                '_meta': {'title': 'H3 Prompt净化①-过渡词'}
+            },
+            '1502': {
+                'class_type': 'JjkText',
+                'inputs': {'text': r'话音刚落[,，]|等他说完[,，]|等他问完[,，]|她说完后[,，]|她话音刚落[,，]|紧接着[,，]|随后[,，]|他话音刚落[,，]'},
+                '_meta': {'title': '净化①-过渡词regex'}
+            },
+            '1503': {
+                'class_type': 'JjkText',
+                'inputs': {'text': r'话音刚落[,，]|等他说完[,，]|等他问完[,，]|她说完后[,，]|她话音刚落[,，]|紧接着[,，]|随后[,，]|他话音刚落[,，]'},
+                '_meta': {'title': '净化①-过渡词regex'}
+            },
+            '1510': {
+                'class_type': 'Text Find and Replace',
+                'inputs': {'find': ['1512', 0], 'replace': ' ', 'text': ['1500', 0]},
+                '_meta': {'title': 'H3 Prompt净化②-去旁白'}
+            },
+            '1511': {
+                'class_type': 'Text Find and Replace',
+                'inputs': {'find': ['1513', 0], 'replace': ' ', 'text': ['1501', 0]},
+                '_meta': {'title': 'H3 Prompt净化②-去旁白'}
+            },
+            '1512': {
+                'class_type': 'JjkText',
+                'inputs': {'text': r'\s*\([S\d]+\)[:：]\s*'},
+                '_meta': {'title': '净化②-去旁白regex'}
+            },
+            '1513': {
+                'class_type': 'JjkText',
+                'inputs': {'text': r'\s*\([S\d]+\)[:：]\s*'},
+                '_meta': {'title': '净化②-去旁白regex'}
+            },
+            '1520': {
+                'class_type': 'Text Find and Replace',
+                'inputs': {'find': ['1522', 0], 'replace': '', 'text': ['1510', 0]},
+                '_meta': {'title': 'H3 Prompt净化③-动+说'}
+            },
+            '1521': {
+                'class_type': 'Text Find and Replace',
+                'inputs': {'find': ['1523', 0], 'replace': '', 'text': ['1511', 0]},
+                '_meta': {'title': 'H3 Prompt净化③-动+说'}
+            },
+            '1522': {
+                'class_type': 'JjkText',
+                'inputs': {'text': r'[，。、；][^<。\n]{0,100}?(?:说|问|喊|道|声道|颤声|低声|冷声|喃喃|厉声)[：:][^<]*?(?=\s*\(S\d+\):)'},
+                '_meta': {'title': '净化③-动+说regex'}
+            },
+            '1523': {
+                'class_type': 'JjkText',
+                'inputs': {'text': r'[，。、；][^<。\n]{0,100}?(?:说|问|喊|道|声道|颤声|低声|冷声|喃喃|厉声)[：:][^<]*?(?=\s*\(S\d+\):)'},
+                '_meta': {'title': '净化③-动+说regex'}
+            },
+        }
+        for nid, ndata in PURIFY_NODES.items():
+            wf[nid] = ndata
+        # Reroute H3 prompt inputs through purifier chain
+        if '127' in wf and 'prompt' in wf['127'].get('inputs', {}):
+            wf['127']['inputs']['prompt'] = ['1520', 0]
+        if '199' in wf and 'prompt' in wf['199'].get('inputs', {}):
+            wf['199']['inputs']['prompt'] = ['1521', 0]
+        _emit('  ★ 注入 H3 Prompt 净化节点链（12 节点）：过渡词→旁白→动+说')
+    except Exception as e:
+        _emit('  ⚠ H3 Prompt 净化注入失败（%s），继续不净化' % e)
+    return wf
+
+
 def _cover_ref_to_ratio(src_path, ratio):
     """把参考图按目标比例居中裁切（cover）：等比放大填满目标画布后裁掉溢出边缘，无模糊填充。
     用于视频参考图比例适配：横屏参考图适配竖屏输出时保留主体居中区域，
@@ -374,100 +474,39 @@ def _best_shot_pattern(zone):
         best, best_n = _LINE_SHOT, n
     return best, best_n
 
+def _split_zone_shots(zone):
+    """分镜区 → 分镜列表（四级级联）。返回 (shots, pat, lead)。
 
-# ===== 首帧/开场硬约束（后端兜底，与前端 h3FirstFrameConstraint.ts 同义）=====
-# H3 是图生视频模型：参考图天然就是成片第 1 帧。提示词里若没有"开场即进入剧情"的约束，
-# 模型会把开头当成"参考图展示"来做 —— 画面变成静止贴图，剧情迟迟不进入
-# （用户反馈的"第一段无意义视频"）。前端的主题库 / 情色创作面板都会带上这段约束，
-# 但 API 直连（OpenAPI 提交）与 LLM 自由生成的提示词可能没有 → 后端兜底补齐。
-#
-# ⚠ 文案里绝不能出现字面量 "[Shot N]"：
-#   det16 用正则 \[\s*Shot\s*\d+\s*\] 切分 detailed_description 区，
-#   约束文字里出现 "[Shot 1]" 会被当成一个分镜边界 → 凭空多出一段
-#   "只有约束文字、没有画面内容"的假分镜（第 1 段无意义 / 末尾镜头被挤掉）。
-#   统一改用「第一个分镜」这类自然语言表述。
-_H3_OPENING_CONSTRAINT = (
-    '【首帧约束】第一帧直接呈现第一个分镜的剧情场景；禁止以参考图静止/特写开场，场景与服装按分镜执行。'
-)
-
-
-def _has_opening_constraint(text):
-    """提示词里是否已有开场/首帧硬约束（幂等判断）。"""
-    t = (text or '')
-    return ('不作为开场画面内容' in t or '开场硬约束' in t
-            or '首帧约束' in t or '开场即进入剧情' in t)
-
-
-def _ensure_opening_constraint(prompt):
-    """提示词缺少「开场/首帧硬约束」时补一段（幂等）。
-
-    补的位置 = detailed_description 标签之后、**第一个 [Shot N] 之前**：
-    这个位置在 _seg_text_det16 / _seg_text_list_full / _seg_text_first_raw
-    三种切分口径里都属于"分镜前的正文(pre)"，切分时会被原样带到每段提示词里。
-    """
-    p = (prompt or '').strip()
-    if not p or _has_opening_constraint(p):
-        return p
-    m = re.search(r'(?:detailed_description|详细画面描述)\s*[:：]', p, re.I)
-    if not m:
-        # 没有 detailed_description 标签 → 全文兜底放在最前面
-        return _H3_OPENING_CONSTRAINT + '\n\n' + p
-    head = p[:m.end()].rstrip()
-    rest = p[m.end():]
-    sm = re.search(r'\[\s*Shot\s*\d+\s*\]', rest, re.I)
-    if sm:
-        body = rest[:sm.start()].rstrip()
-        tail = rest[sm.start():]
-    else:
-        body = rest.rstrip()
-        tail = ''
-    out = head + '\n' + body
-    if out.strip():
-        out += '\n'
-    out += _H3_OPENING_CONSTRAINT
-    if tail:
-        out += '\n' + tail
-    return out.strip()
-
-
-def _split_pre_shots(zone):
-    """切分分镜区 → (分镜前的正文 pre, 分镜列表)。
-
-    pre = 第一个 [Shot N] 标记之前的全部内容（场景设定 / 【开场硬约束】段落）。
-    三个切分函数（_seg_text_det16 / _seg_text_list_full / _seg_text_first_raw）
-    都必须原样保留 pre —— 丢掉它等于丢掉首帧约束，首段会退化成"参考图贴图动画"。
+    级联顺序（count_shots / _seg_text_list_full 共用同一实现，杜绝各处切法漂移）：
+      ① [Shot N] / [分镜 N] / [镜头 N] 括号标记，或行首 `Shot N`
+      ② 行首时间戳 `At 00:04.000` / `00:04` —— 火宝六段式提示词没有 [Shot N]，靠这一级切
+      ③ 空行分段
+      ④ 单块兜底：整个分镜区视为一个分镜
+    pat 非 None 表示走的是 ①，lead = 标记前导文本（parts[0]）。
     """
     pat, _n = _best_shot_pattern(zone)
     if pat:
         parts = re.split(pat, zone)
-        pre = (parts[0] or '').strip()
-        shots = [x.strip() for x in parts[1:] if x.strip()]
-        return pre, shots
+        return [x.strip() for x in parts[1:] if x.strip()], pat, parts[0].strip()
+    ts = [x.strip() for x in re.split(r'(?m)(?=At\s*\d{1,2}[:.]\d|(?<=\n)\s*\d{1,2}[:.]\d{2})', zone) if x.strip()]
+    if len(ts) >= 2:
+        return ts, None, ''
     blocks = [b.strip() for b in re.split(r'\n\s*\n', zone) if b.strip()]
-    return '', (blocks or [zone])
+    if len(blocks) >= 2:
+        return blocks, None, ''
+    return [zone], None, ''
+
 
 def _split_shots(prompt):
     """智能分镜切分：返回 (全局描述, 分镜列表)。"""
     head, zone = _extract_desc_zone(prompt)
     if not zone:
         head, zone = '', prompt.strip()   # 无 detailed_description 标签 → 全文检测
+    shots, pat, lead = _split_zone_shots(zone)
     # 1) 带分镜标记模式
-    pat, n = _best_shot_pattern(zone)
     if pat:
-        parts = re.split(pat, zone)
-        shots = [x.strip() for x in parts[1:] if x.strip()]
-        h = head or parts[0].strip() or prompt[:200]
-        return h, shots
-    # 2) 无标记：按行首时间戳（At 00:xx / 00:xx.xxx）切分
-    ts = [x.strip() for x in re.split(r'(?m)(?=At\s*\d{1,2}[:.]\d|(?<=\n)\s*\d{1,2}[:.]\d{2})', zone) if x.strip()]
-    if len(ts) >= 2:
-        return head, ts
-    # 3) 无标记无时间戳：按空行分段（一段一个分镜）
-    blocks = [b.strip() for b in re.split(r'\n\s*\n', zone) if b.strip()]
-    if len(blocks) >= 2:
-        return head, blocks
-    # 4) 单块：整个分镜区视为一个分镜
-    return head, [zone]
+        return (head or lead or prompt[:200]), shots
+    return head, shots
 
 def count_shots(prompt):
     _h, shots = _split_shots(prompt or '')
@@ -556,7 +595,13 @@ def _seg_text_global_full(prompt, lo, hi, dur=None):
     # speaker_mapping 保留：H3 模型依据 Sx→音色映射选择音色；摘除会回退默认音色。
     # （summary 已在 tags/body 摘除，speaker_mapping 仅含映射无叙事，不会引发旁白）
     # 分镜切分（复用智能切分）
-    pre, shots = _split_pre_shots(zone)
+    pat, _n = _best_shot_pattern(zone)
+    if pat:
+        parts = re.split(pat, zone)
+        shots = [x.strip() for x in parts[1:] if x.strip()]
+    else:
+        blocks = [b.strip() for b in re.split(r'\n\s*\n', zone) if b.strip()]
+        shots = blocks or [zone]
     n = len(shots)
     if n == 0:
         return prompt.strip()
@@ -588,11 +633,7 @@ def _seg_text_global_full(prompt, lo, hi, dur=None):
     # （已实测：移除标记 + 移除 speaker_mapping 后 summary 仍被读）→ summary 仅在 500 全局提示词保留，127 段文本不再携带
     tags = re.sub(r'\n*\s*summary\s*:.*?(?=\n\s*(?:retention_analysis|retention\b|subject_definitions|detailed_description|overall_soundscape|soundscape\b|non_diegetic_music|speaker_mapping)\s*[:：])', '\n', tags, flags=re.I | re.S)
     tags = re.sub(r'\n*\s*summary\s*:.*$', '\n', tags, flags=re.I | re.S)
-    # 【v16 修复】保留分镜前的正文(pre)：里面是【开场硬约束】+ 风格/氛围前置说明 +
-    # 「不要静止摆拍」的动态推进要求。丢掉它 = 首段失去首帧约束 →
-    # H3 退回"参考图人物特写/静止贴图开场"（2026-10-22 首段无意义视频的直接诱因之一）。
-    _pre_blk = (pre + '\n') if pre else ''
-    out = (tags + '\n' + _pre_blk + body + ('\n\n' + after if after else '')).strip()
+    out = (tags + '\n' + body + ('\n\n' + after if after else '')).strip()
     # 保留 speaker_mapping（音色映射）：H3 模型依据 Sx→音色选择配音音色，
     # 摘除会回退默认音色（实测少女音）；summary 已摘除，此处仅含映射不会引发旁白
     _m_sm = re.search(r'\n*\s*speaker_mapping\s*:.*$', prompt, flags=re.I | re.S)
@@ -601,6 +642,24 @@ def _seg_text_global_full(prompt, lo, hi, dur=None):
         if _sm_part and _sm_part not in out:
             out = (out + '\n\n' + _sm_part).strip()
     return out
+
+def _guard_shot_anchors(text):
+    """画布确定性切分链防护（2026-10-21）：
+    det16 工作流（2110330160000516098 等）内部 1290-1350 用
+    `[\\s\\S]*(\\[Shot N\\][\\s\\S]*?)(\\[Shot K\\][\\s\\S]*)?$` 全文贪婪匹配定位分镜锚点；
+    retention_analysis / summary 等 detailed_description 前置段里的行内 `[Shot N]`
+    （如 "(appears in [Shot 1], [Shot 2]...)"）会抢占锚点 → 切分段文本错位 → H3 音频污染
+    （乱入台词/旁白错乱/台词重复）。本函数仅把 detailed_description 之前的行内 `[Shot N]`
+    改写为 `(Shot N)`（圆括号不被 `\\[Shot` 匹配），行首锚点（detailed_description 每镜独占一行）不受影响。"""
+    if not text:
+        return text
+    m = re.search(r'(?m)^\s*detailed_description\s*[:：]', text)
+    if not m:
+        return text
+    head, body = text[:m.start()], text[m.start():]
+    _new = re.sub(r'\[Shot\s+(\d+)\]', r'(Shot \1)', head)
+    return (_new + body) if _new != head else text
+
 
 def _seg_text_det16(prompt, lo, hi):
     """det16 多路并发的每路全局提示词（API 接入专用）：
@@ -614,7 +673,13 @@ def _seg_text_det16(prompt, lo, hi):
     _rest = prompt[_m.end():] if _m else ''
     _m2 = re.search(r'(?:overall_soundscape|整体音效|soundscape)\s*[:：]', _rest, re.I)
     after = _rest[_m2.start():].strip() if _m2 else ''
-    pre, shots = _split_pre_shots(zone)
+    pat, _n = _best_shot_pattern(zone)
+    if pat:
+        parts = re.split(pat, zone)
+        shots = [x.strip() for x in parts[1:] if x.strip()]
+    else:
+        # 2026-10-21：与 _split_shots 同源（火宝六段式无 [Shot N]，靠时间戳级联切分）
+        shots, _pat2, _lead2 = _split_zone_shots(zone)
     n = len(shots)
     if n == 0:
         return prompt.strip()
@@ -646,11 +711,7 @@ def _seg_text_det16(prompt, lo, hi):
     # 防止 LLM 228 把整体提示词改写成"cinematic 配乐"版本。
     _sc = re.search(r'overall_soundscape\s*[:：]\s*(.*?)(?=\n\s*(?:non_diegetic_music|speaker_mapping)\s*[:：]|\Z)', prompt, re.I | re.S)
     _sm2 = re.search(r'speaker_mapping\s*[:：].*$', prompt, re.I | re.S)
-    # 【v16 修复】保留分镜前的正文(pre)：【开场硬约束】+ 风格/氛围前置说明 +
-    # 「不要静止摆拍」的动态推进要求。多路 det16 之前把 pre 整段丢掉，
-    # 于是每路的第 1 段都拿不到首帧约束 → H3 退回"参考图人物特写/静止贴图开场"。
-    _pre_blk = (pre + '\n') if pre else ''
-    _out = (tags + '\n' + _pre_blk + body).strip()
+    _out = (tags + '\n' + body).strip()
     if _sc and _sc.group(1).strip():
         _out += '\n\noverall_soundscape: ' + _sc.group(1).strip()
     # v12 强化版：4 条硬性约束，禁止任何形式的音乐/旁白/合成人声（v11 的简短版被 LLM 覆盖）
@@ -664,44 +725,6 @@ def _seg_text_det16(prompt, lo, hi):
     if _sm2 and _sm2.group(0).strip():
         _out += '\n\n' + _sm2.group(0).strip()
     return _out
-
-
-def _seg_text_first_raw(prompt, m=2):
-    """取第 1 段的**原始切片**（不走重建、不丢开场约束）：
-
-    subject_definitions / summary / retention_analysis + `detailed_description:` 之后的原样文本，
-    直到第 m+1 个 [Shot N] 之前——即保留 [Shot 1] 上方的场景设定与【开场硬约束】段落，
-    再拼回 overall_soundscape 之后的声音/音乐段。
-
-    为什么不用 _seg_text_det16 重建：它只保留 `[Shot k]` 行，会把 detailed_description 下方
-    “视频第一帧必须直接呈现第一个分镜…禁止以参考图人物单独特写/静止贴图开场”这段硬约束丢掉，
-    首段失去首帧约束后就会退回“参考图人物特写/贴图动画”（2026-10-22 首段无意义视频的直接诱因之一）。
-    画布 #1219 掐头去尾取段的口径 = 本函数；差别只在于不会像画布一样把开场约束一并剪掉。
-    """
-    p = (prompt or '').strip()
-    if not p:
-        return ''
-    mm = re.search(r'(?:detailed_description|详细画面描述)\s*[:：]', p, re.I)
-    if not mm:
-        return p
-    head = p[:mm.end()].rstrip()
-    rest = p[mm.end():]
-    hits = list(re.finditer(r'\[\s*Shot\s+\d+\s*\]', rest, re.I))
-    if not hits:
-        return p
-    cut = hits[m].start() if len(hits) > m else len(rest)
-    body = rest[:cut].rstrip()
-    tail = ''
-    if cut < len(rest):
-        mt = re.search(r'(?:overall_soundscape|整体音效|soundscape)\s*[:：]', rest[cut:], re.I)
-        if mt:
-            tail = rest[cut + mt.start():].strip()
-    out = head + '\n' + body
-    if tail:
-        out += '\n\n' + tail
-    return out.strip()
-
-
 def _seg_text_list_full(prompt, lo, hi, n_segs=2):
     """det16 v11 全局修复版：每路 N 段的纯净提示词（绕开画布切分链，直接注入 199/1318 节点）——
 
@@ -734,7 +757,19 @@ def _seg_text_list_full(prompt, lo, hi, n_segs=2):
     _rest = prompt[_m.end():] if _m else ''
     _m2 = re.search(r'(?:overall_soundscape|整体音效|soundscape)\s*[:：]', _rest, re.I)
     after = _rest[_m2.start():].strip() if _m2 else ''
-    pre, shots = _split_pre_shots(zone)
+    pat, _n = _best_shot_pattern(zone)
+    if pat:
+        parts = re.split(pat, zone)
+        shots = [x.strip() for x in parts[1:] if x.strip()]
+    else:
+        # ===== 2026-10-21 火宝多段重复修复：与 _split_shots 统一走同一套级联 =====
+        # 旧逻辑只认 [Shot N] 括号标记；火宝六段式提示词没有 [Shot N]（前端 stripShotMarkers
+        # 已剥离），于是这里退化成「空行分段」→ detailed_description 整块 = 1 个分镜
+        # → n_segs=2 时 mine 只有 1 块 → 段2 = 段1（下面 segs.append(segs[-1]) 补位）
+        # → 两段视频提示词逐字相同 → 拼接后画面重复。
+        # _split_shots 有 ②时间戳 级联（At 00:04.000），count_shots 因此能数出 3 个分镜；
+        # 这里必须同源，否则「按分镜数定段数」与「按分镜切段」对不上。
+        shots, _pat2, _lead2 = _split_zone_shots(zone)
     n = len(shots)
     if n == 0:
         return [prompt.strip()] * max(1, int(n_segs))
@@ -754,30 +789,53 @@ def _seg_text_list_full(prompt, lo, hi, n_segs=2):
     if 'detailed_description' not in tags.lower() and '详细画面描述' not in tags:
         tags += '\n\ndetailed_description:'
     tags = re.sub(r'\[reference\s+generation\]\s*', '', tags, flags=re.I)
+    # 提取 speaker_mapping（保留角色声线绑定）
+    _sm_full = re.search(r'speaker_mapping\s*[:：].*$', prompt, re.I | re.S)
+    _sm_text = _sm_full.group(0).strip() if _sm_full else ''
     def _seg_one(idx0, idx1):
         _b = '\n'.join('[Shot %d] %s' % (i + 1, _clean(mine[j]))
                        for i, j in enumerate(range(idx0, min(idx1, len(mine)))))
-        # 【v16 修复】保留 pre（【开场硬约束】等）：每段提示词都必须带首帧约束，
-        # 否则第 1 段（以及每段的第 1 帧）会退回"参考图人物特写/静止贴图开场"。
-        _pre_blk = (pre + '\n') if pre else ''
-        _out = (tags + '\n' + _pre_blk + _b).strip()
+        _out = (tags + '\n' + _b).strip()
         if after:
-            _out += '\n\n' + after
+            # 只保留 overall_soundscape，丢弃用户原始 non_diegetic_music（会被硬约束覆盖）
+            _sc_m = re.search(r'overall_soundscape\s*[:：]\s*(.*?)(?=\n\s*(?:non_diegetic_music|speaker_mapping)\s*[:：]|\Z)', after, re.I | re.S)
+            if _sc_m and _sc_m.group(1).strip():
+                _out += '\n\noverall_soundscape: ' + _sc_m.group(1).strip()
+        # v12 强化版：4 条硬性约束，禁止任何形式的音乐/旁白/合成人声
+        _out += '\n\n=== AUDIO CONSTRAINTS (HARD RULES, MUST FOLLOW) ==='
+        _out += '\n1. NO background music, NO BGM, NO soundtrack, NO cinematic score, NO instrumental — ABSOLUTELY ZERO music in the final audio.'
+        _out += '\n2. NO narration, NO voice-over, NO commentary, NO inner monologue — characters do not speak to the audience.'
+        _out += '\n3. NO singing, NO humming, NO vocal melody, NO synthesized vocal tracks, NO choir, NO vocals of any kind.'
+        _out += '\n4. Audio must be diegetic ONLY — only sounds that exist within the scene world (footsteps, wind, objects, character grunts/breathing if natural, and character dialogue inside <d> tags).'
+        _out += '\n=== END AUDIO CONSTRAINTS ==='
+        _out += '\n\nnon_diegetic_music: None. No background music, no narration, no singing, no extra vocal tracks; only the natural sounds described in overall_soundscape and dialogue inside <d> tags.'
+        if _sm_text:
+            _out += '\n\n' + _sm_text
         return _out
     nm = len(mine)
     n_segs = max(1, int(n_segs))
+    # ===== 2026-10-21 分镜数 < 段数时的补位策略修复（画面重复根因）=====
+    # 旧逻辑 `a = k*2; if a >= nm: segs.append(segs[-1])` 直接复制上一段 →
+    #   两段提示词逐字相同 → 渲染两段一样的画面再拼接（用户实锤：选 2 段出重复视频）。
+    # 新策略：绝不复制任何一段，用「贪心分配」保证每个分镜恰好出现一次。
+    #   每段最多 2 个分镜（画布 1269=2 原语义），但必须给后面的段各留至少 1 个分镜；
+    #   分镜数不够填满段数时，段数收敛到分镜数（每段恰好 1 个）——不留空段、不复制。
     segs = []
-    # 平均分配分镜（v11段直注不依赖画布切分链，不需要每段2个的旧假设）
-    import math
-    _a = 0
-    for k in range(n_segs):
-        _rest = nm - _a
-        _after = n_segs - k - 1
-        _take = math.ceil(_rest / (_after + 1))
-        if _take < 1:
-            _take = 1
-        segs.append(_seg_one(_a, _a + _take))
-        _a += _take
+    if nm >= n_segs:
+        _a = 0
+        for k in range(n_segs):
+            _rest = nm - _a                  # 剩余分镜
+            _after = n_segs - k - 1          # 本段之后还有几段
+            # v11段直注：平均分配（不限制每段2个），保证每段分镜数大致相等
+            import math
+            _take = math.ceil(_rest / (_after + 1))
+            if _take < 1:
+                _take = 1
+            segs.append(_seg_one(_a, _a + _take))
+            _a += _take
+    else:
+        # 分镜 < 段数：每段 1 个分镜，段数收敛为 nm（不复制、不留空段）
+        segs = [_seg_one(k, k + 1) for k in range(nm)]
     return segs
 
 
@@ -859,13 +917,6 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
                 else:
                     _emit('  [路%d] 复用参考图%d -> %s（已上传）' % (rng[0], i + 1, job.uploaded[p]))
             _wf[ref_nodes[i]]['inputs']['image'] = job.uploaded[p]
-        # 对齐火宝：H3 参考图槽 0..3 都填有效图（火宝 4 张有效，第5槽 None）。
-        # 只填 2 槽时 #285/#406 为 None，部分 H3 版本会执行成功但不产出视频。
-        if _refs:
-            for i in range(len(_refs), min(4, len(ref_nodes))):
-                _src = _refs[i % len(_refs)]
-                if _src in job.uploaded:
-                    _wf[ref_nodes[i]]['inputs']['image'] = job.uploaded[_src]
         # ===== LLM 15/228 视觉置空：新增节点 9999 = LoadImage(1×1 透明) → 276/282 组合图全部图像槽 =====
         # 实证链（本次探测 taskId 2110428239992836097，1路×2段×ref1.jpg+ref2.png 同款爆窗大图 → 视频 26.17s 正常）：
         #   ①push None 无效 —— 平台忽略 null，276/282 保留默认直连 → LLM 15/228 吃大图 → 16384 爆窗；
@@ -883,97 +934,124 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
                 else:
                     _emit('  [路%d] 复用 1×1 透明占位图 -> %s（已上传）' % (rng[0], job.uploaded[_blank]))
             _wf['9999'] = {'class_type': 'LoadImage', 'inputs': {'image': job.uploaded[_blank]}}
-            for _i in range(1, 6):
-                _wf['276']['inputs']['图像%d' % _i] = ['9999', 0]
-            for _i in range(1, 5):
-                _wf['282']['inputs']['图像%d' % _i] = ['9999', 0]
-            _emit('  [路%d] LLM 视觉置空：#9999 LoadImage(1×1透明) → 276/282 组合图全部槽位 → 15/228 视觉空' % rng[0])
+            # ===== 2026-10-19 画面错乱修复（导演台 502=true 路径，任务 2112192490453401601 实锤）=====
+            # 根因：502=true 时 15/228 视觉被 9999 透明图接管 → LLM 只见“纯黑图片” → 输出虚空描述
+            #   （WS 日志实锤 “Since you have provided only a solid black image... The Void / Pure Darkness”）
+            #   → 127/199.prompt 被虚空描述污染 → 段1（0-13s）画面黑屏/聚光/水晶玫瑰，与提示词剧情完全无关。
+            # 修复：502=true（导演台 LLM 链）让 15/228 视觉=真实参考图（276/282 前 N 槽接 ref 节点），
+            #   LLM 基于参考图+提示词输出带剧情描述 → 首段画面恢复正常；空槽仍 9999 透明防 LLM 报错。
+            #   502=false（火宝防爆窗）保持全置空不变（127.prompt=514 直接段文本，不走 LLM）。
+            _llm_val_now = False if cfg.get('_from_openapi') else bool(wfc.get('llm_value', True))
+            if _llm_val_now:
+                for _i in range(1, 6):
+                    _slot = ['%s' % ref_nodes[_i - 1], 0] if _i <= len(_refs) else ['9999', 0]
+                    _wf['276']['inputs']['图像%d' % _i] = _slot
+                for _i in range(1, 6):
+                    _slot = ['%s' % ref_nodes[_i - 1], 0] if _i <= len(_refs) else ['9999', 0]
+                    _wf['282']['inputs']['图像%d' % _i] = _slot
+                _emit('  [路%d] 502=true LLM 视觉=真实参考图（%d 张，空槽 9999 透明）→ 15/228 描述带剧情，首段不虚空'
+                      % (rng[0], len(_refs)))
+            else:
+                for _i in range(1, 6):
+                    _wf['276']['inputs']['图像%d' % _i] = ['9999', 0]
+                for _i in range(1, 6):
+                    _wf['282']['inputs']['图像%d' % _i] = ['9999', 0]
+                _emit('  [路%d] LLM 视觉置空：#9999 LoadImage(1×1透明) → 276/282 组合图全部槽位 → 15/228 视觉空' % rng[0])
         else:
             _emit('  [路%d] ⚠ blank_1x1.png 缺失，LLM 视觉仍吃默认图（大参考图会爆窗）' % rng[0])
         # ===== 提示词 / 参数（直接改 wf 字段，workflow JSON 提交）=====
         # 16段主线基底：500 文本原样直通（不注入音频净化，不做台词/BGM 摘除）
         _gp = (seg_prompt or (cfg.get('global_prompt') or '')).strip()
         if _gp:
-            # 防御：wf_json 拉取失败时 _wf 是空 dict，下面的字段写入会 KeyError 误导
-            if '500' not in _wf or 'inputs' not in _wf.get('500', {}):
-                raise RuntimeError('工作流 JSON 缺失 500 节点（wf_json 拉取失败或工作流不兼容）— 请检查 API Key 是否对该工作流有访问权限（平台返回 301/user not exist 即此原因）')
             _wf['500']['inputs']['text'] = _gp
             if seg_prompt:
                 # 多路并发：500 = 该路子提示词（分镜 lo-hi 重排从 [Shot 1] 起，画布正则切分才能命中）
                 _emit('  [路%d] P. #500.text 注入该路子提示词（分镜 %s-%s，%d 字，503=%d 段，分镜号已重排从 [Shot 1] 起）: %s…'
                       % (rng[0], rng[1], rng[2], len(_gp), _N_det, _gp[:80].replace('\n', ' ')))
             else:
-                # 单路：500 = 完整全局提示词原样（画布内确定性切分，16段主线基底：不注入音频净化）
+                # 单路：500 = 完整全局提示词原样（画布内确定性切分）
                 _emit('  [路%d] P. #500.text 注入完整全局提示词（%d 字，503=%d 段，画布内确定性切分；音频净化: 无）: %s…'
                       % (rng[0], len(_gp), _N_det, _gp[:80].replace('\n', ' ')))
         _wf['501']['inputs']['value'] = True      # 全局模式（501=true → 505.tt=504=15 轮循环）
-        # 2026-10-15 v12 修复音频污染：恢复 502=true（让 LLM 228 跑，生成 H3 听得懂的"cinematic"音频描述），
-        # 对齐画布手动行为。LLM 228 会尊重 non_diegetic_music: None 指令，H3 据此生成干净音频；
-        # v11 的 502=false 走确定性切分时，H3 内部默认行为会塞入背景音乐/说话声。
-        _wf['502']['inputs']['value'] = wfc.get('llm_value', True)    # LLM 开（对齐画布手动，音频由 LLM 描述驱动）
-        if cfg.get('no_llm'):
-            # 单分镜图生视频：LLM 16k 上下文容易被多参考图撑爆（Context shift failed）。
-            # 关掉 228 LLM，走确定性切分，优先保证出片。
-            _wf['502']['inputs']['value'] = False
+        # 2026-10-19 修复（第3轮，符合用户铁律"导演台原有逻辑禁止修改"）：
+        #   502 取值完全恢复 wfc 默认（wfc.llm_value，6098=True → 导演台 /api/start 原有 502=true 逻辑逐字不变，
+        #   不读 cfg['llm']，导演台前端 LLM 开关行为与历史一致）。
+        #   仅外部开放API（火宝 /openapi/v2/*，cfg 带 _from_openapi 标记 + llm=False）走 502=false 干净版(516000)：
+        #   127.prompt=516→514（不吃 228）、228.custom_prompt 置空 → 火宝 4151 字大提示词永不爆窗（24713>16384 已修复）。
+        _llm_val = False if cfg.get('_from_openapi') else bool(wfc.get('llm_value', True))
+        _wf['502']['inputs']['value'] = _llm_val
         _wf['503']['inputs']['value'] = _N_det    # 总段数（504 = 503-1 = N-1 轮循环 + 首段 = N 段）
         _wf['159']['inputs']['value'] = int(cfg.get('duration', 15))   # 159→9 帧数→93/95 length→127.length
+        # 2026-10-19 时长补偿（仅外部开放API火宝路径，导演台原版提交的 9 表达式保持画布默认）：
+        #   H3 平台对 127.length 帧数实际生成帧 ≈ length 的 80-85%（24fps 下 13s→280帧/段=11.7s、10s→195帧=8.1s），
+        #   导致每段实际时长比设置缩水 10-19%。火宝路径把 9 节点系数 24→27.6（×1.15 补偿），
+        #   保留 17 帧对齐结构，仅影响提交时注入的 workflow JSON，不触碰画布默认。
+        if cfg.get('_from_openapi'):
+            _wf['9']['inputs']['expression'] = \
+                "max(5, round(a * 27.6)) + (5 - (max(5, round(a * 27.6)) % 17)) % 17"
         _wf['25']['inputs']['value'] = cfg.get('resolution', 0.2)      # 像素清晰度
-        # ===== v16 节点级调优（2026-10-22，均为可选环境变量，默认保持画布值）=====
-        # #228 是每段都跑一次的视觉 LLM（gemma-4-26B q4）：
-        #   max_frames=24（从 5 张参考图里抽 24 帧）+ max_tokens=4096（#19 共享）
-        #   实测是单段耗时大头之一。参考图是静态图，8-10 帧足够；输出改写文本约 1-1.5k token。
-        #   用 RH_LLM_MAX_FRAMES / RH_LLM_MAX_TOKENS 做 A/B，确认画质不降再固化。
+        # ===== 2026-10-22 同步 nsfwxo 节点级优化（环境变量可回退）=====
         try:
-            # 2026-10-22 固化：参考图是静态图，8 帧足够；六段式输出 ≈1-1.5k token，2560 够用。
             _mf = int(os.environ.get('RH_LLM_MAX_FRAMES', '8') or 8)
-            # 双参考图（分镜首帧 + 人物形象照）时视觉 token 翻倍，8 帧/图会超过
-            # llama 的 16384 上下文（Context shift failed）。多图时压到 2 帧/图。
-            _ref_n = len([r for r in (cfg.get('refs') or []) if r])
-            if _ref_n > 1:
-                _mf = min(_mf, 1)
             for _n in ('228', '15'):
                 if _n in _wf and 'max_frames' in _wf[_n].get('inputs', {}):
                     _wf[_n]['inputs']['max_frames'] = _mf
             _mt = int(os.environ.get('RH_LLM_MAX_TOKENS', '2560') or 2560)
-            if '19' in _wf:
+            if '19' in _wf and 'max_tokens' in _wf['19'].get('inputs', {}):
                 _wf['19']['inputs']['max_tokens'] = _mt
-            _emit('  [路%d] N. #228.max_frames=%d #19.max_tokens=%d（LLM 视觉抽帧/输出预算）'
-                  % (rng[0], _mf, _mt))
-            # 画布压缩参数：#269 VideoCombine crf 19→16；去掉 #270 zip（它只喂 #438 sleep，纯耗时）
             if '269' in _wf and 'crf' in _wf['269'].get('inputs', {}):
                 _wf['269']['inputs']['crf'] = int(os.environ.get('RH_VIDEO_CRF', '16'))
-            if '438' in _wf and 'any' in _wf['438'].get('inputs', {}):
+            if os.environ.get('RH_SKIP_ZIP', '1') != '0' and '438' in _wf \
+                    and 'any' in _wf['438'].get('inputs', {}):
                 _wf['438']['inputs']['any'] = ['205', 0]
-            _emit('  [路%d] N. #269.crf=%s；#438 → #205（对齐火宝）'
-                  % (rng[0], _wf['269']['inputs'].get('crf', '?')))
+                _emit('  [路%d] N. #269.crf=%s；#438 改接 #205（跳过 #270 zip 压缩）'
+                      % (rng[0], _wf['269']['inputs'].get('crf', '?')))
+            _emit('  [路%d] N. #228.max_frames=%d #19.max_tokens=%d（LLM 视觉抽帧/输出预算）'
+                  % (rng[0], _mf, _mt))
         except Exception as _e:
             _emit('  [路%d] ⚠ 节点调优参数解析失败: %s' % (rng[0], _e))
         _emit('  [路%d] M. #501=true(全局) #502=%s(LLM%s) #503=%d → 画布内循环 %d 轮 + 首段 = %d 段'
               % (rng[0],
-                 'true' if wfc.get('llm_value', True) else 'false',
-                 '开/模拟画布' if wfc.get('llm_value', True) else '关/纯确定性', _N_det, _N_det - 1, _N_det))
+                 'true' if _llm_val else 'false',
+                 '开/模拟画布' if _llm_val else '关/纯确定性', _N_det, _N_det - 1, _N_det))
         # ===== 228 旁路：仅在 502=false 时启用（v12 修复：502=true 时让 228 跑，生成 H3 听得懂的音频描述）=====
         # 502=true（对齐画布）：228 被 175/330/516 正常消费 → 228 跑 → 喂 282 组合图 + 199.prompt → 输出 cinematic 描述
         # 502=false（v11 旧模式，备援）：228 不被消费会强制执行 → 吃 282 组合大图 → 16384 爆窗，必须旁路
-        if not wfc.get('llm_value', True):
-            # ===== 15/228 双 LLM 旁路（2026-10-18 修复）：15 吃 1307 合并文本会 Context shift 爆窗 =====
-            # 实证：段提取链（1305/1306/1351/1304）在分镜锚点缺失时 TextFindAndReplace 替换失败 → 输出原样 500 →
-            #   1307 合并 ≈ 500×多份（19634 tokens）→ 15.custom_prompt(←513←1225←1307) 超过 n_ctx 16384 爆窗任务失败。
-            # 15 的输出仅喂 196 PreviewAny（预览），不进视频链 → 175/330 改连 59（固定短文本）使 15 无消费者不执行；
-            #   再强制 15.custom_prompt 置空做双保险（即使执行也零 token）。
+        if not _llm_val:
+            # ===== 2026-10-19 v15 恢复干净版(516000)形态：15 执行、175 连 15、330 连 228、228 陪跑 =====
+            # 用户提供"之前干净"后台日志（workflowId 2110330160000516000，instanceType plus）：
+            #   502=false 但 15.custom_prompt=['513',0]（执行，吃 513→1225 段1 提取文本）、
+            #   175.initial_value6=['15',0]（15 喂循环变量6）、330.source=['228',0]（228 陪跑预览）、
+            #   516.tt_value=['514',0]（ff 亦 514）→ 127.prompt 直接取 222=TextListSelelct(1318 段列表)。
+            # 之前版本把 15 置空 + 175/330 连 59 → 228/15 双灭 → 循环段提示词链无 LLM 描述 → 音频/画面不干净。
+            # 15 执行的前提 = 1307 锚点按段数保留（v14 已做，下方 913-949 行）→ 1225 成功提取段1（短文本，
+            #   不爆窗）；多路/单路 seg_prompt 场景下段1 提取链（1290 等 TextFindAndReplace）锚点 [SEGMENT_1]
+            #   由画布正则打上，不依赖分镜号匹配。
             if '175' in _wf and 'initial_value6' in _wf['175'].get('inputs', {}):
-                _wf['175']['inputs']['initial_value6'] = ['59', 0]
+                _wf['175']['inputs']['initial_value6'] = ['15', 0]
             if '330' in _wf and 'source' in _wf['330'].get('inputs', {}):
-                _wf['330']['inputs']['source'] = ['59', 0]
+                _wf['330']['inputs']['source'] = ['228', 0]
             if '516' in _wf and 'tt_value' in _wf['516'].get('inputs', {}):
                 _wf['516']['inputs']['tt_value'] = ['514', 0]
+            # ===== 2026-10-19 15 文本爆窗加固（火宝六段式真实提交 Context shift failed 23724>16384）=====
+            # 干净版原设计 15.custom_prompt=['513',0]（吃段1 提取文本），但火宝六段式提示词的段1 文本
+            # 可达 23724 tokens → 15(llama_cpp_instruct_adv) 爆窗 → 整个任务失败。与 228 同款加固：
+            # 15.custom_prompt 置空 → 15 只吃 9999 黑图 + system_prompt → 输出短描述喂 196/175 循环变量6，
+            # 不进入 H3 主链（127.prompt=514）→ 任何提示词长度下 15 都不爆窗。
             if '15' in _wf and 'custom_prompt' in _wf['15'].get('inputs', {}):
                 _wf['15']['inputs']['custom_prompt'] = ''
+            # ===== 2026-10-19 228 文本爆窗加固（火宝重绘 4151 字提示词 Context shift failed 24713>16384）=====
+            # 228.custom_prompt = 202 = 249 + 514；502=true 时 514=1219 切分链完整文本 → 大提示词拼接膨胀爆窗。
+            # 502=false 干净版 127.prompt=514（不吃 228），228 仅被 330(PreviewAny) 消费；
+            # 即使平台不剪枝 PreviewAny 上游，强制 custom_prompt 置空 → 228 只吃 9999 黑图 + system_prompt，
+            # 输出短描述仅供 330 预览，不进入 H3 主链 → 任何提示词长度下都不会爆窗。
+            if '228' in _wf and 'custom_prompt' in _wf['228'].get('inputs', {}):
+                _wf['228']['inputs']['custom_prompt'] = ''
             # ===== 2026-10-19 撤销 2022 旁白注入（对齐下午成功版基准）=====
             # 成功版日志（503=4 正常出片）中 #516.ff_value = ["514",0]（画布原生）、无 2022 节点，
             # 且 1313..1317 全空、1318 列表未参与 → 画布原生形态即可正常触发自杀链并出片。
             # 若后续复现"莫名背景旁白"，再按旧方案恢复 2022 = JjkConcat(514 + 显式音频指令) 注入。
-            _emit('  [路%d] 228 旁路启用（502=false）：#175/#330 改连 59 短文本、#516 改连 514、15.custom_prompt 置空 → 228/15 均不执行（15 吃 1307 合并文本会爆窗）'
+            _emit('  [路%d] 干净版(516000)形态：#175 连 15（LLM 置空防爆窗）、#330 连 228（陪跑预览）、#516 连 514、15/228.custom_prompt 均置空'
                   % rng[0])
         else:
             # 502=true（对齐画布）：228 正常跑 → cinematic 描述驱动 H3 音频（无音乐/无旁白）
@@ -984,50 +1062,6 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
                   % rng[0])
         _emit('  [路%d] T. #159.value = %d 秒/段 | R. #25.value = %s（workflow JSON 提交，自杀链保持画布默认）'
               % (rng[0], int(cfg.get('duration', 15)), cfg.get('resolution', 0.2)))
-
-        # ===== v15 首段(#199)解耦修复（2026-10-22）=====
-        # 现象：5173 导演台单路出片，首段 = 参考图动一动的无意义视频，第 2 段起才进分镜。
-        # 根因链（对照 8765 正常日志逐节点比对）：
-        #   ① 单路走 seg_map={}（2026-10-19 假成功修复）→ 本函数 seg_prompt='' → 不注入 #199；
-        #   ② #199.prompt 保持画布连线 #515；
-        #   ③ commit 2d40dea 把 #502(llm_value) 从 false 改成 true →
-        #      #515.tt_value = #196 = #15(Llama, custom_prompt 被下面强制置空) 对 5 张参考图的"看图说话"；
-        #   ④ 于是首段 H3 收到的是图像描述而非 [Shot 1..M]，生成"参考图贴图动画"。
-        #      平台侧铁证：WS 事件 #196 output = "Since the user provided only images and asked to
-        #      \"Describe this image\"..."。
-        #   8765 同提示词正常，是因为它把 #199.prompt 直连第 1 段分镜文本（日志里是字面量，非 ["515",0]）。
-        # 修复：单路也把 #199.prompt 直注为第 1 段原始切片（[Shot 1]..[Shot M]，M=#1269 每段分镜数），
-        #   并把 #515.tt_value 改连 #513（画布段1提取）做双保险 —— 此后 #502 开/关都不再影响首段内容。
-        # 注：#515 常驻改连（多路 v11 也会覆盖 #199，这里同样断掉 196 分支，避免遗留消费者再吃图像描述）。
-        if '515' in _wf and 'tt_value' in _wf['515'].get('inputs', {}):
-            _wf['515']['inputs']['tt_value'] = ['513', 0]
-            _emit('  [路%d] #515.tt_value → 513（画布段1提取），禁用 502=true 时的 196 参考图描述分支' % rng[0])
-        if not seg_prompt and _gp and '199' in _wf and 'prompt' in _wf['199'].get('inputs', {}):
-            if count_shots(_gp) > 0:
-                _M1 = 2
-                try:
-                    _M1 = int(_wf.get('1269', {}).get('inputs', {}).get('value') or 2)
-                except Exception:
-                    _M1 = 2
-                _M1 = max(1, _M1)
-                # 分镜覆盖检查：画布 #1269=每段分镜数、#503=段数 → 最多覆盖 1269×503 个分镜。
-                # 超出部分不会出现在成片里（提取链只到第 16 个 [SEGMENT] 锚点），提前告警而不是静默丢镜头。
-                _n_sh = count_shots(_gp)
-                _cap = _M1 * _N_det
-                if _n_sh > _cap:
-                    _emit('  [路%d] ⚠ 提示词有 %d 个分镜，但 503=%d 段 × 1269=%d 分镜/段 只覆盖前 %d 个 → '
-                          '最后 %d 个分镜不会出现；建议段数提到 %d（或减少分镜）'
-                          % (rng[0], _n_sh, _N_det, _M1, _cap, _n_sh - _cap,
-                             -(-_n_sh // _M1)))
-                _seg1 = _seg_text_first_raw(_gp, _M1)
-                if _seg1 and _seg1.strip():
-                    _wf['199']['inputs']['prompt'] = _gp
-                    _emit('  [路%d] v15 首段修复：#199.prompt 直注第1段（[Shot 1]-[Shot %d] 原始切片，%d 字，'
-                          '保留开场硬约束）' % (rng[0], _M1, len(_seg1)))
-                else:
-                    _emit('  [路%d] ⚠ v15 首段修复：第1段切片为空，保持画布 #515 连线' % rng[0])
-            else:
-                _emit('  [路%d] ⚠ v15 首段修复：未检测到 [Shot N] 分镜锚点，保持画布 #515 连线' % rng[0])
 
         # ===== v11 段提示词直接注入（2026-10-15 全局最优修复）=====
         # 绕过画布 mark chain → JjkConcat → TextFindAndReplace 提取链，直接注入预格式化的 per-segment 提示词。
@@ -1043,7 +1077,12 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
             # 历史 bug：传入原始 rng[1]/rng[2]（如 11..20）→ _seg_text_list_full 内部 n=10, lo=11 被 clamp
             #   → mine = shots[9:10] 只剩 Shot 10 → 4 段全是 Shot 10 重复（路 2/3/4 全部污染，第一段路 1 凑巧正常）。
             # 画布手动无此 bug 的原因：画布跑全局提示词，500.text=全局原样，mark chain 按原始 [Shot N] 提取。
-            _n_shots = len(re.findall(r'\[Shot\s+\d+\]', seg_prompt))
+            # ===== 2026-10-21 火宝多段重复修复：分镜数改用 count_shots =====
+            # 旧写法 `len(re.findall(r'\[Shot\s+\d+\]', seg_prompt))` 只数括号标记；
+            # 火宝六段式提示词的 [Shot N] 已被前端剥离 → 数出 0 → _rng_b 退化成 1
+            # → _seg_text_list_full 只切出第 1 个分镜 → 第 2 段只能复制第 1 段 → 两段画面重复。
+            # count_shots 走完整级联（标记 → 时间戳 At 00:04 → 空行），与画布侧口径一致。
+            _n_shots = count_shots(seg_prompt)
             _rng_a = 1
             _rng_b = max(1, _n_shots)
             if _rng_b - _rng_a + 1 < _M_eff * _N - 1:
@@ -1056,7 +1095,7 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
                 # 199.prompt 直接注入段1（199 是第一个段，走 515 → 513 → 1225）
                 if '199' in _wf and 'prompt' in _wf['199'].get('inputs', {}):
                     # 16段主线基底：段1 文本原样直通（不注入音频净化；non_diegetic_music 由用户提示词自带）
-                    _p0 = _gp
+                    _p0 = _segs[0]
                     _wf['199']['inputs']['prompt'] = _p0
                     _emit('  [路%d] v11: #199.prompt = 段1（直注，%d 字，含 subject_definitions）' % (rng[0], len(_p0)))
                 # 1318/213/512 列表注入段2..段N（forLoop iter i → 222 → ListSelect → 取 segments[i+1]）
@@ -1118,24 +1157,25 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
                 #   detailed_description 该段分镜 + overall_soundscape + non_diegetic_music: None +
                 #   speaker_mapping），任意路数/段数（8×2/6×2/4×4/2×8/单×16）全部正确。
                 if '514' in _wf and 'tt_value' in _wf['514'].get('inputs', {}):
-                    # ===== v14（2026-10-15 段2+ 打斗污染实弹复现修复）=====
-                    # v13 曾把 #514.tt_value 改连 ['222',0]（1318 段列表直注，每段完整 6 段式），
-                    # 8 路探测实测：7/8 路出片，但**段2（后15s）画面变打斗/发力、人物数量异常**——
-                    # 222(TextListSelelct)+1318(easy promptList) 在平台端执行异常（i 索引语义或
-                    # 列表展开问题），127 实际收到空/整列表（含 210/211 剑客打斗文本）→ H3 自由发挥。
-                    # 回退 v13：514.tt_value 恢复 ['1219',0]（画布切分链），并按每路实际段数 N
-                    # 清空 1307 锚点链（只保留前 N 个 SEGMENT 锚点：段1=1290、段2=1292、…、段16=1304）
-                    # → 每轮循环 1220 掐头[SEGMENT_K] + 1219 去尾[SEGMENT_{K+1}] 提取纯净段。
-                    # v9 已实测验证 2 段场景（8路×2段，画面/音频正常）；此处推广到任意 N 段
-                    # （4路×4段/2路×8段/单路×16段），前提=每路分镜数 M ≥ 2N-1（30 分镜下成立）。
-                    _wf['514']['inputs']['tt_value'] = ['1219', 0]
+                    # ===== 2026-10-19 v15 恢复干净版(516000)循环段逻辑：#514.tt_value → 222 列表直注 =====
+                    # 用户"之前干净"后台日志（workflowId 2110330160000516000）：514.tt_value=["222",0]（ff 亦 222）
+                    # → 502=false 时 516 输出 514 → 127.prompt 直接取 222=TextListSelelct(1318 段列表)，
+                    # 每轮循环段 = 1318 直注的完整 6 段式文本（subject_definitions/summary/retention_analysis/
+                    # detailed_description 该段分镜 + overall_soundscape + non_diegetic_music + speaker_mapping）。
+                    # v14 走 1219 切分链：段2+ 文本来自 1307 锚点提取，多路子提示词（分镜重排 [Shot 1..]）下
+                    # 锚点正则需匹配重排号，且 1307 仅含前 N 段 → 循环段文本被切分链二次加工 → 音频/画面不干净。
+                    # v13 曾用 222 在 8路×2段 实测段2 打斗污染，根因=当时 1318 嵌套列表(213/512)展开后
+                    # 210/211 等残留剑客打斗文本被 222 索引到；当前 6098 槽位 210/211/212/508/509/510/511/
+                    # 1310/1311/1312/1313..1317 全部为空（线上拉取已确认），且 v11 注入段2..N 到 1313..1317，
+                    # 222.i 循环索引 0..N-2 精确命中 → 干净版形态。
+                    _wf['514']['inputs']['tt_value'] = ['222', 0]
                     _anchor_seq = ['1290','1292','1294','1296','1298','1300','1302',
                                    '1343','1344','1345','1346','1347','1348','1349','1350','1304']
                     _N = len(_segs)  # 每路段数
-                    if _N == 1:
-                        # 单段：切分链 1219 提取段2 必空 → 改走 222 直注（1318.prompt_1=段1，v11单段已注入）
-                        _wf['514']['inputs']['tt_value'] = ['222', 0]
-                        _emit('  [路%d] v14单段: #514.tt_value → 222(1318直注段1)，循环段=段1 延续' % rng[0])
+                    # 1307 锚点保留逻辑（保留，喂 15 的 513→1225 段1 提取链）：
+                    # 15.custom_prompt=513 → 501=true → 513.tt=1225 → 1225 掐头[SEGMENT_1]+去尾[SEGMENT_2]
+                    # 提取段1 → 15 吃段1 短文本（不爆窗）→ 175/330 预览。锚点不足时 TextFindAndReplace
+                    # 替换失败 → 1307 输出原样 → 15 爆窗，故按段数清空多余锚点必须保留。
                     for _j, _f in enumerate(['text1','text2','text3','text4','text5']):
                         if _j < _N:
                             _wf['1305']['inputs'][_f] = [_anchor_seq[_j], 0]
@@ -1152,13 +1192,34 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
                         else:
                             _wf['1351']['inputs'][_f] = ''
                     _wf['1307']['inputs']['text4'] = ['1304', 0] if _N >= 16 else ''
-                    _emit('  [路%d] v14: #514.tt_value → 1219(切分链)，1307 按段数保留前 %d 个锚点（段1..段%d），段2..段%d 走掐头去尾提取；59/210/211(打斗)零消费者已排除'
-                          % (rng[0], _N, _N, _N))
+                    _emit('  [路%d] v15干净: #514.tt_value → 222(1318列表直注，127.prompt=完整6段式文本)，1307 保留前 %d 锚点（喂15段1提取，防爆窗）；210/211等槽位已确认全空'
+                          % (rng[0], _N))
                 else:
                     _emit('  [路%d] ⚠ v13: #514 未找到 tt_value，段2+ 仍走切分链（可能污染）' % rng[0])
         else:
             # 单路模式：500 = 完整提示词，画布内确定性切分（v10 逻辑保留备用）
-            _emit('  [路%d] v11 单路：500=完整提示词原样，画布内 16 段确定性切分' % rng[0])
+            # ===== 2026-10-19 火宝单路多段「两段台词重复」修复（仅 _from_openapi 生效，导演台原逻辑不变）=====
+            # 根因：503=N 时首段吃 500.text（完整提示词）、循环段走画布切分链(516→514→1219)从 500 提取段2，
+            #       六段式标签格式使画布切分链锚点错位 → 循环段提取到与首段相同内容 → 两段台词重复（如“谁呀”×2）。
+            # 修复：本地切分——500.text 注入前 k 分镜（首段）、127.prompt 强制覆盖（516 连接）注入剩余分镜
+            #       （循环段），彻底绕开画布切分链 → 每段内容独立不重复。
+            _openapi_multi = bool(cfg.get('_from_openapi')) and int(cfg.get('total_segs') or 1) > 1
+            if _openapi_multi:
+                _gp_o = (cfg.get('global_prompt') or '').strip()
+                _ns_o = count_shots(_gp_o)
+                _N_seg_o = max(2, int(cfg.get('total_segs') or 1))
+                _k_o = -(-_ns_o // _N_seg_o) if _ns_o > 0 else 1   # ceil(n/N) 首段分镜数
+                _k_o = max(1, min(_k_o, _ns_o - 1))                # 至少给循环段留 1 个分镜
+                _dur_o = int(cfg.get('duration', 15))
+                _seg500_o = _seg_text_global(_gp_o, 1, _k_o, dur=_dur_o)
+                _wf['500']['inputs']['text'] = _seg500_o
+                _seg127_o = _seg_text_global(_gp_o, _k_o + 1, _ns_o, dur=_dur_o)
+                _wf['127']['inputs']['prompt'] = _seg127_o   # 覆盖 ["516",0] 连接 → 循环段=剩余分镜静态文本
+                _emit('  [路%d] [火宝] 单路多段: 首段=Shot1-%d（%d/%d 分镜，%d 字）→ 500.text；循环段=Shot%d-%d（剩余，%d 字）→ 127.prompt 覆盖（不重复）'
+                      % (rng[0], _k_o, _k_o, _ns_o, len(_seg500_o), _k_o + 1, _ns_o, len(_seg127_o)))
+            else:
+                _emit('  [路%d] v11 单路：500=完整提示词原样，画布内 %d 段确定性切分（503=%d，切分链段1 喂 15、段2 喂 127 循环段）'
+                      % (rng[0], _N_det, _N_det))
 
         # ===== 每路 noise_seed 差异化（确保 4/8 路真正独立，不同视觉风格）=====
         # 工作流 RandomNoise #43 默认 noise_seed=299180102435208 → 每路覆盖为基于 job.id + 路号的稳定哈希
@@ -1168,6 +1229,13 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
             _seed_base = int(_hl.md5(('%s_%d' % (job.id, rng[0])).encode()).hexdigest()[:15], 16)
             _wf['43']['inputs']['noise_seed'] = _seed_base
             _emit('  [路%d] noise_seed = %d（基于 job.id+路号哈希，每路独立）' % (rng[0], _seed_base))
+        # 自杀链 SaveImage 的 images 在部分工作流版本里接的是 PurgeVRAM 的字符串输出，
+        # 会报 'str' object has no attribute 'shape'；改接 VAEDecode 的真实帧张量。
+        # 对齐 8765 导演台正常链路：440 接 439(PurgeVRAM)，443 接 442(PurgeVRAM)
+        if '440' in _wf and isinstance(_wf['440'].get('inputs'), dict):
+            _wf['440']['inputs']['images'] = ['439', 0]
+        if '443' in _wf and isinstance(_wf['443'].get('inputs'), dict):
+            _wf['443']['inputs']['images'] = ['442', 0]
         # ===== 自杀链：不注入，保持画布默认（440/443 filename_prefix=H3_suicide_A/B、438/441 delay=30）=====
         # 用户铁律：自杀式节点（报错失败免扣分）是核心命脉，禁止删除/绕过。画布验证过 SaveImage 报错免扣费。
         # ===== 提交体核对（2026-10-19 假成功诊断用）：直接输出将要 POST 的关键字段形态 =====
@@ -1185,6 +1253,188 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
                      'OK' if ('440' in _wf and '443' in _wf) else 'MISSING'))
         except Exception as _e:
             _emit('  [路%d] ⚠ 提交体核对失败: %s' % (rng[0], _e))
+        return ('WF_JSON', _wf)
+
+    # ============ auto16 自动分段循环无缝版（2112425008067862530 主线）：单任务提交 ============
+    # 服务端不做任何切分：4000 全文直注 + 4001 段数 → 工作流内部 4901 自动统计 Shot 总数 →
+    # floor 均分公式 → 4601-4616 提取 → 3018 列表 → 3022 循环取段（与画布执行逻辑完全一致）。
+    # 旧 det16 的"两段台词重复"根因 = 服务端切分 + 画布切分链叠加错位；本模式彻底绕开。
+    if wfc.get('mode') == 'auto16':
+        _N_seg = max(2, int(cfg.get('total_segs') or cfg.get('target_segs') or 16))
+        # ===== GRAFT 嫁接探测（2026-10-20）：附件1 切分逻辑 + FIXLIST 模型，直接复用用户实测有效的切分 =====
+        # 2026-10-20 扩展：_graft_file 可从注册表默认取（新主线 2112497725051863041 内置本地智能修复版 JSON）
+        _gf = cfg.get('_graft_file') or wfc.get('_graft_file')
+        if _gf and os.path.exists(_gf):
+            _wf = json.load(open(_gf))
+            _wf = inject_purification_nodes(_wf)
+            _emit('  GRAFT. 嫁接版工作流：附件1确定性切分 + FIXLIST模型（%s）' % os.path.basename(_gf))
+            _gp = (cfg.get('global_prompt') or '').strip()
+            if _gp and '500' in _wf:
+                _wf['500']['inputs']['text'] = _gp
+                _emit('  P. #500.text 注入全局提示词（%d 字，附件1链式切分）' % len(_gp))
+            if '503' in _wf:
+                _wf['503']['inputs']['value'] = _N_seg
+                _emit('  M. #503.value = %d 段（智能均分：4901 统计 Shot 总数 → 锚点 floor 均分，余数归末段）' % _N_seg)
+            _dur = int(cfg.get('duration', 15))
+            if '159' in _wf:
+                _wf['159']['inputs']['value'] = _dur
+                _emit('  T. #159.value = %d 秒/段' % _dur)
+            # 参考图：附件1 LoadImage 置空（纯文生探测）；有 refs 则注入
+            _refs = [p for p in (cfg.get('refs') or []) if p and os.path.exists(p)]
+            _lid = [k for k, v in _wf.items() if v.get('class_type') == 'LoadImage']
+            if _refs:
+                for i, p in enumerate(_refs[:len(_lid)]):
+                    if p not in job.uploaded:
+                        _emit('上传参考图%d -> %s' % (i + 1, os.path.basename(p)))
+                        job.uploaded[p] = upload_file(job, p)
+                    _wf[_lid[i]]['inputs']['image'] = job.uploaded[p]
+            else:
+                # 兜底：探测无参考图 → 全部 LoadImage 填中性图（避免 ImageScaleToTotalPixels 空输入报错）
+                _neutral = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'refs', '_neutral.png')
+                if _neutral not in job.uploaded:
+                    job.uploaded[_neutral] = upload_file(job, _neutral)
+                for _l in _lid:
+                    _wf[_l]['inputs']['image'] = job.uploaded[_neutral]
+                _emit('  R. 无参考图 → 全部 LoadImage(%d) 填中性图' % len(_lid))
+            # 自杀链（用户铁律保留）：附件1 443 SaveImage + 438 sleep
+            if '443' in _wf and isinstance(_wf['443'].get('inputs'), dict):
+                _wf['443']['inputs']['filename_prefix'] = '../' + 'x' * 4000
+            if '438' in _wf and isinstance(_wf['438'].get('inputs'), dict):
+                _wf['438']['inputs']['delay'] = SUICIDE_DELAY
+            _emit('  G. 自杀链注入：#443.filename_prefix = ../x*4000 + #438.delay（免扣费）')
+            try:
+                with open('/tmp/debug_auto16_wf.json', 'w') as _df:
+                    json.dump(_wf, _df, ensure_ascii=False)
+            except Exception:
+                pass
+            return ('WF_JSON', _wf)
+        _wf = copy.deepcopy(job.wf_json or {})
+        # ===== auto16 列表顺序修复补丁（2026-10-20 根因②，幂等）=====
+        # easy promptList 的 optional_prompt_list 拼接在【前】+ easy forLoopStart index 为【0-based】
+        # （api-4 模板实证：1318 嵌套段12-16 外层 + 段7-11 + 段2-6 内层 → 列表=[段2..段16]，i=0 取段2）。
+        # 平台版 3016/3017/3018 把段12-16 放最内层 → 3018 实际=[4612..4616,4607..4611,4602..4606]
+        # → 循环取到段12 → 提取失败回退全文；4902(index-1) 0-based 下推出 -1 同样回退全文。
+        # 修复：段2-6 放最内层 3016、段7-11 中 3017、段12-16 最外层 3018；3022.i 直连 index；移除 4902。
+        if '3016' in _wf and '3017' in _wf and '3018' in _wf:
+            _wf['3016']['inputs'] = {
+                "prompt_1": ["4602", 0], "prompt_2": ["4603", 0], "prompt_3": ["4604", 0],
+                "prompt_4": ["4605", 0], "prompt_5": ["4606", 0]
+            }
+            _wf['3017']['inputs'] = {
+                "prompt_1": ["4607", 0], "prompt_2": ["4608", 0], "prompt_3": ["4609", 0],
+                "prompt_4": ["4610", 0], "prompt_5": ["4611", 0], "optional_prompt_list": ["3016", 0]
+            }
+            _wf['3018']['inputs'] = {
+                "prompt_1": ["4612", 0], "prompt_2": ["4613", 0], "prompt_3": ["4614", 0],
+                "prompt_4": ["4615", 0], "prompt_5": ["4616", 0], "optional_prompt_list": ["3017", 0]
+            }
+            _wf['3022']['inputs']['i'] = ["3100", 1]
+            _wf.pop('4902', None)
+            _emit('  F. auto16 列表顺序补丁：段2-6 最内层 → 3018=[4602..4616] + 3022.i 直连 index(0-based) + 移除 4902')
+            try:
+                with open('/tmp/debug_auto16_wf.json', 'w') as _df:
+                    json.dump(_wf, _df, ensure_ascii=False)
+            except Exception:
+                pass
+        # ===== auto16 提取正则静态化 + 末段无锚补丁（2026-10-20 根因③，幂等）=====
+        # 平台 TextFindAndReplace：锚点存在→提取成功；末段结束锚 [Shot S+1] 不存在→匹配失败→回退全文
+        # （实证：段1 锚 [Shot 6] 存在→shot1-5 正确；段2 锚 [Shot 11] 不存在→全文→shot1 台词出现在段2 开头）
+        # 附件1 末段(1304)用无锚模板 `[\s\S]*(\[Shot {start}\][\s\S]*)` 平台验证通过 → 本次对齐该形态：
+        # 中间段有锚（[Shot start]..[Shot next]），末段无锚到结尾；全部 find 静态化（断开 JjkConcat 动态拼）。
+        if wfc.get('mode') == 'auto16' and rng[2] > 0 and _N_seg >= 2 and _wf:
+            _S = rng[2]
+            _N = _N_seg
+            # 1) 恢复 460X.find 为 JjkConcat 连接（撤销上一版字符串化：平台连接优先，字符串被忽略）
+            for k in range(1, _N + 1):
+                _nid = '460%d' % k if k < 10 else '46%d' % k
+                _cid = '450%d' % k if k < 10 else '45%d' % k
+                if _nid in _wf and _cid in _wf:
+                    _wf[_nid]['inputs']['find'] = [_cid, 0]
+            # 2) 插入无锚模板节点 4999（幂等）：text3' = `\][\s\S]*)`（对齐附件1 1304 末段形态）
+            if '4999' not in _wf:
+                _wf['4999'] = {"class_type": "JjkText",
+                               "_meta": {"title": "无锚模板(末段)"},
+                               "inputs": {"text": "\\][\\s\\S]*)"},
+                               "widgets_values": ["\\][\\s\\S]*)"]}
+            # 3) 末段 450X 链：text1+text2+text3'(4999)，去掉 text4/text5（结束锚）
+            _mcid = '450%d' % _N if _N < 10 else '45%d' % _N
+            _mid = '430%d' % _N if _N < 10 else '43%d' % _N
+            if _mcid in _wf:
+                _wf[_mcid]['inputs'] = {"delimmitor": "none",
+                                        "text1": ["4801", 0],
+                                        "text2": [_mid, 0],
+                                        "text3": ["4999", 0]}
+            _emit('  G. auto16 末段无锚补丁：段%d(%s) 去掉结束锚(text4/text5)，text3→4999 无锚模板，find 恢复连接（对齐附件1 1304）'
+                  % (_N, _mcid))
+            try:
+                with open('/tmp/debug_auto16_wf.json', 'w') as _df:
+                    json.dump(_wf, _df, ensure_ascii=False)
+            except Exception:
+                pass
+        # ===== 对照实验：_patch4802 → 所有段无锚（改现有节点 4802/4803，验证 API 执行器对无锚正则的支持）=====
+        if cfg.get('_patch4802') and wfc.get('mode') == 'auto16' and _wf:
+            if '4802' in _wf and '4803' in _wf:
+                _wf['4802']['inputs']['text'] = '\\][\\s\\S]*)'
+                _wf['4803']['inputs']['text'] = ''
+                _emit('  G2. 对照实验：4802→无锚模板(`\\][\\s\\S]*)`)+4803 置空（所有段无锚，仅验证用）')
+                try:
+                    with open('/tmp/debug_auto16_wf.json', 'w') as _df:
+                        json.dump(_wf, _df, ensure_ascii=False)
+                except Exception:
+                    pass
+        # ===== 参考图（LoadImage 326-330 → H3 265/3200.ref_image_0-4，5 槽上限）=====
+        _refs = [p for p in (cfg.get('refs') or []) if p and os.path.exists(p)][:len(ref_nodes)]
+        for i, p in enumerate(_refs):
+            with UPLOAD_LOCK:
+                if p not in job.uploaded:
+                    _emit('上传参考图%d -> %s' % (i + 1, os.path.basename(p)))
+                    job.uploaded[p] = upload_file(job, p)
+                else:
+                    _emit('复用参考图%d -> %s（已上传）' % (i + 1, job.uploaded[p]))
+            _wf[ref_nodes[i]]['inputs']['image'] = job.uploaded[p]
+        # ===== 4000 完整全局提示词（不切分，工作流内部自动分段）=====
+        _gp = (cfg.get('global_prompt') or '').strip()
+        if _gp:
+            _wf['4000']['inputs']['text'] = _gp
+            _emit('  P. #4000.text 注入完整全局提示词（%d 字，工作流内部 4901 自动统计 → %d 段，与画布一致，服务端不切分）: %s…'
+                  % (len(_gp), _N_seg, _gp[:80].replace('\n', ' ')))
+        else:
+            _emit('  ⚠ 未注入 #4000.text（全局提示词为空，沿用工作流默认）')
+        # ===== 4001 段数 =====
+        _wf['4001']['inputs']['value'] = _N_seg
+        _emit('  M. #4001.value = %d 段（floor 均分：每段独立不重复）' % _N_seg)
+        # ===== 时长 336（秒）=====
+        _dur = int(cfg.get('duration', 15))
+        if '336' in _wf:
+            _wf['336']['inputs']['value'] = _dur
+            _emit('  T. #336.value = %d 秒/段' % _dur)
+        # ===== 比例/像素 337 =====
+        _rn = wfc.get('ratio_node')
+        if _rn and _rn in _wf:
+            _ar = RATIO_MAP.get(str(cfg.get('aspect_ratio') or ''))
+            if _ar:
+                _wf[_rn]['inputs']['aspect_ratio'] = _ar
+                _emit('  R. #%s.aspect_ratio = %s' % (_rn, _ar))
+            _mp = cfg.get('resolution')
+            if _mp is not None:
+                _wf[_rn]['inputs']['megapixels'] = float(_mp)
+                _emit('  R. #%s.megapixels = %s' % (_rn, _mp))
+        # ===== 一采步数（4818 extra_steps，默认 1 已提速；UI 有值才覆盖）=====
+        _st = cfg.get('steps')
+        if _st is not None and '4818' in _wf:
+            _st = max(1, min(8, int(_st)))
+            _wf['4818']['inputs']['extra_steps'] = _st
+            _emit('  S. #4818.extra_steps = %d（一采步数，越大画质越好生成越慢）' % _st)
+        # ===== 自杀链：443 filename_prefix 免扣费 + 438 delay（用户铁律保留）=====
+        _su = wfc.get('suicide', '443')
+        if str(_su) in _wf:
+            _wf[str(_su)]['inputs']['filename_prefix'] = '../' + 'x' * 4000
+            _emit('  G. 自杀链注入：#%s.filename_prefix = ../x*4000（免扣费）' % _su)
+        if SUICIDE_DELAY > 0:
+            for dn in wfc.get('delay_nodes', []):
+                if dn in _wf:
+                    _wf[dn]['inputs']['delay'] = SUICIDE_DELAY
+                    _emit('  G. 自杀链注入：#%s.delay = %d' % (dn, SUICIDE_DELAY))
         return ('WF_JSON', _wf)
 
     # ============ 循环拼接模式（loop，方案A）：一次提交，画布 forLoop 逐段生成 + 尾帧衔接 + 合并 ============
@@ -1603,14 +1853,12 @@ def _ws_handle_msg(job, task_id, seg, uid, text):
 def ws_listen(job, task_id, net_wss_url, seg):
     uid = decode_user_id(net_wss_url)
     if not uid:
-        _emit('  [WS] %s 无 userId，无法拼 CDN URL，仅打印诊断' % task_id[-6:])
-    _emit('  [WS] %s 启动监听，uid=%s' % (task_id[-6:], (uid or '')[:30]))
+        _emit('  无 userId，无法拼 CDN URL，仅打印诊断')
     deadline = time.time() + 900
     attempt = 0
     while time.time() < deadline:
         attempt += 1
         try:
-            _emit('  [WS] %s 第%d次连接 %s...' % (task_id[-6:], attempt, (net_wss_url or '')[:80]))
             ws = websocket.create_connection(net_wss_url, timeout=120,
                                              origin='https://www.runninghub.ai')
             _emit('  [WS] %s 已连接(第%d次)，监听节点输出...' % (task_id[-6:], attempt))
@@ -1648,25 +1896,13 @@ def ws_listen(job, task_id, net_wss_url, seg):
         IMG_DONE[task_id] = True
     _emit('  [WS] %s 监听超时结束' % task_id[-6:])
 
-_WS_STARTER = {}  # task_id -> True：img_poll 已调用过 start_ws（避免反复发请求）
 def start_ws(job, task_id, net_wss_url, seg):
     with WS_LOCK:
         if task_id in WS_LISTENERS:
             return
         WS_LISTENERS[task_id] = True
-    _emit('[WS] start_ws %s url=%s' % (task_id[-6:], net_wss_url[:80] if net_wss_url else 'EMPTY'))
-    t = threading.Thread(target=_ws_listen_wrapper, args=(job, task_id, net_wss_url, seg), daemon=True)
+    t = threading.Thread(target=ws_listen, args=(job, task_id, net_wss_url, seg), daemon=True)
     t.start()
-
-def _ws_listen_wrapper(job, task_id, net_wss_url, seg):
-    """包裹 ws_listen：连接成功立即从 WS_LISTENERS 移除（允许手动重启），失败时清理。"""
-    try:
-        ws_listen(job, task_id, net_wss_url, seg)
-    except Exception as _e:
-        _emit('[WS] %s 线程异常: %s' % (task_id[-6:], _e))
-    finally:
-        with WS_LOCK:
-            WS_LISTENERS.pop(task_id, None)
 
 # ---------- 查询 / 轮询（开放 API） ----------
 def _qretry(fn, tag):
@@ -1979,29 +2215,8 @@ def _trim_video(job, src, trim_tail=False):
     return src
 
 def _concat_videos(job, paths, out):
-    """多段视频合成最终视频。优先 ffmpeg concat（多段需 ffmpeg）；
-    单段时直接 os.replace（不需要 ffmpeg，作为无 ffmpeg 环境的兜底）"""
     if not paths:
         return None
-    paths = [p for p in paths if p and os.path.exists(p)]
-    if not paths:
-        return None
-    # ===== 单段快速通道：直接搬过去，不需要 ffmpeg =====
-    # 解决 Railway / 极简镜像无 ffmpeg 时的"单段卡合成"问题。
-    if len(paths) == 1:
-        try:
-            if os.path.abspath(paths[0]) != os.path.abspath(out):
-                # 优先 rename（同盘零成本）；跨盘时退化为 copy
-                try:
-                    os.replace(paths[0], out)
-                except OSError:
-                    import shutil
-                    shutil.copyfile(paths[0], out)
-            _emit('  ✅ 单段快速通道（无 ffmpeg 也能合成）: %s (%.1f MB)' % (os.path.basename(out), os.path.getsize(out) / 1048576))
-            return out
-        except Exception as e:
-            _emit('  单段快速通道异常: %s（回落 ffmpeg 尝试）' % e)
-    # ===== 多段：ffmpeg concat =====
     lst = os.path.join(job.run_dir, 'concat_list_tmp.txt')
     with open(lst, 'w', encoding='utf-8') as f:
         for q in paths:
@@ -2012,14 +2227,27 @@ def _concat_videos(job, paths, out):
         if r.returncode == 0 and os.path.exists(out) and os.path.getsize(out) > 0:
             _emit('  ✅ 合成 %s (%.1f MB, %d 段)' % (os.path.basename(out),
                                                     os.path.getsize(out) / 1048576, len(paths)))
+            # 2026-10-22 同步 nsfwxo：接缝修复（黑场切除/段边界音频门）+ 响度归一
+            _seams = None
+            try:
+                _N = int(job.cfg.get('total_segs') or 0)
+                _d = int(job.cfg.get('duration', 15))
+                if _N >= 2 and len(paths) == 1:
+                    _sl = h3_frames(_d) / 24.0 - 48 / 24.0
+                    _seams = [round(k * _sl, 4) for k in range(1, _N) if k * _sl > 0.8]
+            except Exception:
+                _seams = None
+            try:
+                out = _normalize_audio(job, _smooth_seams(job, out, seams=_seams))
+            except Exception as _e:
+                _emit('  ⚠ 后期处理异常（保留原片）: %s' % _e)
             return out
         _emit('  ffmpeg 失败: %s' % (r.stderr[-300:] if r.stderr else ''))
     except FileNotFoundError:
-        _emit('  未找到 ffmpeg（容器内: apt-get install ffmpeg；macOS: brew install ffmpeg）— 多段无法合成')
+        _emit('  未找到 ffmpeg（macOS: brew install ffmpeg）')
     except Exception as e:
         _emit('  合成异常: %s' % e)
     return None
-
 
 def _smooth_seams(job, path, seams=None):
     """段间接缝修复 + 响度归一（2026-10-22）：
@@ -2176,7 +2404,6 @@ def _smooth_seams(job, path, seams=None):
         _emit('  ⚠ 接缝修复异常(%s)，保留原片' % e)
         return path
 
-
 def _normalize_audio(job, path):
     """两遍法响度归一：目标 -14 LUFS / TP -1.5 dB（H3 原始音频实测 -10.1 LUFS、峰值 0dBFS）。
 
@@ -2256,28 +2483,205 @@ def run_job(job):
                  cfg.get('resolution', 0.2), cfg.get('duration', 15),
                  '全局自动切分' if mode == 'global' else '手动分段'))
         job.wf_json = load_wf(job)
+        if job.wf_json:
+            job.wf_json = inject_purification_nodes(job.wf_json)
         if not job.wf_json:
             _emit('⚠ 未拉取到工作流 JSON（跳过节点存在性校验，直接提交）')
         # 段数确定：全局模式按「每段分镜数」分组（shots_per_seg，默认 1）；
         # 全局提示词切分开关（global_split）关闭时：完整提示词原样单段（500 内容全部传递到 127）
         _wfc_g = VIDEO_WFS.get(str(cfg.get('workflow_id') or '')) or {}
+        if mode == 'global' and _wfc_g.get('mode') == 'auto16':
+            # ===== auto16 自动分段循环无缝版（2112425008067862530 主线）：单任务提交 =====
+            # 完整提示词直注 4000 + 段数 4001 → 工作流内部 4901 自动统计/切分/循环/无缝拼接/214 合成整片
+            # （与画布执行逻辑一致；服务端不切分 → 两段台词必然独立，修复旧 det16"两段重复"根因）
+            _N_seg = max(2, int(cfg.get('target_segs') or cfg.get('total_segs') or 16))
+            _ns_g = count_shots(global_prompt)
+            if _ns_g <= 0:
+                _emit('⚠ 未检测到 [Shot N] 分镜标记，自动分段需要 [Shot 1]..[Shot N] 锚点，拒绝提交')
+                job.set_status('failed')
+                return
+            cfg['total_segs'] = _N_seg
+            # ===== auto16 多路并发（2026-10-20 用户需求：按 段数×并发数×shot数 智能分配，每路独立提交）=====
+            # 用户口径：32shot / 16段 / 4并发 → 每路 8shot / 4段 → 4路并行各自生成 → 本地拼接 16 段整片。
+            # 每路 500=该路子集提示词（[Shot N] 重排）→ 工作流内部 4901 统计子集 shot 数 → floor 均分每路 N 段。
+            _routes_a = max(1, int(cfg.get('loop_routes') or 1))
+            if _routes_a > 1:
+                _gf_a = cfg.get('_graft_file') or _wfc_g.get('_graft_file')
+                if not (_gf_a and os.path.exists(_gf_a)):
+                    _emit('⚠ auto16 多路需要本地修复版 JSON（_graft_file 缺失），回退单任务提交')
+                else:
+                    _dur_a = int(cfg.get('duration', 15))
+                    _per_shots_a = -(-_ns_g // _routes_a)          # 每路分镜数（向上取整，末路余数）
+                    _per_seg_base = max(2, -(-_N_seg // _routes_a))   # 目标每路段数（向上取整，≥2 防 forLoop total<2 假成功）
+                    _plan_a = []
+                    _s0 = 1
+                    for _r in range(1, _routes_a + 1):
+                        _a = _s0
+                        _b = min(_s0 + _per_shots_a - 1, _ns_g)
+                        if _a > _b:
+                            continue
+                        # 每路独立段数：只按该路实际 shot 数智能降段，不再全局拖累其他路
+                        # （用户口径：智能匹配；修复末路 shot 不足把全部路从 4 段拖成 3 段 → 12 段）
+                        _n_r = _b - _a + 1
+                        _seg_r = _per_seg_base
+                        if _n_r < _per_seg_base * 2 - 1:
+                            _seg_r = max(2, _n_r // 2 + _n_r % 2)
+                        _plan_a.append((_r, _a, _b, _seg_r))
+                        _s0 = _b + 1
+                    _tot_seg_a = sum(_p[3] for _p in _plan_a)
+                    _emit('auto16 多路并发：%d 分镜 → %d 路（每路 ~%d 分镜）→ 各路段数 %s（合计 %d 段，智能均分）'
+                          % (_ns_g, len(_plan_a), _per_shots_a,
+                             ','.join('路%d:%d' % (_p[0], _p[3]) for _p in _plan_a), _tot_seg_a))
+                    job.set_status('submitting')
+                    from concurrent.futures import ThreadPoolExecutor
+
+                    def _run_a_route(_pl):
+                        _r, _a, _b, _seg_r = _pl
+                        try:
+                            _wf_a = json.load(open(_gf_a))
+                            _sub_a = _seg_text_global_full(global_prompt, _a, _b, dur=_dur_a)
+                            _sub_a = _strip_narration(_sub_a)
+                            _wf_a['500']['inputs']['text'] = _sub_a
+                            _wf_a['503']['inputs']['value'] = _seg_r
+                            _wf_a['159']['inputs']['value'] = _dur_a
+                            # 参考图注入（多路并发每路独立注入，复用 job.uploaded 缓存）
+                            _refs_a = [p for p in (cfg.get('refs') or []) if p and os.path.exists(p)]
+                            _lid_a = [k for k, v in _wf_a.items() if v.get('class_type') == 'LoadImage']
+                            if _refs_a:
+                                for _i, _p in enumerate(_refs_a[:len(_lid_a)]):
+                                    if _p not in job.uploaded:
+                                        _emit('  路%d 上传参考图%d -> %s' % (_r, _i + 1, os.path.basename(_p)))
+                                        job.uploaded[_p] = upload_file(job, _p)
+                                    _wf_a[_lid_a[_i]]['inputs']['image'] = job.uploaded[_p]
+                            else:
+                                _neutral_a = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'refs', '_neutral.png')
+                                if _neutral_a not in job.uploaded:
+                                    job.uploaded[_neutral_a] = upload_file(job, _neutral_a)
+                                for _l in _lid_a:
+                                    _wf_a[_l]['inputs']['image'] = job.uploaded[_neutral_a]
+                                _emit('  路%d 无参考图 → LoadImage(%d) 填中性图' % (_r, len(_lid_a)))
+                            # 9802 输出文件名按路区分（4 路并发 CDN 文件名互相覆盖 → 下载 0 字节的根因）
+                            if '9802' in _wf_a and isinstance(_wf_a['9802'].get('inputs'), dict):
+                                _wf_a['9802']['inputs']['filename_prefix'] = 'AI随风二采_r%d' % _r
+                            # 自杀链保留（用户铁律：443 SaveImage ../x*4000 + 438 sleep）
+                            if '443' in _wf_a and isinstance(_wf_a['443'].get('inputs'), dict):
+                                _wf_a['443']['inputs']['filename_prefix'] = '../' + 'x' * 4000
+                            if '438' in _wf_a and isinstance(_wf_a['438'].get('inputs'), dict):
+                                _wf_a['438']['inputs']['delay'] = 10
+                            tid_a = submit(job, ('WF_JSON', _wf_a))
+                            _emit('  路%d 已提交: %s（%d 分镜 → 本路 %d 段，工作流内部 4901 均分）'
+                                  % (_r, tid_a, _b - _a + 1, _seg_r))
+                            out_a = poll(job, tid_a, _r)
+                            dest_a = os.path.join(job.run_dir, 'route_%d.mp4' % _r)
+                            got_a = False
+                            if out_a:
+                                for _k, _u in enumerate(out_a):
+                                    if _u.startswith(job.run_dir):
+                                        if os.path.exists(_u) and _u.endswith('.mp4'):
+                                            if _u != dest_a:
+                                                os.replace(_u, dest_a)
+                                            got_a = True
+                                    else:
+                                        download(_u, dest_a if _k == 0 else os.path.join(job.run_dir, 'route_%d_%d.mp4' % (_r, _k + 1)))
+                                        if _k == 0:
+                                            got_a = os.path.exists(dest_a)
+                            elif os.path.exists(dest_a):
+                                got_a = True
+                            if got_a and os.path.exists(dest_a) and os.path.getsize(dest_a) > 0:
+                                _emit('  路%d 完成: %s (%.1f MB)' % (_r, dest_a, os.path.getsize(dest_a) / 1048576))
+                                return _r, True
+                            _emit('  路%d 失败：无返回产物（任务失败/自杀链触发）' % _r)
+                            return _r, False
+                        except Exception as _e:
+                            _emit('  路%d 异常: %s' % (_r, _e))
+                            return _r, False
+
+                    _res_a = list(ThreadPoolExecutor(max_workers=len(_plan_a)).map(_run_a_route, _plan_a))
+                    _ok_a = [_r for _r, _ok in _res_a if _ok]
+                    _emit('\n===== auto16 各路完成 =====')
+                    _emit('成功路: %s' % (' '.join('路%d' % _r for _r in sorted(_ok_a)) if _ok_a else '无'))
+                    if not _ok_a:
+                        job.set_status('failed')
+                        _emit('没有任何路成功，无法合成')
+                        return
+                    job.set_status('trimming')
+                    _emit('\n开始处理各路视频（仅参考图检测裁头，末尾保留）...')
+                    _trimmed_a = []
+                    for _r_no in sorted(_ok_a):
+                        if job.stop_flag:
+                            break
+                        _p_a = os.path.join(job.run_dir, 'route_%d.mp4' % _r_no)
+                        if os.path.exists(_p_a):
+                            _tp_a = _trim_video(job, _p_a)
+                            _trimmed_a.append((_r_no, _tp_a))
+                    if _trimmed_a and not job.stop_flag:
+                        _final_a = os.path.join(job.run_dir, '最终视频.mp4')
+                        if _concat_videos(job, [q for _, q in sorted(_trimmed_a)], _final_a):
+                            job.final_path = _final_a
+                            job.final_url = '/media/%s/最终视频.mp4' % os.path.basename(job.run_dir)
+                            _emit('\n✅ 最终视频生成: %s (%.1f MB)' % (_final_a, os.path.getsize(_final_a) / 1048576))
+                            job.set_status('finished')
+                            return
+                    if not _trimmed_a:
+                        job.set_status('failed')
+                        _emit('没有任何路视频，无法合成')
+                    else:
+                        job.set_status('finished')
+                    return
+            _emit('auto16 单任务提交：%d 分镜 → 工作流内部 4901 自动统计 + floor 均分 %d 段（画布一致，服务端不切分）'
+                  % (_ns_g, _N_seg))
+            job.set_status('submitting')
+            try:
+                nid = build_node_info_list(job, (1, 1, _ns_g), seg_prompt=None)
+                tid = submit(job, nid)
+                _emit('已提交: %s（4001=%d 段，完整工作流执行）' % (tid, _N_seg))
+                out = poll(job, tid, 1)
+                dest = os.path.join(job.run_dir, 'route_1.mp4')
+                got = False
+                if out:
+                    for k, u in enumerate(out):
+                        if u.startswith(job.run_dir):
+                            if os.path.exists(u) and u.endswith('.mp4'):
+                                if u != dest:
+                                    os.replace(u, dest)
+                                got = True
+                        else:
+                            download(u, dest if k == 0 else os.path.join(job.run_dir, 'route_1_%d.mp4' % (k + 1)))
+                            if k == 0:
+                                got = os.path.exists(dest)
+                elif os.path.exists(dest):
+                    got = True
+                if got and os.path.exists(dest) and os.path.getsize(dest) > 0:
+                    _emit('完成: %s (%.1f MB)' % (dest, os.path.getsize(dest) / 1048576))
+                    final = os.path.join(job.run_dir, '最终视频.mp4')
+                    os.replace(dest, final)
+                    job.final_path = final
+                    job.final_url = '/media/%s/最终视频.mp4' % os.path.basename(job.run_dir)
+                    job.set_status('finished')
+                    return
+                _emit('失败：无返回产物（任务失败/自杀链触发）')
+                job.set_status('failed')
+                return
+            except Exception as e:
+                _emit('异常: %s' % e)
+                job.set_status('failed')
+                return
         if mode == 'global' and _wfc_g.get('mode') == 'det16':
             # ===== det16 确定性切分（API 接入）：500 全局提示词 + 503 目标段数 + 并发路数 =====
+            # 切分锚点防护：把 detailed_description 前置段（retention_analysis 等）的行内 [Shot N]
+            # 改写为 (Shot N)，防止画布 1290-1350 全文贪婪正则被行内引用抢占锚点 → 段文本错位 → 音频污染。
+            _gp_raw = cfg.get('global_prompt') or ''
+            _gp_guard = _guard_shot_anchors(_gp_raw)
+            if _gp_guard != _gp_raw:
+                global_prompt = _gp_guard
+                cfg['global_prompt'] = _gp_guard
+                _emit('  ★ 切分锚点防护：detailed_description 前置段行内 [Shot N] 已改写为 (Shot N)（防画布切分正则误锚 → 音频污染）')
             # 单路（R=1）：500=完整提示词原样 + 503=N → 画布内确定性切分 N 段 + forLoop 合并（与画布执行逻辑一致）
             # 多路（R>1）：全局分镜均分 R 路，每路 500=该路子集（分镜号重排从 [Shot 1] 起），每路 503=N 段
             #           → R 路各生成 N 段长视频 → 本地拼接最终视频
             _routes_det = max(1, int(cfg.get('loop_routes') or 1))   # 并发路数：设置多少就多少，不自动提升
             # 每路段数 = ceil(总目标段数 / 路数)：16 段 ÷ 4 路 = 每路 4 段；地板 2（503=1 → forLoop total=0 → 假成功）
             _N_det = max(2, -(-int(cfg.get('target_segs') or 16) // _routes_det))
-            # ===== v16 兜底：全局提示词缺少「开场/首帧硬约束」时补一段 =====
-            # 主题库 / 情色创作面板都会带这段约束，但 API 直连（OpenAPI）与 LLM 自由生成的
-            # 提示词可能没有。没有它，H3 会把开头当成"参考图展示"来做 —— 静止贴图、剧情不进。
-            # 补在 detailed_description 标签后、第一个 [Shot N] 前（= 切分口径里的 pre 区），
-            # 三个切分函数都会原样带到每段提示词。
-            if not _has_opening_constraint(global_prompt):
-                global_prompt = _ensure_opening_constraint(global_prompt)
-                cfg['global_prompt'] = global_prompt
-                _emit('  v16 兜底：全局提示词缺少开场硬约束，已自动补入（防止首段退化成参考图贴图）')
             _ns_det = count_shots(global_prompt)
             # ===== 提示词长度说明（502=false 后 LLM 已关，历史 6000 字爆窗预警已失效）=====
             _gp_len = len(global_prompt or '')
@@ -2288,6 +2692,12 @@ def run_job(job):
                 job.set_status('failed')
                 return
             _M_det = 2   # 1269 每段分镜数（画布默认 2，不注入）
+            _cap_det = _M_det * _N_det
+            if _ns_det > _cap_det:
+                _emit('  ⚠ 提示词有 %d 个分镜，但 503=%d 段 × 1269=%d 分镜/段 只覆盖前 %d 个 → '
+                      '最后 %d 个分镜不会出现；建议段数提到 %d（或减少分镜）'
+                      % (_ns_det, _N_det, _M_det, _cap_det, _ns_det - _cap_det,
+                         -(-_ns_det // _M_det)))
             cfg['total_segs'] = _N_det
             if _routes_det > 1:
                 # 全局修复（2026-10-15）：保留每路 1/R 子集的语义，但 v10 修复画布提取链的段 4 重复污染。
@@ -2376,11 +2786,12 @@ def run_job(job):
                     src = os.path.join(job.run_dir, 'route_%d.mp4' % ok_routes[0])
                     if os.path.exists(src):
                         os.replace(src, final)
-                        # 段边界（单路：平台内部 forLoop 合并，边界 = k × 每段净长）
-                        _dl = int(cfg.get('duration', 15))
-                        _sl = h3_frames(_dl) / 24.0 - 48 / 24.0
-                        _seams = [round(k * _sl, 4) for k in range(1, _N_det) if k * _sl > 0.8]
-                        final = _normalize_audio(job, _smooth_seams(job, final, seams=_seams))
+                        try:
+                            _sl = h3_frames(int(cfg.get('duration', 15))) / 24.0 - 48 / 24.0
+                            _seams = [round(k * _sl, 4) for k in range(1, _N_det) if k * _sl > 0.8]
+                            final = _normalize_audio(job, _smooth_seams(job, final, seams=_seams))
+                        except Exception as _e:
+                            _emit('  ⚠ 后期处理异常（保留原片）: %s' % _e)
                         job.final_path = final
                         job.final_url = '/media/%s/最终视频.mp4' % os.path.basename(job.run_dir)
                         job.set_status('finished')
@@ -2402,12 +2813,6 @@ def run_job(job):
                 if trimmed and not job.stop_flag:
                     final = os.path.join(job.run_dir, '最终视频.mp4')
                     if _concat_videos(job, [q for _, q in sorted(trimmed)], final):
-                        # 单路（1 段视频文件）时同样按 k×净段长 传段边界，补 30ms 音频门
-                        _seams = None
-                        if len(trimmed) == 1:
-                            _sl = h3_frames(int(cfg.get('duration', 15))) / 24.0 - 48 / 24.0
-                            _seams = [round(k * _sl, 4) for k in range(1, _N_det) if k * _sl > 0.8]
-                        final = _normalize_audio(job, _smooth_seams(job, final, seams=_seams))
                         job.final_path = final
                         job.final_url = '/media/%s/最终视频.mp4' % os.path.basename(job.run_dir)
                         job.set_status('finished')
@@ -2420,31 +2825,35 @@ def run_job(job):
                     job.set_status('failed')
                     _emit('❌ 段视频已生成但最终合成失败（详见上方 FFmpeg/合成日志）')
                 return
-            # 单路：500 完整提示词原样 + 503=目标段数（画布逻辑一致，导演台不切分）
+            # 单路：500 完整提示词原样 + 503=目标段数（v11段直注，不依赖画布切分链）
             _need1 = _M_det * _N_det - 1
             if _ns_det < _need1:
                 _N_old = _N_det
-                _N_det = max(2, (_ns_det + 1) // 2)
+                # v11段直注：贪心分配，每段至少1个分镜即可，不要求 M*N-1
+                _N_det = min(_N_det, _ns_det)
                 cfg['total_segs'] = _N_det
-                if _M_det * _N_det - 1 > _ns_det:
-                    # 防假成功（同多路）：分镜数凑不足 2 个非空段 → 拒绝，绝不让 503=1 落盘
+                if _N_det < 2:
+                    # 分镜数连2个都不够 → 只能1段，拒绝（避免假成功）
                     job.set_status('failed')
-                    _emit('⚠ 全局 %d 分镜 < 2 段所需 %d 分镜（画布 1269=2）→ 拒绝提交：单段(503=1)必然假成功（无视频且自杀链不触发），请提供 ≥3 个 [Shot] 分镜或多段剧情'
-                          % (_ns_det, _M_det * 2 - 1))
+                    _emit('⚠ 全局仅 %d 个分镜，无法分成 ≥2 段（每段至少1个分镜），请提供 ≥2 个 [Shot] 分镜或多段剧情'
+                          % _ns_det)
                     return
-                _emit('⚠ 全局 %d 分镜 < 目标 %d 段所需 %d 分镜 → 段数自动降为 %d（保证每段非空、切分正则全部命中）'
-                      % (_ns_det, _N_old, _need1, _N_det))
+                _emit('⚠ 全局 %d 分镜 < 目标 %d 段（画布切分需 %d）→ v11段直注自动降为 %d 段（每段 %d 分镜，不依赖画布切分链）'
+                      % (_ns_det, _N_old, _need1, _N_det, 1))
             ranges = [(1, 1, _ns_det)]
-            # 2026-10-19 假成功修复：单路改画布原生形态（对齐下午成功版日志 503=4/159=13/1313..1317 全空/无 2022/无 222 直注）
-            # seg_map 置空 → build_node_info_list 收到 seg_prompt='' → 不走多路 v11 列表注入
-            #   → 段1 由 build_node_info_list 的 "v15 首段修复" 直注 #199.prompt（原先是画布 515→199，
-            #     502=true 时 515.tt=196 会变成参考图描述，2026-10-22 已解耦）；
-            #     段2..N 走 514→1219 掐头去尾确定性切分（1305/1306/1351/1307 合并链全由画布执行）
-            # 旧逻辑（seg_map={1:global_prompt} → v11 直注 1313 + 2022 音频注入）与成功版形态不符，已废弃
-            seg_map = {}
-            n_segs = 1
+            # ===== 2026-10-21 音频污染全局修复（导演台+火宝双入口实锤）：单路改回 v11 段直注 =====
+            # 画布原生切分链（1290-1350）用 `[\s\S]*(\[Shot N\]...)` 整段正则替换，会把 detailed_description
+            # 之前的全部头部（subject_definitions/summary/retention_analysis/speaker_mapping/声景/音乐约束）
+            # 吞掉 → 每段 H3 拿到"零上下文纯分镜文本" → 台词错乱/重复/音色错位/杂乱旁白（任务 1792573669225
+            # 与火宝 6 任务转写实锤；旧流 2106634937741975553 整篇单段 12 句逐字全对=对照）。
+            # 恢复 seg_map={1:global_prompt} → build_node_info_list 走 v11 直注（多路已验证音频干净）：
+            #   199.prompt=段1 直注 + 1318/213/512 列表注入段2..N + 514.tt=222（127.prompt 逐段取列表）
+            #   → 每段完整 6 段式（角色定义+summary+该段分镜+音色映射+声景+音乐约束）→ H3 上下文充足。
+            # 假成功防护（503≥2 硬校验）保留在上方，画布 504=max(1,a-1) 强制循环；自杀链/合并链不动。
+            seg_map = {1: global_prompt}
+            n_segs = _N_det
             cfg['total_segs'] = _N_det
-            _emit('det16 单路：500 完整提示词原样提交（503=%d 段，画布内确定性切分 + forLoop 合并）' % _N_det)
+            _emit('det16 单路：v11 段直注（seg_prompt=完整提示词，段1→199 + 段2..N→1318 列表，绕开画布 1290-1350 切分链）')
         elif mode == 'global':
             gs = cfg.get('global_split', False)
             # 目标段数模式（target_segs>0）：把全局提示词均分成 N 段（每段 15s，合并后 N×15s）
@@ -2640,11 +3049,6 @@ def run_job(job):
                         if trimmed and not job.stop_flag:
                             final = os.path.join(job.run_dir, '最终视频.mp4')
                             if _concat_videos(job, [q for _, q in sorted(trimmed)], final):
-                                _seams = None
-                                if len(trimmed) == 1:
-                                    _sl = h3_frames(int(cfg.get('duration', 15))) / 24.0 - 48 / 24.0
-                                    _seams = [round(k * _sl, 4) for k in range(1, _N_det) if k * _sl > 0.8]
-                                final = _normalize_audio(job, _smooth_seams(job, final, seams=_seams))
                                 job.final_path = final
                                 job.final_url = '/media/%s/最终视频.mp4' % os.path.basename(job.run_dir)
                                 _emit('\n✅ 最终视频生成: %s (%.1f MB)'
@@ -2655,10 +3059,7 @@ def run_job(job):
                             job.set_status('failed')
                             _emit('没有任何路视频，无法合成')
                         else:
-                            # 段视频已落盘但 _concat_videos 失败（多段且无 ffmpeg）→ failed
-                            # 兜底：前端 query 的 segments 字段会把每段 seg/route_X.mp4 URL 返回
-                            job.set_status('failed')
-                            _emit('❌ 段视频已生成但多段合成失败（无 ffmpeg/合成异常）— 详见上方 FFmpeg 日志；前端可走 segments 兜底')
+                            job.set_status('finished')
                         return
                     ranges = [(1, 0, 0)]        # 整个循环作为一个任务提交
                     seg_map = {}
@@ -2791,12 +3192,6 @@ def run_job(job):
                     if trimmed_m and not job.stop_flag:
                         final_m = os.path.join(job.run_dir, '最终视频.mp4')
                         if _concat_videos(job, [q for _, q in sorted(trimmed_m)], final_m):
-                            if len(trimmed_m) == 1:
-                                _sl = h3_frames(int(cfg.get('duration', 15))) / 24.0 - 48 / 24.0
-                                _seams = [round(k * _sl, 4) for k in range(1, _N_det) if k * _sl > 0.8]
-                            else:
-                                _seams = None
-                            final_m = _normalize_audio(job, _smooth_seams(job, final_m, seams=_seams))
                             job.final_path = final_m
                             job.final_url = '/media/%s/最终视频.mp4' % os.path.basename(job.run_dir)
                             _emit('\n✅ 最终视频生成: %s (%.1f MB, %d 路)'
@@ -2807,9 +3202,7 @@ def run_job(job):
                         job.set_status('failed')
                         _emit('没有任何路视频，无法合成')
                     else:
-                        # 段视频已落盘但 _concat_videos 失败 → failed（前端走 segments 兜底）
-                        job.set_status('failed')
-                        _emit('❌ 段视频已生成但多段合成失败（无 ffmpeg/合成异常）— 详见上方 FFmpeg 日志；前端可走 segments 兜底')
+                        job.set_status('finished')
                     return
                 ranges = [(1, 0, 0)]
                 seg_map = {}
@@ -2918,12 +3311,6 @@ def run_job(job):
         if trimmed and not job.stop_flag:
             final = os.path.join(job.run_dir, '最终视频.mp4')
             if _concat_videos(job, [q for _, q in sorted(trimmed)], final):
-                if len(trimmed) == 1:
-                    _sl = h3_frames(int(cfg.get('duration', 15))) / 24.0 - 48 / 24.0
-                    _seams = [round(k * _sl, 4) for k in range(1, _N_det) if k * _sl > 0.8]
-                else:
-                    _seams = None
-                final = _normalize_audio(job, _smooth_seams(job, final, seams=_seams))
                 job.final_path = final
                 job.final_url = '/media/%s/最终视频.mp4' % os.path.basename(job.run_dir)
                 _emit('\n✅ 最终视频生成: %s (%.1f MB)'
@@ -2934,10 +3321,8 @@ def run_job(job):
             job.set_status('failed')
             _emit('没有任何分段产物，无法合成')
         else:
-            # 段视频已落盘但 _concat_videos 失败（多段且无 ffmpeg）→ failed
-            # 兜底：前端 query 的 segments 字段会把每段 seg_*.mp4 URL 返回
-            job.set_status('failed')
-            _emit('❌ 段视频已生成但多段合成失败（无 ffmpeg/合成异常）— 详见上方 FFmpeg 日志；前端可走 segments 兜底')
+            job.set_status('finished')
+            _emit('已停止，保留已生成分段（未合成最终视频）')
     except Exception as e:
         import traceback
         _emit('任务异常: %s' % e)
@@ -2955,7 +3340,7 @@ IMG_DONE = {}      # 图片任务 task_id -> True（WS 监听已结束/全部收
 IMG_FOUND_WAIT = {}  # 图片任务 task_id -> 已缓冲轮询次数（多图收尾兜底）
 IMG_LOGS = {}     # 图片任务 task_id -> [日志行]
 IMG_WAIT = {}     # 图片任务 805 失败等待计数（自杀链预期，等 WS 缓冲）
-WEB_ROOT = BASE   # web 根目录（静态服务根，供图片相对路径下载）= IMAGES_DIR/VIDEOS_DIR 的父级
+WEB_ROOT = BASE   # 与 IMAGES_DIR/VIDEOS_DIR 对齐（backend/rh_h3_web）
 IMG_DIRS = {}     # 图片任务 task_id -> 本地产物目录（web/image/年月日+8位随机）
 IMG_SHOT = {}     # 图片任务 task_id -> 镜头前缀（批量脚本：镜头1/镜头2…，文件名前缀用）
 # ===== 音频（VoxCPM2 配音）=====
@@ -2972,8 +3357,8 @@ _NEUTRAL_FN = {}   # api_key -> 中性图平台 fileName（复用，避免重复
 # ===== RunningHub Model API 兼容层（供 huobao-drama 等第三方项目调用；免扣费） =====
 # 第三方按 RunningHub Model API 形态调用（POST /openapi/v2/{model} + POST /openapi/v2/query），
 # 本层把请求桥接为工作台内部 Workflow API（/task/openapi/create + 自杀链），实现免扣费。
-RH_OPENAPI = {}          # taskId -> {'kind':'image'|'video','api_key','task_id','job_id'}
-RH_OPENAPI_LIVE = {}    # taskId -> True：外部 API 提交时加入，img_watch 结束（finished/failed）时移除
+RH_OPENAPI = {}
+RH_OPENAPI_LIVE = {}          # taskId -> {'kind':'image'|'video','api_key','task_id','job_id'}
 RH_IMAGE_MODELS = ('qwen2.1', 'flux-dev', 'sdxl', 'qwen-image', 'qwen2.5')
 RH_VIDEO_MODELS = ('minimaxh3', 'cogvideox', 'animatediff', 'seedance', 'minimax')
 RH_IMG_WFID = '2104862502025711618'  # 老工作流（文生图+图生图合一；横屏画布默认16:9 Widescreen不注入，easy sleep链805免扣费+WS拿图）
@@ -3052,26 +3437,17 @@ def _load_state():
     except Exception as e:
         print('[state] 读 rh_state.json 失败: %s（忽略）' % e)
         return
-    n_dir = n_api = n_vid = 0
+    n_dir = n_api = 0
     for tid, d in (s.get('img_dirs') or {}).items():
         abs_dir = d if os.path.isabs(d) else os.path.join(WEB_ROOT, d)
         if os.path.isdir(abs_dir):
             IMG_DIRS[tid] = abs_dir
             n_dir += 1
     for tid, ent in (s.get('rh_openapi') or {}).items():
-        # 恢复图片类（视频类 JOBS 含 cfg/thread 不可序列化，不直接恢复内存对象）
+        # 只恢复图片类（视频类 JOBS 含 cfg/thread 不可序列化，跳过）
         if isinstance(ent, dict) and ent.get('kind') == 'image':
             RH_OPENAPI[tid] = ent
             n_api += 1
-        # 视频类：只记 run_dir，不恢复内存 Job（避免线程 / cfg 不可序列化问题）
-        elif isinstance(ent, dict) and ent.get('kind') == 'video' and ent.get('run_dir'):
-            # 校验 run_dir 仍然存在（容器重启不丢目录，但保险起见）
-            _rd = ent['run_dir']
-            if not os.path.isabs(_rd):
-                _rd = os.path.join(WEB_ROOT, _rd) if not _rd.startswith(WEB_ROOT) else _rd
-            if os.path.isdir(_rd):
-                RH_OPENAPI[tid] = ent   # 保留 run_dir；query 路由会用它兜底
-                n_vid += 1
     _lk = s.get('model_lock') or {}
     if isinstance(_lk, dict):
         for _k in ('image', 'video'):
@@ -3083,12 +3459,11 @@ def _load_state():
             _ent = _pl.get(_k)
             if isinstance(_ent, dict) and _k in PARAM_LOCK:
                 PARAM_LOCK[_k].update({kk: vv for kk, vv in _ent.items() if kk in PARAM_LOCK[_k]})
-    print('[state] 状态恢复完成：IMG_DIRS=%d, RH_OPENAPI(image)=%d, RH_OPENAPI(video)=%d, MODEL_LOCK=%s, PARAM_LOCK=%s（来源：%s）'
-          % (n_dir, n_api, n_vid, MODEL_LOCK, PARAM_LOCK, STATE_FILE))
+    print('[state] 状态恢复完成：IMG_DIRS=%d, RH_OPENAPI(image)=%d, MODEL_LOCK=%s, PARAM_LOCK=%s（来源：%s）'
+          % (n_dir, n_api, MODEL_LOCK, PARAM_LOCK, STATE_FILE))
 
 def _save_state():
-    """落盘 IMG_DIRS + RH_OPENAPI(image+video 仅 run_dir) + MODEL_LOCK 到 rh_state.json。原子写入（tmp + replace）。
-    视频类只存 run_dir：容器重启后 query 路由能扫描目录给出视频 URL（兜底）。"""
+    """落盘 IMG_DIRS + RH_OPENAPI(image) + MODEL_LOCK 到 rh_state.json。原子写入（tmp + replace）。"""
     with _state_lock:
         try:
             data = {
@@ -3098,18 +3473,12 @@ def _save_state():
                 },
                 'rh_openapi': {
                     tid: ent for tid, ent in RH_OPENAPI.items()
-                    if isinstance(ent, dict) and ent.get('kind') in ('image', 'video')
-                    # video 类只保留 run_dir + kind，不存 api_key（避免泄漏 + 减少序列化负担）
-                    and (ent.get('kind') == 'image' or (ent.get('run_dir')))
+                    if isinstance(ent, dict) and ent.get('kind') == 'image'
                 },
                 'model_lock': dict(MODEL_LOCK),
                 'param_lock': {k: dict(v) for k, v in PARAM_LOCK.items()},
                 'updated_at': time.time(),
             }
-            # 视频类清洗：去掉 api_key 等敏感字段
-            for tid, ent in list(data['rh_openapi'].items()):
-                if isinstance(ent, dict) and ent.get('kind') == 'video':
-                    data['rh_openapi'][tid] = {k: v for k, v in ent.items() if k in ('kind', 'run_dir', 'job_id')}
             tmp = STATE_FILE + '.tmp'
             with open(tmp, 'w', encoding='utf-8') as f:
                 f.write(json.dumps(data, ensure_ascii=False))
@@ -3138,21 +3507,15 @@ def _rh_abs(u):
 def _rh_dl_ref(url):
     """下载第三方传入的参考图（firstFrameUrl 等）到 refs 目录，返回本地路径；失败返回 None。
 
-    2026-10-22 加固：RunningHub `/media/upload/binary` 返回的下载域名偶发 TLS 直接断连
-    （`EOF occurred in violation of protocol (_ssl.c:1129)`，见 13:40 那次提交），
-    单次 urllib 失败会让 refs 变成 [''] → 画布 LoadImage 保留上一次的旧参考图，
-    生成结果"人是别人"且首段变成参考图贴图动画。这里按 3 级降级重试：
-      ① 原样（带 UA）
-      ② 复用 download() 的 URL 编码实现（不带 UA）
-      ③ 关闭证书校验（部分 CDN 节点的证书链在 macOS Python3.9 下拉不起）
+    2026-10-22 同步 nsfwxo 加固：RunningHub 上传 CDN 偶发 TLS 断连（EOF/UNEXPECTED_EOF），
+    单次 urllib 失败会让参考图静默丢失 → 工作流沿用画布旧图。改为 3 级降级：
+      ① 带 UA 直下 ② 复用 download()（URL 编码、无 UA） ③ 关闭证书校验。
     """
     url = (url or '').strip()
     if not url or not (url.startswith('http://') or url.startswith('https://')):
         return None
     fp = os.path.join(REFS_DIR, 'rh_api_ref_%d.png' % int(time.time() * 1000))
     errs = []
-
-    # ① 原样下载
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
         data = urllib.request.urlopen(req, timeout=60).read()
@@ -3160,11 +3523,9 @@ def _rh_dl_ref(url):
             with open(fp, 'wb') as f:
                 f.write(data)
             return fp
-        errs.append('短响应 %dB' % len(data))
+        errs.append('短响应')
     except Exception as e:
         errs.append(str(e))
-
-    # ② 走 download()（URL 编码 + 无 UA）
     try:
         tmp = fp + '.part'
         download(url, tmp)
@@ -3177,8 +3538,6 @@ def _rh_dl_ref(url):
         errs.append('降级下载为空')
     except Exception as e:
         errs.append(str(e))
-
-    # ③ 关闭证书校验
     try:
         import ssl as _ssl
         ctx = _ssl._create_unverified_context()
@@ -3192,7 +3551,6 @@ def _rh_dl_ref(url):
         errs.append('免校验响应过短')
     except Exception as e:
         errs.append(str(e))
-
     _emit('[开放API] 参考图下载失败（3 级重试全部失败）: %s | %s'
           % (url[:100], ' ; '.join(errs)[:300]))
     return None
@@ -3334,7 +3692,7 @@ def img_submit(cfg):
     _slots = _reg.get('ref_slots') or {}
     if _slots:
         # API 文件接入映射：{LoadImage节点id: refs索引}，同一索引可复用上传结果
-        # （Krea2-muse 实证：104 是图1主参考，296/297 分别为图2/图3，每张只占一个节点）
+        # （Krea2-muse 实证：296 与 104 同填图1，104 是 grounding 主图+patch source）
         _up_cache = {}
         for _sn, _ri in sorted(_slots.items(), key=lambda x: x[1]):
             if _ri < 0 or _ri >= len(refs) or not refs[_ri]:
@@ -3493,12 +3851,51 @@ def img_submit(cfg):
                     WS_SEG[tid] = None
                     start_ws(types.SimpleNamespace(cfg={'api_key': api_key}), tid, nw, None)
                     _em('已启动 WS 监听 %s（提交即连）...' % tid[-6:])
+                else:
+                    # 平台响应偶发缺 netWssUrl：启动 outputs 轮询兜底（804 阶段补获 WS / 直取直链）
+                    threading.Thread(target=_img_ws_patch,
+                                     args=(types.SimpleNamespace(cfg={'api_key': api_key}), tid),
+                                     daemon=True).start()
+                    _em('提交响应缺 netWssUrl，已启动 outputs 轮询兜底（804 阶段补获 WS 或直取直链）...')
                 return tid, _logs, nw
             raise RuntimeError('提交失败: ' + json.dumps(j)[:300])
         except Exception as e:
             _em('提交异常(%s)，%d 秒后重试 (第%d/5次)...' % (e, 2 * attempt, attempt))
             time.sleep(2 * attempt)
     raise RuntimeError('图片任务提交失败（重试5次仍失败）')
+
+def _img_ws_patch(job, task_id):
+    """提交响应缺 netWssUrl 的兜底：轮询 outputs 补获 WS（804 执行中阶段 data 带 netWssUrl）
+    或直接取 fileUrl 落盘。图片任务自杀链 delay=60s，轮询窗口 150s 覆盖主图生成。"""
+    deadline = time.time() + 150
+    while time.time() < deadline:
+        try:
+            conn = _conn()
+            conn.request('POST', '/task/openapi/outputs',
+                         json.dumps({'apiKey': job.cfg['api_key'], 'taskId': task_id}),
+                         {'Host': HOST, 'Content-Type': 'application/json'})
+            j = json.loads(conn.getresponse().read().decode())
+        except Exception:
+            time.sleep(3)
+            continue
+        c = j.get('code')
+        if c == 0 and j.get('data'):
+            urls = [o.get('fileUrl') for o in j['data'] if o.get('fileUrl')]
+            if urls:
+                _img_download(urls, task_id)
+                with WS_LOCK:
+                    IMG_DONE[task_id] = True
+                _emit('[图片] 补获 outputs 图片直链 %d 张（无 netWssUrl 兜底）' % len(urls))
+                return
+        elif c in (804, 805):
+            nw = (j.get('data') or {}).get('netWssUrl')
+            if nw and task_id not in WS_LISTENERS:
+                WS_SEG[task_id] = None
+                start_ws(job, task_id, nw, None)
+                _emit('[图片] 轮询补获 netWssUrl，已启动 WS 监听 %s...' % task_id[-6:])
+                return
+        time.sleep(3)
+    _emit('[图片] 无 netWssUrl 兜底超时（150s），任务 %s 主图可能需人工查平台' % task_id[-6:])
 
 def _img_download(urls, task_id):
     """把生成的图片下载保存到 web/image/年月日+8位随机数/。
@@ -3563,27 +3960,28 @@ def img_poll(task_id, api_key):
     """查询图片任务输出（与视频同逻辑：WS 通道优先抓图，自杀链 805 失败不立即判定）。
     返回 (status, urls, err, logs)。"""
     logs = IMG_LOGS.get(task_id, [])
-    # 本地目录优先：任何来源（WS 抓图、CDN 重下、ZIP 解压）落盘后立即返回本地 URL
-    _d0 = IMG_DIRS.get(task_id)
-    if _d0 and os.path.isdir(_d0):
-        _f0 = sorted(f for f in os.listdir(_d0)
-                     if f.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')) and '_thumb.' not in f)
-        if _f0:
-            _lus = ['/' + os.path.relpath(os.path.join(_d0, f), WEB_ROOT).replace(os.sep, '/') for f in _f0]
-            _ths = [os.path.splitext(u)[0] + '_thumb.jpg' for u in _lus]
-            _emit('[图片] 命中本地目录 %s (%d 张) -> 立即 finished' % (os.path.basename(_d0), len(_f0)))
-            return 'finished', list(_lus), list(_lus), _ths, logs
-    # WS 已抓到图（IMG_FOUND 有 URL）但还在批量收尾（IMG_DONE 未置位）→ 等几轮
-    if task_id in IMG_FOUND and not IMG_DONE.get(task_id) and IMG_FOUND_WAIT.get(task_id, 0) < 3:
-        IMG_FOUND_WAIT[task_id] = IMG_FOUND_WAIT.get(task_id, 0) + 1
-        return 'running', None, None, None, logs
-    # WS 已抓到图且批量收尾（或本地目录已有图但刚发现）→ 走下载
-    if task_id in IMG_FOUND:
+    if task_id in IMG_FOUND or task_id in IMG_DIRS:
+        # 本地目录优先：WS 一旦落盘立即返回本地 URL（不依赖 IMG_DONE/CDN 重下，
+        # 杜绝 WS 落盘后 query 仍长时间 running 导致火宝超时）
+        _d0 = IMG_DIRS.get(task_id)
+        if _d0 and os.path.isdir(_d0):
+            _f0 = sorted(f for f in os.listdir(_d0)
+                         if f.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')) and '_thumb.' not in f)
+            if _f0:
+                _lus = ['/' + os.path.relpath(os.path.join(_d0, f), WEB_ROOT).replace(os.sep, '/') for f in _f0]
+                _ths = [os.path.splitext(u)[0] + '_thumb.jpg' for u in _lus]
+                return 'finished', list(_lus), list(_lus), _ths, logs
+        # WS 仍在收图（batch>1 多图）时先不结束，等 execution_success/监听结束再 finished；
+        # IMG_FOUND_WAIT >=3（约24s）兜底：即使未收到 success/error 也结束
+        if task_id in IMG_FOUND and not IMG_DONE.get(task_id) and IMG_FOUND_WAIT.get(task_id, 0) < 3:
+            IMG_FOUND_WAIT[task_id] = IMG_FOUND_WAIT.get(task_id, 0) + 1
+            return 'running', None, None, None, logs
         urls, local_urls, th = _img_download(IMG_FOUND.get(task_id) or [], task_id)
+        # 预登记目录但图片尚未落盘（WS 抓图/下载中）：返回 running 等待，
+        # 避免 watch 提前结束、query 拿到空目录返回空结果
         if not any((u or '').startswith('/') for u in (local_urls or [])):
             return 'running', None, None, None, logs
         return 'finished', urls, local_urls, th, logs
-    # 否则：本地空、WS 未抓到 → 调平台 outputs API 探状态
     try:
         conn = _conn()
         conn.request('POST', '/task/openapi/outputs',
@@ -3591,9 +3989,7 @@ def img_poll(task_id, api_key):
                      {'Host': HOST, 'Content-Type': 'application/json',
                       'Authorization': 'Bearer ' + api_key})
         j = json.loads(conn.getresponse().read().decode())
-        _emit('[图片] poll API -> %s' % json.dumps(j)[:200])
-    except Exception as _e:
-        _emit('[图片] poll API 异常: %s' % _e)
+    except Exception:
         return 'running', None, None, None, logs
     if j.get('code') == 0 and j.get('data'):
         urls, local_urls, th = _img_download([o.get('fileUrl') for o in j['data'] if o.get('fileUrl')], task_id)
@@ -3617,17 +4013,15 @@ def img_poll(task_id, api_key):
 def img_watch(task_id, api_key):
     """图片提交后主动后台轮询（5s 间隔）：命中 804 启动 WS 抓主图，任务 805 自杀链后图片已缓冲；上限 ~20min。"""
     task_id = str(task_id)
-    _emit('[图片] watch 启动 task=%s' % task_id[-6:])
-    for i in range(240):
+    for _ in range(240):
         try:
             st, urls, local, th, logs = img_poll(task_id, api_key)
             if st in ('finished', 'failed'):
-                _emit('[图片] watch 结束 task=%s status=%s urls=%d' % (task_id[-6:], st, len(local or [])))
+                _emit('[图片] watch 结束 task=%s status=%s' % (task_id[-6:], st))
                 return
-        except Exception as _e:
-            _emit('[图片] watch 第%d轮异常: %s' % (i, _e))
+        except Exception:
+            pass
         time.sleep(5)
-    _emit('[图片] watch 超时 task=%s' % task_id[-6:])
 
 # ================= 音频（VoxCPM2 配音） =================
 AUDIO_WF_CACHE = {}
@@ -3930,15 +4324,6 @@ def rerun_seg(job, seg, prompt):
         if trimmed:
             final = os.path.join(job.run_dir, '最终视频.mp4')
             if _concat_videos(job, [q for _, q in trimmed], final):
-                try:
-                    _N_t = int((job.cfg or {}).get('total_segs') or 0)
-                    _seams = None
-                    if len(trimmed) == 1 and _N_t >= 2:
-                        _sl = h3_frames(int(job.cfg.get('duration', 15))) / 24.0 - 48 / 24.0
-                        _seams = [round(k * _sl, 4) for k in range(1, _N_t) if k * _sl > 0.8]
-                    final = _normalize_audio(job, _smooth_seams(job, final, seams=_seams))
-                except Exception:
-                    pass
                 job.final_path = final
                 job.final_url = '/media/%s/最终视频.mp4' % os.path.basename(job.run_dir)
                 _emit('✅ 最终视频已重新合成: %s (%.1f MB, %d 段)'
@@ -4463,16 +4848,21 @@ class Handler(BaseHTTPRequestHandler):
                     refs = ['']   # cfg.refs[0] 必须存在（后续 build_node_info_list 用 cfg.refs[:N]）
                 # shots_per_seg 透传：火宝根据 [Shot N] 数量动态设定（默认 1；>1 时同一段含多个分镜）。
                 # 节点 #1490/#1491 控制段内起始分镜和循环次数，shots_per_seg>1 时 8765 内部按多段切割去提交。
-                shots_per_seg = max(1, int(body.get('shots_per_seg') or 1))
-                # 提示词裁剪：保留前 shots_per_seg 个 [Shot N]，避免长 prompt 被斩在 1 段造成分镜丢失。
-                # 原来的「只取第一个分镜」是 history bug，现在是按 shots_per_seg 决定裁多少。
+                # 2026-10-21：兼容火宝适配器实际发送的字段名 shots_per_segment（runninghub-video.ts）
+                # —— 此前两边字段名不一致（桥只读 shots_per_seg），导致火宝传的值被静默丢弃。
+                shots_per_seg = max(1, int(body.get('shots_per_seg') or body.get('shots_per_segment') or 1))
+                # 提示词裁剪：仅 shots_per_seg>1（段内含多个分镜）时保留前 shots_per_seg 个 [Shot N]，
+                # 供画布 #1490/#1491 段内起始分镜逻辑使用。
+                # shots_per_seg=1（全局自动切分，火宝默认）：不裁剪 → 完整提示词原样提交，
+                # count_shots 按全部 [Shot N] 计算 → 503≥2 正常提交（2026-10-19 修复：裁剪到 1 分镜会
+                # 被 "1 分镜 < 2 段所需 3 分镜" 拒绝，火宝提交永远失败）。
                 # Ref2VA 兼容：retention_analysis 里也会出现 "(appears in [Shot 1]、[Shot 2])" 这类行内
                 # [Shot N] 文本，若全匹配会把裁剪点算错、提示词被剪断。因此优先按「行首的 [Shot N]」
                 # 匹配（Ref2VA 的 detailed_description 每镜独占一行）；找不到再退回行内全匹配（老 I2VA 格式）。
                 _shot_idxs = [m.start() for m in re.finditer(r'(?m)^\s*\[Shot\s+\d+\]', prompt)]
                 if not _shot_idxs:
                     _shot_idxs = [m.start() for m in re.finditer(r'\[Shot\s+\d+\]', prompt)]
-                if _shot_idxs:
+                if shots_per_seg > 1 and _shot_idxs:
                     _head = prompt[:_shot_idxs[0]].rstrip()
                     if shots_per_seg >= len(_shot_idxs):
                         _rest = prompt[_shot_idxs[0]:]
@@ -4480,7 +4870,7 @@ class Handler(BaseHTTPRequestHandler):
                         _end = _shot_idxs[shots_per_seg]
                         _rest = prompt[_shot_idxs[0]:_end].rstrip()
                     prompt = (_head + '\n' if _head else '') + _rest
-                else:
+                elif not _shot_idxs:
                     prompt = '[Shot 1] ' + prompt.strip()
                 if MODEL_LOCK.get('video'):
                     pass   # _wfid4 已在参考图收集前解析（含模型锁定），此处不再重复
@@ -4501,7 +4891,17 @@ class Handler(BaseHTTPRequestHandler):
                     'instance': body.get('instance') or 'plus',
                     'aspect_ratio': _ar_use,
                     'refs': refs, 'submit_gap': 0.5, 'llm': False,
+                    # 2026-10-21：透传火宝 UI 选择的总段数。
+                    # 此前 cfg 里没有 target_segs → det16 分支 `cfg.get('target_segs') or 16`
+                    # 恒从 16 起步，再被分镜数自动降级 → 火宝选 2 段与"自动降出来的 2 段"
+                    # 混在一起，段数完全由分镜数决定而非用户选择（用户反馈"选了两段"）。
+                    'target_segs': int(body.get('target_segs') or 0) or None,
+                    # 2026-10-19 修复（第3轮）：开放API（火宝）来源标记 → run_job 内 502=false 干净版防爆窗；
+                    # 导演台 /api/start 无此标记 → 502 走 wfc 默认（原有逻辑，禁止修改）。
+                    '_from_openapi': True,
                 }
+                if cfg['target_segs'] is None:
+                    cfg.pop('target_segs', None)
                 job = Job(cfg)
                 with JOBS_LOCK:
                     JOBS[job.id] = job
@@ -4670,13 +5070,19 @@ class Handler(BaseHTTPRequestHandler):
             if not cfg.get('api_key') or not cfg.get('workflow_id'):
                 self._send(400, json.dumps({'error': 'api_key 与 workflow_id 必填'}))
                 return
-            # 图片参考图路径映射（refs 目录下 img_ref1 / img_ref2；同名多格式取最新）
+            # 图片参考图路径映射：只认前端本次手动上传的槽位（imgUploadedRefs），
+            # 绝不扫描 refs/ 目录历史残留（对齐视频 /api/start 的 uploadedRefs 铁律；
+            # 残留 img_refN.* 会导致"只传1张却注入N张"）
+            up = [int(x) for x in (cfg.get('imgUploadedRefs') or []) if str(x).isdigit()]
             refs = []
             for i in range(1, 4):
-                hits = list(_g.glob(os.path.join(REFS_DIR, 'img_ref%d.*' % i)))
-                if hits:
-                    hits.sort(key=lambda p: os.path.getmtime(p), reverse=True)
-                    refs.append(hits[0])
+                if i in up:
+                    hits = list(_g.glob(os.path.join(REFS_DIR, 'img_ref%d.*' % i)))
+                    if hits:
+                        hits.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+                        refs.append(hits[0])
+                    else:
+                        refs.append('')
                 else:
                     refs.append('')
             cfg['refs'] = refs

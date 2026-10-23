@@ -20,6 +20,7 @@ backend/rh_h3_web/videos/
 backend/rh_h3_web/audio/
 backend/rh_h3_web/wf_json_local/
 backend/rh_h3_web/rh_state.json
+backend/app/services/daotai_runtime/rh_state.json
 backend/app/services/daotai_runtime/image/
 backend/app/services/daotai_runtime/refs/
 backend/app/services/daotai_runtime/videos/

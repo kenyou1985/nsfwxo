@@ -361,7 +361,18 @@ async def query_task(request: Request):
         u = _absolute_url(request, f'/api/daotai/media/{_dir}/{urllib.parse.quote(_fname)}')
         return {'status': 'SUCCESS', 'video_url': u, 'output': {'video_url': u}, 'url': u}
     if stt == 'finished' and not snap.get('final_url'):
-        # 兼容历史错误：status 应该是 failed 而非 finished；这里再做一次兜底
+        # 段视频已落盘但合并失败：直接在这里补一次 ffmpeg 合并
+        try:
+            import glob as _glob
+            _paths = sorted(_glob.glob(os.path.join(job.run_dir, 'seg_*.mp4')))
+            if len(_paths) >= 1:
+                _out = os.path.join(job.run_dir, '最终视频.mp4')
+                if rh._concat_videos(job, _paths, _out) and os.path.exists(_out):
+                    _dir = os.path.basename(job.run_dir)
+                    _u = _absolute_url(request, f'/api/daotai/media/{_dir}/{urllib.parse.quote(os.path.basename(_out))}')
+                    return {'status': 'SUCCESS', 'video_url': _u, 'output': {'video_url': _u}, 'url': _u}
+        except Exception:
+            pass
         return {'status': 'FAILED', 'message': '视频合成失败：最终视频未生成（段视频已落盘，可走 bind-local-video 兜底）'}
     if stt in ('failed', 'stopped'):
         # 提取最后一条错误/警告行作为真实原因（job.logs 包含 _emit 的所有行）

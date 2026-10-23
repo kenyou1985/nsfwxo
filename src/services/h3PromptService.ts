@@ -1158,23 +1158,25 @@ export function generateH3PromptsForPanelsV2(
  */
 export function buildPanelH3Prompt(
   panel: { image_prompt?: string; scene_description?: string },
-  options: { r18?: boolean; duration?: number } = {},
+  options: { r18?: boolean; duration?: number; isFinal?: boolean; index?: number; total?: number } = {},
 ): string {
   const r18 = options.r18 ?? false;
+  const isFinal = options.isFinal ?? false;
+  const duration = options.duration ?? 15;
   const zh = (panel.scene_description || '').replace(/\s+/g, ' ').trim();
   const en = (panel.image_prompt || '').replace(/\s+/g, ' ').trim();
   const text = `${zh} ${en}`;
   const sceneZh = (zh || '室内私密场景').slice(0, 160);
 
-  const hasMale = /男人|男性|男主|他|男伴|man\b|male\b|his\b/i.test(text);
+  const hasMale = /男人|男性|男主|男伴|男技师|男教练|男球手|男演员|他/.test(zh);
   const isOral = /口交|深喉|含住|舔阴|舔弄|吞精|blowjob|fellatio|deepthroat|cunnilingus/i.test(text);
   const isDoggy = /后入|背后|跪姿后入|doggy|from behind/i.test(text);
   const isCowgirl = /女上|骑乘|cowgirl|riding/i.test(text);
   const isMissionary = /传教士|missionary|face.to.face/i.test(text);
   const isSex = isOral || isDoggy || isCowgirl || isMissionary || /插入|抽插|penetrat|thrust|creampie|内射/i.test(text);
 
-  let action2 = 'the woman shifts her posture naturally, breathing deeper, her hands moving along his shoulders';
-  let action3 = 'she looks up at him, lips parted, body relaxing into the afterglow';
+  let action2 = hasMale ? 'the woman shifts her posture naturally, breathing deeper, her hands moving along his shoulders' : 'the East Asian woman shifts her posture, breathing deeper, one hand brushing her own collarbone';
+  let action3 = hasMale ? 'the rhythm continues, her breathing sharpens, the scene holds on a cliffhanger instead of resolving' : 'the East Asian woman looks toward the distance, breathing uneven, the scene holds on a cliffhanger';
   // 台词库：同一动作也轮换不同表达，避免每条视频都是“慢一点/抱紧我”
   const LINE_POOL: Record<string, string[][]> = {
     oral: [['看着我……', '别停……', '好舒服……'], ['再深一点……', '舌头……', '我快不行了……'], ['别急……', '慢慢来……', '咽不下去了……']],
@@ -1187,31 +1189,60 @@ export function buildPanelH3Prompt(
   const stageKey = isOral ? 'oral' : isDoggy ? 'doggy' : isCowgirl ? 'cowgirl' : isMissionary ? 'missionary' : isSex ? 'sex' : 'foreplay';
   const pool = LINE_POOL[stageKey] || LINE_POOL.sex;
   const pick = pool[(zh.length + en.length) % pool.length];
-  let line2 = pick[0];
-  let line3 = pick[1];
+  const naturalLine = /监狱|探视/.test(zh) ? '门上有窗……'
+    : /停车|车库/.test(zh) ? '这里会有人来……'
+    : /熔炉|工坊|锻造/.test(zh) ? '外面还有人……'
+    : /球场|高尔夫/.test(zh) ? '会被人看到……'
+    : /高铁|列车|车厢/.test(zh) ? '乘务员会过来……'
+    : /办公室|公司/.test(zh) ? '门没锁……'
+    : '别留下痕迹……';
+  let line2 = naturalLine;
+  let line3 = pick[0];
+  const isOralEnd = /口爆|嘴里|喉咙/.test(zh);
+  const isFacialEnd = /颜射|脸上/.test(zh);
+  const isAssEnd = /臀部|屁股/.test(zh);
+  const finalLine = isOralEnd ? '咽下去了……' : isFacialEnd ? '别擦……' : isAssEnd ? '射在外面……' : '别动……';
+  const finalMaleLine = isOralEnd ? '吞干净。' : isFacialEnd ? '记住这张脸。' : isAssEnd ? '别动。' : '夹紧。';
+  const finalImpact = /口爆|嘴里|喉咙/.test(zh) ? 'he finishes in her mouth, thick semen on her tongue and lips'
+    : /颜射|脸上/.test(zh) ? 'he pulls out and finishes across her face, thick semen streaking her cheek and lips'
+    : /臀部|屁股/.test(zh) ? 'he pulls out and finishes across her ass and lower back'
+    : 'he buries deep and releases inside her, thick semen overflowing from the joined bodies';
+  // 男主的支配/威胁/辱骂台词：短句、贴合场景，不抢女主台词
+  const MALE_LINES: Record<string, string[][]> = {
+    oral: [['含住，别抬头。', '看着我，继续。', '咽下去，不许吐。'], ['乖一点，别停。', '再深一点。', '不听话就别想停。']],
+    doggy: [['跪好，别乱动。', '夹紧点，贱货。', '再抬高点。'], ['不许躲。', '叫出来。', '不听话就操到你求饶。']],
+    cowgirl: [['自己动。', '看着我。', '别停。'], ['夹这么紧，想让我射？', '再快一点。', '不听话就别想下来。']],
+    missionary: [['看着我。', '叫出来。', '抱紧。'], ['再躲试试。', '再忍一会。', '求我，我就轻点。']],
+    sex: [['乖一点，别乱动。', '叫出来，别装。', '看着我。'], ['不许躲。', '再夹紧点。', '不听话就用力了。']],
+    foreplay: [['过来，别躲。', '听话，把腿分开。', '看着我。'], ['别装。', '想要就求我。', '不听话就绑起来。']],
+  };
+  const malePool = MALE_LINES[stageKey] || MALE_LINES.sex;
+  const malePick = malePool[(zh.length + en.length + 1) % malePool.length];
+  const maleLine2 = malePick[0];
+  const maleLine3 = malePick[1];
   if (isOral) {
     action2 = 'she lowers her head and takes him into her mouth, her head moving slowly, one hand braced on his thigh';
-    action3 = 'she looks up without pulling away, eyes wet, lips glossy';
+    action3 = 'she looks up without pulling away, eyes wet, lips glossy, the rhythm still going';
     line2 = '看着我……';
     line3 = '别停……';
   } else if (isDoggy) {
     action2 = 'he enters her from behind, hips thrusting steadily, both hands gripping her waist';
-    action3 = 'the pace quickens, her back arches, she turns her head to breathe';
+    action3 = 'the pace turns rougher, her back arches, her hands slip against the wall, the scene cuts before release';
     line2 = '太深了……';
     line3 = '再快一点……';
   } else if (isCowgirl) {
     action2 = 'she straddles him and rolls her hips, hands braced on his chest, moving up and down';
-    action3 = 'she leans forward, hair falling, breathing broken as the rhythm tightens';
+    action3 = 'she leans back, hair falling, rhythm breaking, the scene holds before the next beat';
     line2 = '我要自己来……';
     line3 = '要到了……';
   } else if (isMissionary) {
     action2 = 'he settles between her legs and pushes in slowly, his hips flush against hers';
-    action3 = 'she wraps her legs around his waist, pulling him deeper as they kiss';
+    action3 = 'her legs tighten around his waist, breathing sharp, the scene ends before release';
     line2 = '抱紧我……';
     line3 = '别出去……';
   } else if (isSex) {
     action2 = 'their bodies join, the rhythm moving from slow to urgent, hands gripping arms and waist';
-    action3 = 'the pace deepens, her breathing breaks, her body trembling';
+    action3 = 'the pace deepens, her breathing breaks, the scene cuts on a held tension';
     line2 = '轻一点……';
     line3 = '要到了……';
   } else if (/亲吻|接吻|kiss|抚摸|caress|foreplay/i.test(text)) {
@@ -1221,34 +1252,55 @@ export function buildPanelH3Prompt(
     line3 = '别走……';
   }
 
+  const femaleDesc = /韩国/.test(zh) ? 'the Korean woman'
+    : /日本/.test(zh) ? 'the Japanese woman'
+    : /中国/.test(zh) ? 'the Chinese woman'
+    : 'the East Asian woman';
+  const maleDesc = /黑人/.test(zh) ? 'the Black man' : 'the East Asian man';
+  const sceneLocation = (zh.split(/[，。；]/)[0] || 'indoor private scene').slice(0, 60);
+  const clauses = zh.split(/[。；]/).map((x) => x.trim()).filter(Boolean);
+  const actionBeats = clauses.slice(1, 4).map((t) => t
+    .replace(/^她[，,]?\s*/, `${femaleDesc} `)
+    .replace(/^他[，,]?\s*/, `${maleDesc} `)
+    .replace(/她/g, ` ${femaleDesc} `)
+    .replace(/他/g, ` ${maleDesc} `)
+    .replace(/\s{2,}/g, ' ').trim());
+
   const subjectLines = [
-    `<Subject 1> is @Woman <Picture 1> — the woman in the first-frame storyboard image; preserve her face, hair, body proportions and clothing exactly as shown in <Picture 1>.`,
+    `<Subject 1> is @Woman <Picture 1> — ${femaleDesc} in the first frame; preserve her exact face, hair, body proportions and clothing from <Picture 1>.`,
   ];
   if (hasMale) {
-    subjectLines.push(`<Subject 2> is @Man <Picture 1> — the man in the first-frame storyboard image; preserve his face, hair and build exactly as shown in <Picture 1>.`);
+    subjectLines.push(`<Subject 2> is @Man <Picture 1> — ${maleDesc} in the first frame; preserve his exact face, hair and build from <Picture 1>.`);
   }
-  subjectLines.push(`<Subject 3> is @Identity <Picture 2> — a clear face reference of the primary character; use it ONLY to lock facial identity when the camera cuts to a new angle, never to replace the action in <Picture 1>.`);
-  subjectLines.push(`<Subject 4> is @Scene — ${sceneZh}; keep the same location, lighting and props in every shot.`);
+  subjectLines.push(`<Subject 3> is @Scene — ${sceneLocation}; keep the same location, lighting and props in every shot.`);
 
-  const shots = [
-    `[Shot 1] Live-action, cinematic. The first frame is exactly <Picture 1>: ${sceneZh}. The characters hold the composition of <Picture 1>, with only subtle breathing, eye movement and a very slow camera push-in. No text, no subtitles.`,
-    `[Shot 2] At 00:05.000, ${action2}. When the camera cuts to a new angle, lock the face with <Picture 2> so it remains the same person. ${hasMale ? `The woman whispers (S1): <d>[Chinese] ${line2}</d>` : `She whispers (S1): <d>[Chinese] ${line2}</d>`}`,
-  ];
-  if (isSex || r18) {
-    shots.push(`[Shot 3] At 00:10.000, ${action3}. Keep the action from <Picture 1> continuous, and use <Picture 2> only for facial identity. ${`She breathes out (S1): <d>[Chinese] ${line3}</d>`}`);
+  let shots: string[];
+  if (isFinal) {
+    // 收尾集：不再加入新的性动作，只保留余韵/分离/离别，避免多动作冲突
+    shots = [
+      `[Shot 1] Live-action, cinematic. The first frame is exactly <Picture 1>. Hold the final composition; only subtle breathing, eye movement and a very slow push-in. No new action, no position change. No text, no subtitles.`,
+      `[Shot 2] At 00:07.000, ${femaleDesc} stays in the same position, chest rising and falling, eyes half closed. ${hasMale ? `${maleDesc[0].toUpperCase() + maleDesc.slice(1)} ${finalImpact}. ` : ''}${femaleDesc[0].toUpperCase() + femaleDesc.slice(1)} breathes out (S1): <d>[Chinese] ${finalLine}</d>${hasMale ? ` ${maleDesc[0].toUpperCase() + maleDesc.slice(1)} says low (S2): <d>[Chinese] ${finalMaleLine}</d>` : ''}`,
+    ];
+  } else {
+    shots = [
+      `[Shot 1] Live-action, cinematic. The video MUST start from <Picture 1> as the literal first frame, with no morph, no pre-roll and no cut-in. Hold the same composition, with only subtle breathing, eye movement and a very slow camera push-in. Do not re-describe the scene. No text, no subtitles.`,
+      `[Shot 2] At 00:05.000, handheld medium shot, ${actionBeats[0] || `${femaleDesc} ${action2.replace(/^(the woman|she)\s+/i, '')}`}. ${hasMale ? `${maleDesc[0].toUpperCase() + maleDesc.slice(1)} stays close, hands on her waist. ` : ''}${femaleDesc[0].toUpperCase() + femaleDesc.slice(1)} whispers (S1): <d>[Chinese] ${line2}</d>${hasMale ? ` ${maleDesc[0].toUpperCase() + maleDesc.slice(1)} answers low (S2): <d>[Chinese] ${maleLine2}</d>` : ''}`,
+    ];
+    if (isSex || r18) {
+      shots.push(`[Shot 3] At 00:10.000, low-angle close shot, ${actionBeats[1] || `${femaleDesc} ${action3.replace(/^(the woman|she)\s+/i, '')}`}. ${hasMale ? `${maleDesc[0].toUpperCase() + maleDesc.slice(1)} holds her steady, breathing hard. ` : ''}${femaleDesc[0].toUpperCase() + femaleDesc.slice(1)} breathes out (S1): <d>[Chinese] ${line3}</d>${hasMale ? ` ${maleDesc[0].toUpperCase() + maleDesc.slice(1)} says coldly (S2): <d>[Chinese] ${maleLine3}</d>` : ''}`);
+    }
   }
 
   return `subject_definitions:
 ${subjectLines.join('\n')}
 summary:
-[reference generation] ${sceneZh}${hasMale ? '，男女双方在明确同意下进入亲密互动' : ''}。画面无文字、无字幕、无水印。
+[reference generation] One continuous explicit adult scene with ${femaleDesc}${hasMale ? ` and ${maleDesc}` : ''}; consensual interaction, identity and body proportions preserved. No text, no subtitles, no watermark.
 retention_analysis:
-<Subject 1> @Woman <Picture 1>: fully_preserved — face, hair and body consistent with the first frame.
-${hasMale ? '<Subject 2> @Man <Picture 1>: fully_preserved — face, hair and build consistent with the first frame.\n' : ''}<Subject 3> @Identity <Picture 2>: fully_preserved — used only for facial identity on camera cuts.
-<Subject 4> @Scene: fully_preserved — same location, lighting and props in all shots.
+<Subject 1> <Picture 1>: fully_preserved — face, hair and body consistent with the first frame.
+${hasMale ? '<Subject 2> <Picture 1>: fully_preserved — face, hair and build consistent with the first frame.\n' : ''}<Subject 3> @Scene: fully_preserved — same location, lighting and props in all shots.
 detailed_description:
 ${shots.join('\n')}
-overall_soundscape: quiet room tone, fabric friction, skin contact, breathing and soft involuntary moans close to the mic.
-non_diegetic_music: low, warm ambient synth pads with a slow heartbeat-like pulse; never louder than the voices.
-speaker_mapping: {"S1": "Chinese (Mandarin)_Warm_Girlfriend"}`;
+overall_soundscape: room tone, fabric friction, skin contact and breathing. Only S1 and S2 speak; absolutely no other speakers, no background chatter, no crowd, no narration.
+non_diegetic_music: None`;
+
 }

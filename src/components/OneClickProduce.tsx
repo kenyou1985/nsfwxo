@@ -16,6 +16,26 @@ interface Props {
   themeKey?: string;
 }
 
+function saveLinearVideoHistory(url: string, prompt: string, taskId: string, title: string) {
+  if (!url) return;
+  try {
+    const key = 'nsfwxo_video_history';
+    const records = JSON.parse(localStorage.getItem(key) || '[]');
+    if (records.some((r: any) => r.taskId === taskId && r.images?.[0] === url)) return;
+    records.unshift({
+      id: `${taskId}-${Date.now()}`,
+      prompt: prompt || title,
+      images: [url],
+      coins: 0,
+      taskId,
+      createdAt: Date.now(),
+      workflowId: '2110330160000516098',
+      title,
+    });
+    localStorage.setItem(key, JSON.stringify(records.slice(0, 50)));
+  } catch {}
+}
+
 const WORKFLOW_DET16 = '2110330160000516098';
 
 function dataUrlToFile(dataUrl: string, name: string): File {
@@ -139,6 +159,19 @@ export function OneClickProduce({ panels, images, h3Prompts, apiKey, themeTitle,
           }
           let prompt = (h3Prompts[i] || '').trim()
             || `[Shot 1] 对应<Picture 1>，${panels[i].scene_description || panels[i].image_prompt || '角色保持首帧构图'}，动作流畅，60fps，无肢体畸形，正确人体解剖，面部特征一致。`;
+          // 最后一道保险：H3 提示词禁止 she/he/her/his，一律展开为完整人种描述
+          {
+            const fMatch = prompt.match(/\b(?:the\s+)?(?:East Asian|Korean|Japanese|Chinese)\s+woman\b/i);
+            const mMatch = prompt.match(/\b(?:the\s+)?Black\s+man\b/i);
+            const fDesc = fMatch ? fMatch[0].replace(/^the\s+/i, 'the ') : 'the East Asian woman';
+            const mDesc = mMatch ? mMatch[0].replace(/^the\s+/i, 'the ') : 'the Black man';
+            prompt = prompt
+              .replace(/\bshe\b/gi, fDesc)
+              .replace(/\bher\b/gi, fDesc + "'s")
+              .replace(/\bhe\b/gi, mDesc)
+              .replace(/\bhim\b/gi, mDesc)
+              .replace(/\bhis\b/gi, mDesc + "'s");
+          }
           // det16 target_segs=2 至少需要 3 个 [Shot]，不足时补一个收尾镜头，避免“2 分镜 < 3”直接拒绝。
           const shotCount = (prompt.match(/\[Shot\s+\d+\]/gi) || []).length;
           if (shotCount === 2) {
@@ -146,7 +179,7 @@ export function OneClickProduce({ panels, images, h3Prompts, apiKey, themeTitle,
           }
           const res = await withTimeout(submitDaotaiVideo(apiKey, prompt, {
             firstFrameUrl,
-            media: portraits[i] ? [{ type: 'reference_image', url: portraits[i] }] : [],
+            media: [{ type: 'reference_image', url: firstFrameUrl }],
             workflow_id: WORKFLOW_DET16,
             target_segs: 2,
             no_llm: true,
@@ -180,6 +213,7 @@ export function OneClickProduce({ panels, images, h3Prompts, apiKey, themeTitle,
             if (st.status === 'SUCCESS') {
               const url = st.video_url || st.url || st.output?.video_url || '';
               setItems(prev => ({ ...prev, [i]: { ...prev[i], status: 'done', url } }));
+              saveLinearVideoHistory(url, h3Prompts[i] || '', it.taskId || '', `${themeTitle || '线性分镜'} 分镜${i + 1}`);
             } else if (st.status === 'FAILED') {
               setItems(prev => ({ ...prev, [i]: { ...prev[i], status: 'error', error: st.message || '生成失败' } }));
             } else {
@@ -258,6 +292,7 @@ export function OneClickProduce({ panels, images, h3Prompts, apiKey, themeTitle,
           const merged = await concatDaotaiVideos(apiKey, urls);
           concatTriedRef.current[key] = true;
           setFinalUrl(merged.video_url);
+          saveLinearVideoHistory(merged.video_url, '线性分镜最终合成', `final-${key}`, `${themeTitle || '线性分镜'} 最终合成`);
           setError('');
           return;
         } catch (e) {
@@ -318,7 +353,7 @@ export function OneClickProduce({ panels, images, h3Prompts, apiKey, themeTitle,
           <AlertCircle size={12} className="mt-0.5 flex-shrink-0" /> <span>{error}</span>
         </div>
       )}
-      {portraits.some(Boolean) && (
+      {false && portraits.some(Boolean) && (
         <div className="mb-2">
           <div className="text-[10px] text-fuchsia-600 mb-1">人物形象照（开头 1-3 格提取，后续分镜共用 · H3 &lt;Picture 2&gt;）</div>
           <div className="flex gap-1.5 overflow-x-auto pb-1">
@@ -335,7 +370,7 @@ export function OneClickProduce({ panels, images, h3Prompts, apiKey, themeTitle,
             <div key={i} className="rounded-xl border border-border bg-white overflow-hidden">
               {it?.status === 'done' && it.url ? (
                 <div className="relative">
-                  <video src={it.url} controls muted playsInline className="w-full aspect-[3/4] object-cover bg-black" />
+                  <video src={it.url} controls playsInline className="w-full aspect-[3/4] object-cover bg-black" />
                   <button
                     type="button"
                     onClick={(e) => {
