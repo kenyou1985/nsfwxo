@@ -3,6 +3,7 @@ import { X, Download, Clock, Coins, CheckCircle, XCircle, Loader2, ZoomIn } from
 import type { NodeInfo } from '../types';
 import { runTask, getTaskStatus, getTaskResults, extractImagesFromZipAsDataUrls } from '../services/runninghub';
 import { getBackendUrl } from '../services/storage';
+import { getExternalVideoTasks, type ExternalVideoTask } from '../services/videoTaskBridge';
 
 interface VideoTask {
   id: string;
@@ -413,13 +414,25 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
         }
         return true;
       });
-      console.log(`[VideoTaskList] Restored ${filtered.length}/${parsed.length} tasks from localStorage:`, filtered.map((t) => ({ id: t.id, status: t.status, taskId: t.taskId })));
-      return filtered;
+      const external = getExternalVideoTasks() as unknown as VideoTask[];
+      const merged = [...external.filter(e => !filtered.some(t => t.id === e.id)), ...filtered];
+      console.log(`[VideoTaskList] Restored ${merged.length} tasks (${external.length} external) from localStorage`);
+      return merged;
     } catch {
       // ignore
     }
     return [];
   });
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const task = (e as CustomEvent<ExternalVideoTask>).detail;
+      if (!task?.id) return;
+      setTasks(prev => [task as unknown as VideoTask, ...prev.filter(t => t.id !== task.id)]);
+    };
+    window.addEventListener('nsfwxo:external-video-task', handler);
+    return () => window.removeEventListener('nsfwxo:external-video-task', handler);
+  }, []);
+
   const pollingRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const onErrorRef = useRef(onError);
   const onSuccessRef = useRef(onSuccess);

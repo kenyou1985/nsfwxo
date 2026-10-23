@@ -33,6 +33,7 @@ import { WORKFLOW, uploadImage } from '../services/runninghub';
 import { composeGridStoryboard } from '../utils/gridComposite';
 import { buildGridH3VideoPrompt } from '../services/themeVideoPrompt';
 import { submitDaotaiVideo, pollDaotaiTask } from '../services/daotai';
+import { publishExternalVideoTask } from '../services/videoTaskBridge';
 import type { TabType } from '../types';
 
 const GRID_LOG_PREFIX = '[GridStoryboardMode]';
@@ -2102,6 +2103,12 @@ export function GridStoryboardMode({
   };
   const handleGenerateGridVideo = async () => {
     const videoThemeIdx = activeThemeIdx;
+    const baseTask = {
+      id: `grid-${Date.now()}`, taskId: '', status: 'RUNNING' as const, prompt: buildGridH3VideoPrompt(panels),
+      imagePreview: heroImage || '', images: [] as string[], coins: null, elapsedSeconds: 0, error: null,
+      startTime: Date.now(), nodeInfoList: [] as never[], engine: 'daotai' as const, workflowId: '2110330160000516098',
+    };
+    let publishedId = baseTask.id;
     const setThisGridVideo = (st: GridVideoState) => setGridVideoFor(videoThemeIdx, st);
     const first = heroImage?.trim();
     if (!first) { onError('还没有九宫格图片，先生成图片'); return; }
@@ -2128,12 +2135,15 @@ export function GridStoryboardMode({
       });
       setThisGridVideo({ status: 'running', taskId: res.taskId });
       const tid = res.taskId;
+      publishedId = `grid-${tid}`;
+      publishExternalVideoTask({ ...baseTask, id: publishedId, taskId: tid });
       for (let i = 0; i < 240; i++) {
         await new Promise(r => setTimeout(r, 5000));
         const st = await pollDaotaiTask(apiKey, tid);
         const url = st.video_url || st.url || st.output?.video_url || '';
         if (st.status === 'SUCCESS' && url) {
           setThisGridVideo({ status: 'done', url, taskId: tid });
+          publishExternalVideoTask({ ...baseTask, id: publishedId, taskId: tid, status: 'FINISHED', images: [url], elapsedSeconds: Math.floor((Date.now() - baseTask.startTime) / 1000) });
           saveGridVideoHistory(url, buildGridH3VideoPrompt(panels), tid, '九宫格分镜视频');
           return;
         }
@@ -2142,6 +2152,7 @@ export function GridStoryboardMode({
       throw new Error('视频生成超时');
     } catch (e) {
       setThisGridVideo({ status: 'error', error: e instanceof Error ? e.message : '视频生成失败' });
+      if (publishedId) publishExternalVideoTask({ ...baseTask, id: publishedId, status: 'FAILED', error: e instanceof Error ? e.message : '视频生成失败' });
     }
   };
 
