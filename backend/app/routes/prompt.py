@@ -7710,6 +7710,7 @@ _AGE_TERM_REPLACEMENTS = [
     (r"young\s+woman", "adult woman in her mid-20s"),
     (r"young\s+man", "adult man in his late-20s"),
     (r"young\s+looking", "adult-looking"),
+    (r"\byoung\b", "adult"),
     (r"\bteen(?:ager|age)?\b", "adult"),
     (r"\bunderage\b", "adult"),
     (r"\bminor\b", "adult"),
