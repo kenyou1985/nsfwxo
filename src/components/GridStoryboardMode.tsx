@@ -512,6 +512,7 @@ export function GridStoryboardMode({
   // Step state
   const [step, setStep] = useState<GridStep>('themes');
   const [gridSize, setGridSize] = useState<GridSize>(9);
+  const [imageModel, setImageModel] = useState<'krea2-n' | 'qwen' | 'official'>('krea2-n');
 
   // Theme selection state
   const [themeOptions, setThemeOptions] = useState<StoryboardThemeOption[]>([]);
@@ -1739,6 +1740,7 @@ export function GridStoryboardMode({
 
           const finalPrompt = withQualityBoost(sanitizePromptForClip(panelText));
           const txt2imgOptions = buildUnifiedTxt2ImgOptions(finalPrompt);
+          if (imageModel === 'krea2-n') txt2imgOptions.workflowId = WORKFLOW.KREA2;
           txt2imgOptions.imageCount = 1; // one panel = one image
           txt2imgOptions.width = 832;
           txt2imgOptions.height = 1475; // ~9:16
@@ -1784,6 +1786,7 @@ export function GridStoryboardMode({
         // prompts since Chinese adverbs aren't part of the OUTPUT LAYOUT block.
         const finalPrompt = withQualityBoost(sanitizePromptForClip(fullPrompt, 20000));
         const txt2imgOptions = buildUnifiedTxt2ImgOptions(finalPrompt);
+        if (imageModel === 'krea2-n') txt2imgOptions.workflowId = WORKFLOW.KREA2;
         txt2imgOptions.imageCount = imageCount;
         const nodes = buildTxt2ImgNodeList(txt2imgOptions);
         await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, storyboardInfo, 'storyboard', themeTitle, 1);
@@ -1954,6 +1957,7 @@ export function GridStoryboardMode({
       } else {
         console.log('[Redraw] txt2img path');
         const txt2imgOptions = buildUnifiedTxt2ImgOptions(finalPrompt);
+        if (imageModel === 'krea2-n') txt2imgOptions.workflowId = WORKFLOW.KREA2;
         // Force single image and a strict 9:16 vertical aspect ratio for
         // per-panel redraws so the model can never render a 3×3 grid again.
         txt2imgOptions.imageCount = 1;
@@ -2214,6 +2218,16 @@ export function GridStoryboardMode({
                 </button>
               ))}
             </div>
+            <span className="text-xs text-text-tertiary ml-2">{displayLang === 'zh' ? '生图模型:' : 'Model:'}</span>
+            <select
+              value={imageModel}
+              onChange={(e) => setImageModel(e.target.value as typeof imageModel)}
+              className="px-2 py-1 rounded-lg text-xs border border-border bg-white text-text-primary"
+            >
+              <option value="krea2-n">Krea2 最强N版（文生图）</option>
+              <option value="qwen">Qwen 图像（文生图）</option>
+              <option value="official">官方默认</option>
+            </select>
           </div>
         )}
 

@@ -75,6 +75,33 @@ export function OneClickProduce({ panels, images, h3Prompts, apiKey, themeTitle,
   const setBusy = (v: boolean) => setStates(prev => ({ ...prev, [key]: { ...(prev[key] || EMPTY_THEME), busy: v } }));
   const setFinalUrl = (v: string) => setStates(prev => ({ ...prev, [key]: { ...(prev[key] || EMPTY_THEME), finalUrl: v } }));
   const setError = (v: string) => setStates(prev => ({ ...prev, [key]: { ...(prev[key] || EMPTY_THEME), error: v } }));
+  // 页面刷新后继续轮询已有的 taskId，任务不会因为组件重挂载而丢失
+  useEffect(() => {
+    const pending = Object.entries(items)
+      .filter(([, it]) => it.status === 'running' && it.taskId)
+      .map(([i, it]) => [Number(i), it.taskId!] as const);
+    if (!pending.length) return;
+    let cancelled = false;
+    const tick = async () => {
+      for (const [idx, tid] of pending) {
+        if (cancelled) return;
+        try {
+          const st = await pollDaotaiTask(apiKey, tid);
+          const url = st.video_url || st.url || st.output?.video_url || '';
+          if (st.status === 'SUCCESS' && url) {
+            setItems(prev => ({ ...prev, [idx]: { ...prev[idx], status: 'done', url } }));
+            saveLinearVideoHistory(url, h3Prompts[idx] || '', tid, `${themeTitle || '线性分镜'} 分镜${idx + 1}`);
+          } else if (st.status === 'FAILED') {
+            setItems(prev => ({ ...prev, [idx]: { ...prev[idx], status: 'error', error: st.message || '视频任务失败' } }));
+          }
+        } catch {}
+      }
+    };
+    void tick();
+    const timer = setInterval(tick, 5000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [key, items, apiKey, h3Prompts, themeTitle]);
+
   const [portraits, setPortraits] = useState<(string | undefined)[]>([]);
   const [clarity, setClarity] = useState<number>(() => {
     const v = Number(localStorage.getItem('nsfwxo_video_clarity') || '0.2');
@@ -361,6 +388,19 @@ export function OneClickProduce({ panels, images, h3Prompts, apiKey, themeTitle,
               <img key={i} src={u} alt={`portrait-${i + 1}`} className="w-14 h-18 rounded-lg object-cover border border-fuchsia-200" />
             ) : null)}
           </div>
+        </div>
+      )}
+      {(Object.keys(items).length > 0) && (
+        <div className="mb-2 flex flex-wrap items-center gap-2 text-[10px] text-text-tertiary">
+          <span className="font-medium text-text-primary">视频任务</span>
+          <span>进行中 {Object.values(items).filter(it => it.status === 'running').length}</span>
+          <span>已完成 {Object.values(items).filter(it => it.status === 'done').length}</span>
+          <span>失败 {Object.values(items).filter(it => it.status === 'error').length}</span>
+          {Object.entries(items).filter(([, it]) => it.taskId).slice(0, 6).map(([i, it]) => (
+            <span key={i} className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-bg-elevated">
+              #{Number(i) + 1} {it.taskId}
+            </span>
+          ))}
         </div>
       )}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">

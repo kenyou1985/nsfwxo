@@ -1,6 +1,7 @@
 import React from 'react';
 import { Film, Copy, Check, Wand2, Loader2, Eye, RefreshCw, ZoomIn, Download, Heart, X } from 'lucide-react';
 import type { GridPanel } from '../services/storage';
+import { buildGridH3VideoPrompt } from '../services/themeVideoPrompt';
 
 interface GridPanelEditorProps {
   panels: GridPanel[];
