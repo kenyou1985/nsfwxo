@@ -3752,6 +3752,21 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     ? (themeOutlineStates[activeThemeTab]?.historyId || `theme-${activeThemeTab}`)
     : currentHistoryId;
 
+  // sb_latest_history_id 是全局单槽位，多主题下必须跟随当前主题 tab。
+  // 之前它只在 handleBatchGenerate / handleStoryboardGenerateImage 里按"点击顺序"
+  // 写入，切到第二个主题后仍指向第一个主题的 historyId。单分镜生图用它当 key，
+  // 于是第二个主题的图片被写进第一个主题的分镜槽位——表现为"航天中心显示的是
+  // 女武士的图，女武士自己的分镜反而空白"。这里让它始终等于当前主题的 sbHistoryId。
+  //
+  // 注意：主题还在生成中时 sbHistoryId 是 `theme-${id}` 这种占位 id（没有真实
+  // 历史条目），此时不要写 sessionStorage，否则会用一个不存在的 id 覆盖掉
+  // 其它模块（StoryboardSection 等）正在使用的真实 historyId。
+  const sbHistoryIdIsReal = activeThemeTab === null || !!themeOutlineStates[activeThemeTab]?.historyId;
+  useEffect(() => {
+    if (!sbHistoryId || !sbHistoryIdIsReal) return;
+    sessionStorage.setItem('sb_latest_history_id', sbHistoryId);
+  }, [sbHistoryId, sbHistoryIdIsReal]);
+
   // Restore cached panel images on page load — critical for surviving page refresh.
   // On initial mount genStates is empty, but panels + currentHistoryId are restored from
   // sessionStorage via useState initializers. This effect bridges the gap by loading
@@ -3853,6 +3868,9 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   const findPanelGenState = (idx: number, hid: string) => {
     const direct = genStates[`${hid}_${idx}`];
     if (direct?.images?.length) return direct;
+    // 多主题模式下不能按标题回退：不同主题的 historyId 是各自独立的，回退可能
+    // 把另一个主题的图显示到当前主题的分镜上（串图）。单主题模式才允许回退。
+    if (activeThemeTab !== null) return direct;
     const title = activeThemeInfo?.title;
     if (title) {
       for (const h of getStoryboardHistory()) {
@@ -4066,15 +4084,20 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   // We use the storyboardInfo from the task callback to know exactly which panel to update.
   const { finishedTasks } = useFinishedTaskImages();
   useEffect(() => {
-    // Support both ExpandMode's sbHistoryId and StoryboardSection's sb_latest_history_id
-    const storyboardHistoryId = sessionStorage.getItem('sb_latest_history_id') || sbHistoryId;
+    // 多主题模式下必须以 sbHistoryId（当前主题）为准。sb_latest_history_id 是
+    // 全局单槽位，指向哪个主题取决于用户上一次在哪张 tab 上点过生图；用它做
+    // 匹配会把 A 主题的任务结果写进 B 主题的槽位。只有在单主题模式
+    // （activeThemeTab === null）下才回退到这个全局槽位。
+    const storyboardHistoryId = activeThemeTab !== null
+      ? sbHistoryId
+      : (sessionStorage.getItem('sb_latest_history_id') || sbHistoryId);
     if (!storyboardHistoryId) return;
     for (const [taskId, info] of Object.entries(finishedTasks)) {
       const { images, storyboardInfo, zipUrl } = info;
       if (!images || images.length === 0) continue;
       const hid = storyboardInfo?.historyId || storyboardHistoryId;
       // If the task has explicit storyboardInfo, use it directly
-      if (storyboardInfo && (storyboardInfo.historyId === storyboardHistoryId || storyboardInfo.historyId === sbHistoryId)) {
+      if (storyboardInfo && storyboardInfo.historyId === storyboardHistoryId) {
         const { panelIdx } = storyboardInfo;
         const key = `${hid}_${panelIdx}`;
         setGenStates((prev) => {
@@ -4111,6 +4134,10 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         }
         continue;
       }
+      // 带 storyboardInfo 的任务已经精确归属到某个主题：如果它不属于当前
+      // 主题，就直接跳过，不能再往下走 prompt 模糊匹配——否则 A 主题的任务
+      // 结果会因为两个主题的提示词前缀相似而被写进 B 主题的分镜槽位。
+      if (storyboardInfo) continue;
       // Fallback: match by exact prompt (for tasks without explicit
       // storyboardInfo). Substring match was merging tasks from adjacent
       // panels whose prompts share a common prefix.
@@ -4151,7 +4178,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         }
       }
     }
-  }, [finishedTasks, activePanels, sbHistoryId, triggerAutoH3ForPanel]);
+  }, [finishedTasks, activePanels, sbHistoryId, activeThemeTab, triggerAutoH3ForPanel]);
 
   // ── Sync genStates with taskManager.tasks so panel cards reflect live images ──
   // Also converts blob URLs to data URLs immediately so they survive page refresh.
@@ -4167,11 +4194,13 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         // Prefer storyboardInfo match (set by handleBatchGenerate). Fall back
         // to exact-prompt match — substring match was merging tasks from
         // adjacent panels whose prompts share a common prefix.
+        //
+        // 多主题隔离：带 storyboardInfo 的任务已经精确归属某个主题，historyId
+        // 不等于当前主题就直接跳过。否则上一个主题残留的任务会因为两个主题
+        // 的提示词相似而被匹配上，把别的主题的图写进当前主题的分镜槽位。
         const matchedTask = taskManager.tasks.find((t) => {
           if (t.images.length === 0) return false;
-          if (t.storyboardInfo && t.storyboardInfo.historyId === hid) {
-            return t.storyboardInfo.panelIdx === i;
-          }
+          if (t.storyboardInfo) return t.storyboardInfo.historyId === hid && t.storyboardInfo.panelIdx === i;
           const taskPromptNorm = t.prompt.trim().replace(/\s+/g, ' ');
           return taskPromptNorm === panelPromptNorm;
         });
@@ -4929,7 +4958,13 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       return;
     }
     if (taskManager.isFull) { onError('任务队列已满'); return; }
-    const hid = sessionStorage.getItem('sb_latest_history_id') || sbHistoryId || `temp_${Date.now()}`;
+    // 多主题模式下必须用当前主题的 sbHistoryId。sb_latest_history_id 是全局单槽位，
+    // 只有"上一次在哪个主题点过生图"决定它指向谁——第二个主题的单分镜生图会因此
+    // 拿到第一个主题的 historyId，图片被写进第一个主题的槽位（串图）。
+    const hid = (activeThemeTab !== null ? sbHistoryId : null)
+      || sessionStorage.getItem('sb_latest_history_id')
+      || sbHistoryId
+      || `temp_${Date.now()}`;
     const key = `${hid}_${panelIdx}`;
     const storyboardInfo = { historyId: hid, panelIdx };
     setGenStates((prev) => ({ ...prev, [key]: { loading: true, images: [] } }));
@@ -4974,7 +5009,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
       onError(err instanceof Error ? err.message : '提交失败');
       setGenStates((prev) => { const next = { ...prev }; delete next[key]; return next; });
     }
-  }, [taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, sbHistoryId, activeThemeInfo, plot, storyboardModel, img2imgAspectRatio]);
+  }, [taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, sbHistoryId, activeThemeTab, activeThemeInfo, plot, storyboardModel, img2imgAspectRatio]);
 
   /** 重新生成分镜的图片提示词（panel.image_prompt）。
    *
@@ -5967,7 +6002,12 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     // for an already-loaded storyboard. Creating a brand-new history entry
     // on every click was producing a long list of duplicate rows in the
     // history panel (same theme + same panels, many copies).
-    const hid = currentHistoryId ?? addStoryboardHistory({
+    //
+    // 多主题隔离：currentHistoryId 是全局单值，每张主题卡的大纲完成回调都会
+    // 覆写它（谁最后完成谁赢），所以它未必属于当前 tab 的主题。这里优先用
+    // 当前主题自己的 historyId，避免把 B 主题的批量任务挂到 A 主题的槽位上。
+    const themeHistoryId = activeThemeTab !== null ? themeOutlineStates[activeThemeTab]?.historyId : undefined;
+    const hid = themeHistoryId ?? currentHistoryId ?? addStoryboardHistory({
       plot: activeThemeInfo?.title || selectedThemes[0]?.title || '新生成',
       panel_count: activePanels.length,
       r18: r18Mode,
@@ -6050,7 +6090,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     if (submitted > 0) {
       onSuccess(`已提交 ${submitted} 个生图任务`);
     }
-  }, [activePanels, activeThemeInfo, selectedThemes, taskManager, setGenStates, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, r18Mode, currentHistoryId]);
+  }, [activePanels, activeThemeInfo, activeThemeTab, themeOutlineStates, selectedThemes, taskManager, setGenStates, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, r18Mode, currentHistoryId]);
 
   const hasContent = storyStep === 'panels' && panels.length > 0;
 
@@ -7570,7 +7610,7 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
   // Include FAILED too so the panel can show a "重新生成图片" affordance.
   const panelRelatedTasks = taskManager.tasks.filter((t: QueuedTask) => {
     if (t.status !== 'RUNNING' && t.status !== 'QUEUEING' && t.status !== 'FINISHED' && t.status !== 'FAILED') return false;
-    if (t.storyboardInfo && t.storyboardInfo.historyId === historyId && t.storyboardInfo.panelIdx === idx) return true;
+    if (t.storyboardInfo) return t.storyboardInfo.historyId === historyId && t.storyboardInfo.panelIdx === idx;
     const taskPromptNorm = t.prompt.trim().replace(/\s+/g, ' ');
     return taskPromptNorm === normalizedPanelPrompt;
   });

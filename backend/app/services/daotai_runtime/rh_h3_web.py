@@ -2215,8 +2215,17 @@ def _trim_video(job, src, trim_tail=False):
     return src
 
 def _concat_videos(job, paths, out):
-    if not paths:
+    valid = []
+    for q in (paths or []):
+        try:
+            if q and os.path.exists(q) and os.path.getsize(q) > 100000:
+                valid.append(q)
+        except Exception:
+            pass
+    if not valid:
+        _emit('  ⚠ 没有有效分段可合并（全部为空/损坏），保留原片等待重试')
         return None
+    paths = valid
     lst = os.path.join(job.run_dir, 'concat_list_tmp.txt')
     with open(lst, 'w', encoding='utf-8') as f:
         for q in paths:
