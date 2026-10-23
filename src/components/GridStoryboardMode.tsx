@@ -14,6 +14,7 @@ import {
   getGridSession, saveGridSession, clearGridSession,
   cacheStoryboardPanelImages, getCachedStoryboardPanelImages,
   addFavorite, removeFavorite, getFavorites, isFavorited as isFavoritedFn,
+  getBackendUrl,
 } from '../services/storage';
 import {
   generateStoryboardOutline,
@@ -30,6 +31,8 @@ import { buildUnifiedTxt2ImgOptions } from '../utils/txt2imgDefaults';
 import { withQualityBoost, sanitizePromptForClip } from '../constants';
 import { WORKFLOW, uploadImage } from '../services/runninghub';
 import { composeGridStoryboard } from '../utils/gridComposite';
+import { buildGridH3VideoPrompt } from '../services/themeVideoPrompt';
+import { submitDaotaiVideo, pollDaotaiTask } from '../services/daotai';
 import type { TabType } from '../types';
 
 const GRID_LOG_PREFIX = '[GridStoryboardMode]';
@@ -513,6 +516,15 @@ export function GridStoryboardMode({
   const [step, setStep] = useState<GridStep>('themes');
   const [gridSize, setGridSize] = useState<GridSize>(9);
   const [imageModel, setImageModel] = useState<'krea2-n' | 'qwen' | 'official'>('krea2-n');
+  const [gridClarity, setGridClarity] = useState<number>(() => {
+    const v = Number(localStorage.getItem('nsfwxo_grid_clarity') || '0.2');
+    return Number.isFinite(v) && v >= 0.2 && v <= 1 ? v : 0.2;
+  });
+  const [gridSegs, setGridSegs] = useState<number>(() => {
+    const v = Number(localStorage.getItem('nsfwxo_grid_segs') || '4');
+    return Number.isFinite(v) && v >= 2 && v <= 16 ? v : 4;
+  });
+  const [gridVideo, setGridVideo] = useState<{ status: 'idle'|'running'|'done'|'error'; url?: string; taskId?: string; error?: string }>({ status: 'idle' });
 
   // Theme selection state
   const [themeOptions, setThemeOptions] = useState<StoryboardThemeOption[]>([]);
@@ -2016,6 +2028,49 @@ export function GridStoryboardMode({
     }
     onSuccess(`已加载历史记录：${item.plot}`);
   };
+  const handleGenerateGridVideo = async () => {
+    const first = heroImage?.trim();
+    if (!first) { onError('还没有九宫格图片，先生成图片'); return; }
+    if (!apiKey) { onError('缺少 RunningHub API Key'); return; }
+    setGridVideo({ status: 'running' });
+    try {
+      let frame = first;
+      if (frame.startsWith('data:') || frame.startsWith('blob:')) {
+        const blob = await (await fetch(frame)).blob();
+        const up = await uploadImage(apiKey, new File([blob], 'grid.png', { type: blob.type || 'image/png' }));
+        frame = up.downloadUrl || up.imagePath;
+      }
+      if (frame.startsWith('/')) frame = getBackendUrl().replace(/\/$/, '') + frame;
+      const prompt = buildGridH3VideoPrompt(panels);
+      const res = await submitDaotaiVideo(apiKey, prompt, {
+        firstFrameUrl: frame,
+        media: [{ type: 'reference_image', url: frame }],
+        workflow_id: '2110330160000516098',
+        target_segs: gridSegs,
+        duration: 15,
+        resolution: gridClarity,
+        no_llm: true,
+        use_bridge: false,
+      });
+      setGridVideo({ status: 'running', taskId: res.taskId });
+      const tid = res.taskId;
+      for (let i = 0; i < 240; i++) {
+        await new Promise(r => setTimeout(r, 5000));
+        const st = await pollDaotaiTask(apiKey, tid);
+        const url = st.video_url || st.url || st.output?.video_url || '';
+        if (st.status === 'SUCCESS' && url) {
+          setGridVideo({ status: 'done', url, taskId: tid });
+          return;
+        }
+        if (st.status === 'FAILED') throw new Error(st.message || '视频生成失败');
+      }
+      throw new Error('视频生成超时');
+    } catch (e) {
+      setGridVideo({ status: 'error', error: e instanceof Error ? e.message : '视频生成失败' });
+    }
+  };
+
+
 
   const handleDeleteHistory = (id: string) => {
     removeGridHistory(id);
@@ -3036,7 +3091,21 @@ export function GridStoryboardMode({
                   {displayLang === 'zh' ? `九宫格分镜图片${gridImages.length > 1 ? ` (${activeImageIdx + 1}/${gridImages.length})` : ''}` : `Grid Storyboard${gridImages.length > 1 ? ` (${activeImageIdx + 1}/${gridImages.length})` : ''}`}
                 </span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <select value={gridClarity} onChange={(e) => { const v=Number(e.target.value); setGridClarity(v); localStorage.setItem('nsfwxo_grid_clarity', String(v)); }} className="px-2 py-1 rounded text-[10px] border border-border bg-white">
+                  {[0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1].map(v => <option key={v} value={v}>清晰度 {v}</option>)}
+                </select>
+                <select value={gridSegs} onChange={(e) => { const v=Number(e.target.value); setGridSegs(v); localStorage.setItem('nsfwxo_grid_segs', String(v)); }} className="px-2 py-1 rounded text-[10px] border border-border bg-white">
+                  {Array.from({length:15},(_,i)=>i+2).map(v => <option key={v} value={v}>{v} 段</option>)}
+                </select>
+                <button
+                  onClick={handleGenerateGridVideo}
+                  disabled={gridVideo.status === 'running' || !heroImage}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-medium ${gridVideo.status === 'running' ? 'bg-purple-200 text-purple-500' : 'bg-purple-600 text-white hover:bg-purple-700'}`}
+                >
+                  {gridVideo.status === 'running' ? <Loader2 size={10} className="animate-spin" /> : <Film size={10} />}
+                  {gridVideo.status === 'running' ? '生成中' : '一键视频'}
+                </button>
                 {heroImage && (
                   <>
                     <button
@@ -3077,6 +3146,19 @@ export function GridStoryboardMode({
                   {displayLang === 'zh' ? '重新生成' : 'Regenerate'}
                 </button>
               </div>
+            </div>
+
+            <div className="rounded-lg border border-violet-200 bg-violet-50/60 p-2">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] font-semibold text-violet-700">H3 60s · 六段式视频提示词</span>
+                <button onClick={() => { void navigator.clipboard?.writeText(buildGridH3VideoPrompt(panels)); }} className="text-[9px] px-2 py-0.5 rounded bg-violet-600 text-white">复制</button>
+              </div>
+              <textarea readOnly value={buildGridH3VideoPrompt(panels)} rows={4} className="w-full text-[9px] font-mono bg-white border border-violet-200 rounded p-1.5" />
+              {gridVideo.status === 'running' && <p className="text-[9px] text-violet-600 mt-1">视频任务 {gridVideo.taskId} 生成中…</p>}
+              {gridVideo.status === 'error' && <p className="text-[9px] text-red-500 mt-1">失败：{gridVideo.error}</p>}
+              {gridVideo.status === 'done' && gridVideo.url && (
+                <video src={gridVideo.url} controls playsInline className="w-full mt-2 rounded-lg bg-black max-h-72" />
+              )}
             </div>
 
             <div
