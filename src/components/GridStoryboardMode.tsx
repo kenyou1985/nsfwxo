@@ -2157,7 +2157,9 @@ export function GridStoryboardMode({
       const prompt = buildGridH3VideoPrompt(panels);
       const res = await submitDaotaiVideo(apiKey, prompt, {
         firstFrameUrl: frame,
-        media: [{ type: 'reference_image', url: frame }],
+        // 九宫格只上传 1 张时，工作流其余 ref_image_1..4 会保留画布默认参考图，
+        // 导致生成人物变成默认模特。这里把同一格重复填满 5 个参考槽。
+        media: Array.from({ length: 5 }, () => ({ type: 'reference_image', url: frame })),
         workflow_id: '2110330160000516098',
         target_segs: gridSegs,
         duration: 15,
