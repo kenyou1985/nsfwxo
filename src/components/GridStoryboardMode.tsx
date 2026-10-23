@@ -102,6 +102,21 @@ function saveGridVideoHistory(url: string, prompt: string, taskId: string, title
   } catch {}
 }
 
+async function cropGridCell(url: string, index = 0, cols = 3, rows = 3): Promise<File | null> {
+  try {
+    const blob = url.startsWith('data:') ? await (await fetch(url)).blob() : await (await fetch(url, { mode: 'cors' })).blob();
+    const bmp = await createImageBitmap(blob);
+    const cw = Math.floor(bmp.width / cols), ch = Math.floor(bmp.height / rows);
+    const c = document.createElement('canvas');
+    c.width = cw; c.height = ch;
+    const ctx = c.getContext('2d');
+    if (!ctx) return null;
+    ctx.drawImage(bmp, (index % cols) * cw, Math.floor(index / cols) * ch, cw, ch, 0, 0, cw, ch);
+    const out = await new Promise<Blob | null>(res => c.toBlob(res, 'image/png'));
+    return out ? new File([out], `grid_cell_${index + 1}.png`, { type: 'image/png' }) : null;
+  } catch { return null; }
+}
+
 function dedupeGridPanels(panels: GridPanel[]): GridPanel[] {
   const seen = new Set<string>();
   const picks = ['low-angle close-up', 'over-the-shoulder medium shot', 'tight macro detail', 'side-profile medium close-up', 'high-angle wide shot'];
@@ -2118,7 +2133,12 @@ export function GridStoryboardMode({
     setThisGridVideo({ status: 'running' });
     try {
       let frame = first;
-      if (frame.startsWith('data:') || frame.startsWith('blob:')) {
+      // 取九宫格第 1 格作为首帧，绝不能把整张 3×3 拼图直接喂给 H3
+      const cellFile = await cropGridCell(first, 0);
+      if (cellFile) {
+        const up = await uploadImage(apiKey, cellFile);
+        frame = up.downloadUrl || up.imagePath;
+      } else if (frame.startsWith('data:') || frame.startsWith('blob:')) {
         const blob = await (await fetch(frame)).blob();
         const up = await uploadImage(apiKey, new File([blob], 'grid.png', { type: blob.type || 'image/png' }));
         frame = up.downloadUrl || up.imagePath;

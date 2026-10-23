@@ -18,7 +18,14 @@ export function buildGridH3VideoPrompt(panels: GridPanel[], title = '九宫格�
         : ['求求你……慢一点。', '夹紧，别出声。'];
   const shotLines = shots.map((p, i) => {
     const time = (i * 60 / Math.max(1, shots.length)).toFixed(1).padStart(4, '0');
-    const text = (p.image_prompt || p.scene_description || '').replace(/\s+/g, ' ').trim();
+    const raw = (p.image_prompt || p.scene_description || '').replace(/\s+/g, ' ').trim();
+    const panelMatch = raw.match(/Panel\s*\d+\s*:\s*(.*)$/i);
+    const text = (panelMatch ? panelMatch[1] : raw)
+      .replace(/cinematic storyboard grid[^.]*\.?/gi, '')
+      .replace(/\b\d+\s*panels?[^.]*\.?/gi, '')
+      .replace(/3\s*[x×]\s*3[^.]*\.?/gi, '')
+      .replace(/storyboard/gi, 'cinematic frame')
+      .trim();
     let line = `[Shot ${i + 1}] At 00:${time}.000, ${text}`;
     if (i === 2) line += ` The East Asian woman whispers (S1): <d>[Chinese] ${dialogue[0]}</d>`;
     if (i === 5 && hasMale) line += ` The East Asian man answers low (S2): <d>[Chinese] ${dialogue[1]}</d>`;
@@ -30,7 +37,7 @@ export function buildGridH3VideoPrompt(panels: GridPanel[], title = '九宫格�
 <Subject 2> is @Scene — ${title}; keep the same location, lighting and props in every shot.
 
 summary:
-[reference generation] A 60-second vertical short film built from a 9-grid storyboard. Each grid cell is one shot; the nine cells form one continuous escalating story with explicit consensual adult interaction. Identity and body proportions stay consistent.
+[reference generation] A 60-second vertical single-frame cinematic short film with 9 sequential shots and explicit consensual adult interaction. Identity and body proportions stay consistent.
 
 retention_analysis:
 <Subject 1> <Picture 1>: fully_preserved — face, hair and body consistent with the first frame.
@@ -38,7 +45,7 @@ retention_analysis:
 
 detailed_description:
 ${shotLines.join('\n')}
-The 9-grid storyboard is the shot plan. Extract the cells in strict left-to-right, top-to-bottom order and use each cell as the literal first frame of its corresponding shot. Cut in cell order; no repeated panel, no skipped cell, no new unrelated scene.
+Each shot is ONE single full-frame cinematic image. Do NOT show a storyboard sheet, 3x3 grid, panels, borders, split screen, or multiple images in one frame. Cut in strict shot order; no repeated shot and no unrelated scene.
 
 overall_soundscape: room tone, fabric friction, skin contact and breathing. Only the exact dialogue inside <d>...</d> tags may be spoken; no improvised lines, no whispers, no chatter, no narrator, no crowd.
 non_diegetic_music: None`;
