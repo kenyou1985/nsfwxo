@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
-import { X, Download, Clock, Coins, CheckCircle, XCircle, Loader2, ZoomIn } from 'lucide-react';
+import { X, Download, Clock, Coins, CheckCircle, XCircle, Loader2, ZoomIn, ChevronDown, ChevronUp } from 'lucide-react';
 import type { NodeInfo } from '../types';
 import { runTask, getTaskStatus, getTaskResults, extractImagesFromZipAsDataUrls } from '../services/runninghub';
 import { getBackendUrl } from '../services/storage';
@@ -438,6 +438,11 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
   useEffect(() => {
     const urls = tasks.flatMap(t => t.images.filter(isVideoUrl));
     if (urls.length) void prefetchVideos(urls);
+  }, [tasks.length]);
+
+  const [previewOpen, setPreviewOpen] = useState(false);
+  useEffect(() => {
+    if (tasks.some(t => t.status === 'FINISHED' && t.images.some(isVideoUrl))) setPreviewOpen(true);
   }, [tasks.length]);
 
   const pollingRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -980,24 +985,35 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
       </div>
 
       <div className="rounded-xl border border-pink-200 bg-pink-50/40 p-2">
-        <div className="text-[11px] font-semibold text-pink-700 mb-2">视频预览</div>
-        <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-          {tasks.length === 0 && <div className="col-span-3 md:col-span-6 aspect-[16/9] rounded-lg border border-dashed border-pink-200 flex items-center justify-center text-[10px] text-pink-400">暂无视频任务</div>}
-          {tasks.map((t) => {
-            const url = t.images.find(isVideoUrl) || '';
-            return (
-              <div key={t.id} className="rounded-lg overflow-hidden border border-pink-100 bg-black/90 aspect-[9/16] flex items-center justify-center">
-                {url ? (
-                  <CachedVideo src={url} className="w-full h-full object-contain bg-black" />
-                ) : (
-                  <div className="text-center text-[10px] text-white/60 px-2">
-                    {t.status === 'FINISHED' ? '无视频输出' : t.status === 'FAILED' ? `失败：${t.error || ''}` : '生成中占位'}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+        <button
+          type="button"
+          onClick={() => setPreviewOpen(v => !v)}
+          className="w-full flex items-center justify-between text-[11px] font-semibold text-pink-700"
+        >
+          <span>视频预览{tasks.length === 0 ? '（暂无任务）' : `（${tasks.filter(t => t.images.some(isVideoUrl)).length}）`}</span>
+          {previewOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+        </button>
+        {previewOpen && (
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mt-2">
+            {tasks.length === 0 && (
+              <div className="col-span-3 md:col-span-6 py-3 text-center text-[10px] text-pink-400">暂无视频任务</div>
+            )}
+            {tasks.map((t) => {
+              const url = t.images.find(isVideoUrl) || '';
+              return (
+                <div key={t.id} className="rounded-lg overflow-hidden border border-pink-100 bg-black/90 aspect-[9/16] flex items-center justify-center">
+                  {url ? (
+                    <CachedVideo src={url} className="w-full h-full object-contain bg-black" />
+                  ) : (
+                    <div className="text-center text-[9px] text-white/60 px-2">
+                      {t.status === 'FINISHED' ? '无视频输出' : t.status === 'FAILED' ? `失败：${t.error || ''}` : '生成中'}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
