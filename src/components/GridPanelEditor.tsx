@@ -137,6 +137,24 @@ export function GridPanelEditor({
         </div>
       )}
 
+      {/* MiniMax H3 60s 六段式视频提示词 */}
+      <div className="rounded-lg border border-violet-300 bg-violet-50/70 p-3">
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-[10px] font-semibold text-violet-700">MiniMax H3 · 60s · 六段式视频提示词（九宫格分镜驱动）</span>
+          <button
+            type="button"
+            onClick={() => { void navigator.clipboard?.writeText(buildGridH3VideoPrompt(panels)); }}
+            className="text-[9px] px-2 py-1 rounded bg-violet-600 text-white"
+          >复制 H3</button>
+        </div>
+        <textarea
+          readOnly
+          value={buildGridH3VideoPrompt(panels)}
+          rows={7}
+          className="w-full text-[9px] font-mono bg-white border border-violet-200 rounded p-2 resize-y"
+        />
+      </div>
+
       {/* Individual panel descriptions with edit + redraw */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
