@@ -1175,8 +1175,20 @@ export function buildPanelH3Prompt(
 
   let action2 = 'the woman shifts her posture naturally, breathing deeper, her hands moving along his shoulders';
   let action3 = 'she looks up at him, lips parted, body relaxing into the afterglow';
-  let line2 = '慢一点……';
-  let line3 = '抱紧我……';
+  // 台词库：同一动作也轮换不同表达，避免每条视频都是“慢一点/抱紧我”
+  const LINE_POOL: Record<string, string[][]> = {
+    oral: [['看着我……', '别停……', '好舒服……'], ['再深一点……', '舌头……', '我快不行了……'], ['别急……', '慢慢来……', '咽不下去了……']],
+    doggy: [['太深了……', '再快一点……', '不要停……'], ['轻一点……', '后面好烫……', '求你了……'], ['慢一点……', '顶到了……', '我要到了……']],
+    cowgirl: [['我要自己来……', '看着我……', '好舒服……'], ['别动……', '让我来……', '要到了……'], ['抱紧我……', '再深一点……', '不行了……']],
+    missionary: [['抱紧我……', '别出去……', '好舒服……'], ['轻一点……', '吻我……', '我快到了……'], ['不要停……', '再近一点……', '求你了……']],
+    sex: [['轻一点……', '好舒服……', '不要停……'], ['太深了……', '再快一点……', '我要到了……'], ['求求你……', '别停……', '抱紧我……']],
+    foreplay: [['靠近一点……', '别走……', '吻我……'], ['想要你……', '慢一点……', '好痒……'], ['别逗我……', '快点……', '抱我……']],
+  };
+  const stageKey = isOral ? 'oral' : isDoggy ? 'doggy' : isCowgirl ? 'cowgirl' : isMissionary ? 'missionary' : isSex ? 'sex' : 'foreplay';
+  const pool = LINE_POOL[stageKey] || LINE_POOL.sex;
+  const pick = pool[(zh.length + en.length) % pool.length];
+  let line2 = pick[0];
+  let line3 = pick[1];
   if (isOral) {
     action2 = 'she lowers her head and takes him into her mouth, her head moving slowly, one hand braced on his thigh';
     action3 = 'she looks up without pulling away, eyes wet, lips glossy';
@@ -1223,7 +1235,7 @@ export function buildPanelH3Prompt(
     `[Shot 2] At 00:05.000, ${action2}. When the camera cuts to a new angle, lock the face with <Picture 2> so it remains the same person. ${hasMale ? `The woman whispers (S1): <d>[Chinese] ${line2}</d>` : `She whispers (S1): <d>[Chinese] ${line2}</d>`}`,
   ];
   if (isSex || r18) {
-    shots.push(`[Shot 3] At 00:10.000, ${action3}. Keep the action from <Picture 1> continuous, and use <Picture 2> only for facial identity. ${hasMale ? `She breathes out (S1): <d>[Chinese] ${line3}</d> He answers low (S2): <d>[Chinese] 我在。</d>` : `She breathes out (S1): <d>[Chinese] ${line3}</d>`}`);
+    shots.push(`[Shot 3] At 00:10.000, ${action3}. Keep the action from <Picture 1> continuous, and use <Picture 2> only for facial identity. ${`She breathes out (S1): <d>[Chinese] ${line3}</d>`}`);
   }
 
   return `subject_definitions:
@@ -1238,5 +1250,5 @@ detailed_description:
 ${shots.join('\n')}
 overall_soundscape: quiet room tone, fabric friction, skin contact, breathing and soft involuntary moans close to the mic.
 non_diegetic_music: low, warm ambient synth pads with a slow heartbeat-like pulse; never louder than the voices.
-speaker_mapping: {"S1": "Chinese (Mandarin)_Adult_Female_Soft"${hasMale ? ', "S2": "Chinese (Mandarin)_Adult_Male_Low"' : ''}}`;
+speaker_mapping: {"S1": "Chinese (Mandarin)_Warm_Girlfriend"}`;
 }

@@ -335,6 +335,8 @@ async def query_task(request: Request):
                   or (_data.get('output') or {}).get('video_url') or '')
             if isinstance(_u, str) and _u.startswith('/'):
                 _u = 'http://127.0.0.1:8765' + _u
+            if isinstance(_u, str) and _u:
+                _u = urllib.parse.quote(_u, safe=':/?&=#%')
             if _u:
                 return {'status': 'SUCCESS', 'video_url': _u, 'output': {'video_url': _u}, 'url': _u}
             return {'status': 'FAILED', 'message': '8765 返回成功但没有 video_url'}
@@ -612,7 +614,8 @@ async def concat_videos(request: Request):
             # 远程 URL / 绝对地址 → 下载
             try:
                 dst = os.path.join(out_dir, f'src_{idx}.mp4')
-                urllib.request.urlretrieve(u, dst)
+                _safe_u = urllib.parse.quote(u, safe=':/?&=#%')
+                urllib.request.urlretrieve(_safe_u, dst)
                 local = dst
             except Exception as e:
                 return JSONResponse(status_code=400, content={'error': f'第 {idx + 1} 个视频下载失败: {e}'})
@@ -634,7 +637,7 @@ async def concat_videos(request: Request):
             '-fflags', '+genpts', '-r', '30',
             '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18',
             '-c:a', 'aac', '-b:a', '192k', out_path]
-    r2 = subprocess.run(cmd, capture_output=True, text=True)
+    r2 = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
     if r2.returncode != 0 or not os.path.exists(out_path) or os.path.getsize(out_path) < 10240:
         return JSONResponse(status_code=500, content={'error': 'ffmpeg 合成失败: ' + (r2.stderr or '')[-800:]})
 

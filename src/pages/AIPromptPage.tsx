@@ -425,9 +425,9 @@ export function AIPromptPage({ onError, onSuccess, onOpenSettings, taskManager, 
         )}
       </div>
 
-      {activeMode === 'expand' && <ExpandMode onError={onError} onSuccess={onSuccess} loading={loading} setLoading={setLoading} r18Mode={r18Mode} taskManager={taskManager} apiKey={apiKey} digitalHumanMode={digitalHumanMode} selectedGirlfriend={selectedGirlfriend} onNavigate={onNavigate} setDigitalHumanMode={setDigitalHumanMode} setSelectedGirlfriend={setSelectedGirlfriend} img2imgAspectRatio={img2imgAspectRatio} />}
-      {activeMode === 'random' && <RandomMode onError={onError} onSuccess={onSuccess} loading={loading} setLoading={setLoading} r18Mode={r18Mode} taskManager={taskManager} apiKey={apiKey} digitalHumanMode={digitalHumanMode} selectedGirlfriend={selectedGirlfriend} onNavigate={onNavigate} setDigitalHumanMode={setDigitalHumanMode} setSelectedGirlfriend={setSelectedGirlfriend} img2imgAspectRatio={img2imgAspectRatio} />}
-      {activeMode === 'storyboard' && <StoryboardMode onError={onError} onSuccess={onSuccess} loading={loading} setLoading={setLoading} r18Mode={r18Mode} taskManager={taskManager} apiKey={apiKey} digitalHumanMode={digitalHumanMode} selectedGirlfriend={selectedGirlfriend} onNavigate={onNavigate} setDigitalHumanMode={setDigitalHumanMode} setSelectedGirlfriend={setSelectedGirlfriend} img2imgAspectRatio={img2imgAspectRatio} />}
+      {activeMode === 'expand' && <ExpandMode onError={onError} onSuccess={onSuccess} loading={loading} setLoading={setLoading} r18Mode={r18Mode} taskManager={taskManager} apiKey={apiKey} digitalHumanMode={digitalHumanMode} selectedGirlfriend={selectedGirlfriend} onNavigate={onNavigate} setDigitalHumanMode={setDigitalHumanMode} setSelectedGirlfriend={setSelectedGirlfriend} img2imgAspectRatio={img2imgAspectRatio} setImg2imgAspectRatio={setImg2imgAspectRatio} />}
+      {activeMode === 'random' && <RandomMode onError={onError} onSuccess={onSuccess} loading={loading} setLoading={setLoading} r18Mode={r18Mode} taskManager={taskManager} apiKey={apiKey} digitalHumanMode={digitalHumanMode} selectedGirlfriend={selectedGirlfriend} onNavigate={onNavigate} setDigitalHumanMode={setDigitalHumanMode} setSelectedGirlfriend={setSelectedGirlfriend} img2imgAspectRatio={img2imgAspectRatio} setImg2imgAspectRatio={setImg2imgAspectRatio} />}
+      {activeMode === 'storyboard' && <StoryboardMode onError={onError} onSuccess={onSuccess} loading={loading} setLoading={setLoading} r18Mode={r18Mode} taskManager={taskManager} apiKey={apiKey} digitalHumanMode={digitalHumanMode} selectedGirlfriend={selectedGirlfriend} onNavigate={onNavigate} setDigitalHumanMode={setDigitalHumanMode} setSelectedGirlfriend={setSelectedGirlfriend} img2imgAspectRatio={img2imgAspectRatio} setImg2imgAspectRatio={setImg2imgAspectRatio} />}
     </div>
   );
 }
@@ -463,11 +463,12 @@ function formatTime(seconds: number): string {
 
 // ─── Expand Mode ─────────────────────────────────────────────────────────────
 
-function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskManager, apiKey, onNavigate, digitalHumanMode, setDigitalHumanMode, selectedGirlfriend, setSelectedGirlfriend, img2imgAspectRatio }: {
+function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskManager, apiKey, onNavigate, digitalHumanMode, setDigitalHumanMode, selectedGirlfriend, setSelectedGirlfriend, img2imgAspectRatio, setImg2imgAspectRatio }: {
   onError: (msg: string) => void; onSuccess: (msg: string) => void; loading: boolean; setLoading: (v: boolean) => void; r18Mode: boolean;
   taskManager: TaskManagerReturn; apiKey: string; onNavigate?: (tab: TabType) => void;
   digitalHumanMode: boolean; setDigitalHumanMode: (v: boolean) => void; selectedGirlfriend: GirlfriendPreset | null; setSelectedGirlfriend: (gf: GirlfriendPreset | null) => void;
   img2imgAspectRatio: 'portrait' | 'landscape';
+  setImg2imgAspectRatio: (v: 'portrait' | 'landscape') => void;
 }) {
   const savedExpand = getExpandSession();
   const [input, setInput] = useState(savedExpand?.input || '');
@@ -1683,11 +1684,12 @@ function ExpandResultCard({ result, r18Mode, isCopied, genState, onCopy, onDelet
 
 // ─── Random Mode ─────────────────────────────────────────────────────────────
 
-function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskManager, apiKey, onNavigate, digitalHumanMode, setDigitalHumanMode, selectedGirlfriend, setSelectedGirlfriend, img2imgAspectRatio }: {
+function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskManager, apiKey, onNavigate, digitalHumanMode, setDigitalHumanMode, selectedGirlfriend, setSelectedGirlfriend, img2imgAspectRatio, setImg2imgAspectRatio }: {
   onError: (msg: string) => void; onSuccess: (msg: string) => void; loading: boolean; setLoading: (v: boolean) => void; r18Mode: boolean;
   taskManager: TaskManagerReturn; apiKey: string; onNavigate?: (tab: TabType) => void;
   digitalHumanMode: boolean; setDigitalHumanMode: (v: boolean) => void; selectedGirlfriend: GirlfriendPreset | null; setSelectedGirlfriend: (gf: GirlfriendPreset | null) => void;
   img2imgAspectRatio: 'portrait' | 'landscape';
+  setImg2imgAspectRatio: (v: 'portrait' | 'landscape') => void;
 }) {
   const savedRandom = getRandomSession();
   const [type, setType] = useState<'image' | 'video'>(savedRandom?.type || 'image');
@@ -3217,11 +3219,12 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
 
 // ─── Storyboard Mode ────────────────────────────────────────────────────────
 
-function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, taskManager, apiKey, onNavigate, digitalHumanMode, setDigitalHumanMode, selectedGirlfriend, setSelectedGirlfriend, img2imgAspectRatio }: {
+function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, taskManager, apiKey, onNavigate, digitalHumanMode, setDigitalHumanMode, selectedGirlfriend, setSelectedGirlfriend, img2imgAspectRatio, setImg2imgAspectRatio }: {
   onError: (msg: string) => void; onSuccess: (msg: string) => void; loading: boolean; setLoading: (v: boolean) => void; r18Mode: boolean;
   taskManager: TaskManagerReturn; apiKey: string; onNavigate?: (tab: TabType) => void;
   digitalHumanMode: boolean; setDigitalHumanMode: (v: boolean) => void; selectedGirlfriend: GirlfriendPreset | null; setSelectedGirlfriend: (gf: GirlfriendPreset | null) => void;
   img2imgAspectRatio: 'portrait' | 'landscape';
+  setImg2imgAspectRatio: (v: 'portrait' | 'landscape') => void;
 }) {
   const savedStoryboard = getStoryboardSession();
   const [plot, setPlot] = useState(savedStoryboard?.plot || '');
@@ -3742,7 +3745,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
 
   // Helper: get the effective historyId for multi-theme mode
   const sbHistoryId = activeThemeTab !== null
-    ? (themeOutlineStates[activeThemeTab]?.historyId || currentHistoryId)
+    ? (themeOutlineStates[activeThemeTab]?.historyId || `theme-${activeThemeTab}`)
     : currentHistoryId;
 
   // Restore cached panel images on page load — critical for surviving page refresh.
@@ -3856,8 +3859,11 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
     const hid = sbHistoryId || 'solo';
     activePanels.forEach((p, idx) => {
       const key = `${hid}_${idx}`;
-      // 旧版 [Shot 1..N] 提示词没有六段式头部 → 自动升级；六段式则保留用户编辑
-      if (panelH3Prompts[key] && panelH3Prompts[key].includes('subject_definitions')) return;
+      const existing = panelH3Prompts[key];
+      const sceneHead = (p.scene_description || '').replace(/\s+/g, '').slice(0, 10);
+      // 六段式但场景开头与当前分镜不一致 → 说明是上一个主题遗留的 H3 提示词，必须重建
+      if (existing && existing.includes('subject_definitions')
+          && (!sceneHead || existing.includes(sceneHead))) return;
       const text = buildPanelH3Prompt(p, { r18: r18Mode, duration: 15 });
       setPanelH3Prompts(prev => ((prev[key]?.includes('subject_definitions')) ? prev : { ...prev, [key]: text }));
       setPanelH3ShotMap(prev => {
@@ -4940,7 +4946,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         const daotaiModel = storyboardModel === 'qwen' ? 'qwen-image-2.1' : (storyboardModel === 'krea2-muse' ? 'krea2-muse' : 'krea2');
         await taskManager.addTask('daotai-img', [], finalPrompt, undefined, undefined, storyboardInfo, 'storyboard', activeThemeInfo?.title || plot || undefined, panelIdx + 1, {
           model: daotaiModel as 'krea2' | 'krea2-muse' | 'qwen-image-2.1',
-          ratio: img2imgAspectRatio || '9:16',
+          ratio: img2imgAspectRatio === 'landscape' ? '16:9' : '9:16',
           batch: 2,
           refs: refUrl ? [refUrl] : [],
         });
@@ -6007,7 +6013,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
           const daotaiModel = storyboardModel === 'qwen' ? 'qwen-image-2.1' : (storyboardModel === 'krea2-muse' ? 'krea2-muse' : 'krea2');
           await taskManager.addTask('daotai-img', [], finalPrompt, undefined, undefined, panelStoryboardInfo, 'storyboard', themeForTask, panelNum, {
             model: daotaiModel as 'krea2' | 'krea2-muse' | 'qwen-image-2.1',
-            ratio: img2imgAspectRatio || '9:16',
+            ratio: img2imgAspectRatio === 'landscape' ? '16:9' : '9:16',
             batch: 2,
             refs: refUrl ? [refUrl] : [],
           });
@@ -6138,6 +6144,15 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
               <option value="multi">多图编辑</option>
               <option value="krea2-muse">导演台 Krea2-muse（免扣费）</option>
             </optgroup>
+          </select>
+          <span className="text-xs text-text-tertiary whitespace-nowrap ml-1">比例:</span>
+          <select
+            value={img2imgAspectRatio}
+            onChange={(e) => setImg2imgAspectRatio(e.target.value as 'portrait' | 'landscape')}
+            className="w-24 bg-bg-elevated border border-border rounded-lg px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-primary"
+          >
+            <option value="portrait">竖屏 9:16</option>
+            <option value="landscape">横屏 16:9</option>
           </select>
         </div>
 

@@ -56,6 +56,11 @@ export function OneClickProduce({ panels, images, h3Prompts, apiKey, themeTitle,
   const setFinalUrl = (v: string) => setStates(prev => ({ ...prev, [key]: { ...(prev[key] || EMPTY_THEME), finalUrl: v } }));
   const setError = (v: string) => setStates(prev => ({ ...prev, [key]: { ...(prev[key] || EMPTY_THEME), error: v } }));
   const [portraits, setPortraits] = useState<(string | undefined)[]>([]);
+  const [clarity, setClarity] = useState<number>(() => {
+    const v = Number(localStorage.getItem('nsfwxo_video_clarity') || '0.2');
+    return Number.isFinite(v) && v >= 0.2 && v <= 1 ? v : 0.2;
+  });
+
   const abortRef = useRef(false);
   const imagesKey = images.map(u => u || '').join('|');
 
@@ -145,9 +150,9 @@ export function OneClickProduce({ panels, images, h3Prompts, apiKey, themeTitle,
             workflow_id: WORKFLOW_DET16,
             target_segs: 2,
             no_llm: true,
-            use_bridge: true,
+            use_bridge: false,
             duration: 15,
-            resolution: 0.4,
+            resolution: clarity,
             aspect_ratio: 'match',
             shots_per_seg: 1,
           }), 90000, '视频任务提交');
@@ -218,7 +223,7 @@ export function OneClickProduce({ panels, images, h3Prompts, apiKey, themeTitle,
     } finally {
       if (!isSingle) setBusy(false);
     }
-  }, [busy, apiKey, panels, images, h3Prompts, portraits]);
+  }, [busy, apiKey, panels, images, h3Prompts, portraits, clarity]);
 
   useEffect(() => {
     const handler = () => { void start(); };
@@ -235,6 +240,8 @@ export function OneClickProduce({ panels, images, h3Prompts, apiKey, themeTitle,
   };
 
   const concatTriedRef = useRef<Record<string, boolean>>({});
+  const [concatTick, setConcatTick] = useState(0);
+  const [concatBusy, setConcatBusy] = useState(false);
   // 兼容：六个分镜已完成但最终合成当时 400（media 还没落盘）→ 自动补合成一次
   useEffect(() => {
     if (busy || finalUrl) return;
@@ -242,7 +249,6 @@ export function OneClickProduce({ panels, images, h3Prompts, apiKey, themeTitle,
     const allDone = panels.every((_, i) => items[i]?.status === 'done' && !!items[i]?.url);
     if (!allDone) return;
     if (concatTriedRef.current[key]) return;
-    concatTriedRef.current[key] = true;
     const urls = panels.map((_, i) => items[i]?.url).filter((u): u is string => !!u);
     if (urls.length < 2) return;
     void (async () => {
@@ -250,6 +256,7 @@ export function OneClickProduce({ panels, images, h3Prompts, apiKey, themeTitle,
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
           const merged = await concatDaotaiVideos(apiKey, urls);
+          concatTriedRef.current[key] = true;
           setFinalUrl(merged.video_url);
           setError('');
           return;
@@ -259,8 +266,9 @@ export function OneClickProduce({ panels, images, h3Prompts, apiKey, themeTitle,
         }
       }
       setError(last instanceof Error ? last.message : '最终视频合成失败');
+      setTimeout(() => setConcatTick((t) => t + 1), 5000);
     })();
-  }, [items, busy, finalUrl, panels, key, apiKey]);
+  }, [items, busy, finalUrl, panels, key, apiKey, concatTick]);
 
   const doneCount = Object.values(items).filter(i => i.status === 'done').length;
 
@@ -273,6 +281,21 @@ export function OneClickProduce({ panels, images, h3Prompts, apiKey, themeTitle,
           <span className="text-[10px] text-fuchsia-500/80">{themeTitle || ''} · {doneCount}/{panels.length} 完成</span>
         </div>
         <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-text-tertiary">清晰度</span>
+          <select
+            value={clarity}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              setClarity(v);
+              try { localStorage.setItem('nsfwxo_video_clarity', String(v)); } catch {}
+            }}
+            disabled={busy}
+            className="bg-white border border-fuchsia-200 rounded-lg px-1.5 py-1 text-[11px] text-fuchsia-700"
+          >
+            {[0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1].map((v) => (
+              <option key={v} value={v}>{v.toFixed(1)}</option>
+            ))}
+          </select>
           {busy && (
             <button type="button" onClick={cancel} className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-red-50 text-red-500 border border-red-200 hover:bg-red-100">
               取消
@@ -337,6 +360,7 @@ export function OneClickProduce({ panels, images, h3Prompts, apiKey, themeTitle,
                       : '待提交'
                   }</span>
                   {it?.error && <span className="px-2 text-center text-red-400 line-clamp-2">{it.error}</span>}
+                  {it?.taskId && <span className="text-[9px] text-text-tertiary/60 font-mono">{it.taskId}</span>}
                   {it?.status !== 'done' && it?.status !== 'running' && (
                     <button type="button" onClick={() => void start([i])} className="mt-1 px-2 py-0.5 rounded bg-fuchsia-500 text-white text-[10px]">
                       单独生成
@@ -348,6 +372,35 @@ export function OneClickProduce({ panels, images, h3Prompts, apiKey, themeTitle,
           );
         })}
       </div>
+      {!finalUrl && doneCount >= 2 && doneCount === panels.length && !busy && (
+        <button
+          type="button"
+          disabled={concatBusy}
+          onClick={async () => {
+            const urls = panels.map((_, i) => items[i]?.url).filter((u): u is string => !!u);
+            if (urls.length < 2) { setError('分镜视频不足，无法合成'); return; }
+            setError('');
+            setConcatBusy(true);
+            try {
+              for (let attempt = 0; attempt < 5; attempt++) {
+                try {
+                  const merged = await concatDaotaiVideos(apiKey, urls);
+                  setFinalUrl(merged.video_url);
+                  return;
+                } catch (e) {
+                  if (attempt === 4) setError(e instanceof Error ? e.message : '最终视频合成失败');
+                  await new Promise((r) => setTimeout(r, 3000));
+                }
+              }
+            } finally {
+              setConcatBusy(false);
+            }
+          }}
+          className="w-full mt-3 py-2 rounded-lg bg-fuchsia-600 text-white text-xs font-medium hover:bg-fuchsia-700 disabled:opacity-60"
+        >
+          {concatBusy ? '合成中…' : '合成最终视频'}
+        </button>
+      )}
       {finalUrl && (
         <div className="mt-3">
           <div className="text-[11px] font-medium text-fuchsia-700 mb-1">最终合成视频</div>
