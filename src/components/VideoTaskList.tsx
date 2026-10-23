@@ -981,8 +981,8 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
 
       <div className="rounded-xl border border-pink-200 bg-pink-50/40 p-2">
         <div className="text-[11px] font-semibold text-pink-700 mb-2">视频预览</div>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-          {tasks.length === 0 && <div className="col-span-2 md:col-span-3 aspect-[16/9] rounded-lg border border-dashed border-pink-200 flex items-center justify-center text-[10px] text-pink-400">暂无视频任务</div>}
+        <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+          {tasks.length === 0 && <div className="col-span-3 md:col-span-6 aspect-[16/9] rounded-lg border border-dashed border-pink-200 flex items-center justify-center text-[10px] text-pink-400">暂无视频任务</div>}
           {tasks.map((t) => {
             const url = t.images.find(isVideoUrl) || '';
             return (

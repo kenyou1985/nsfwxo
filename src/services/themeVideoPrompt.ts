@@ -10,12 +10,12 @@ export function buildGridH3VideoPrompt(panels: GridPanel[], title = '九宫格�
   const hasMale = /男人|男性|男主|他|man\b/i.test(allText);
   const t = title;
   const dialogue = /偷拍|窥|偷情/.test(t)
-    ? ['别拍……', '已经拍下来了。']
+    ? ['求求你放过我……', '不要出声。']
     : /乳胶|拘束|捆绑|SM/i.test(t)
-      ? ['太紧了……', '忍着。']
+      ? ['不要这样……很疼。', '乖乖听话。']
       : /公交|地铁|车厢|公共/.test(t)
-        ? ['会被看到的……', '那就别看。']
-        : ['别停……', '叫我的名字。'];
+        ? ['不要在这里……', '不许叫。']
+        : ['求求你……慢一点。', '夹紧，别出声。'];
   const shotLines = shots.map((p, i) => {
     const time = (i * 60 / Math.max(1, shots.length)).toFixed(1).padStart(4, '0');
     const text = (p.image_prompt || p.scene_description || '').replace(/\s+/g, ' ').trim();
