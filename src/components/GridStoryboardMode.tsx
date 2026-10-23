@@ -122,8 +122,8 @@ function dedupeGridPanels(panels: GridPanel[]): GridPanel[] {
   const picks = ['low-angle close-up', 'over-the-shoulder medium shot', 'tight macro detail', 'side-profile medium close-up', 'high-angle wide shot'];
   return panels.map((p, i) => {
     let img = (p.image_prompt || '').trim();
-    // 重复的 [ANCHOR: ...] 每格都塞一遍会产生互相冲突的服装/裸露状态
-    if (i > 0) img = img.replace(/\[ANCHOR:[^\]]*\]/gi, '');
+    // 每格都塞一遍 [ANCHOR] 会产生互相冲突的服装/裸露状态；逐格生成只靠参考图锁人物
+    img = img.replace(/\[ANCHOR:[^\]]*\]/gi, '');
     const hasCostume = /costume|leotard|dress|lingerie|thong|stockings|heels|tuxedo|tailcoat/i.test(img);
     if (hasCostume) img = img.replace(/\bfully nude\b/gi, 'partially undressed');
     if (i === panels.length - 1) {
@@ -623,7 +623,7 @@ export function GridStoryboardMode({
   // When true, txt2img submits one task per panel (like digital-human mode),
   // each going to redrawnPanelImages so they auto-compose after completion.
   // Locked to true when digitalHumanMode is active.
-  const [generateSeparatePanels, setGenerateSeparatePanels] = useState(false);
+  const [generateSeparatePanels, setGenerateSeparatePanels] = useState(true);
   // Dedicated historyId for the separate-panel generation batch — used by
   // finishedTasks to distinguish these tasks from the composite-grid path.
   const [separatePanelsHistoryId, setSeparatePanelsHistoryId] = useState<string | null>(null);
@@ -1703,7 +1703,8 @@ export function GridStoryboardMode({
     // ── Determine the effective generation mode ────────────────────────────
     // digitalHumanMode always uses separate-per-panel tasks (character anchor).
     // For txt2img, the user can choose via the generateSeparatePanels toggle.
-    const useSeparatePanels = digitalHumanMode || generateSeparatePanels;
+    // 6 格以上强制逐格生成，再本地拼成严格 3×3/3×4，避免模型自由发挥成 6 格/缺格
+    const useSeparatePanels = digitalHumanMode || generateSeparatePanels || panels.length >= 6;
 
     try {
       if (useSeparatePanels && selectedGirlfriend && digitalHumanMode) {
