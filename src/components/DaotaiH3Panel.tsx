@@ -69,8 +69,8 @@ export function DaotaiH3Panel({ apiKey, onError, onSuccess, taskListRef }: Daota
   const [prompt, setPrompt] = useState('');
   const [duration, setDuration] = useState(15);
   const [shotsPerSeg, setShotsPerSeg] = useState(1);
-  const [targetSegs, setTargetSegs] = useState('16');
-  const [loopRoutes, setLoopRoutes] = useState(3);
+  const [targetSegs, setTargetSegs] = useState('4');
+  const [loopRoutes, setLoopRoutes] = useState(1);
   const [resolution, setResolution] = useState(0.2);
   const [aspectRatio, setAspectRatio] = useState('9:16');
   const [submitting, setSubmitting] = useState(false);

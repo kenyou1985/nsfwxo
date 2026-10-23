@@ -829,6 +829,12 @@ export function EroticCreationPanel({
             additionalImageUrls={images.slice(1, 6).map(img => img.preview || img.path).filter(Boolean)}
             onReExtract={onReExtract}
             onInsertAsReference={onInsertClothingAsReference}
+            supplementary={supplementary}
+            onSupplementaryChange={setSupplementary}
+            supplementaryMode={supplementaryMode}
+            onSupplementaryModeChange={setSupplementaryMode}
+            supplementaryItems={supplementaryItems}
+            onSupplementaryItemsChange={setSupplementaryItems}
             eroticCount={eroticCount}
           />
 

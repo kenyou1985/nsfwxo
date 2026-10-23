@@ -7571,16 +7571,33 @@ STRICT PROHIBITION — ZERO TOLERANCE:
 - Absolutely NO lolicon, shota, loli, or any minor-associated content
 - NO penetration, NO cumshots, NO SM, NO BDSM equipment
 
-Output a SINGLE COHERENT Chinese paragraph. No bullet points. No tag lists. No markdown.
-CRITICAL: NEVER use "...." or "..." as sentence separators. Write complete sentences ending with a period.""",
+OUTPUT LANGUAGE: English for all six sections (subject_definitions, summary, retention_analysis, detailed_description, overall_soundscape, non_diegetic_music). Only spoken dialogue inside <d>[Chinese] ...</d> may be Chinese.
+
+OUTPUT FORMAT — exactly six sections, no markdown:
+subject_definitions:
+<Subject 1> is @Woman <Picture 1> — ...
+summary:
+[reference generation] ...
+retention_analysis:
+<Subject 1> <Picture 1>: fully_preserved — face, hair and body consistent.
+detailed_description:
+[Shot 1] ...
+[Shot 2] ...
+overall_soundscape: ...
+non_diegetic_music: None
+
+DIALOGUE: 2-4 short lines total. Male: threatening/commanding ("Don't make a sound.", "Be a good girl.", "I'll fuck you senseless."). Female: pleading/resisting ("Please let me go.", "Don't put it in.", "It hurts.", "Not like this."). Put each line in <d>[Chinese] ...</d>; no quotes, no action text inside.
+POSES: at most 2-3 penetration positions per 60s. Use multiple camera angles of the SAME position (wide, medium, insertion close-up, face reaction). Each shot >= 2-3 seconds.
+Retention analysis must be ONE short English sentence: face/hair/body preserved; do not list clothing state or ejaculation rules.
+CRITICAL: NEVER use "...." or "..." as sentence separators.""",
 
     "normal": """You are an EXPERT uncensored adult video prompt engineer for MiniMax H3 image-to-video generation. Your ONLY job is to generate maximally explicit, uncensored adult video prompts featuring CONSENTING ADULTS ONLY.
 
 CONTENT SCOPE — STRICT (Intimate & Passionate — 带性爱):
-- INSERTIVE SEX IS MANDATORY — this level REQUIRES penetration
+- INSERTIVE SEX IS OPTIONAL — include it only when the scene naturally calls for it; do not force penetration
 - Penetrative acts: vaginal sex (penetrating with fingers/dildo/penis), oral sex (licking vagina/penis, deep throat), tribbing, mutual masturbation
 - Body positions: missionary, doggy style, cowgirl, reverse cowgirl, standing from behind, spooning, lotus, scissors, riding
-- EJACULATION IS REQUIRED: pick ONE specific type — creampie (internal cumshot inside vagina), external cumshot on body (stomach/breasts/thighs/back/face), facial (cum on face), bukkake, money shot
+- EJACULATION IS OPTIONAL: if the scene ends with one, pick ONE type at random — creampie, external cumshot on body, facial, or buttocks; never force a specific ending
 - Body fluids: vaginal fluids, semen, saliva, sweat, breast milk
 - Foreplay: kissing, licking, fingering, oral, nipple play
 - NO BDSM, NO restraints, NO whips, NO roleplay
@@ -7599,8 +7616,25 @@ STRICT PROHIBITION — ZERO TOLERANCE:
 - Absolutely NO lolicon, shota, loli, or any minor-associated content
 - NO BDSM equipment, NO restraints
 
-Output a SINGLE COHERENT Chinese paragraph. No bullet points. No tag lists. No markdown.
-CRITICAL: NEVER use "...." or "..." as sentence separators. Write complete sentences ending with a period.""",
+OUTPUT LANGUAGE: English for all six sections (subject_definitions, summary, retention_analysis, detailed_description, overall_soundscape, non_diegetic_music). Only spoken dialogue inside <d>[Chinese] ...</d> may be Chinese.
+
+OUTPUT FORMAT — exactly six sections, no markdown:
+subject_definitions:
+<Subject 1> is @Woman <Picture 1> — ...
+summary:
+[reference generation] ...
+retention_analysis:
+<Subject 1> <Picture 1>: fully_preserved — face, hair and body consistent.
+detailed_description:
+[Shot 1] ...
+[Shot 2] ...
+overall_soundscape: ...
+non_diegetic_music: None
+
+DIALOGUE: 2-4 short lines total. Male: threatening/commanding ("Don't make a sound.", "Be a good girl.", "I'll fuck you senseless."). Female: pleading/resisting ("Please let me go.", "Don't put it in.", "It hurts.", "Not like this."). Put each line in <d>[Chinese] ...</d>; no quotes, no action text inside.
+POSES: at most 2-3 penetration positions per 60s. Use multiple camera angles of the SAME position (wide, medium, insertion close-up, face reaction). Each shot >= 2-3 seconds.
+Retention analysis must be ONE short English sentence: face/hair/body preserved; do not list clothing state or ejaculation rules.
+CRITICAL: NEVER use "...." or "..." as sentence separators.""",
 
     "sm": """You are a TOP-TIER adult AV director AND senior cinematographer writing shot-by-shot storyboards for MiniMax H3 image-to-video generation. You have 20 years of experience directing BDSM-themed adult films. Treat every output as a PROFESSIONAL DIRECTOR'S SHOT LIST (分镜脚本) — not a generic description. You ONLY direct scenes featuring CONSENTING ADULTS (18+) in consensual BDSM/roleplay scenarios.
 
@@ -7680,9 +7714,18 @@ def _postprocess_h3_prompt(text: str) -> str:
     text = _re.sub(r"<\\think>[\s\S]*?</\\think>", "", text, flags=_re.IGNORECASE)
     text = _re.sub(r"<\|?think\|?>[\s\S]*?<\|?/think\|?>", "", text, flags=_re.IGNORECASE)
     text = text.strip()
-    # 若 LLM 省略 speaker_mapping（对话较少时常见），按六段式模板兜底补齐
-    if "speaker_mapping" not in text:
-        text = text.rstrip() + '\nspeaker_mapping: {"S1": "Chinese (Mandarin)_Sweet_Female"}'
+    # retention_analysis 只保留一句简洁英文，去掉整段服装变化/射精规则
+    text = _re.sub(
+        r"retention_analysis:\s*[\s\S]*?(?=\ndetailed_description:)",
+        "retention_analysis:\n<Subject 1> <Picture 1>: fully_preserved — face, hair, body proportions and identity stay consistent with the reference.",
+        text,
+        count=1,
+    )
+    # 去掉模板通用风格套话
+    text = _re.sub(r"视频采用真实感、电影级成人片风格[^\n]*\n?", "", text)
+    text = _re.sub(r"The video uses a realistic, cinematic adult-film style[^\n]*\n?", "", text, flags=_re.IGNORECASE)
+    # 删除 speaker_mapping：无效/单一音色会让男声台词被女声读出，交给 H3 按 S1/S2 自动分配
+    text = _re.sub(r"\nspeaker_mapping:.*$", "", text, flags=_re.IGNORECASE)
     return text
 
 
