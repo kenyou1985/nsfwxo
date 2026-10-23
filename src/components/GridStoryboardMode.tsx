@@ -34,6 +34,8 @@ import { composeGridStoryboard } from '../utils/gridComposite';
 import { buildGridH3VideoPrompt } from '../services/themeVideoPrompt';
 import { submitDaotaiVideo, pollDaotaiTask } from '../services/daotai';
 import { publishExternalVideoTask } from '../services/videoTaskBridge';
+import { cacheVideo } from '../services/videoCache';
+import { CachedVideo } from './CachedVideo';
 import type { TabType } from '../types';
 
 const GRID_LOG_PREFIX = '[GridStoryboardMode]';
@@ -2145,6 +2147,7 @@ export function GridStoryboardMode({
           setThisGridVideo({ status: 'done', url, taskId: tid });
           publishExternalVideoTask({ ...baseTask, id: publishedId, taskId: tid, status: 'FINISHED', images: [url], elapsedSeconds: Math.floor((Date.now() - baseTask.startTime) / 1000) });
           saveGridVideoHistory(url, buildGridH3VideoPrompt(panels), tid, '九宫格分镜视频');
+          void cacheVideo(url);
           return;
         }
         if (st.status === 'FAILED') throw new Error(st.message || '视频生成失败');
@@ -3254,7 +3257,7 @@ export function GridStoryboardMode({
               {gridVideo.status === 'done' && gridVideo.url && (
                 <div className="mt-2">
                   <div className="text-[10px] font-semibold text-violet-700 mb-1">视频预览</div>
-                  <video src={gridVideo.url} controls playsInline className="w-full rounded-lg bg-black max-h-[70vh]" />
+                  <CachedVideo src={gridVideo.url} className="w-full rounded-lg bg-black max-h-[70vh]" />
                 </div>
               )}
             </div>

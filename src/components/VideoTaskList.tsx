@@ -4,6 +4,8 @@ import type { NodeInfo } from '../types';
 import { runTask, getTaskStatus, getTaskResults, extractImagesFromZipAsDataUrls } from '../services/runninghub';
 import { getBackendUrl } from '../services/storage';
 import { getExternalVideoTasks, type ExternalVideoTask } from '../services/videoTaskBridge';
+import { cacheVideo } from '../services/videoCache';
+import { CachedVideo } from './CachedVideo';
 
 interface VideoTask {
   id: string;
@@ -608,7 +610,7 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
           setTasks((prev) => prev.map((t) => (t.id === task.id ? updatedTask : t)));
           // 写入历史记录，便于 HistoryPage 回溯
           saveToHistoryRef.current(updatedTask);
-          if (videoUrl) onSuccessRef.current?.('视频生成完成');
+          if (videoUrl) { onSuccessRef.current?.('视频生成完成'); void cacheVideo(videoUrl); }
           onTaskComplete?.({ task: updatedTask, results: [] });
         } else if (data.status === 'FAILED') {
           const msg = data.message || '生成失败';
@@ -717,6 +719,7 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
           // Always save to history when task completes
           saveToHistoryRef.current(updatedTask);
           if (images.length > 0) {
+            void Promise.all(images.filter(isVideoUrl).map(cacheVideo));
             onSuccessRef.current?.(`生成完成！${coins ? `消耗 ${coins} 币` : ''}`);
           }
           // Fire onTaskComplete callback with full results (for enhanced prompt, etc.)
@@ -971,17 +974,26 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
         )}
       </div>
 
-      {(() => {
-        const latest = [...tasks].reverse().find(t => t.status === 'FINISHED' && t.images.some(isVideoUrl));
-        const url = latest?.images.find(isVideoUrl);
-        if (!url) return null;
-        return (
-          <div className="rounded-xl border border-pink-200 bg-pink-50/40 p-2">
-            <div className="text-[11px] font-semibold text-pink-700 mb-1">视频预览</div>
-            <video src={url} controls playsInline className="w-full max-h-[55vh] rounded-lg bg-black" />
-          </div>
-        );
-      })()}
+      <div className="rounded-xl border border-pink-200 bg-pink-50/40 p-2">
+        <div className="text-[11px] font-semibold text-pink-700 mb-2">视频预览</div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+          {tasks.length === 0 && <div className="col-span-2 md:col-span-3 aspect-[16/9] rounded-lg border border-dashed border-pink-200 flex items-center justify-center text-[10px] text-pink-400">暂无视频任务</div>}
+          {tasks.map((t) => {
+            const url = t.images.find(isVideoUrl) || '';
+            return (
+              <div key={t.id} className="rounded-lg overflow-hidden border border-pink-100 bg-black/90 aspect-[9/16] flex items-center justify-center">
+                {url ? (
+                  <CachedVideo src={url} className="w-full h-full object-contain bg-black" />
+                ) : (
+                  <div className="text-center text-[10px] text-white/60 px-2">
+                    {t.status === 'FINISHED' ? '无视频输出' : t.status === 'FAILED' ? `失败：${t.error || ''}` : '生成中占位'}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
         {tasks.map((task) => (

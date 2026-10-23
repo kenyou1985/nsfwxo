@@ -6,10 +6,23 @@ import type { GridPanel } from './storage';
  */
 export function buildGridH3VideoPrompt(panels: GridPanel[], title = '九宫格分镜'): string {
   const shots = panels.slice(0, 15);
+  const allText = panels.map(p => `${p.image_prompt || ''} ${p.scene_description || ''}`).join(' ');
+  const hasMale = /男人|男性|男主|他|man\b/i.test(allText);
+  const t = title;
+  const dialogue = /偷拍|窥|偷情/.test(t)
+    ? ['别拍……', '已经拍下来了。']
+    : /乳胶|拘束|捆绑|SM/i.test(t)
+      ? ['太紧了……', '忍着。']
+      : /公交|地铁|车厢|公共/.test(t)
+        ? ['会被看到的……', '那就别看。']
+        : ['别停……', '叫我的名字。'];
   const shotLines = shots.map((p, i) => {
-    const t = (i * 60 / Math.max(1, shots.length)).toFixed(1).padStart(4, '0');
+    const time = (i * 60 / Math.max(1, shots.length)).toFixed(1).padStart(4, '0');
     const text = (p.image_prompt || p.scene_description || '').replace(/\s+/g, ' ').trim();
-    return `[Shot ${i + 1}] At 00:${t}.000, ${text}`;
+    let line = `[Shot ${i + 1}] At 00:${time}.000, ${text}`;
+    if (i === 2) line += ` The East Asian woman whispers (S1): <d>[Chinese] ${dialogue[0]}</d>`;
+    if (i === 5 && hasMale) line += ` The East Asian man answers low (S2): <d>[Chinese] ${dialogue[1]}</d>`;
+    return line;
   });
 
   return `subject_definitions:
@@ -25,7 +38,7 @@ retention_analysis:
 
 detailed_description:
 ${shotLines.join('\n')}
-The 9-grid storyboard is the shot plan: each cell is a shot, cut in cell order, no repeated panel and no new unrelated scene.
+The 9-grid storyboard is the shot plan. Extract the cells in strict left-to-right, top-to-bottom order and use each cell as the literal first frame of its corresponding shot. Cut in cell order; no repeated panel, no skipped cell, no new unrelated scene.
 
 overall_soundscape: room tone, fabric friction, skin contact and breathing. Only the exact dialogue inside <d>...</d> tags may be spoken; no improvised lines, no whispers, no chatter, no narrator, no crowd.
 non_diegetic_music: None`;
