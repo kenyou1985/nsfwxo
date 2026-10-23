@@ -547,7 +547,16 @@ export function GridStoryboardMode({
     const v = Number(localStorage.getItem('nsfwxo_grid_segs') || '4');
     return Number.isFinite(v) && v >= 2 && v <= 16 ? v : 4;
   });
-  const [gridVideo, setGridVideo] = useState<{ status: 'idle'|'running'|'done'|'error'; url?: string; taskId?: string; error?: string }>({ status: 'idle' });
+  const [gridVideo, setGridVideo] = useState<{ status: 'idle'|'running'|'done'|'error'; url?: string; taskId?: string; error?: string }>(() => {
+    try {
+      const raw = localStorage.getItem('nsfwxo_grid_video_task');
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return { status: 'idle' };
+  });
+  useEffect(() => {
+    try { localStorage.setItem('nsfwxo_grid_video_task', JSON.stringify(gridVideo)); } catch {}
+  }, [gridVideo]);
 
   // Theme selection state
   const [themeOptions, setThemeOptions] = useState<StoryboardThemeOption[]>([]);
@@ -1443,6 +1452,14 @@ export function GridStoryboardMode({
   // Ref to prevent concurrent generation calls
   const isGeneratingRef = useRef(false);
 
+  // 单次提交最多等 90 秒；后端已扣费但接口不返回时，不能让 UI 永久停在“生成中”
+  const submitOutlineWithTimeout = async (...args: Parameters<typeof generateStoryboardOutline>) => {
+    return await Promise.race([
+      generateStoryboardOutline(...args),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('分镜提交超时（90s），请重试')), 90000)),
+    ]);
+  };
+
   // Generate grid storyboard from the first selected theme
   const handleGenerateGridStoryboard = async () => {
     console.log(`${GRID_LOG_PREFIX} handleGenerateGridStoryboard called, selectedThemes=${selectedThemes.length}`);
@@ -1476,7 +1493,7 @@ export function GridStoryboardMode({
     const results = await Promise.allSettled(
       selectedThemes.map(async (theme, index) => {
         try {
-          const res = await generateStoryboardOutline(theme.id, theme.title, gridSize, r18Mode, true);
+          const res = await submitOutlineWithTimeout(theme.id, theme.title, gridSize, r18Mode, true);
           if (res.task_id) {
             setGridTasks((prev) => {
               const next = [...prev];
@@ -1538,6 +1555,28 @@ export function GridStoryboardMode({
 
     onSuccess(`已为 ${selectedThemes.length} 个主题提交分镜生成任务`);
   };
+
+  // 刷新后继续轮询九宫格视频任务
+  useEffect(() => {
+    if (gridVideo.status !== 'running' || !gridVideo.taskId) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const st = await pollDaotaiTask(apiKey, gridVideo.taskId!);
+        const url = st.video_url || st.url || st.output?.video_url || '';
+        if (cancelled) return;
+        if (st.status === 'SUCCESS' && url) {
+          setGridVideo({ status: 'done', url, taskId: gridVideo.taskId });
+          saveGridVideoHistory(url, buildGridH3VideoPrompt(panels), gridVideo.taskId!, '九宫格分镜视频');
+        } else if (st.status === 'FAILED') {
+          setGridVideo({ status: 'error', error: st.message || '视频生成失败', taskId: gridVideo.taskId });
+        }
+      } catch {}
+    };
+    void tick();
+    const timer = setInterval(tick, 5000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [gridVideo.status, gridVideo.taskId, apiKey, panels]);
 
   const handleToggleLibraryTheme = (theme: StoryboardThemeOption) => {
     handleToggleTheme(theme);
