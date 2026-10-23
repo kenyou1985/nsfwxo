@@ -30,6 +30,7 @@ interface GridPanelEditorProps {
   onToggleFavorite?: (panelIdx: number, imageUrl: string) => void;
   // Check if a given URL is already in favorites.
   isFavorited?: (url: string) => boolean;
+  imageModel?: string;
 }
 
 export function GridPanelEditor({
@@ -51,6 +52,7 @@ export function GridPanelEditor({
   onDownloadImage,
   onToggleFavorite,
   isFavorited,
+  imageModel = 'krea2-n',
 }: GridPanelEditorProps) {
   const [copiedIdx, setCopiedIdx] = React.useState<number | null>(null);
   const [showFullPrompt, setShowFullPrompt] = React.useState(true);
@@ -93,6 +95,9 @@ export function GridPanelEditor({
           <Film size={14} className="text-purple-500" />
           <span className="text-xs font-medium text-purple-700">
             {displayLang === 'zh' ? `编辑分镜 (${gridSize}格)` : `Edit Panels (${gridSize})`}
+          </span>
+          <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 border border-purple-200">
+            生图模型：{imageModel === 'krea2-n' ? 'Krea2 最强N版（文生图）' : imageModel === 'qwen' ? 'Qwen 图像' : '官方默认'}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -143,7 +148,7 @@ export function GridPanelEditor({
           <span className="text-[10px] font-semibold text-violet-700">MiniMax H3 · 60s · 六段式视频提示词（九宫格分镜驱动）</span>
           <button
             type="button"
-            onClick={() => { void navigator.clipboard?.writeText(buildGridH3VideoPrompt(panels)); }}
+            onClick={async () => { const t=buildGridH3VideoPrompt(panels); try { await navigator.clipboard.writeText(t); } catch { const ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); } }}
             className="text-[9px] px-2 py-1 rounded bg-violet-600 text-white"
           >复制 H3</button>
         </div>

@@ -958,6 +958,18 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
         )}
       </div>
 
+      {(() => {
+        const latest = [...tasks].reverse().find(t => t.status === 'FINISHED' && t.images.some(isVideoUrl));
+        const url = latest?.images.find(isVideoUrl);
+        if (!url) return null;
+        return (
+          <div className="rounded-xl border border-pink-200 bg-pink-50/40 p-2">
+            <div className="text-[11px] font-semibold text-pink-700 mb-1">视频预览</div>
+            <video src={url} controls playsInline className="w-full max-h-[55vh] rounded-lg bg-black" />
+          </div>
+        );
+      })()}
+
       <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
         {tasks.map((task) => (
           <VideoTaskCard

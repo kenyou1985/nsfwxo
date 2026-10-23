@@ -547,16 +547,12 @@ export function GridStoryboardMode({
     const v = Number(localStorage.getItem('nsfwxo_grid_segs') || '4');
     return Number.isFinite(v) && v >= 2 && v <= 16 ? v : 4;
   });
-  const [gridVideo, setGridVideo] = useState<{ status: 'idle'|'running'|'done'|'error'; url?: string; taskId?: string; error?: string }>(() => {
-    try {
-      const raw = localStorage.getItem('nsfwxo_grid_video_task');
-      if (raw) return JSON.parse(raw);
-    } catch {}
-    return { status: 'idle' };
+  type GridVideoState = { status: 'idle'|'running'|'done'|'error'; url?: string; taskId?: string; error?: string };
+  const [gridVideoMap, setGridVideoMap] = useState<Record<string, GridVideoState>>(() => {
+    try { const raw = localStorage.getItem('nsfwxo_grid_video_tasks'); if (raw) return JSON.parse(raw); } catch {}
+    return {};
   });
-  useEffect(() => {
-    try { localStorage.setItem('nsfwxo_grid_video_task', JSON.stringify(gridVideo)); } catch {}
-  }, [gridVideo]);
+  useEffect(() => { try { localStorage.setItem('nsfwxo_grid_video_tasks', JSON.stringify(gridVideoMap)); } catch {} }, [gridVideoMap]);
 
   // Theme selection state
   const [themeOptions, setThemeOptions] = useState<StoryboardThemeOption[]>([]);
@@ -585,6 +581,10 @@ export function GridStoryboardMode({
   // Completed themes - user can click to load any of them
   const [completedThemes, setCompletedThemes] = useState<Array<{ themeTitle: string; panels: GridPanel[]; gridSize: GridSize }>>([]);
   const [activeThemeIdx, setActiveThemeIdx] = useState<number>(0);
+  const gridVideo: GridVideoState = gridVideoMap[String(activeThemeIdx)] || { status: 'idle' };
+  const setGridVideoFor = (idx: number, st: GridVideoState) => setGridVideoMap(prev => ({ ...prev, [String(idx)]: st }));
+  const setGridVideo = (st: GridVideoState) => setGridVideoFor(activeThemeIdx, st);
+
   const completedThemesRef = useRef<Array<{ themeTitle: string; panels: GridPanel[]; gridSize: GridSize }>>([]);
 
   // Per-panel redraw state
@@ -1556,27 +1556,30 @@ export function GridStoryboardMode({
     onSuccess(`已为 ${selectedThemes.length} 个主题提交分镜生成任务`);
   };
 
-  // 刷新后继续轮询九宫格视频任务
+  // 刷新后继续轮询九宫格视频任务（按主题独立）
   useEffect(() => {
-    if (gridVideo.status !== 'running' || !gridVideo.taskId) return;
+    const running = Object.entries(gridVideoMap).filter(([, v]) => v.status === 'running' && v.taskId);
+    if (!running.length) return;
     let cancelled = false;
     const tick = async () => {
-      try {
-        const st = await pollDaotaiTask(apiKey, gridVideo.taskId!);
-        const url = st.video_url || st.url || st.output?.video_url || '';
+      for (const [idx, v] of running) {
         if (cancelled) return;
-        if (st.status === 'SUCCESS' && url) {
-          setGridVideo({ status: 'done', url, taskId: gridVideo.taskId });
-          saveGridVideoHistory(url, buildGridH3VideoPrompt(panels), gridVideo.taskId!, '九宫格分镜视频');
-        } else if (st.status === 'FAILED') {
-          setGridVideo({ status: 'error', error: st.message || '视频生成失败', taskId: gridVideo.taskId });
-        }
-      } catch {}
+        try {
+          const st = await pollDaotaiTask(apiKey, v.taskId!);
+          const url = st.video_url || st.url || st.output?.video_url || '';
+          if (st.status === 'SUCCESS' && url) {
+            setGridVideoFor(Number(idx), { status: 'done', url, taskId: v.taskId });
+            saveGridVideoHistory(url, buildGridH3VideoPrompt(panels), v.taskId!, '九宫格分镜视频');
+          } else if (st.status === 'FAILED') {
+            setGridVideoFor(Number(idx), { status: 'error', error: st.message || '视频生成失败', taskId: v.taskId });
+          }
+        } catch {}
+      }
     };
     void tick();
     const timer = setInterval(tick, 5000);
     return () => { cancelled = true; clearInterval(timer); };
-  }, [gridVideo.status, gridVideo.taskId, apiKey, panels]);
+  }, [gridVideoMap, apiKey, panels]);
 
   const handleToggleLibraryTheme = (theme: StoryboardThemeOption) => {
     handleToggleTheme(theme);
@@ -2098,10 +2101,12 @@ export function GridStoryboardMode({
     onSuccess(`已加载历史记录：${item.plot}`);
   };
   const handleGenerateGridVideo = async () => {
+    const videoThemeIdx = activeThemeIdx;
+    const setThisGridVideo = (st: GridVideoState) => setGridVideoFor(videoThemeIdx, st);
     const first = heroImage?.trim();
     if (!first) { onError('还没有九宫格图片，先生成图片'); return; }
     if (!apiKey) { onError('缺少 RunningHub API Key'); return; }
-    setGridVideo({ status: 'running' });
+    setThisGridVideo({ status: 'running' });
     try {
       let frame = first;
       if (frame.startsWith('data:') || frame.startsWith('blob:')) {
@@ -2121,14 +2126,14 @@ export function GridStoryboardMode({
         no_llm: true,
         use_bridge: false,
       });
-      setGridVideo({ status: 'running', taskId: res.taskId });
+      setThisGridVideo({ status: 'running', taskId: res.taskId });
       const tid = res.taskId;
       for (let i = 0; i < 240; i++) {
         await new Promise(r => setTimeout(r, 5000));
         const st = await pollDaotaiTask(apiKey, tid);
         const url = st.video_url || st.url || st.output?.video_url || '';
         if (st.status === 'SUCCESS' && url) {
-          setGridVideo({ status: 'done', url, taskId: tid });
+          setThisGridVideo({ status: 'done', url, taskId: tid });
           saveGridVideoHistory(url, buildGridH3VideoPrompt(panels), tid, '九宫格分镜视频');
           return;
         }
@@ -2136,7 +2141,7 @@ export function GridStoryboardMode({
       }
       throw new Error('视频生成超时');
     } catch (e) {
-      setGridVideo({ status: 'error', error: e instanceof Error ? e.message : '视频生成失败' });
+      setThisGridVideo({ status: 'error', error: e instanceof Error ? e.message : '视频生成失败' });
     }
   };
 
@@ -2215,18 +2220,23 @@ export function GridStoryboardMode({
     downloadDataUrl(url, `grid_storyboard_${Date.now()}.png`);
   };
 
-  const downloadDataUrl = (url: string, filename: string) => {
+  const downloadDataUrl = async (url: string, filename: string) => {
+    const mimeMatch = url.match(/^data:(image\/[a-zA-Z0-9+.-]+);/);
+    const ext = mimeMatch ? mimeMatch[1].split('/')[1] : 'png';
+    const name = filename.replace(/\.png$/, `.${ext}`);
     try {
+      // 跨域图片直接用 <a download> 会被浏览器忽略，先抓成 blob 再下载
+      const blob = url.startsWith('data:') ? await (await fetch(url)).blob() : await (await fetch(url, { mode: 'cors' })).blob();
+      const obj = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url;
-      const mimeMatch = url.match(/^data:(image\/[a-zA-Z0-9+.-]+);/);
-      const ext = mimeMatch ? mimeMatch[1].split('/')[1] : 'png';
-      a.download = filename.replace(/\.png$/, `.${ext}`);
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      a.href = obj; a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(obj), 1000);
     } catch (err) {
       console.error(`${GRID_LOG_PREFIX} download failed:`, err);
+      const a = document.createElement('a');
+      a.href = url; a.download = name; a.target = '_blank';
+      document.body.appendChild(a); a.click(); a.remove();
     }
   };
 
@@ -3108,6 +3118,7 @@ export function GridStoryboardMode({
               setFavorites(getFavorites());
             }}
             isFavorited={(url) => isFavoritedFn(url)}
+            imageModel={imageModel}
           />
         </div>
       )}
@@ -3224,7 +3235,7 @@ export function GridStoryboardMode({
             <div className="rounded-lg border border-violet-200 bg-violet-50/60 p-2">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-[10px] font-semibold text-violet-700">H3 60s · 六段式视频提示词</span>
-                <button onClick={() => { void navigator.clipboard?.writeText(buildGridH3VideoPrompt(panels)); }} className="text-[9px] px-2 py-0.5 rounded bg-violet-600 text-white">复制</button>
+                <button onClick={async () => { const t = buildGridH3VideoPrompt(panels); try { await navigator.clipboard.writeText(t); } catch { const ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); } }} className="text-[9px] px-2 py-0.5 rounded bg-violet-600 text-white">复制</button>
               </div>
               <textarea readOnly value={buildGridH3VideoPrompt(panels)} rows={4} className="w-full text-[9px] font-mono bg-white border border-violet-200 rounded p-1.5" />
               {gridVideo.status === 'running' && <p className="text-[9px] text-violet-600 mt-1">视频任务 {gridVideo.taskId} 生成中…</p>}
