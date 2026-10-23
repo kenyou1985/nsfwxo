@@ -4,7 +4,7 @@ import type { NodeInfo } from '../types';
 import { runTask, getTaskStatus, getTaskResults, extractImagesFromZipAsDataUrls } from '../services/runninghub';
 import { getBackendUrl } from '../services/storage';
 import { getExternalVideoTasks, type ExternalVideoTask } from '../services/videoTaskBridge';
-import { cacheVideo } from '../services/videoCache';
+import { cacheVideo, prefetchVideos } from '../services/videoCache';
 import { CachedVideo } from './CachedVideo';
 
 interface VideoTask {
@@ -434,6 +434,11 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
     window.addEventListener('nsfwxo:external-video-task', handler);
     return () => window.removeEventListener('nsfwxo:external-video-task', handler);
   }, []);
+
+  useEffect(() => {
+    const urls = tasks.flatMap(t => t.images.filter(isVideoUrl));
+    if (urls.length) void prefetchVideos(urls);
+  }, [tasks.length]);
 
   const pollingRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const onErrorRef = useRef(onError);
