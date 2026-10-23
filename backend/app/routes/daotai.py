@@ -375,6 +375,23 @@ async def query_task(request: Request):
             pass
         return {'status': 'FAILED', 'message': '视频合成失败：最终视频未生成（段视频已落盘，可走 bind-local-video 兜底）'}
     if stt in ('failed', 'stopped'):
+        # 成片已存在却误报失败 → 直接恢复成功
+        _fu = snap.get('final_url')
+        if _fu:
+            _dir = os.path.basename(job.run_dir) if job.run_dir else ''
+            _u = _absolute_url(request, f'/api/daotai/media/{_dir}/{urllib.parse.quote(os.path.basename(_fu))}')
+            return {'status': 'SUCCESS', 'video_url': _u, 'output': {'video_url': _u}, 'url': _u, 'recovered': True}
+        try:
+            import glob as _glob
+            _paths = [x for x in sorted(_glob.glob(os.path.join(job.run_dir, 'seg_*.mp4'))) if os.path.getsize(x) > 1024]
+            if _paths:
+                _out = os.path.join(job.run_dir, '最终视频.mp4')
+                if rh._concat_videos(job, _paths, _out) and os.path.exists(_out):
+                    _dir = os.path.basename(job.run_dir)
+                    _u = _absolute_url(request, f'/api/daotai/media/{_dir}/{urllib.parse.quote(os.path.basename(_out))}')
+                    return {'status': 'SUCCESS', 'video_url': _u, 'output': {'video_url': _u}, 'url': _u, 'recovered': True}
+        except Exception:
+            pass
         # 提取最后一条错误/警告行作为真实原因（job.logs 包含 _emit 的所有行）
         # 优先级：⚠/❌/任务异常/任务提交失败 > 最后一行非空日志
         _logs = list(job.logs or [])

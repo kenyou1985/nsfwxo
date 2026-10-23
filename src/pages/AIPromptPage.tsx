@@ -3835,6 +3835,14 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   }, []); // intentionally empty — only runs once on mount
 
   // ── Derived active values (must be before useEffects that depend on them) ──
+  // 切换主题标签时清空 H3/动画缓存，避免上一个主题的牧场/地下通道脚本残留
+  useEffect(() => {
+    setPanelH3Prompts({});
+    setPanelH3ShotMap({});
+    setPanelVideoPrompts({});
+    autoH3TriggeredRef.current.clear();
+  }, [activeThemeTab]);
+
   const activeOutlineArc = activeThemeTab !== null ? (themeOutlineStates[activeThemeTab]?.outlineArc || '') : outlineArc;
   const activeOutlineScenes = activeThemeTab !== null ? (themeOutlineStates[activeThemeTab]?.outlineScenes || []) : outlineScenes;
   const activePanels = activeThemeTab !== null ? (themeOutlineStates[activeThemeTab]?.panels || []) : panels;

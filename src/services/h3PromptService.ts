@@ -1300,7 +1300,7 @@ retention_analysis:
 ${hasMale ? '<Subject 2> <Picture 1>: fully_preserved — face, hair and build consistent with the first frame.\n' : ''}<Subject 3> @Scene: fully_preserved — same location, lighting and props in all shots.
 detailed_description:
 ${shots.join('\n')}
-overall_soundscape: room tone, fabric friction, skin contact and breathing. Only S1 and S2 speak; absolutely no other speakers, no background chatter, no crowd, no narration.
+overall_soundscape: room tone, fabric friction, skin contact and breathing. ${hasMale ? 'Only S1 and S2 speak;' : 'Only S1 speaks;'} absolutely no other speakers, no background chatter, no crowd, no narration.
 non_diegetic_music: None`;
 
 }
