@@ -10,6 +10,7 @@ import {
   Image,
   ZoomIn,
   Maximize2,
+  ChevronDown,
 } from 'lucide-react';
 import type { GirlfriendPreset } from '../data/girlfriendPresets';
 import {
@@ -42,6 +43,7 @@ export function GirlfriendSelector({
   const activeSelectedIds: string[] =
     selectedIds ?? (selectedId ? [selectedId] : []);
   const [activeTab, setActiveTab] = useState<'presets' | 'custom'>('presets');
+  const [collapsed, setCollapsed] = useState(true);
   const [genderFilter, setGenderFilter] = useState<'all' | 'female' | 'male'>('all');
   const [customGirlfriends, setCustomGirlfriends] = useState<CustomGirlfriend[]>(() =>
     getCustomGirlfriends()
@@ -173,10 +175,11 @@ export function GirlfriendSelector({
       <div className="rounded-xl bg-white border border-border overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-bg-elevated">
-          <div className="flex items-center gap-1.5">
+          <button type="button" onClick={() => setCollapsed(v => !v)} className="flex items-center gap-1.5">
             <Heart size={12} className="text-red-400" />
             <span className="text-xs font-medium text-text-primary">AI 角色</span>
-          </div>
+            <ChevronDown size={11} className={`text-text-tertiary transition-transform ${collapsed ? '' : 'rotate-180'}`} />
+          </button>
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] text-text-tertiary">
               {activeTab === 'presets' ? `${presets.length} 预设` : `${customPresets.length} 自定义`}
@@ -196,6 +199,7 @@ export function GirlfriendSelector({
           </div>
         </div>
 
+        {!collapsed && (<>
         {/* Tabs */}
         <div className="flex border-b border-border">
           <button
@@ -282,6 +286,7 @@ export function GirlfriendSelector({
             </>
           )}
         </div>
+        </>)}
       </div>
 
       {/* Save Modal */}

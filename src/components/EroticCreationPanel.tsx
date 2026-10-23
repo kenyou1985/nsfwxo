@@ -542,7 +542,7 @@ export function EroticCreationPanel({
     const hasIndividualSupplementary = supplementaryMode === 'individual' && supplementaryItems.some(s => s.trim().length > 0);
 
     const UNIFIED_SUPPLEMENTARY_REQUIREMENT = hasUnifiedSupplementary
-      ? `\n\n【用户自定义补充信息 - 必须严格遵守】\n${supplementaryRaw}\n要求：上述姿势/道具/场景元素必须在生成的 H3 提示词中明确出现并实际执行（不可仅作为背景元素），不允许被忽略或替换。`
+      ? `\n\n【用户自定义补充信息 - 必须严格遵守】\n${supplementaryRaw}\n要求：补充内容里如果包含剧情/事件（例如裙底偷拍、跟踪、威胁、偷情被发现），必须把它写成主线剧情动作，分配到 Shot 1–3 的实际动作链中，不能只当背景或一句旁白；姿势/道具/场景元素也必须明确出现并实际执行，不允许忽略或替换。`
       : '';
 
     const INDIVIDUAL_SUPPLEMENTARY_REQUIREMENT = hasIndividualSupplementary
@@ -551,7 +551,7 @@ export function EroticCreationPanel({
             .map((item, idx) => item.trim().length > 0 ? `  - 提示词 #${idx + 1}：${item.trim()}` : null)
             .filter(Boolean)
             .join('\n');
-          return `\n\n【逐条自定义补充信息 - 必须严格遵守】\n${lines}\n要求：每一项必须出现在对应编号的提示词中，并实际执行（不可仅作为背景元素），不允许被忽略或替换。`;
+          return `\n\n【逐条自定义补充信息 - 必须严格遵守】\n${lines}\n要求：每一项必须出现在对应编号的提示词中；若该项是剧情/事件（如裙底偷拍、偷情被发现），必须作为该条的主线动作推进，不能只当背景；姿势/道具/场景必须实际执行，不允许忽略或替换。`;
         })()
       : '';
 
@@ -820,18 +820,6 @@ export function EroticCreationPanel({
             </div>
           </div>
 
-          {/* ── 补充信息（姿势/道具/场景元素） ─────────────────────── */}
-          <SupplementarySection
-            disabled={disabled || eroticAnalyzing}
-            mode={supplementaryMode}
-            setMode={setSupplementaryMode}
-            supplementary={supplementary}
-            setSupplementary={setSupplementary}
-            supplementaryItems={supplementaryItems}
-            setSupplementaryItems={setSupplementaryItems}
-            count={eroticCount}
-          />
-
           {/* ── DNA 面板 ───────────────────────────────────────────── */}
           <ImageDnaPanel
             dna={imageDna}
@@ -841,6 +829,7 @@ export function EroticCreationPanel({
             additionalImageUrls={images.slice(1, 6).map(img => img.preview || img.path).filter(Boolean)}
             onReExtract={onReExtract}
             onInsertAsReference={onInsertClothingAsReference}
+            eroticCount={eroticCount}
           />
 
           {/* ── 分析按钮 ──────────────────────────────────────────── */}
