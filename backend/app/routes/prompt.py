@@ -7627,7 +7627,7 @@ Write a richly-plotted, multi-beat BDSM mini-scene (NOT a single pose). Every pr
 - Spanking / impact: SLAPPING FACE (左右脸颊连续掌掴)、SPANKING BUTTOCKS (趴跪姿势下手掌或拍板击打臀部泛红留下掌印)。**STRICTLY FORBIDDEN — 严禁打胸部 / 严禁拍打乳房 / 严禁打乳头**。任何"slap breast / hit chest / strike nipple"的动作一律禁止。
 - Domination acts: forced orgasm, edging, denial, smothering, face-sitting, foot worship
 - CBT / ballbusting 可作为辅线但不得作为主线
-- Body fluids: 精液(必含)、阴道液、唾液、汗水、泪水
+- Body fluids: 精液、阴道液、唾液、汗水、泪水（按剧情自然出现，不强制）
 - Marking: 绳痕、淤青、咬痕、鞭痕、掌印、泪痕
 
 【镜头语言 / Camera language — 体现导演专业度】
