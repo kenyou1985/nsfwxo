@@ -31,8 +31,8 @@ import { buildUnifiedTxt2ImgOptions } from '../utils/txt2imgDefaults';
 import { withQualityBoost, sanitizePromptForClip } from '../constants';
 import { WORKFLOW, uploadImage } from '../services/runninghub';
 import { composeGridStoryboard } from '../utils/gridComposite';
-import { buildGridH3VideoPrompt } from '../services/themeVideoPrompt';
-import { submitDaotaiVideo, pollDaotaiTask } from '../services/daotai';
+import { buildGridH3VideoPrompt, buildGridCellH3Prompt } from '../services/themeVideoPrompt';
+import { submitDaotaiVideo, pollDaotaiTask, concatDaotaiVideos } from '../services/daotai';
 import { publishExternalVideoTask } from '../services/videoTaskBridge';
 import { cacheVideo } from '../services/videoCache';
 import { CachedVideo } from './CachedVideo';
@@ -575,7 +575,7 @@ export function GridStoryboardMode({
     const v = Number(localStorage.getItem('nsfwxo_grid_segs') || '4');
     return Number.isFinite(v) && v >= 2 && v <= 16 ? v : 4;
   });
-  type GridVideoState = { status: 'idle'|'running'|'done'|'error'; url?: string; taskId?: string; error?: string };
+  type GridVideoState = { status: 'idle'|'running'|'done'|'error'; url?: string; taskId?: string; error?: string; children?: Array<{ index: number; status: string; taskId?: string; url?: string; error?: string }> };
   const [gridVideoMap, setGridVideoMap] = useState<Record<string, GridVideoState>>(() => {
     try { const raw = localStorage.getItem('nsfwxo_grid_video_tasks'); if (raw) return JSON.parse(raw); } catch {}
     return {};
@@ -2133,65 +2133,86 @@ export function GridStoryboardMode({
     const baseTask = {
       id: `grid-${Date.now()}`, taskId: '', status: 'RUNNING' as const, prompt: buildGridH3VideoPrompt(panels),
       imagePreview: heroImage || '', images: [] as string[], coins: null, elapsedSeconds: 0, error: null,
-      startTime: Date.now(), nodeInfoList: [] as never[], engine: 'daotai' as const, workflowId: '2110330160000516098',
+      startTime: Date.now(), nodeInfoList: [] as never[], engine: 'daotai' as const, workflowId: '2106634937741975553',
     };
     let publishedId = baseTask.id;
     const setThisGridVideo = (st: GridVideoState) => setGridVideoFor(videoThemeIdx, st);
-    const first = heroImage?.trim();
-    if (!first) { onError('还没有九宫格图片，先生成图片'); return; }
+    const full = heroImage?.trim();
+    if (!full) { onError('还没有九宫格图片，先生成图片'); return; }
     if (!apiKey) { onError('缺少 RunningHub API Key'); return; }
-    setThisGridVideo({ status: 'running' });
+
+    const cells = Math.min(9, Math.max(1, panels.length));
+    const children: Array<{ index: number; status: string; taskId?: string; url?: string; error?: string }> = Array.from({ length: cells }, (_, i) => ({ index: i, status: 'uploading' }));
+    setThisGridVideo({ status: 'running', children });
+
     try {
-      let frame = first;
-      // 取九宫格第 1 格作为首帧，绝不能把整张 3×3 拼图直接喂给 H3
-      const cellFile = await cropGridCell(first, 0);
-      if (cellFile) {
-        const up = await uploadImage(apiKey, cellFile);
-        frame = up.downloadUrl || up.imagePath;
-      } else if (frame.startsWith('data:') || frame.startsWith('blob:')) {
-        const blob = await (await fetch(frame)).blob();
-        const up = await uploadImage(apiKey, new File([blob], 'grid.png', { type: blob.type || 'image/png' }));
-        frame = up.downloadUrl || up.imagePath;
+      // 1) 裁 9 个格子，逐格上传；每格独立任务，首帧就是该格
+      const frames: string[] = [];
+      for (let i = 0; i < cells; i++) {
+        const file = await cropGridCell(full, i, 3, 3);
+        if (!file) throw new Error(`第 ${i + 1} 格裁切失败`);
+        const up = await uploadImage(apiKey, file);
+        let frame = up.downloadUrl || up.imagePath;
+        if (frame.startsWith('/')) frame = getBackendUrl().replace(/\/$/, '') + frame;
+        frames.push(frame);
       }
-      if (frame.startsWith('/')) frame = getBackendUrl().replace(/\/$/, '') + frame;
-      const prompt = buildGridH3VideoPrompt(panels);
-      const res = await submitDaotaiVideo(apiKey, prompt, {
-        firstFrameUrl: frame,
-        // 九宫格只上传 1 张时，工作流其余 ref_image_1..4 会保留画布默认参考图，
-        // 导致生成人物变成默认模特。这里把同一格重复填满 5 个参考槽。
-        media: Array.from({ length: 5 }, () => ({ type: 'reference_image', url: frame })),
-        workflow_id: '2110330160000516098',
-        target_segs: gridSegs,
-        duration: 15,
-        resolution: gridClarity,
-        no_llm: true,
-        use_bridge: false,
-      });
-      setThisGridVideo({ status: 'running', taskId: res.taskId });
-      const tid = res.taskId;
-      publishedId = `grid-${tid}`;
-      publishExternalVideoTask({ ...baseTask, id: publishedId, taskId: tid });
-      for (let i = 0; i < 240; i++) {
-        await new Promise(r => setTimeout(r, 5000));
-        const st = await pollDaotaiTask(apiKey, tid);
-        const url = st.video_url || st.url || st.output?.video_url || '';
-        if (st.status === 'SUCCESS' && url) {
-          setThisGridVideo({ status: 'done', url, taskId: tid });
-          publishExternalVideoTask({ ...baseTask, id: publishedId, taskId: tid, status: 'FINISHED', images: [url], elapsedSeconds: Math.floor((Date.now() - baseTask.startTime) / 1000) });
-          saveGridVideoHistory(url, buildGridH3VideoPrompt(panels), tid, '九宫格分镜视频');
-          void cacheVideo(url);
-          return;
+
+      // 2) 9 个独立 H3 任务，每个 7 秒，提示词 3 个 shot
+      children.forEach(c => { c.status = 'running'; });
+      setThisGridVideo({ status: 'running', children: [...children] });
+      const submitted = await Promise.all(frames.map(async (frame, i) => {
+        const prompt = buildGridCellH3Prompt(panels[i], i, cells);
+        const res = await submitDaotaiVideo(apiKey, prompt, {
+          firstFrameUrl: frame,
+          media: Array.from({ length: 5 }, () => ({ type: 'reference_image', url: frame })),
+          workflow_id: '2106634937741975553',
+          duration: 7,
+          resolution: gridClarity,
+          no_llm: true,
+          use_bridge: false,
+        });
+        return { i, taskId: res.taskId, prompt };
+      }));
+
+      submitted.forEach(({ i, taskId }) => { children[i].taskId = taskId; });
+      setThisGridVideo({ status: 'running', children: [...children] });
+      publishedId = `grid-${submitted[0]?.taskId || Date.now()}`;
+      publishExternalVideoTask({ ...baseTask, id: publishedId, taskId: submitted[0]?.taskId || '', prompt: submitted[0]?.prompt || baseTask.prompt });
+
+      // 3) 并发轮询 9 个任务
+      const urls: string[] = new Array(cells).fill('');
+      await Promise.all(submitted.map(async ({ i, taskId, prompt }) => {
+        for (let n = 0; n < 240; n++) {
+          await new Promise(r => setTimeout(r, 5000));
+          const st = await pollDaotaiTask(apiKey, taskId);
+          const url = st.video_url || st.url || st.output?.video_url || '';
+          if (st.status === 'SUCCESS' && url) {
+            urls[i] = url;
+            children[i] = { ...children[i], status: 'done', url };
+            setThisGridVideo({ status: 'running', children: [...children] });
+            void cacheVideo(url);
+            return;
+          }
+          if (st.status === 'FAILED') {
+            children[i] = { ...children[i], status: 'failed', error: st.message || '失败' };
+            setThisGridVideo({ status: 'running', children: [...children] });
+            throw new Error(`第 ${i + 1} 格生成失败：${st.message || ''}`);
+          }
         }
-        if (st.status === 'FAILED') throw new Error(st.message || '视频生成失败');
-      }
-      throw new Error('视频生成超时');
+        throw new Error(`第 ${i + 1} 格生成超时`);
+      }));
+
+      // 4) 合成最终视频
+      const concat = await concatDaotaiVideos(apiKey, urls);
+      setThisGridVideo({ status: 'done', url: concat.video_url, children: [...children] });
+      saveGridVideoHistory(concat.video_url, buildGridH3VideoPrompt(panels), publishedId, '九宫格分镜视频');
+      publishExternalVideoTask({ ...baseTask, id: publishedId, status: 'FINISHED', images: [concat.video_url], elapsedSeconds: Math.floor((Date.now() - baseTask.startTime) / 1000) });
+      void cacheVideo(concat.video_url);
     } catch (e) {
-      setThisGridVideo({ status: 'error', error: e instanceof Error ? e.message : '视频生成失败' });
-      if (publishedId) publishExternalVideoTask({ ...baseTask, id: publishedId, status: 'FAILED', error: e instanceof Error ? e.message : '视频生成失败' });
+      setThisGridVideo({ status: 'error', error: e instanceof Error ? e.message : '视频生成失败', children: [...children] });
+      publishExternalVideoTask({ ...baseTask, id: publishedId, status: 'FAILED', error: e instanceof Error ? e.message : '视频生成失败' });
     }
   };
-
-
 
   const handleDeleteHistory = (id: string) => {
     removeGridHistory(id);
@@ -3284,8 +3305,23 @@ export function GridStoryboardMode({
                 <button onClick={async () => { const t = buildGridH3VideoPrompt(panels); try { await navigator.clipboard.writeText(t); } catch { const ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); } }} className="text-[9px] px-2 py-0.5 rounded bg-violet-600 text-white">复制</button>
               </div>
               <textarea readOnly value={buildGridH3VideoPrompt(panels)} rows={4} className="w-full text-[9px] font-mono bg-white border border-violet-200 rounded p-1.5" />
-              {gridVideo.status === 'running' && <p className="text-[9px] text-violet-600 mt-1">视频任务 {gridVideo.taskId} 生成中…</p>}
+              {gridVideo.status === 'running' && <p className="text-[9px] text-violet-600 mt-1">九宫格分镜生成中 {gridVideo.children?.filter(c => c.status === 'done').length || 0}/{gridVideo.children?.length || 0}…</p>}
               {gridVideo.status === 'error' && <p className="text-[9px] text-red-500 mt-1">失败：{gridVideo.error}</p>}
+              {!!gridVideo.children?.length && (
+                <div className="grid grid-cols-3 gap-1 mt-2">
+                  {gridVideo.children.map((c) => (
+                    <div key={c.index} className="relative rounded overflow-hidden bg-black aspect-[9/16] flex items-center justify-center">
+                      {c.url ? (
+                        <CachedVideo src={c.url} className="w-full h-full object-contain" />
+                      ) : (
+                        <span className={`text-[9px] ${c.status === 'failed' ? 'text-red-400' : 'text-white/60'}`}>
+                          {c.status === 'failed' ? `分镜${c.index + 1}失败` : `分镜${c.index + 1} ${c.status === 'done' ? '完成' : '生成中'}`}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
               {gridVideo.status === 'done' && gridVideo.url && (
                 <div className="mt-2">
                   <div className="text-[10px] font-semibold text-violet-700 mb-1">视频预览</div>
