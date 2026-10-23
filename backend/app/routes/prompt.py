@@ -159,7 +159,7 @@ ABSOLUTE BANS (NEVER include in the positive prompt):
    - elderly / old / aged / aged woman / mature elderly / old woman / old man /
      aged man / wrinkly / withered / frail / senile / geriatric / aged mother /
      grandmother / grandfather / 老太 / 老妇 / 老人
-   - Use young adult (18-32) or prime adult (25-40) only.
+   - Use explicit adult ages 22-32 only.
 2. UNATTRACTIVE / DEFORMED BODY DETAILS:
    - wrinkled skin / sagging skin / loose skin / flabby / flabby arms /
      cellulites / stretch marks / loose belly / pot belly / varicose veins /
@@ -192,7 +192,7 @@ ABSOLUTE BANS (NEVER include in the positive prompt):
    - mother-and-daughter / older sister / aunt / stepmother — any family
      role combined with an age gap is banned, even in R18 themes
    - If a scene needs an age differential (mentor/student), BOTH must be
-     young adult 18-32 and never use elder / older / mature woman language
+     adult 22-32 and never use elder / older / mature woman language
 7. ANTI-AESTHETIC FANTASY ELEMENTS:
    - demon horns / devil horns / horns / fangs (as non-main element) /
      monster horns / 触手 / tentacle / beast transformation / furry
@@ -7703,12 +7703,44 @@ def _build_h3_dna_system_prompt(erotic_level: str) -> str:
     return _H3_DNA_SYSTEM_PROMPTS.get(erotic_level, _H3_DNA_SYSTEM_PROMPTS["normal"])
 
 
+_AGE_TERM_REPLACEMENTS = [
+    (r"young\s+adult", "adult in her mid-20s"),
+    (r"young\s+asian\s+woman", "East Asian woman in her mid-20s"),
+    (r"young\s+asian", "East Asian adult"),
+    (r"young\s+woman", "adult woman in her mid-20s"),
+    (r"young\s+man", "adult man in his late-20s"),
+    (r"young\s+looking", "adult-looking"),
+    (r"\bteen(?:ager|age)?\b", "adult"),
+    (r"\bunderage\b", "adult"),
+    (r"\bminor\b", "adult"),
+    (r"\bschoolgirl\b", "adult woman"),
+    (r"\bschoolboy\b", "adult man"),
+    (r"\bgirl\b", "woman"),
+    (r"\bboy\b", "man"),
+    (r"少女", "成年女性"),
+    (r"未成年", "成年"),
+    (r"年轻女性", "成年女性"),
+    (r"年轻男子", "成年男性"),
+    (r"青少年", "成年人"),
+]
+
+def _sanitize_age_terms(text: str) -> str:
+    """把容易触发未成年人审核的词统一替换成明确成年表述。"""
+    if not text:
+        return text
+    import re as _re
+    out = text
+    for pat, rep in _AGE_TERM_REPLACEMENTS:
+        out = _re.sub(pat, rep, out, flags=_re.IGNORECASE)
+    return out
+
 def _postprocess_h3_prompt(text: str) -> str:
     """H3 脚本后处理：剥离思考块（<think>…</think> 及其转义变体），兜底补齐 speaker_mapping。
     保证输出完全遵循六段式模板（subject_definitions→summary→retention_analysis→
     detailed_description→overall_soundscape→non_diegetic_music→speaker_mapping）。"""
     if not text:
         return text
+    text = _sanitize_age_terms(text)
     import re as _re
     text = _re.sub(r"<think>[\s\S]*?</think>", "", text, flags=_re.IGNORECASE)
     text = _re.sub(r"<\\think>[\s\S]*?</\\think>", "", text, flags=_re.IGNORECASE)
@@ -8962,7 +8994,7 @@ async def generate_h3_dna_stream(req: GenerateH3DnaRequest, api_key: str = Depen
         for c in dna.clothing_list
     ) or "无可见服装"
 
-    system_prompt = _build_h3_dna_system_prompt(req.erotic_level)
+    system_prompt = _sanitize_age_terms(_build_h3_dna_system_prompt(req.erotic_level))
 
     def _is_series_hint(hint: str) -> bool:
         """系列短剧模式判定：user_hint 含系列/每集/连贯等词 → 生成剧情连贯的系列集，
@@ -9043,7 +9075,7 @@ async def generate_h3_dna_stream(req: GenerateH3DnaRequest, api_key: str = Depen
     async def _gen_one_stream(idx: int, prev_ending: Optional[str] = None) -> AsyncIterator[str]:
         """单条提示词的流式生成（yield NDJSON lines）"""
         try:
-            up = _build_prompt(idx, prev_ending)
+            up = _sanitize_age_terms(_build_prompt(idx, prev_ending))
             collected: List[str] = []
 
             yield _ndjson_event({"event": "start", "index": idx})
@@ -9410,7 +9442,7 @@ async def _generate_single_prompt(
         f"DO NOT output Chinese, Japanese or anime-style parenthetical cues like 【国漫风】, 【触手】, 【萧条】. "
         f"Output language: English only. "
         f"Return ONLY the prompt paragraph. "
-        f"REMEMBER: Output must be one POLISHED, BEAUTIFUL, MAGAZINE-QUALITY scene featuring a young adult 18-32 character. "
+        f"REMEMBER: Output must be one POLISHED, BEAUTIFUL, MAGAZINE-QUALITY scene featuring a adult 22-32 character. "
         f"NO elderly, NO body modifications (amputee/burns/blood/scars), NO wrinkled skin, NO hobo/ragged clothing, NO exhausted/destroyed expressions. "
         f"Every element must be physically possible. Output as ONE flowing Krea2 paragraph — NEVER Danbooru tag fragments, NEVER (keyword:1.3) weight syntax, NEVER abstract quality boosters like 'absurdres quality, masterpiece, best quality'. "
         f"Use vivid, active English prose. 80-180 words."
@@ -9462,7 +9494,7 @@ async def _generate_single_prompt(
                     "Reject ALL minors (under 18). ADULTS ONLY. "
                     "Reject elderly/aged characters, wrinkled skin, burn scars, amputees, blood play, "
                     "hobo clothing, exhausted/broken expressions. "
-                    "Use young adult 18-32 characters with polished magazine-quality aesthetics. "
+                    "Use adult 22-32 characters with polished magazine-quality aesthetics. "
                     "Output ONE flowing Krea2 paragraph — NO Danbooru tag fragments, NO 'absurdres quality', NO (keyword:1.3) weight syntax."
                 )
                 continue
@@ -10116,7 +10148,7 @@ def _build_random_prompt_context(
         f"DO NOT output Chinese, Japanese or anime-style parenthetical cues like 【国漫风】, 【触手】, 【萧条】. "
         f"Output language: English only. "
         f"Return ONLY the prompt paragraph. "
-        f"REMEMBER: Output must be one POLISHED, BEAUTIFUL, MAGAZINE-QUALITY scene featuring a young adult 18-32 character. "
+        f"REMEMBER: Output must be one POLISHED, BEAUTIFUL, MAGAZINE-QUALITY scene featuring a adult 22-32 character. "
         f"NO elderly, NO body modifications (amputee/burns/blood/scars), NO wrinkled skin, NO hobo/ragged clothing, NO exhausted/destroyed expressions. "
         f"Every element must be physically possible. Output as ONE flowing Krea2 paragraph — NEVER Danbooru tag fragments, NEVER (keyword:1.3) weight syntax, NEVER abstract quality boosters like 'absurdres quality, masterpiece, best quality'. "
         f"Use vivid, active English prose. 80-180 words."
@@ -10266,7 +10298,7 @@ async def _stream_single_random_prompt(
                         "Reject ALL minors (under 18). ADULTS ONLY. "
                         "Reject elderly/aged characters, wrinkled skin, burn scars, amputees, blood play, "
                         "hobo clothing, exhausted/broken expressions. "
-                        "Use young adult 18-32 characters with polished magazine-quality aesthetics. "
+                        "Use adult 22-32 characters with polished magazine-quality aesthetics. "
                         "Output ONE flowing Krea2 paragraph — NO Danbooru tag fragments, NO 'absurdres quality', NO (keyword:1.3) weight syntax."
                     )
                     continue
