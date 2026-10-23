@@ -88,6 +88,29 @@ function formatElapsedTime(startTime?: number): string {
   return `${mins}m${secs}s`;
 }
 
+function saveGridVideoHistory(url: string, prompt: string, taskId: string, title: string) {
+  if (!url) return;
+  try {
+    const key = 'nsfwxo_video_history';
+    const records = JSON.parse(localStorage.getItem(key) || '[]');
+    if (records.some((r: any) => r.taskId === taskId && r.images?.[0] === url)) return;
+    records.unshift({ id: `${taskId}-${Date.now()}`, prompt, images: [url], coins: 0, taskId, createdAt: Date.now(), workflowId: '2110330160000516098', title });
+    localStorage.setItem(key, JSON.stringify(records.slice(0, 50)));
+  } catch {}
+}
+
+function dedupeGridPanels(panels: GridPanel[]): GridPanel[] {
+  const seen = new Set<string>();
+  const picks = ['low-angle close-up', 'over-the-shoulder medium shot', 'tight macro detail', 'side-profile medium close-up', 'high-angle wide shot'];
+  return panels.map((p, i) => {
+    const key = (p.image_prompt || '').replace(/\s+/g, ' ').trim().toLowerCase();
+    if (!key) return p;
+    if (!seen.has(key)) { seen.add(key); return p; }
+    const extra = picks[i % picks.length];
+    return { ...p, image_prompt: `${p.image_prompt.trim()}, ${extra}, different framing and action from the previous panel` };
+  });
+}
+
 interface GridStoryboardModeProps {
   r18Mode: boolean;
   taskManager: TaskManagerReturn;
@@ -577,6 +600,13 @@ export function GridStoryboardMode({
 
   // Panels state
   const [panels, setPanels] = useState<GridPanel[]>([]);
+  useEffect(() => {
+    setPanels(prev => {
+      const next = dedupeGridPanels(prev);
+      return JSON.stringify(next) === JSON.stringify(prev) ? prev : next;
+    });
+  }, [panels]);
+
   const [fullPrompt, setFullPrompt] = useState('');
   const [gridPromptWarnings, setGridPromptWarnings] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -2060,6 +2090,7 @@ export function GridStoryboardMode({
         const url = st.video_url || st.url || st.output?.video_url || '';
         if (st.status === 'SUCCESS' && url) {
           setGridVideo({ status: 'done', url, taskId: tid });
+          saveGridVideoHistory(url, buildGridH3VideoPrompt(panels), tid, '九宫格分镜视频');
           return;
         }
         if (st.status === 'FAILED') throw new Error(st.message || '视频生成失败');
@@ -2273,16 +2304,6 @@ export function GridStoryboardMode({
                 </button>
               ))}
             </div>
-            <span className="text-xs text-text-tertiary ml-2">{displayLang === 'zh' ? '生图模型:' : 'Model:'}</span>
-            <select
-              value={imageModel}
-              onChange={(e) => setImageModel(e.target.value as typeof imageModel)}
-              className="px-2 py-1 rounded-lg text-xs border border-border bg-white text-text-primary"
-            >
-              <option value="krea2-n">Krea2 最强N版（文生图）</option>
-              <option value="qwen">Qwen 图像（文生图）</option>
-              <option value="official">官方默认</option>
-            </select>
           </div>
         )}
 
@@ -3005,6 +3026,19 @@ export function GridStoryboardMode({
             </div>
           )}
 
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[10px] text-text-tertiary">生图模型:</span>
+            <select
+              value={imageModel}
+              onChange={(e) => setImageModel(e.target.value as typeof imageModel)}
+              className="px-2 py-1 rounded-lg text-[10px] border border-border bg-white text-text-primary"
+            >
+              <option value="krea2-n">Krea2 最强N版（文生图）</option>
+              <option value="qwen">Qwen 图像（文生图）</option>
+              <option value="official">官方默认</option>
+            </select>
+            <span className="text-[9px] text-text-tertiary">仅影响本次生成图片</span>
+          </div>
           <GridPanelEditor
             panels={panels}
             gridSize={panels.length}
@@ -3157,7 +3191,10 @@ export function GridStoryboardMode({
               {gridVideo.status === 'running' && <p className="text-[9px] text-violet-600 mt-1">视频任务 {gridVideo.taskId} 生成中…</p>}
               {gridVideo.status === 'error' && <p className="text-[9px] text-red-500 mt-1">失败：{gridVideo.error}</p>}
               {gridVideo.status === 'done' && gridVideo.url && (
-                <video src={gridVideo.url} controls playsInline className="w-full mt-2 rounded-lg bg-black max-h-72" />
+                <div className="mt-2">
+                  <div className="text-[10px] font-semibold text-violet-700 mb-1">视频预览</div>
+                  <video src={gridVideo.url} controls playsInline className="w-full rounded-lg bg-black max-h-[70vh]" />
+                </div>
               )}
             </div>
 
