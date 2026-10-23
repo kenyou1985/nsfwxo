@@ -1456,7 +1456,7 @@ export function GridStoryboardMode({
   const submitOutlineWithTimeout = async (...args: Parameters<typeof generateStoryboardOutline>) => {
     return await Promise.race([
       generateStoryboardOutline(...args),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('分镜提交超时（90s），请重试')), 90000)),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('分镜提交超时（5分钟），请重试')), 300000)),
     ]);
   };
 
