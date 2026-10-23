@@ -33,7 +33,7 @@ BLOCK_PATTERNS: list[tuple[str, str]] = [
     (r'\b(blood play|smeared blood|dripping blood|blood-soaked|bloodstained|gory|gore|mangled flesh|exposed bone|rotting)\b', "血腥/恐怖"),
     (r'\b(hobo|homeless|beggar|ragged clothing|tattered clothing|torn clothing|stained clothing|dirty clothing)\b', "破衣"),
     (r'\b(demon horns|devil horns|tentacle|触手|monster horns|furry|beast transformation)\b', "反审美奇幻元素"),
-    (r'\b(passed out|unconscious|vomiting|crying uncontrollably|beaten down|broken)\b', "崩溃状态"),
+    (r'\b(passed out|unconscious|vomiting|crying uncontrollably|beaten down)\b', "崩溃状态"),
     # 体型（肥胖/病态）
     (r'\b(morbidly obese|anorexic|too skinny|tubby|rotund|chubby|stocky|stout|portly|hefty|beefy|big.boned)\b', "病态体型"),
 ]
