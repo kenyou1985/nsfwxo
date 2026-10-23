@@ -8798,7 +8798,6 @@ summary:
 目标视频展示<Picture 1>中的女性在「{scene_type}」主题下进行{scene_activity_zh}。
 主题场景：{scene_summary_zh}。
 服装设定：{clothing_setup_zh}。
-视频采用真实感、电影级成人片风格，第三人称与近景交替，镜头稳定略带手持轻微晃动，全程女性最终身体关键部位完全暴露，所有性动作真实描写，无打码无马赛克。
 
 retention_analysis:
 <Picture 1>中的女性在所有镜头中 fully_preserved（面部 / 发型 / 妆容 / 身材比例完全保留）。{retention_clothing_zh}
