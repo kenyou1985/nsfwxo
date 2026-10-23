@@ -363,7 +363,7 @@ export function OneClickProduce({ panels, images, h3Prompts, apiKey, themeTitle,
           </div>
         </div>
       )}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
         {panels.map((p, i) => {
           const it = items[i];
           return (
