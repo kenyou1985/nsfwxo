@@ -121,11 +121,21 @@ function dedupeGridPanels(panels: GridPanel[]): GridPanel[] {
   const seen = new Set<string>();
   const picks = ['low-angle close-up', 'over-the-shoulder medium shot', 'tight macro detail', 'side-profile medium close-up', 'high-angle wide shot'];
   return panels.map((p, i) => {
-    const key = (p.image_prompt || '').replace(/\s+/g, ' ').trim().toLowerCase();
-    if (!key) return p;
-    if (!seen.has(key)) { seen.add(key); return p; }
+    let img = (p.image_prompt || '').trim();
+    // 重复的 [ANCHOR: ...] 每格都塞一遍会产生互相冲突的服装/裸露状态
+    if (i > 0) img = img.replace(/\[ANCHOR:[^\]]*\]/gi, '');
+    const hasCostume = /costume|leotard|dress|lingerie|thong|stockings|heels|tuxedo|tailcoat/i.test(img);
+    if (hasCostume) img = img.replace(/\bfully nude\b/gi, 'partially undressed');
+    if (i === panels.length - 1) {
+      img = img
+        .replace(/\bfacial\b/gi, 'thick white semen streaking across her cheek and open mouth')
+        .replace(/tongue[^.]*\.?/gi, 'only her own tongue visible, no other person\'s tongue or mouth on her face.');
+    }
+    const key = img.replace(/\s+/g, ' ').trim().toLowerCase();
+    if (!key) return { ...p, image_prompt: img };
+    if (!seen.has(key)) { seen.add(key); return { ...p, image_prompt: img }; }
     const extra = picks[i % picks.length];
-    return { ...p, image_prompt: `${p.image_prompt.trim()}, ${extra}, different framing and action from the previous panel` };
+    return { ...p, image_prompt: `${img}, ${extra}, different framing and action from the previous panel` };
   });
 }
 
