@@ -478,6 +478,15 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
     return record.images || [];
   };
 
+  // 图片历史 → 导演台 H3 det16
+  const handleGenerateDaotaiH3FromImage = useCallback((imageUrl: string) => {
+    if (!onNavigate) { onError?.('当前页面无法跳转到图生视频'); return; }
+    try {
+      sessionStorage.setItem('history_img2vid', JSON.stringify({ imageUrl, targetModel: 'minimaxh3' }));
+    } catch { onError?.('保存图片失败'); return; }
+    onNavigate('img2vid');
+  }, [onNavigate, onError]);
+
   // 图片历史 → 长视频 v2：把图片存到 sessionStorage，跳到图生视频页面。
   const handleGenerateLongVideoV2FromImage = useCallback((imageUrl: string) => {
     if (!onNavigate) {
@@ -1008,6 +1017,17 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
                         title={`使用第 ${(selectedImg2vidIndex[record.id] ?? 0) + 1} 张图片生长视频 V2`}
                       >
                         <Video size={11} />长视频 V2
+                      </button>
+                      <button
+                        onClick={() => {
+                          const selectedIdx = selectedImg2vidIndex[record.id] ?? 0;
+                          const url = images[selectedIdx] ?? images[0];
+                          handleGenerateDaotaiH3FromImage(url);
+                        }}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90 transition-all"
+                        title={`使用第 ${(selectedImg2vidIndex[record.id] ?? 0) + 1} 张图片走导演台 H3 det16`}
+                      >
+                        <Video size={11} />导演台 H3
                       </button>
                     </div>
                   )}
