@@ -320,139 +320,69 @@ function generateH3Summary(h3Prompt: string): string {
 /** 以当前图片为首帧，生成规范 H3 六段式视频提示词 */
 function buildAnchoredH3(imagePrompt: string): string {
   const scene = (imagePrompt || '').trim();
-  const times = ['00:00.000','00:05.500','00:11.000','00:16.500','00:22.000','00:27.500','00:33.000','00:38.500','00:44.000','00:49.500','00:55.000'];
-  // 先判断图片已经是哪个阶段，避免视频开头倒退成前戏
   const low = scene.toLowerCase();
-  const atFacesit = /(sits? astride|sitting on (?:his|the) face|facesit|face-sit|riding (?:his|her) face|mouth beneath|oral sex beneath|cunnilingus|骑脸|坐脸|坐在脸上)/i.test(scene);
-  const atSex = !atFacesit && /(penis|shaft|cock|dildo).{0,100}(inside|into|penetrat|sink|thrust|entry|deep)|\b(riding|cowgirl|doggy|missionary|sex|fuck|inserted|penetration)\b/.test(low)
-    || /插入|抽插|交合|性交|骑乘|后入|内射/.test(scene);
-  const atOral = !atSex && (/(mouth|oral|blowjob|deepthroat|suck|lick|kneel).{0,100}(penis|cock|shaft|glans)|\b(fellatio|deepthroat|blowjob)\b/.test(low)
-    || /口交|深喉|含住|舔弄/.test(scene));
+  const times = ['00:00.000','00:05.500','00:11.000','00:16.500','00:22.000','00:27.500','00:33.000','00:38.500','00:44.000','00:49.500','00:55.000'];
 
-  const first = 'Exactly reproduce Picture 1 as the first frame: identical pose, identical framing, identical clothing state or nudity, identical lighting and background. Hold one beat, then continue the SAME action already happening in the image. Never reset to an earlier stage, never undress or dress again, never cut back to foreplay.';
+  // 动作/场景只从图片提示词提取，外貌不写进视频提示词，交给 Picture 1
+  const sentences = scene.split(/(?<=[.!?])\s+/);
+  const actionRe = /(sits?|sitting|riding|ride|penetrat|thrust|mouth|oral|suck|lick|masturbat|fuck|grind|facesit|insert|crouch|kneel|spread|touch|stroke|bounce|climax|cunnilingus|blowjob|scissor|missionary|cowgirl|doggy)/i;
+  let core = sentences.filter((x) => actionRe.test(x)).join(' ') || scene;
+  core = core
+    .replace(/\b(?:blonde|brunette|redhead|black hair|brown hair|long hair|short hair|straight hair|curly hair|fair skin|pale skin|tan skin|voluptuous|curvy|slim|petite|East Asian|mid-20s|large breasts|big breasts|huge breasts)\b[^,.;]*/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+    .slice(0, 900);
+  if (!core) core = 'the exact act and pose shown in Picture 1';
 
   const womanCount = (scene.match(/\bwoman\b/gi) || []).length + (scene.match(/\bgirl\b/gi) || []).length;
-  const twoWomen = /(two women|two girls|lesbian|female partner|woman with (?:a )?woman|another woman|second woman|strap-on|女女|百合|双女|两个女人|两名女性|闺蜜|女友)/i.test(scene)
-    || womanCount >= 2;
+  const twoWomen = /(two women|two girls|lesbian|female partner|another woman|second woman|strap-on|女女|百合|双女|两个女人|两名女性)/i.test(scene) || womanCount >= 2;
   const hasMan = !twoWomen && /\b(man|male|boyfriend|guy|his |he )\b|男人|男性|男主|男友/i.test(scene);
   const solo = !twoWomen && !hasMan;
-  let shots: string[];
-  if (atFacesit) {
-    shots = [
-      first,
-      'Continue the exact facesitting already in progress: she settles her weight onto his mouth, hips rolling slowly, one hand braced on his chest, the other gripping his hair. No penetration, no position reset. Same maid headdress and clothing/nudity state.',
-      'Extreme close between her thighs: his tongue parts her labia, laps upward, her hips grind down, wetness shining on her inner thighs and his chin.',
-      'Low-angle medium from below: her face above him, drowsy dominant stare, mouth open, breasts swaying as she rocks; the white lace maid headdress stays in place.',
-      'Medium side: she leans back on one hand, thighs clamping around his head, grinding faster, stomach tightening, sweat on her skin.',
-      'Close on her hand: she reaches back and strokes his shaft while still riding his mouth, his hips twitch, precum slick on her fingers.',
-      'Medium front: her hips roll in a steady rhythm, breasts bouncing, his hands gripping her thighs, her head falling back with a broken moan.',
-      'Extreme close on the join of mouth and vulva: tongue circling the clit, fluid dripping onto his chin, her thighs trembling.',
-      'Medium wide: rhythm accelerates, she rides his face harder, one foot planted, the other leg bent, maid headdress tilted, sweat dripping from her jaw.',
-      'Close POV: her face locked in pleasure, eyes half-closed, mouth wide, hips stuttering as she nears the edge.',
-      'One climax only: she grinds down hard, body locking, thighs shaking around his head, a long cry breaking out; no penetration, no second climax.',
-      'Medium side afterglow: she stays seated on his chest, breathing hard, wet thighs shining, maid headdress askew, his face glistening beneath her.',
-    ];
-  } else if (twoWomen) {
-    shots = [
-      first,
-      'Continue from the exact first frame: the two women kiss deeply, hands sliding over each other’s waists and breasts; clothing is pulled aside or skin pressed to skin. Same location, same light, no male figure appears.',
-      'Medium close: one woman cups and kisses the other’s breasts, tongue circling the nipple, the receiver arches and threads fingers through her hair.',
-      'Low-angle medium: one woman kneels and goes down on the other, tongue parting the labia, hands gripping her thighs; the standing woman’s head falls back, mouth open.',
-      'Medium side: they shift into scissoring, hips grinding, wetness stringing between them, breasts pressed together, breathing ragged.',
-      'Extreme close on the join: fingers slide inside while a thumb circles the clit, fluid coating the fingers, thighs trembling. Cut back to their faces without changing pose.',
-      'Medium wide: one woman uses a strap-on or double dildo in the same rhythm, the other braces against the surface, breasts bouncing, eye contact locked.',
-      'Close POV: the receiving woman’s face, mouth open, hair sticking to her cheek, one hand clawing the other’s back as the rhythm deepens.',
-      'Slight angle change: one leg lifted, hips tilted, the toy or fingers driving deeper; both women glisten with sweat.',
-      'One shared climax: bodies lock, thighs shake, one woman cries out as the other holds her through it. No male figure, no second climax.',
-      'Medium side afterglow: the two women tangled in the same location, chests heaving, wet skin, foreheads touching, soft laughter and after-breaths.',
-    ];
-  } else if (solo) {
-    shots = [
-      first,
-      'Continue from the exact first frame: her own hands roam her body, palms sliding over her breasts and belly, back arching, lips parting. Same location, same light, no other person enters the frame.',
-      'Medium close: her fingers pinch and roll her nipples, then trail down her stomach, thighs opening wider, breath hitching.',
-      'Low-angle medium: her fingers part her labia and circle the clit, hips rocking into her own hand, wetness glistening.',
-      'Extreme close: two fingers slide inside, curling toward the G-spot, thumb rubbing the clit, fluid coating her hand and inner thighs.',
-      'Medium side: she adds a vibrator or dildo, pressing it to her clit then sinking it in, back lifting off the surface, mouth open.',
-      'Close on her face: eyes half-closed, hair sticking to her cheek, moans breaking into gasps as the toy/fingers speed up.',
-      'Slight angle change: she turns onto her side or lifts one leg, opening deeper, the toy angled to hit the front wall.',
-      'Medium wide: her hips buck, thighs tremble, she chases the edge, free hand gripping the surface above her head.',
-      'One climax: her body locks, back arches hard, mouth wide in a silent cry, fluid and aftershocks running through her thighs. No second climax.',
-      'Medium side afterglow: she lies spent in the same location, chest heaving, toy/fingers still resting against her, skin flushed, eyes dazed.',
-    ];
-  } else if (atSex) {
-    shots = [
-      first,
-      'Continue the exact penetration shown in Picture 1 with no reset: the first visible thrust, hips meeting, her body jolting, mouth opening, hands gripping the surface. Same position, same location, same clothing/nudity state.',
-      'Medium side angle, same act: steady thrusting, her breasts moving with each stroke, sweat forming on collarbone and belly. Slow camera orbit, no position change.',
-      'Extreme close on the join in the same position: shaft sliding in and out, labia stretching and clinging, fluid stringing, thigh trembling. Cut back to her face for reaction without changing pose.',
-      'Medium close on her chest and face: each thrust pushes her breasts, nipples hard, mouth open, eye contact breaking into pleasure. Same rhythm, continuous motion.',
-      'Medium front three-quarter, slight angle change only: deeper strokes, skin slapping, her back arching, toes curling, hair sticking to her cheek. No re-entry, no reset.',
-      'Slight positional adjustment: one leg lifted higher or hips tilted up, opening the angle. He keeps the same grip and drives deeper; breasts bounce, sweat drips.',
-      'Medium wide: rhythm accelerates, her whole body rocks with the thrusts, hands claw at his back, moans break into gasps. Continuous action from the previous shot.',
-      'Close POV then her face: final hard thrusts, her eyes roll, mouth wide, body trembling on the edge. Camera stays on the same act.',
-      'One climax only: his body tenses and the single ejaculation lands on her tongue, face, chest or belly while she shudders through orgasm. No second climax, no position reset.',
-      'Medium side handheld afterglow: semen on skin, chest heaving, limbs trembling, she licks her lips or wipes a streak and looks at the lens. Same location, no new act.',
-    ];
-  } else if (atOral) {
-    shots = [
-      first,
-      'Continue the exact oral action shown in Picture 1: lips sealed around the shaft, tongue dragging, cheeks hollowing, saliva shining. Same kneeling pose, same location, no reset.',
-      'Medium close on her face: deeper take, glans pressing the throat, gag reflex, saliva spilling from the corner of her mouth. His hand on the back of her head.',
-      'Low-angle POV down her face: eye contact with the lens while she sucks, one hand stroking the base, breathing through her nose. Continuous motion.',
-      'She pulls back just enough to lick the corona and shaft, spit strings stretching, then takes him deep again. No cut to another scene.',
-      'He lifts her from the kneel without resetting her clothing/nudity: first penetration begins in the same location, her body jolting, mouth open.',
-      'Medium side tracking, same penetration: steady thrusting, breasts moving, sweat on her collarbone. No re-entry, no position reset.',
-      'Extreme close on the join: shaft sliding in and out, labia clinging, fluid stringing, her thigh trembling.',
-      'Medium front three-quarter: rhythm accelerates, deeper strokes, skin slapping, her back arching, hair sticking to her cheek.',
-      'Close POV then face: final hard thrusts and one climax, semen on tongue/face/chest, her full-body shudder.',
-      'Medium side afterglow: semen on skin, chest heaving, she licks her lips and looks at the lens. No second climax.',
-    ];
-  } else {
-    shots = [
-      first,
-      'Continue from the exact first frame: his hands slide over her body, pulling the existing garment aside or over bare skin; her head tilts back, lips part, breathing quickens. Same position and light.',
-      'Medium close on her upper body: foreplay escalates, fingers/tongue/toy on nipples and inner thighs, visible wetness and goosebumps. She arches into the touch, eye contact with the lens.',
-      'Low-angle medium: she sinks down and takes his erect penis into her mouth, tongue dragging, cheeks hollowing, saliva shining. No clothing reset.',
-      'Medium wide side angle: first penetration in the same position as the opening, the head presses in, her body jolts, hands grip the surface. Slow first thrust.',
-      'Medium side tracking: the same penetration continues, hips meeting, breasts moving, sweat forming. Camera orbits slowly, no reset.',
-      'Extreme close on the join: shaft sliding in and out, labia stretching, fluid stringing, thigh trembling. Cut back to her face without changing pose.',
-      'Medium front three-quarter: rhythm accelerates, deeper strokes, skin slapping, back arching, toes curling.',
-      'Slight positional adjustment: one leg lifted or hips tilted, deeper angle, breasts bouncing, sweat dripping.',
-      'Close POV then face: final hard thrusts and one climax, semen on tongue/face/chest, full-body shudder.',
-      'Medium side afterglow: semen on skin, chest heaving, she licks her lips and looks at the lens. No new act.',
-    ];
-  }  const body = shots.map((action, i) => `[Shot ${i + 1}] ${times[i]} ${action}`).join('\n');
+
+  const first = 'Exactly reproduce Picture 1 as the first frame: identical pose, identical framing, identical clothing state or nudity, identical lighting and background. Hold one beat, then continue the SAME act already happening in the image. Never reset to an earlier stage, never undress or dress again, never switch to a different sex act.';
+  const same = `The act must stay exactly the same as the source image: ${core} Same people, same location, same clothing/nudity state as Picture 1. Do not invent a new position, do not reset, do not change scene.`;
+  const cams = [
+    'Static opening from the exact first frame.',
+    'Same act begins to move: first visible rhythm, hands and hips responding, no cut to another act.',
+    'Medium side angle on the same act: bodies meeting, skin impact, sweat forming, camera slowly orbiting.',
+    'Extreme close on the contact point of the same act: wetness, pressure, flesh compressing, fluid stringing.',
+    'Medium close on the face and chest reaction: mouth open, eyes half-closed, breasts moving with the same rhythm.',
+    'Slight angle change only: deeper pressure, same position, hair and sweat reacting to motion.',
+    'Medium wide: the whole body moves with the act, hands gripping, muscles tensing, no re-entry or reset.',
+    'Close POV: the point of contact fills the frame, then tilts up to the face without breaking the act.',
+    'Rhythm accelerates toward the edge: breathing ragged, thighs trembling, the same act continues.',
+    'One climax only, without changing act or position: body locks, cry breaks out, fluids and aftershock.',
+    'Afterglow in the exact same location and position: chest heaving, wet skin, limbs trembling, no new act.',
+  ];
+  const shots = [first, ...cams.slice(1).map((c) => `${c} ${same}`)];
+  const body = shots.map((action, i) => `[Shot ${i + 1}] ${times[i]} ${action}`).join('\n');
+
   const subject2 = twoWomen
-    ? '<Subject 2> is @Woman2 — the second adult woman in Picture 1 or described by the scene; keep her face, hair and body consistent. No male subject appears in this video.'
+    ? '<Subject 2> is @Woman2 — the exact second adult woman shown in Picture 1, if present. Identity and appearance come only from Picture 1; do not describe or invent them.'
     : hasMan
-      ? '<Subject 2> is @Man — a fully adult muscular man, face kept off close-up.'
+      ? '<Subject 2> is @Man — the exact adult man shown in Picture 1; face kept off close-up, appearance comes only from Picture 1.'
       : '';
-  const modeSummary = twoWomen
-    ? 'a two-woman lesbian sequence (no male participant)'
-    : solo
-      ? 'a solo female masturbation sequence (no other person enters the frame)'
-      : 'a heterosexual explicit sequence';
+  const mode = twoWomen ? 'two-woman' : solo ? 'solo female' : 'heterosexual';
   return `subject_definitions:
-<Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1. Preserve her face, hair color and hairstyle, skin tone, body proportions, breast size/shape and identity exactly from Picture 1. Do not change her hair color, face, body type or clothing/nudity state at the first frame.
+<Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1. Face, hair color, hairstyle, skin tone, body proportions, breast size/shape, clothing and nudity are defined ONLY by Picture 1; do not describe or invent them in text.
 ${subject2}
 
 summary:
-[reference generation] A cinematic 60-second ${modeSummary}. Picture 1 is the mandatory first frame: the video starts on the exact same pose, clothing state, framing and lighting as the reference image, then continues directly from whatever action is already happening in Picture 1 — no reset to foreplay, no re-entry, no clothing change — with multiple camera angles and one final climax.
+[reference generation] A cinematic 60-second ${mode} explicit sequence. Picture 1 is the mandatory first frame and the only identity/scene reference. The video continues the exact act, pose, location, clothing/nudity and lighting already present in Picture 1, with camera-angle changes and one climax, no reset and no new act.
 
 retention_analysis:
-<Subject 1> <Picture 1>: fully_preserved — face, hair, body proportions, identity and starting clothing/nudity stay consistent with the reference.
+<Subject 1> <Picture 1>: fully_preserved — identity, face, hair, body, clothing/nudity and starting pose come only from the reference image.
 <Picture 1> first frame: fully_preserved as the exact 00:00.000 opening frame, not an approximation.
+Scene and action: fully_preserved from the source image prompt, no invented location or sex act.
 
 detailed_description:
 ${body}
 
-Scene reference from the source image: ${scene}
+Source image action/scene: ${core}
 
-overall_soundscape: ${solo ? 'Location ambience, her own breathing and soft moans, wet fingers/toy sounds, thighs shifting on fabric, one climax cry, then trembling after-breaths. No male voice.' : twoWomen ? 'Location ambience, wet kisses, skin-on-skin, both women breathing and moaning, one shared climax cry, then soft laughter and after-breaths. No male voice.' : 'Location ambience under skin-on-skin slaps, wet oral and penetration sounds, fabric friction, heavy breathing, her broken moans and one climax cry, one male groan, then dripping and after-breaths.'}
+overall_soundscape: ${solo ? 'Location ambience, her own breathing and soft moans, wet fingers/toy sounds, one climax cry, then trembling after-breaths. No male voice.' : twoWomen ? 'Location ambience, wet kisses, skin-on-skin, both women breathing and moaning, one shared climax cry, then after-breaths. No male voice.' : 'Location ambience under skin-on-skin impact, wet oral/penetration sounds, fabric friction, heavy breathing, her broken moans and one climax cry, one male groan, then after-breaths.'}
 non_diegetic_music: None`;
-}
-/**
+}/**
  * 将 GirlfriendPreset.portraitUrl 转为 File 对象用于上传。
  * fetch 支持 data: / blob: / http: 等各类 URL 类型。
  */
