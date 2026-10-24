@@ -895,13 +895,20 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
   }, []);
 
   const clearCompleted = useCallback(() => {
-    setTasks((prev) => prev.filter((t) => t.status !== 'FINISHED' && t.status !== 'FAILED'));
-    // 同步清理外部九宫格任务，否则刷新后又从 external 列表恢复
+    const active = tasks.filter((t) => t.status !== 'FINISHED' && t.status !== 'FAILED');
+    setTasks(active);
+    // 同步写回 localStorage：只留运行中/排队中的任务，防止刷新后已完成任务又回来
+    try {
+      const payload = { v: 2, tasks: active.map(stripHeavyMedia).slice(0, 30) };
+      localStorage.setItem('nsfwxo_video_tasks', JSON.stringify(payload));
+    } catch {
+      try { localStorage.removeItem('nsfwxo_video_tasks'); } catch {}
+    }
     try {
       const ext = getExternalVideoTasks().filter(t => t.status !== 'FINISHED' && t.status !== 'FAILED');
       localStorage.setItem('nsfwxo_external_video_tasks', JSON.stringify(ext));
     } catch {}
-  }, []);
+  }, [tasks]);
 
   useImperativeHandle(ref, () => ({
     submitTask: (prompt: string, imagePath: string, imagePreview: string, nodeInfoList: NodeInfo[], workflowId?: string) => {
