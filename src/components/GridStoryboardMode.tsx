@@ -2228,19 +2228,44 @@ export function GridStoryboardMode({
     setThisGridVideo({ status: 'running', children });
 
     try {
-      // 1) 并行裁切 + 上传 9 个格子；任何一步超过 60 秒直接报错，避免永久 0/9
+      // 1) 后端 PIL 裁切（避免浏览器跨域 canvas 裁切失败），再逐格上传
       const withTimeout = <T,>(p: Promise<T>, ms: number, label: string) => Promise.race([
         p,
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error(label + '超时')), ms)),
       ]);
-      const frames: string[] = await Promise.all(Array.from({ length: cells }, async (_, i) => {
-        const file = await withTimeout(cropGridCell(full, i, cols, rows), 20000, `第 ${i + 1} 格裁切`);
-        if (!file) throw new Error(`第 ${i + 1} 格裁切失败`);
-        const up = await withTimeout(uploadImage(apiKey, file), 60000, `第 ${i + 1} 格上传`);
+      let cellUrls: string[] = [];
+      try {
+        const splitResp = await withTimeout(fetch(`${getBackendUrl().replace(/\/$/, '')}/api/daotai/split-grid`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image_url: full }),
+        }), 60000, '九宫格裁切');
+        const splitData = await splitResp.json().catch(() => ({}));
+        if (Array.isArray(splitData.images) && splitData.images.length) {
+          cellUrls = splitData.images.slice(0, 9);
+        }
+      } catch (e) {
+        console.warn('[grid-video] server split failed, fallback to canvas', e);
+      }
+      if (!cellUrls.length) {
+        cellUrls = await Promise.all(Array.from({ length: cells }, async (_, i) => {
+          const file = await withTimeout(cropGridCell(full, i, cols, rows), 20000, `第 ${i + 1} 格裁切`);
+          if (!file) throw new Error(`第 ${i + 1} 格裁切失败`);
+          const up = await withTimeout(uploadImage(apiKey, file), 60000, `第 ${i + 1} 格上传`);
+          let frame = up.downloadUrl || up.imagePath;
+          if (frame.startsWith('/')) frame = getBackendUrl().replace(/\/$/, '') + frame;
+          return frame;
+        }));
+      }
+      const frames: string[] = await Promise.all(cellUrls.map(async (url, i) => {
+        const blob = await withTimeout((await fetch(url)).blob(), 30000, `第 ${i + 1} 格下载`);
+        const up = await withTimeout(uploadImage(apiKey, new File([blob], `cell_${i + 1}.jpg`, { type: blob.type || 'image/jpeg' })), 60000, `第 ${i + 1} 格上传`);
         let frame = up.downloadUrl || up.imagePath;
         if (frame.startsWith('/')) frame = getBackendUrl().replace(/\/$/, '') + frame;
         return frame;
       }));
+      const actualCells = Math.min(9, frames.length);
+      children.length = actualCells;
 
       // 2) 9 个独立 H3 任务，每个 7 秒，提示词 3 个 shot
       children.forEach(c => { c.status = 'running'; });

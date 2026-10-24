@@ -587,6 +587,70 @@ def _crop_save_portrait(raw: bytes, request: Request) -> str:
     return _absolute_url(request, f'/api/daotai/media/portraits/{fn}')
 
 
+@router.post('/split-grid')
+async def split_grid(request: Request):
+    """服务端裁切九宫格：检测白色分隔线得到真实行列，返回每格图片 URL。
+
+    前端 canvas 裁切会因跨域/图片解码失败报“第1格裁切失败”，
+    统一改走后端 PIL，稳定拿到 9/10/12 格的每一格。
+    """
+    from PIL import Image
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    src = str(body.get('image_url') or '').strip()
+    if not src:
+        return JSONResponse(status_code=400, content={'error': 'image_url required'})
+    try:
+        raw = await asyncio.to_thread(_read_image_bytes, src)
+        im = Image.open(io.BytesIO(raw)).convert('RGB')
+    except Exception as e:
+        return JSONResponse(status_code=400, content={'error': f'图片读取失败: {e}'})
+
+    w, h = im.size
+    g = im.convert('L')
+    px = g.load()
+    # 缩略采样检测白色分隔线
+    step_x = max(1, w // 300)
+    step_y = max(1, h // 300)
+    def is_white(x, y):
+        return px[x, y] > 238
+    v_lines, h_lines = [], []
+    for x in range(0, w, step_x):
+        n = sum(1 for y in range(0, h, step_y) if is_white(x, y))
+        if n / max(1, len(range(0, h, step_y))) > 0.82:
+            v_lines.append(x)
+    for y in range(0, h, step_y):
+        n = sum(1 for x in range(0, w, step_x) if is_white(x, y))
+        if n / max(1, len(range(0, w, step_x))) > 0.82:
+            h_lines.append(y)
+    def groups(arr):
+        out = []
+        for n in arr:
+            if not out or n - out[-1] > max(4, step_x):
+                out.append(n)
+        return out
+    cols = max(1, len(groups(v_lines)) - 1)
+    rows = max(1, len(groups(h_lines)) - 1)
+    if not (4 <= cols * rows <= 12):
+        cols, rows = 3, 3
+
+    out_dir = os.path.join(rh.IMAGES_DIR, 'grid_' + uuid.uuid4().hex[:10])
+    os.makedirs(out_dir, exist_ok=True)
+    urls = []
+    cw, ch = w / cols, h / rows
+    for i in range(min(12, cols * rows)):
+        r, c = divmod(i, cols)
+        box = (int(c * cw), int(r * ch), int((c + 1) * cw), int((r + 1) * ch))
+        crop = im.crop(box)
+        fn = f'cell_{i + 1}.jpg'
+        crop.save(os.path.join(out_dir, fn), quality=94)
+        rel = _img_media_url('/image/' + os.path.basename(out_dir) + '/' + fn)
+        urls.append(_absolute_url(request, rel))
+    return {'cols': cols, 'rows': rows, 'count': len(urls), 'images': urls}
+
+
 @router.post('/portrait')
 async def extract_portrait(request: Request):
     """从分镜图里裁一张人物头像（启发式：画面中上部、水平居中），
