@@ -9125,13 +9125,24 @@ async def generate_h3_dna_stream(req: GenerateH3DnaRequest, api_key: str = Depen
     async def _gen_one_stream(idx: int, prev_ending: Optional[str] = None) -> AsyncIterator[str]:
         """单条提示词的流式生成（yield NDJSON lines）"""
         try:
+            import time as _time
+            t0 = _time.time()
             up = _sanitize_age_terms(_build_prompt(idx, prev_ending))
             collected: List[str] = []
+            logging.info(
+                "[h3dna] start idx=%s level=%s duration=%s max_tokens=%s user_hint_len=%s",
+                idx, req.erotic_level, req.duration,
+                8192 if int(req.duration or 60) <= 60 else 16384,
+                len(req.user_hint or ''),
+            )
 
             yield _ndjson_event({"event": "start", "index": idx})
 
             # 使用 stream_grok 逐块推送文本
-            async for piece in stream_grok(api_key, system_prompt, up, max_tokens=32768):
+            async for piece in stream_grok(
+                api_key, system_prompt, up,
+                max_tokens=8192 if int(req.duration or 60) <= 60 else 16384,
+            ):
                 collected.append(piece)
                 yield _ndjson_event({"event": "delta", "index": idx, "text": piece})
 
@@ -9139,6 +9150,11 @@ async def generate_h3_dna_stream(req: GenerateH3DnaRequest, api_key: str = Depen
             result_clean = _postprocess_h3_prompt(result_clean)
             check_prompt_safety(result_clean)
             results[idx] = result_clean  # 供 sequential 模式提取上一集结尾
+            logging.info(
+                "[h3dna] done idx=%s chars=%s elapsed=%.1fs preview=%s",
+                idx, len(result_clean), _time.time() - t0,
+                result_clean[:180].replace("\n", " "),
+            )
 
             yield _ndjson_event({
                 "event": "end",
