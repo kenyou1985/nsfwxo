@@ -14,7 +14,7 @@ export type ExternalVideoTask = {
   workflowId?: string;
 };
 
-const KEY = 'nsfwxo_external_video_tasks';
+const KEY = 'nsfwxo_external_video_tasks_v3';
 
 export function publishExternalVideoTask(task: ExternalVideoTask): void {
   try {
