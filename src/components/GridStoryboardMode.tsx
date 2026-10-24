@@ -131,6 +131,21 @@ function dedupeGridPanels(panels: GridPanel[]): GridPanel[] {
         .replace(/\bfacial\b/gi, 'thick white semen streaking across her cheek and open mouth')
         .replace(/tongue[^.]*\.?/gi, 'only her own tongue visible, no other person\'s tongue or mouth on her face.');
     }
+    // 每格强制不同机位/动作，避免模板库 9 格都是同一个跑步机正面
+    const variations = [
+      'wide establishing shot, full body in the environment',
+      'medium frontal shot, face and hands clearly visible',
+      'three-quarter side shot, different body angle',
+      'over-the-shoulder medium shot',
+      'low-angle medium close-up',
+      'high-angle wide shot',
+      'profile medium shot, looking away',
+      'close-up on hands and contact point',
+      'rear three-quarter wide shot',
+    ];
+    if (!/distinct framing/i.test(img)) {
+      img = `${img}, ${variations[i % variations.length]}, distinct framing and pose from every other panel`;
+    }
     const key = img.replace(/\s+/g, ' ').trim().toLowerCase();
     if (!key) return { ...p, image_prompt: img };
     if (!seen.has(key)) { seen.add(key); return { ...p, image_prompt: img }; }
@@ -1852,16 +1867,18 @@ export function GridStoryboardMode({
           }
 
           const finalPrompt = withQualityBoost(sanitizePromptForClip(panelText));
-          const txt2imgOptions = buildUnifiedTxt2ImgOptions(finalPrompt);
-          if (imageModel === 'krea2-n') txt2imgOptions.workflowId = WORKFLOW.KREA2;
-          txt2imgOptions.imageCount = 1; // one panel = one image
-          txt2imgOptions.width = 832;
-          txt2imgOptions.height = 1475; // ~9:16
-          const nodes = buildTxt2ImgNodeList(txt2imgOptions);
+          let nodes = [] as ReturnType<typeof buildTxt2ImgNodeList>;
+          if (imageModel === 'official') {
+            const txt2imgOptions = buildUnifiedTxt2ImgOptions(finalPrompt);
+            txt2imgOptions.imageCount = 1;
+            txt2imgOptions.width = 832;
+            txt2imgOptions.height = 1475;
+            nodes = buildTxt2ImgNodeList(txt2imgOptions);
+          }
 
           try {
             const tid = await taskManager.addTask(
-              'txt2img',
+              imageModel === 'official' ? 'txt2img' : 'daotai-img',
               nodes,
               finalPrompt,
               undefined,
@@ -1870,6 +1887,12 @@ export function GridStoryboardMode({
               'storyboard',
               themeTitle,
               i + 1,
+              imageModel === 'official' ? undefined : {
+                model: imageModel === 'qwen' ? 'qwen-image-2.1' : 'krea2',
+                ratio: '9:16',
+                batch: 1,
+                refs: [],
+              },
             );
             redrawTaskIdsRef.current.add(tid);
             batchTaskIdsRef.current.add(tid);
@@ -1898,11 +1921,29 @@ export function GridStoryboardMode({
         // The repetitive-adverb dedupe still runs and is harmless for grid
         // prompts since Chinese adverbs aren't part of the OUTPUT LAYOUT block.
         const finalPrompt = withQualityBoost(sanitizePromptForClip(fullPrompt, 20000));
-        const txt2imgOptions = buildUnifiedTxt2ImgOptions(finalPrompt);
-        if (imageModel === 'krea2-n') txt2imgOptions.workflowId = WORKFLOW.KREA2;
-        txt2imgOptions.imageCount = imageCount;
-        const nodes = buildTxt2ImgNodeList(txt2imgOptions);
-        await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, storyboardInfo, 'storyboard', themeTitle, 1);
+        let nodes = [] as ReturnType<typeof buildTxt2ImgNodeList>;
+        if (imageModel === 'official') {
+          const txt2imgOptions = buildUnifiedTxt2ImgOptions(finalPrompt);
+          txt2imgOptions.imageCount = imageCount;
+          nodes = buildTxt2ImgNodeList(txt2imgOptions);
+        }
+        await taskManager.addTask(
+          imageModel === 'official' ? 'txt2img' : 'daotai-img',
+          nodes,
+          finalPrompt,
+          undefined,
+          undefined,
+          storyboardInfo,
+          'storyboard',
+          themeTitle,
+          1,
+          imageModel === 'official' ? undefined : {
+            model: imageModel === 'qwen' ? 'qwen-image-2.1' : 'krea2',
+            ratio: '9:16',
+            batch: imageCount,
+            refs: [],
+          },
+        );
         onSuccess('九宫格合成图生成中...');
       }
       console.log(`${GRID_LOG_PREFIX} task(s) submitted successfully`);
