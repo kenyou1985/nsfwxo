@@ -1807,7 +1807,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   // from taskManager.tasks via the relatedTasks fallback in PromptResultCard — this
   // is more reliable than trying to persist megabytes of base64 image data.
   const [h3Prompts, setH3Prompts] = useState<Record<number, string>>(() => savedRandom?.h3Prompts || {});
-  const [genStates, setGenStates] = useState<Record<number, { loading: boolean; images: string[] }>>(savedRandom?.genStates || {});
+  const [genStates, setGenStates] = useState<Record<number, { loading: boolean; images: string[]; taskId?: string }>>(savedRandom?.genStates || {});
   const [batchLoading, setBatchLoading] = useState(false);
   const [h3Loading, setH3Loading] = useState(false);
   const [h3Progress, setH3Progress] = useState<{ current: number; total: number } | null>(null);
@@ -1895,8 +1895,9 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         const result = results[i];
         // Normalize both sides so trailing whitespace / newlines in LLM output don't break the match
         const resultPromptNorm = (result.prompt || '').trim();
+        const localTaskId = prev[i]?.taskId;
         const matchedTask = taskManager.tasks.find(
-          (t) => (t.prompt || '').trim() === resultPromptNorm
+          (t) => (localTaskId && t.id === localTaskId) || (t.prompt || '').trim() === resultPromptNorm
         );
         if (matchedTask) {
           if (matchedTask.status === 'RUNNING' || matchedTask.status === 'QUEUEING') {
@@ -2348,8 +2349,9 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         setGenStates((prev) => ({ ...prev, [idx]: { loading: true, images: [] } }));
       }
     });
-    const tasks = toSubmit.map(async (result) => {
+    const tasks = toSubmit.map(async (result, taskIdx) => {
       const perTaskTheme = result.theme_label || '';
+      const idx = results.indexOf(result);
       if (digitalHumanMode && selectedGirlfriend) {
         const nodes = buildImg2ImgNodeList({
           prompt: result.prompt,
@@ -2358,7 +2360,9 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         });
         await taskManager.addTask('img2img', nodes, result.prompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, undefined, 'random', perTaskTheme || undefined);
       } else {
-        await taskManager.addDaotaiImgTask({ model: 'krea2', ratio: '9:16', batch: 2, refs: [] }, result.prompt);
+        const taskId = await taskManager.addDaotaiImgTask({ model: 'krea2', ratio: '9:16', batch: 2, refs: [] }, result.prompt);
+        const ridx = results.indexOf(result);
+        if (ridx >= 0) setGenStates((prev) => ({ ...prev, [ridx]: { loading: true, images: [], taskId } }));
       }
     });
     const settled = await Promise.allSettled(tasks);
@@ -2804,6 +2808,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               genState={genStates[idx]}
               onGenerateImage={() => handleRandomGenerateImage(idx, result.prompt)}
               onGenerateVideo={() => handleGenerateVideo(idx)}
+              onGenerateH3={() => handleGenerateSingleH3(idx)}
               onSendToH3Page={() => handleSendToH3Page(idx)}
               videoState={videoStates[idx]}
               videoClarity={videoClarity}
@@ -2934,12 +2939,13 @@ function RandomHistoryPanel({ history, r18Mode, onLoad, onDelete, onClear, onCop
   );
 }
 
-function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r18Mode, onToggle, onCopy, genState, onGenerateImage, onGenerateVideo, onSendToH3Page, onFavorited, onRetryStuck, taskManager, digitalHumanMode, selectedGirlfriend, h3Prompt, h3Generating, videoState, videoClarity, videoSegments, onVideoClarityChange, onVideoSegmentsChange, sceneLabel, onGotoLongVideoWithH3, selectedImageIndex, onSelectImage, onPreviewImage }: {
+function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r18Mode, onToggle, onCopy, genState, onGenerateImage, onGenerateVideo, onGenerateH3, onSendToH3Page, onFavorited, onRetryStuck, taskManager, digitalHumanMode, selectedGirlfriend, h3Prompt, h3Generating, videoState, videoClarity, videoSegments, onVideoClarityChange, onVideoSegmentsChange, sceneLabel, onGotoLongVideoWithH3, selectedImageIndex, onSelectImage, onPreviewImage }: {
   index: number; result: PromptResult; isExpanded: boolean; isCopied: boolean; tagsVisible: boolean; r18Mode: boolean; onToggle: () => void; onCopy: () => void;
   genState?: { loading: boolean; images: string[] };
   onGenerateImage: () => void;
   onGenerateVideo: () => void;
   onSendToH3Page: () => void;
+  onGenerateH3: () => void;
   videoState?: { loading: boolean; url?: string; error?: string };
   videoClarity: number; videoSegments: number;
   onVideoClarityChange: (v: number) => void;
@@ -3169,7 +3175,7 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
           )}
 
           {/* H3 视频提示词（来自一键批量视频提示词按钮） —— 默认折叠，与电脑端展示一致 */}
-          {(h3Prompt || h3Generating) && (
+          {(
             <div className="mb-3">
               <div
                 role="button"
@@ -3184,7 +3190,7 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
               >
                 <span className="text-xs font-medium flex items-center gap-1.5 text-indigo-500 min-w-0 flex-1">
                   <Sparkles size={11} />
-                  H3 视频提示词
+                  视频提示词
                   {h3Generating && <span className="ml-1 flex items-center gap-1"><Loader2 size={10} className="animate-spin" />生成中...</span>}
                   {sceneLabel && <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-indigo-500/10 text-indigo-500">{sceneLabel}</span>}
                   {/* 折叠态下显示提示词摘要（仅取前 60 个字符） */}
@@ -3195,6 +3201,11 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
                   )}
                 </span>
                 <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                  {!h3Prompt && !h3Generating && (
+                    <button onClick={onGenerateH3} className="px-2 py-1 rounded-lg text-[10px] font-medium bg-indigo-500 text-white hover:bg-indigo-600">
+                      生成/重试
+                    </button>
+                  )}
                   {h3Prompt && (
                     <>
                       <button
@@ -8237,7 +8248,7 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
                   >
                     <span className="text-[10px] text-indigo-600 font-medium flex items-center gap-0.5 min-w-0 flex-1">
                       <Sparkles size={10} />
-                      H3 视频提示词（{panelH3Duration}秒）
+                      视频提示词（{panelH3Duration}秒）
                       {/* 折叠态下显示摘要 */}
                       {!panelH3Expanded && (
                         <span className="ml-2 text-[10px] text-text-tertiary truncate min-w-0 flex-1">
