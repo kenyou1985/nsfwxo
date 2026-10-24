@@ -3939,7 +3939,22 @@ def _img_download(urls, task_id):
                 fp = os.path.join(_d, fn)
                 if not os.path.exists(fp):
                     req = urllib.request.Request(u, headers={'User-Agent': 'Mozilla/5.0'})
-                    body = urllib.request.urlopen(req, timeout=60).read()
+                    body = b''
+                    last_err = None
+                    for _attempt in range(3):
+                        try:
+                            with urllib.request.urlopen(req, timeout=120) as _r:
+                                body = _r.read()
+                            if len(body) > 1000:
+                                break
+                        except Exception as _e:
+                            last_err = _e
+                            # IncompleteRead 会带已下载的 partial 数据，够大就直接用
+                            _partial = getattr(_e, 'partial', b'') or b''
+                            if len(_partial) > 1000:
+                                body = _partial
+                                break
+                            time.sleep(1.5)
                     if len(body) > 1000:
                         with open(fp, 'wb') as f:
                             f.write(body)

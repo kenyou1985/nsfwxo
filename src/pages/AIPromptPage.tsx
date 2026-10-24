@@ -2560,8 +2560,17 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       onSuccess(`第 ${idx + 1} 个 H3 视频提示词已生成`);
       return h3Prompt;
     } catch (err) {
-      onError(err instanceof Error ? err.message : `第 ${idx + 1} 个 H3 提示词生成失败`);
-      return undefined;
+      // LLM 审核拒绝时用本地模板兜底，保证仍有 60 秒 12 镜 H3 提示词
+      const fallback = generateH3Prompt({
+        imagePrompt: result.prompt,
+        sceneDescription: result.prompt,
+        duration: 60,
+        shotCount: 12,
+        r18: r18Mode,
+      });
+      setH3Prompts(prev => ({ ...prev, [idx]: fallback }));
+      onSuccess(`第 ${idx + 1} 个 H3 使用本地模板兜底生成`);
+      return fallback;
     } finally {
       setH3ProcessingIndices(prev => {
         const next = new Set(prev);
