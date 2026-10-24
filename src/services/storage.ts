@@ -376,6 +376,20 @@ export function addRandomHistory(item: Omit<RandomHistoryItem, 'id' | 'timestamp
   saveHistory(RANDOM_HISTORY_KEY, history);
 }
 
+export function updateRandomHistoryImages(prompt: string, images: string[]): void {
+  const history = getRandomHistory();
+  let changed = false;
+  for (const h of history.slice(0, 5)) {
+    for (const r of h.results || []) {
+      if ((r.prompt || '').trim() === (prompt || '').trim() && images.length > 0) {
+        r.images = images;
+        changed = true;
+      }
+    }
+  }
+  if (changed) saveHistory(RANDOM_HISTORY_KEY, history);
+}
+
 export function removeRandomHistory(id: string): void {
   const history = getRandomHistory().filter((h) => h.id !== id);
   saveHistory(RANDOM_HISTORY_KEY, history);
@@ -821,6 +835,7 @@ export interface RandomSession {
   // Images are recovered from taskManager.tasks via the relatedTasks fallback
   // in PromptResultCard on mount.
   h3Prompts: Record<number, string>;
+  genStates?: Record<number, { loading: boolean; images: string[] }>;
 }
 
 export interface GeneratedCard {

@@ -258,6 +258,7 @@ import {
   getStoryboardHistory, addStoryboardHistory, removeStoryboardHistory, clearStoryboardHistory,
   updateStoryboardHistoryImages,
   updateStoryboardHistoryPreview,
+  updateRandomHistoryImages,
   getExpandSession, saveExpandSession, clearExpandSession,
   getRandomSession, saveRandomSession, clearRandomSession,
   getStoryboardSession, saveStoryboardSession, clearStoryboardSession,
@@ -476,6 +477,9 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   const savedExpand = getExpandSession();
   const [input, setInput] = useState(savedExpand?.input || '');
   const [type, setType] = useState<'image' | 'video'>(savedExpand?.type || 'image');
+  const [videoClarity, setVideoClarity] = useState(0.2);
+  const [videoSegments, setVideoSegments] = useState(4);
+  const [mainVideo, setMainVideo] = useState<{loading:boolean;url?:string;error?:string}>({ loading: false });
   const [count, setCount] = useState(savedExpand?.count || 5);
   const [results, setResults] = useState<{ id: string; original: string; prompt: string; r18: boolean }[]>(savedExpand?.results || []);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -528,6 +532,17 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       clearExpandSession();
     }
   }, [input, type, count, results, outputPrompts, selectedOutputIdx, outputText]);
+
+  // 生成图落盘后同步写回随机历史，切页/刷新后仍能显示
+  useEffect(() => {
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i];
+      const imgs = genStates[i]?.images || [];
+      if (r.prompt && imgs.length > 0) {
+        updateRandomHistoryImages(r.prompt, imgs);
+      }
+    }
+  }, [genStates, results]);
 
   // Sync restored tasks from taskManager to UI state (survives page refresh)
   useEffect(() => {
@@ -647,7 +662,8 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
             const h3 = generateH3Prompt({
               imagePrompt: expandedImgPrompt,
               sceneDescription: videoPrompt,
-              duration: 15,
+              duration: 60,
+              shotCount: 12,
               r18: r18Mode,
             });
 
@@ -972,13 +988,11 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           aspectRatio: img2imgAspectRatio,
         });
         await taskManager.addTask('img2img', nodes, outputText, WORKFLOW.IMAGE_TO_IMAGE, undefined, undefined, 'expand');
-        onSuccess('任务已提交，请到图生图查看生成结果');
-        if (onNavigate) onNavigate('img2img');
+        onSuccess('任务已提交，生成结果会显示在当前页面');
       } else {
         const nodes = buildTxt2ImgNodeList(buildUnifiedTxt2ImgOptions(outputText));
         await taskManager.addTask('txt2img', nodes, outputText, undefined, undefined, undefined, 'expand');
-        onSuccess('任务已提交，请到文生图查看生成结果');
-        if (onNavigate) onNavigate('txt2img');
+        onSuccess('任务已提交，生成结果会显示在当前页面');
       }
     } catch (err) {
       onError(err instanceof Error ? err.message : '提交失败');
@@ -986,6 +1000,55 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       setGeneratingMain(false);
     }
   }, [outputText, taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, onNavigate]);
+
+  const handleMainGenerateVideo = useCallback(async () => {
+    if (!outputText.trim()) { onError('请先生成或选择提示词'); return; }
+    if (!digitalHumanMode || !selectedGirlfriend) { onError('请先开启数字人锚定，才能生成视频'); return; }
+    const resultId = results[selectedOutputIdx]?.id;
+    const image = resultId ? genState[resultId]?.images?.[0] : '';
+    if (!image) { onError('请先生成并选择一张图片'); return; }
+    const key = getYunwuKey();
+    if (!key) { onError('请先配置 API Key'); return; }
+    setMainVideo({ loading: true });
+    try {
+      const body = {
+        media: [{ type: 'reference_image', url: image }],
+        workflow_id: '2110330160000516098',
+        duration: 60,
+        resolution: videoClarity,
+        aspect_ratio: '9:16',
+        shots_per_seg: videoSegments,
+        loop_routes: 1,
+        instance: 'plus',
+      };
+      const submit = await submitDaotaiVideo(key, outputText, body);
+      const localId = `expand-video-${Date.now()}`;
+      publishExternalVideoTask({ id: localId, taskId: submit.taskId, status: 'RUNNING', prompt: outputText,
+        imagePreview: image, images: [], coins: null, elapsedSeconds: 0, error: null, startTime: Date.now(), nodeInfoList: [], engine: 'daotai' });
+      let url: string | undefined;
+      for (let i = 0; i < 120; i++) {
+        await new Promise(r => setTimeout(r, 5000));
+        const data = await pollDaotaiTask(key, submit.taskId);
+        if (data.status === 'SUCCESS') { url = data.video_url || data.output?.video_url || data.url || data.images?.[0]; break; }
+        if (data.status === 'FAILED') throw new Error(data.message || '视频生成失败');
+      }
+      if (!url) throw new Error('视频生成超时');
+      setMainVideo({ loading: false, url });
+      publishExternalVideoTask({ id: localId, taskId: submit.taskId, status: 'FINISHED', prompt: outputText,
+        imagePreview: image, images: [url], coins: null, elapsedSeconds: 0, error: null, startTime: Date.now(), nodeInfoList: [], engine: 'daotai' });
+      try {
+        const records = JSON.parse(localStorage.getItem('nsfwxo_video_history') || '[]');
+        records.unshift({ id: `${localId}-${Date.now()}`, prompt: outputText, images: [url], coins: null,
+          taskId: submit.taskId, nodeInfoList: [], createdAt: Date.now(), workflowId: '2110330160000516098' });
+        localStorage.setItem('nsfwxo_video_history', JSON.stringify(records.slice(0, 50)));
+      } catch {}
+      onSuccess('视频已生成');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '视频生成失败';
+      setMainVideo({ loading: false, error: msg });
+      onError(msg);
+    }
+  }, [outputText, selectedOutputIdx, results, genState, digitalHumanMode, selectedGirlfriend, videoClarity, videoSegments, onError, onSuccess]);
 
   const handleExpandGenerateImage = useCallback(async (result: { id: string; prompt: string }) => {
     if (taskManager.isFull) {
@@ -1019,8 +1082,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       });
       try {
         await taskManager.addTask('img2img', nodes, result.prompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, undefined, 'expand');
-        onSuccess('任务已提交，请到图生图查看生成结果');
-        if (onNavigate) onNavigate('img2img');
+        onSuccess('任务已提交，生成结果会显示在当前页面');
       } catch (err) {
         onError(err instanceof Error ? err.message : '提交失败');
         setGenState((prev) => {
@@ -1033,8 +1095,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       const nodes = buildTxt2ImgNodeList(buildUnifiedTxt2ImgOptions(result.prompt));
       try {
         await taskManager.addTask('txt2img', nodes, result.prompt, undefined, undefined, undefined, 'expand');
-        onSuccess('任务已提交，请到文生图查看生成结果');
-        if (onNavigate) onNavigate('txt2img');
+        onSuccess('任务已提交，生成结果会显示在当前页面');
       } catch (err) {
         onError(err instanceof Error ? err.message : '提交失败');
         setGenState((prev) => {
@@ -1092,12 +1153,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     });
     setBatchLoading(false);
     if (submitted > 0) {
-      onSuccess(`已提交 ${submitted} 个生图任务`);
-      if (digitalHumanMode && selectedGirlfriend) {
-        if (onNavigate) onNavigate('img2img');
-      } else {
-        if (onNavigate) onNavigate('txt2img');
-      }
+      onSuccess(`已提交 ${submitted} 个生图任务，结果会显示在当前页面`);
     }
   }, [results, taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, onNavigate]);
 
@@ -1319,10 +1375,24 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
             <button onClick={() => setShowHistory(!showHistory)} className={`flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-medium transition-all ${showHistory ? 'bg-primary/10 text-primary border border-primary/20' : 'bg-bg-elevated text-text-tertiary hover:bg-bg-hover'}`}>
               <History size={12} />历史记录
             </button>
-            <div className="flex gap-1">
-              {(['image', 'video'] as const).map((t) => (
-                <button key={t} onClick={() => setType(t)} className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${type === t ? 'bg-primary text-white' : 'bg-bg-elevated text-text-tertiary hover:bg-bg-hover'}`}>{t === 'image' ? '生图' : '生视频'}</button>
-              ))}
+            <div className="flex items-center gap-2">
+              {type === 'video' && (
+                <div className="flex items-center gap-1.5 text-[10px] text-text-tertiary">
+                  <label>清晰度</label>
+                  <input type="number" min={0.2} max={1} step={0.2} value={videoClarity}
+                    onChange={(e) => setVideoClarity(Math.min(1, Math.max(0.2, Number(e.target.value) || 0.2)))}
+                    className="w-12 px-1 py-0.5 rounded border border-border bg-white text-center" />
+                  <label>段数</label>
+                  <input type="number" min={2} max={16} step={1} value={videoSegments}
+                    onChange={(e) => setVideoSegments(Math.min(16, Math.max(2, Math.round(Number(e.target.value) || 4))))}
+                    className="w-12 px-1 py-0.5 rounded border border-border bg-white text-center" />
+                </div>
+              )}
+              <div className="flex gap-1">
+                {(['image', 'video'] as const).map((t) => (
+                  <button key={t} onClick={() => setType(t)} className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${type === t ? 'bg-primary text-white' : 'bg-bg-elevated text-text-tertiary hover:bg-bg-hover'}`}>{t === 'image' ? '生图' : '生视频'}</button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -1386,22 +1456,23 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               className={`w-full border rounded-xl px-4 py-3 text-sm leading-relaxed placeholder:text-text-secondary focus:outline-none transition-colors resize-none font-mono ${r18Mode ? 'bg-red-50/50 border-red-200 focus:border-red-400 text-red-800' : 'bg-bg-elevated border-border focus:border-primary text-text-secondary'}`}
               placeholder="扩写后的提示词将显示在这里..."
             />
+            {mainVideo.url && (
+              <video src={mainVideo.url} controls playsInline className="w-full mt-3 rounded-xl border border-border bg-black max-h-[420px]" />
+            )}
+            {mainVideo.error && <p className="mt-2 text-xs text-red-500">{mainVideo.error}</p>}
             <div className="flex gap-2 mt-3">
               <button onClick={() => navigator.clipboard.writeText(outputText).then(() => { onSuccess('已复制到剪贴板'); setTimeout(() => {}, 2000); })}
                 className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-medium transition-all ${r18Mode ? 'bg-red-50 text-red-500 hover:bg-red-100 border border-red-200' : 'bg-bg-elevated text-text-tertiary hover:bg-bg-hover'}`}>
                 <Copy size={12} />复制提示词
               </button>
-              <button onClick={handleMainGenerateImage}
-                disabled={generatingMain || !outputText.trim() || girlfriendUploading || (digitalHumanMode && !selectedGirlfriend)}
+              <button onClick={handleMainGenerateVideo}
+                disabled={mainVideo.loading || !outputText.trim() || !digitalHumanMode || !selectedGirlfriend}
                 className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl font-medium text-sm transition-all ${
-                  generatingMain || !outputText.trim() || girlfriendUploading || (digitalHumanMode && !selectedGirlfriend)
+                  mainVideo.loading || !outputText.trim() || !digitalHumanMode
                     ? 'bg-bg-elevated text-text-secondary cursor-not-allowed'
-                    : 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:opacity-90 active:scale-[0.98]'
+                    : 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90 active:scale-[0.98]'
                 }`}>
-                {girlfriendUploading ? <><Loader2 size={14} className="animate-spin" /> 上传参考图中...</> :
-                 generatingMain ? <><Loader2 size={14} className="animate-spin" /> 提交中...</> :
-                 digitalHumanMode && selectedGirlfriend ? <><Image size={14} />图生图锚定生图</> :
-                 <><Image size={14} />基于此提示词生图</>}
+                {mainVideo.loading ? <><Loader2 size={14} className="animate-spin" /> 视频生成中...</> : <><Video size={14} />生成视频</>}
               </button>
             </div>
           </div>
@@ -1709,7 +1780,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   // from taskManager.tasks via the relatedTasks fallback in PromptResultCard — this
   // is more reliable than trying to persist megabytes of base64 image data.
   const [h3Prompts, setH3Prompts] = useState<Record<number, string>>(() => savedRandom?.h3Prompts || {});
-  const [genStates, setGenStates] = useState<Record<number, { loading: boolean; images: string[] }>>({});
+  const [genStates, setGenStates] = useState<Record<number, { loading: boolean; images: string[] }>>(savedRandom?.genStates || {});
   const [batchLoading, setBatchLoading] = useState(false);
   const [h3Loading, setH3Loading] = useState(false);
   const [h3Progress, setH3Progress] = useState<{ current: number; total: number } | null>(null);
@@ -1717,6 +1788,8 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   const [h3ProcessingIndices, setH3ProcessingIndices] = useState<Set<number>>(new Set());
   const autoH3Ref = useRef(false);
   const [videoStates, setVideoStates] = useState<Record<number, { loading: boolean; url?: string; error?: string }>>({});
+  const [videoClarity, setVideoClarity] = useState(0.2);
+  const [videoSegments, setVideoSegments] = useState(4);
   const [favorites, setFavorites] = useState<FavoriteItem[]>(() => getFavorites());
   // Track selected image index per card (for 长视频 1.1 selection)
   const [selectedImageIndices, setSelectedImageIndices] = useState<Record<number, number>>({});
@@ -1771,11 +1844,11 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   // is lost even without persistence.
   useEffect(() => {
     if (results.length > 0 || theme) {
-      saveRandomSession({ type, count, theme, results, expandedIdx, h3Prompts });
+      saveRandomSession({ type, count, theme, results, expandedIdx, h3Prompts, genStates });
     } else {
       clearRandomSession();
     }
-  }, [type, count, theme, results, expandedIdx, h3Prompts]);
+  }, [type, count, theme, results, expandedIdx, h3Prompts, genStates]);
 
   // Sync restored tasks from taskManager to UI state (survives page refresh)
   // Also sync images from FINISHED tasks so the UI reflects completed results immediately.
@@ -2083,8 +2156,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       });
       try {
         await taskManager.addTask('img2img', nodes, prompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, undefined, 'random', randomTheme || undefined);
-        onSuccess('任务已提交，请到图生图查看生成结果');
-        if (onNavigate) onNavigate('img2img');
+        onSuccess('任务已提交，生成结果会显示在当前页面');
       } catch (err) {
         onError(err instanceof Error ? err.message : '提交失败');
         setGenStates((prev) => {
@@ -2101,8 +2173,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       const nodes = buildTxt2ImgNodeList(txt2imgOptions);
       try {
         await taskManager.addTask('txt2img', nodes, prompt, '2101119999196127233', undefined, undefined, 'random', randomTheme || undefined);
-        onSuccess('任务已提交，请到文生图查看生成结果');
-        if (onNavigate) onNavigate('txt2img');
+        onSuccess('任务已提交，生成结果会显示在当前页面');
       } catch (err) {
         onError(err instanceof Error ? err.message : '提交失败');
         setGenStates((prev) => {
@@ -2366,6 +2437,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
             imagePrompt: result.prompt,
             sceneDescription: videoPrompt,
             duration: 60,
+            shotCount: 12,
             r18: r18Mode,
           });
         } finally {
@@ -2449,6 +2521,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         imagePrompt: result.prompt,
         sceneDescription: videoPrompt,
         duration: 60,
+        shotCount: 12,
         r18: r18Mode,
       });
       
@@ -2492,9 +2565,9 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         media: [{ type: 'reference_image', url: image }],
         workflow_id: '2110330160000516098',
         duration: 60,
-        resolution: '720p',
+        resolution: videoClarity,
         aspect_ratio: '9:16',
-        shots_per_seg: 9,
+        shots_per_seg: videoSegments,
         loop_routes: 1,
         instance: 'plus',
       };
@@ -2538,7 +2611,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       setVideoStates(prev => ({ ...prev, [idx]: { loading: false, error: msg } }));
       onError(msg);
     }
-  }, [results, selectedImageIndices, onError, onSuccess, handleGenerateSingleH3]);
+  }, [results, selectedImageIndices, videoClarity, videoSegments, onError, onSuccess, handleGenerateSingleH3]);
 
   /**
    * 跳转长视频 1.1：把视频提示词和参考图暂存到 sessionStorage，
@@ -2688,6 +2761,10 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               onGenerateImage={() => handleRandomGenerateImage(idx, result.prompt)}
               onGenerateVideo={() => handleGenerateVideo(idx)}
               videoState={videoStates[idx]}
+              videoClarity={videoClarity}
+              videoSegments={videoSegments}
+              onVideoClarityChange={setVideoClarity}
+              onVideoSegmentsChange={setVideoSegments}
               onFavorited={(url) => handleToggleFavorite(url, result.prompt)}
               onRetryStuck={() => handleRetryStuckSlot(idx)}
               taskManager={taskManager}
@@ -2812,12 +2889,15 @@ function RandomHistoryPanel({ history, r18Mode, onLoad, onDelete, onClear, onCop
   );
 }
 
-function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r18Mode, onToggle, onCopy, genState, onGenerateImage, onGenerateVideo, onFavorited, onRetryStuck, taskManager, digitalHumanMode, selectedGirlfriend, h3Prompt, h3Generating, videoState, sceneLabel, onGotoLongVideoWithH3, selectedImageIndex, onSelectImage, onPreviewImage }: {
+function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r18Mode, onToggle, onCopy, genState, onGenerateImage, onGenerateVideo, onFavorited, onRetryStuck, taskManager, digitalHumanMode, selectedGirlfriend, h3Prompt, h3Generating, videoState, videoClarity, videoSegments, onVideoClarityChange, onVideoSegmentsChange, sceneLabel, onGotoLongVideoWithH3, selectedImageIndex, onSelectImage, onPreviewImage }: {
   index: number; result: PromptResult; isExpanded: boolean; isCopied: boolean; tagsVisible: boolean; r18Mode: boolean; onToggle: () => void; onCopy: () => void;
   genState?: { loading: boolean; images: string[] };
   onGenerateImage: () => void;
   onGenerateVideo: () => void;
   videoState?: { loading: boolean; url?: string; error?: string };
+  videoClarity: number; videoSegments: number;
+  onVideoClarityChange: (v: number) => void;
+  onVideoSegmentsChange: (v: number) => void;
   onFavorited?: (url: string) => void;
   /** Called when a card has been "loading" for >90s with no stream events.
    *  Lets the user manually retry the slow slot without a full refresh. */
@@ -2983,6 +3063,17 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
                 提示词 {isPromptLoading && <span className="text-text-tertiary/70">· 生成中...</span>}
               </span>
               <div className="flex items-center gap-1.5">
+                {/* 视频参数：清晰度 / 段数 */}
+                <div className="flex items-center gap-1 text-[9px] text-text-tertiary mr-1">
+                  <label>清晰度</label>
+                  <input type="number" min={0.2} max={1} step={0.2} value={videoClarity}
+                    onChange={(e) => onVideoClarityChange(Math.min(1, Math.max(0.2, Number(e.target.value) || 0.2)))}
+                    className="w-11 px-1 py-0.5 rounded border border-border bg-white text-center" />
+                  <label>段数</label>
+                  <input type="number" min={2} max={16} step={1} value={videoSegments}
+                    onChange={(e) => onVideoSegmentsChange(Math.min(16, Math.max(2, Math.round(Number(e.target.value) || 4))))}
+                    className="w-11 px-1 py-0.5 rounded border border-border bg-white text-center" />
+                </div>
                 {/* 直接生成视频（导演台 H3 det16） */}
                 <button
                   onClick={onGenerateVideo}

@@ -163,6 +163,8 @@ export interface H3PromptOptions {
   subjectDescriptions?: string[];
   /** 视频总时长（秒），默认 15 */
   duration?: number;
+  /** 指定镜头数（12 = 1 分钟 12 shot） */
+  shotCount?: number;
   /** 是否 R18 内容 */
   r18?: boolean;
   /** 场景/剧情描述，用于生成 summary 和 detailed_description */
@@ -320,9 +322,10 @@ function buildShotsFromImagePrompt(
   imagePrompt: string,
   duration: number,
   r18: boolean,
-  sceneDescription?: string
+  sceneDescription?: string,
+  requestedShotCount?: number
 ): H3Shot[] {
-  const shotCount = computeShotCount(duration, r18);
+  const shotCount = requestedShotCount ?? computeShotCount(duration, r18);
   const timestamps = computeTimestamps(duration, shotCount);
   const subjectText = extractSubjectFromPrompt(imagePrompt);
 
@@ -346,7 +349,8 @@ function buildShotsFromImagePrompt(
     // R18 内容且无有效场景描述：使用 R18 预设模板
     segments = R18_SIX_SEGMENT_TEMPLATES.slice(0, shotCount).map(t => t.description);
     while (segments.length < shotCount) {
-      segments.push(R18_SIX_SEGMENT_TEMPLATES[R18_SIX_SEGMENT_TEMPLATES.length - 1].description);
+      const base = R18_SIX_SEGMENT_TEMPLATES[segments.length % R18_SIX_SEGMENT_TEMPLATES.length].description;
+      segments.push(`${base}（延续动作，机位变化）`);
     }
   } else if (themeEntry) {
     // 主题检测到但 LLM 漂移 → 使用安全主题片段
@@ -758,6 +762,7 @@ export function generateH3Prompt(options: H3PromptOptions = {}): string {
     imageUrls = [],
     subjectDescriptions = [],
     duration = 15,
+    shotCount: requestedShotCount,
     r18 = false,
     sceneDescription,
     imagePrompt,
@@ -772,6 +777,7 @@ export function generateH3Prompt(options: H3PromptOptions = {}): string {
     duration,
     r18,
     sceneDescription,
+    requestedShotCount,
   );
 
   const parts = [
@@ -1063,6 +1069,7 @@ export function generateH3CommonParts(
   panels: { image_prompt: string; scene_description?: string }[],
   options: {
     duration?: number;
+    shotCount?: number;
     r18?: boolean;
     sceneDescription?: string;
     subjectDescriptions?: string[];
