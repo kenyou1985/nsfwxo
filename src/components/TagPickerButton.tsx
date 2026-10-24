@@ -4,11 +4,15 @@ import { TAG_CATEGORIES, TAG_CATEGORY_ORDER, getTagDisplayName } from '../data/t
 export function TagPickerButton({ onPick, disabled }: { onPick: (tag: string) => void; disabled?: boolean }) {
   const [open, setOpen] = useState(false);
   const [catId, setCatId] = useState<string | null>(null);
+  const [subName, setSubName] = useState<string | null>(null);
   const cat = useMemo(() => TAG_CATEGORIES.find(c => c.id === catId), [catId]);
+  const subCats = cat?.subCategories && cat.subCategories.length > 1 ? cat.subCategories : [];
+  const activeSub = subCats.find(s => s.name === subName) || null;
   const tags = useMemo(() => {
     if (!cat) return [];
-    return [...new Set((cat.subCategories || []).flatMap(s => s.tags).concat(cat.tags || []))];
-  }, [cat]);
+    const source = activeSub ? activeSub.tags : (cat.tags || []);
+    return [...new Set(source)];
+  }, [cat, activeSub]);
 
   return (
     <>
@@ -26,7 +30,7 @@ export function TagPickerButton({ onPick, disabled }: { onPick: (tag: string) =>
             <div className="flex items-center justify-between px-4 py-3 border-b bg-bg-elevated">
               <span className="text-sm font-semibold">{cat ? `${cat.icon} ${cat.name}` : '选择标签分类'}</span>
               <div className="flex gap-2">
-                {cat && <button onClick={() => setCatId(null)} className="text-xs text-text-tertiary">返回分类</button>}
+                {cat && <button onClick={() => { if (activeSub) setSubName(null); else setCatId(null); }} className="text-xs text-text-tertiary">返回</button>}
                 <button onClick={() => setOpen(false)} className="text-xs text-text-tertiary">关闭</button>
               </div>
             </div>
@@ -36,11 +40,24 @@ export function TagPickerButton({ onPick, disabled }: { onPick: (tag: string) =>
                   const c = TAG_CATEGORIES.find(x => x.id === id);
                   if (!c) return null;
                   return (
-                    <button key={id} onClick={() => setCatId(id)} className="px-2 py-2 rounded-lg border border-border bg-bg-elevated text-xs hover:border-primary hover:text-primary">
+                    <button key={id} onClick={() => { setCatId(id); setSubName(null); }} className="px-2 py-2 rounded-lg border border-border bg-bg-elevated text-xs hover:border-primary hover:text-primary">
                       {c.icon} {c.name}
                     </button>
                   );
                 })}
+              </div>
+            ) : subCats.length > 0 && !activeSub ? (
+              <div className="p-3 grid grid-cols-2 sm:grid-cols-3 gap-2 overflow-y-auto">
+                {subCats.map(sub => (
+                  <button
+                    key={sub.name}
+                    onClick={() => setSubName(sub.name)}
+                    className="px-3 py-3 rounded-xl border border-border bg-bg-elevated text-xs font-medium hover:border-primary hover:text-primary"
+                  >
+                    {sub.nameZh || sub.name}
+                    <span className="block mt-1 text-[9px] text-text-tertiary">{sub.tags.length} 个标签</span>
+                  </button>
+                ))}
               </div>
             ) : (
               <div className="p-3 overflow-y-auto flex flex-wrap gap-1.5">
