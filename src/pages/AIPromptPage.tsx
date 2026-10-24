@@ -1074,7 +1074,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       publishExternalVideoTask({ id: localId, taskId: submit.taskId, status: 'RUNNING', prompt: videoText,
         imagePreview: image, images: [], coins: null, elapsedSeconds: 0, error: null, startTime: Date.now(), nodeInfoList: [], engine: 'daotai' });
       let url: string | undefined;
-      for (let i = 0; i < 120; i++) {
+      for (let i = 0; i < 480; i++) {
         await new Promise(r => setTimeout(r, 5000));
         const data = await pollDaotaiTask(key, submit.taskId);
         if (data.status === 'SUCCESS') { url = data.video_url || data.output?.video_url || data.url || data.images?.[0]; break; }
@@ -2536,7 +2536,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       });
 
       let videoUrl: string | undefined;
-      for (let i = 0; i < 120; i++) {
+      for (let i = 0; i < 480; i++) {
         await new Promise(r => setTimeout(r, 5000));
         const data = await pollDaotaiTask(rhKey, submit.taskId);
         if (data.status === 'SUCCESS') {
