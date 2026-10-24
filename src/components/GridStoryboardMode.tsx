@@ -678,6 +678,7 @@ export function GridStoryboardMode({
   // Dedicated historyId for the separate-panel generation batch — used by
   // finishedTasks to distinguish these tasks from the composite-grid path.
   const [separatePanelsHistoryId, setSeparatePanelsHistoryId] = useState<string | null>(null);
+  const [separatePanelsHistoryMap, setSeparatePanelsHistoryMap] = useState<Record<number, string>>({});
 
   // Enforce separate-panel mode when digital-human anchoring is active.
   useEffect(() => {
@@ -898,6 +899,7 @@ export function GridStoryboardMode({
     if (sessionStorage.getItem('sb_latest_history_id')) allHistoryIds.add(sessionStorage.getItem('sb_latest_history_id')!);
     // Also track the separate-panel batch history ID.
     if (separatePanelsHistoryId) allHistoryIds.add(separatePanelsHistoryId);
+    Object.values(separatePanelsHistoryMap).forEach(hid => { if (hid) allHistoryIds.add(hid); });
 
     if (allHistoryIds.size === 0) return;
 
@@ -932,6 +934,14 @@ export function GridStoryboardMode({
           if (historyId === hid) {
             themeIdx = parseInt(idx);
             break;
+          }
+        }
+        if (themeIdx < 0) {
+          for (const [idx, historyId] of Object.entries(separatePanelsHistoryMap)) {
+            if (historyId === hid) {
+              themeIdx = parseInt(idx);
+              break;
+            }
           }
         }
       }
@@ -1006,7 +1016,10 @@ export function GridStoryboardMode({
         const existing = prev[themeIdx] || [];
         const merged = [...existing];
         for (let i = 0; i < newImages.length; i++) {
-          if (newImages[i]) merged[i] = newImages[i];
+          if (!newImages[i]) continue;
+          // 整张九宫格任务重复生成时保留每一张，供图片 1/2 切换选择
+          if (merged.length > 0 && merged[i]) merged.push(newImages[i]);
+          else merged[i] = newImages[i];
         }
         return { ...prev, [themeIdx]: merged };
       });
@@ -1887,6 +1900,7 @@ export function GridStoryboardMode({
           panels,
         });
         setSeparatePanelsHistoryId(sepHistoryId);
+        setSeparatePanelsHistoryMap(prev => ({ ...prev, [activeThemeIdx]: sepHistoryId }));
 
         let submittedCount = 0;
         let skippedEmpty = 0;
