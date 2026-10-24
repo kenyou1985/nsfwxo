@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Loader2, Upload, X, Clapperboard, Layers, Clock, Image as ImageIcon } from 'lucide-react';
+import { Loader2, Upload, X, Clapperboard, Layers, Clock, Image as ImageIcon, Copy, Trash2, Check } from 'lucide-react';
 import { uploadImage } from '../services/runninghub';
 import { GirlfriendSelector } from './GirlfriendSelector';
 import { PosePresetSelector } from './PosePresetSelector';
@@ -210,13 +210,30 @@ export function DaotaiH3Panel({ apiKey, onError, onSuccess, taskListRef, initial
 
   // ── 姿势预设：追加到提示词 ───────────────────────────────────────────────
   const handlePoseSelect = useCallback((posePrompt: string, poseName: string) => {
-    setPrompt((prev) => {
-      const trimmed = prev.trim();
-      if (!trimmed) return posePrompt;
-      return `${trimmed}, ${posePrompt}`;
-    });
+    // 姿势预设是完整 H3 六段式提示词：直接替换，不再拼接旧内容
+    setPrompt(posePrompt);
     onSuccess(`已应用姿势: ${poseName}`);
+    setTimeout(() => {
+      document.getElementById('h3-video-prompt')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 50);
   }, [onSuccess]);
+
+  const handleCopyPrompt = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(prompt);
+      onSuccess('提示词已复制');
+      return;
+    } catch {}
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = prompt;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+      onSuccess('提示词已复制');
+    } catch { onError('复制失败'); }
+  }, [prompt, onSuccess, onError]);
 
   // ── 图片 DNA 自动提取（情色创作模式开启 + 已上传图片时） ────────────────
   const refsKey = refs.map((r) => r?.path || '').join(',');
@@ -528,9 +545,18 @@ export function DaotaiH3Panel({ apiKey, onError, onSuccess, taskListRef, initial
             <Clapperboard size={16} className="text-primary" />
             视频提示词
           </h3>
-          <span className="text-[10px] text-text-tertiary">H3 格式 · 支持多分镜</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] text-text-tertiary">H3 格式 · 支持多分镜</span>
+            <button onClick={handleCopyPrompt} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-bg-elevated border border-border text-[9px] text-text-secondary hover:text-primary">
+              <Copy size={9} />复制
+            </button>
+            <button onClick={() => { setPrompt(''); onSuccess('已清除提示词'); }} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-bg-elevated border border-border text-[9px] text-red-400 hover:text-red-600">
+              <Trash2 size={9} />清除
+            </button>
+          </div>
         </div>
         <textarea
+          id="h3-video-prompt"
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           rows={16}
