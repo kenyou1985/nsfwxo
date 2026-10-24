@@ -998,8 +998,8 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         await taskManager.addTask('img2img', nodes, outputText, WORKFLOW.IMAGE_TO_IMAGE, undefined, undefined, 'expand');
         onSuccess('任务已提交，生成结果会显示在当前页面');
       } else {
-        const nodes = buildKrea2NNodeList(outputText);
-        await taskManager.addTask('txt2img', nodes, outputText, KREA2_N_STRONG_WORKFLOW, undefined, undefined, 'expand');
+        // 最强N版是导演台工作流，必须走 /api/daotai/image，不能走 RunningHub
+        await taskManager.addDaotaiImgTask({ model: 'krea2', ratio: '9:16', batch: 1, refs: [] }, outputText);
         onSuccess('任务已提交，生成结果会显示在当前页面');
       }
     } catch (err) {
@@ -1100,9 +1100,8 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         });
       }
     } else {
-      const nodes = buildKrea2NNodeList(result.prompt);
       try {
-        await taskManager.addTask('txt2img', nodes, result.prompt, KREA2_N_STRONG_WORKFLOW, undefined, undefined, 'expand');
+        await taskManager.addDaotaiImgTask({ model: 'krea2', ratio: '9:16', batch: 1, refs: [] }, result.prompt);
         onSuccess('任务已提交，生成结果会显示在当前页面');
       } catch (err) {
         onError(err instanceof Error ? err.message : '提交失败');
@@ -1148,8 +1147,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         });
         await taskManager.addTask('img2img', nodes, result.prompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, undefined, 'expand');
       } else {
-        const nodes = buildKrea2NNodeList(result.prompt);
-        await taskManager.addTask('txt2img', nodes, result.prompt, KREA2_N_STRONG_WORKFLOW, undefined, undefined, 'expand');
+        await taskManager.addDaotaiImgTask({ model: 'krea2', ratio: '9:16', batch: 1, refs: [] }, result.prompt);
       }
     });
     const results_await = await Promise.allSettled(tasks);
@@ -2339,8 +2337,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         });
         await taskManager.addTask('img2img', nodes, result.prompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, undefined, 'random', perTaskTheme || undefined);
       } else {
-        const nodes = buildKrea2NNodeList(result.prompt);
-        await taskManager.addTask('txt2img', nodes, result.prompt, KREA2_N_STRONG_WORKFLOW, undefined, undefined, 'random', perTaskTheme || undefined);
+        await taskManager.addDaotaiImgTask({ model: 'krea2', ratio: '9:16', batch: 1, refs: [] }, result.prompt);
       }
     });
     const settled = await Promise.allSettled(tasks);
