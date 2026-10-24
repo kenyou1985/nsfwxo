@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { User, Search, Lock } from 'lucide-react';
 import { IMAGE_POSE_PRESETS, VIDEO_POSE_PRESETS, type ImagePosePreset, type VideoPosePreset } from '../data/presetPoses';
 import type { GirlfriendPreset } from '../data/girlfriendPresets';
+import { buildPoseH3Prompt } from '../services/poseH3Prompt';
 
 interface PosePresetSelectorProps {
   type: 'image' | 'video';
@@ -88,7 +89,10 @@ export function PosePresetSelector({ type, onSelect, disabled, selectedGirlfrien
       selectedGirlfriend,
       selectedGirlfriends && selectedGirlfriends.length > 0 ? selectedGirlfriends : undefined
     );
-    const fullPrompt = identityPrefix + preset.prompt;
+    const base = type === 'video'
+      ? buildPoseH3Prompt(preset as VideoPosePreset)
+      : preset.prompt;
+    const fullPrompt = identityPrefix + base;
     onSelect(fullPrompt, preset.nameZh);
   };
 

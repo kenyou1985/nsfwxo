@@ -212,6 +212,14 @@ function EroticPromptCard({
             </button>
           )}
           <button
+            onClick={() => onUse(editingPrompt)}
+            title="应用到下方视频提示词"
+            className="flex items-center gap-0.5 px-2 py-1 rounded-lg bg-emerald-500 text-white text-[10px] font-bold hover:bg-emerald-600 transition-colors"
+          >
+            <Check size={10} />
+            应用
+          </button>
+          <button
             onClick={() => onGenerateVideo(editingPrompt)}
             title="一键生成视频"
             className="flex items-center gap-0.5 px-2 py-1 rounded-lg bg-gradient-to-r from-rose-500 to-pink-500 text-white text-[10px] font-bold hover:opacity-90 transition-opacity shadow-sm"

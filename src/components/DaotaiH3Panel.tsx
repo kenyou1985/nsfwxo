@@ -533,9 +533,9 @@ export function DaotaiH3Panel({ apiKey, onError, onSuccess, taskListRef, initial
         <textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          rows={6}
+          rows={16}
           placeholder={'支持 Minimax H3 提示词格式，例如：\n[Shot 1] subject_definitions: <Subject 1> is <Picture 1>…\nsummary: …\ndetailed_description with numbered [Shot N] entries…'}
-          className="w-full px-3 py-2 rounded-lg bg-bg-elevated border border-border text-xs text-text-primary placeholder-slate-600 focus:outline-none focus:border-primary/50 resize-none font-mono"
+          className="w-full px-3 py-2 rounded-lg bg-bg-elevated border border-border text-xs text-text-primary placeholder-slate-600 focus:outline-none focus:border-primary/50 resize-y font-mono"
         />
         <p className="mt-2 text-[11px] text-text-tertiary">
           提示词中的 [Shot N] 分镜数量决定段内切分；无 [Shot N] 时会自动包裹为单个分镜。
