@@ -102,6 +102,42 @@ function saveGridVideoHistory(url: string, prompt: string, taskId: string, title
   } catch {}
 }
 
+async function detectGridLayout(url: string): Promise<{ cols: number; rows: number }> {
+  try {
+    const blob = url.startsWith('data:') ? await (await fetch(url)).blob() : await (await fetch(url, { mode: 'cors' })).blob();
+    const bmp = await createImageBitmap(blob);
+    const c = document.createElement('canvas');
+    const maxW = 600;
+    const scale = Math.min(1, maxW / bmp.width);
+    c.width = Math.max(1, Math.round(bmp.width * scale));
+    c.height = Math.max(1, Math.round(bmp.height * scale));
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return { cols: 3, rows: 3 };
+    ctx.drawImage(bmp, 0, 0, c.width, c.height);
+    const { data, width, height } = ctx.getImageData(0, 0, c.width, c.height);
+    const isWhite = (x: number, y: number) => {
+      const i = (y * width + x) * 4;
+      return data[i] > 235 && data[i + 1] > 235 && data[i + 2] > 235;
+    };
+    const v: number[] = [], h: number[] = [];
+    for (let x = 0; x < width; x++) {
+      let n = 0;
+      for (let y = 0; y < height; y++) if (isWhite(x, y)) n++;
+      if (n / height > 0.82) v.push(x);
+    }
+    for (let y = 0; y < height; y++) {
+      let n = 0;
+      for (let x = 0; x < width; x++) if (isWhite(x, y)) n++;
+      if (n / width > 0.82) h.push(y);
+    }
+    const groups = (arr: number[]) => arr.filter((n, i) => i === 0 || n - arr[i - 1] > 3).length;
+    const cols = Math.max(1, groups(v) - 1);
+    const rows = Math.max(1, groups(h) - 1);
+    if (cols * rows >= 4 && cols * rows <= 12) return { cols, rows };
+  } catch {}
+  return { cols: 3, rows: 3 };
+}
+
 async function cropGridCell(url: string, index = 0, cols = 3, rows = 3): Promise<File | null> {
   try {
     const blob = url.startsWith('data:') ? await (await fetch(url)).blob() : await (await fetch(url, { mode: 'cors' })).blob();
@@ -2184,9 +2220,10 @@ export function GridStoryboardMode({
     if (!apiKey) { onError('缺少 RunningHub API Key'); return; }
 
     // 以网格尺寸为准，不能只依赖 panels.length（某些历史/单图状态只有 1 个 panel）
-    const cells = Math.min(12, Math.max(Number(gridSize) || 9, panels.length));
-    const cols = cells === 4 ? 2 : 3;
-    const rows = cells === 4 ? 2 : cells === 6 ? 2 : cells === 12 ? 4 : 3;
+    const detected = await detectGridLayout(full);
+    const cols = detected.cols;
+    const rows = detected.rows;
+    const cells = Math.min(9, Math.max(1, cols * rows));
     const children: Array<{ index: number; status: string; taskId?: string; url?: string; error?: string }> = Array.from({ length: cells }, (_, i) => ({ index: i, status: 'uploading' }));
     setThisGridVideo({ status: 'running', children });
 
