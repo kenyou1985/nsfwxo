@@ -53,7 +53,7 @@ export function TagSelector({
   return (
     <div className="h-full flex flex-col min-h-0">
       {/* 只显示分类，点击后弹窗选标签 */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-px bg-border-light">
+      <div className="flex-1 min-h-0 overflow-y-auto grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-px bg-border-light content-start">
         {TAG_CATEGORY_ORDER.map((catId) => {
           const cat = TAG_CATEGORIES.find((c) => c.id === catId);
           if (!cat) return null;
