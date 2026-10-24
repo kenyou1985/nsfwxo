@@ -253,6 +253,13 @@ import { submitDaotaiVideo, pollDaotaiTask } from '../services/daotai';
 import { publishExternalVideoTask } from '../services/videoTaskBridge';
 
 const KREA2_N_STRONG_WORKFLOW = '2101119999196127233';
+
+/** 保证视频提示词英文并以 <Picture 1> 锚定参考图 */
+function anchorH3Prompt(prompt: string): string {
+  if (!prompt) return prompt;
+  if (prompt.includes('<Picture 1>')) return prompt;
+  return `subject_definitions:\n<Subject 1> is @Woman <Picture 1> — an adult East Asian woman in her mid-20s, long straight black hair, fair skin, refined side profile, voluptuous curvy body; preserve face, hair, body proportions and identity exactly from Picture 1.\n<Subject 2> is @Man — a fully adult muscular man, face kept off close-up.\n\n${prompt}`;
+}
 /** 统一使用 Krea2 最强N版文生图工作流，节点仍按 Krea2 构建 */
 function buildKrea2NNodeList(prompt: string) {
   const opts = buildUnifiedTxt2ImgOptions(prompt, true);
@@ -1029,7 +1036,8 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         loop_routes: 1,
         instance: 'plus',
       };
-      const submit = await submitDaotaiVideo(key, outputText, body);
+      const anchoredPrompt = anchorH3Prompt(outputText);
+      const submit = await submitDaotaiVideo(key, anchoredPrompt, { ...body, prompt: anchoredPrompt });
       const localId = `expand-video-${Date.now()}`;
       publishExternalVideoTask({ id: localId, taskId: submit.taskId, status: 'RUNNING', prompt: outputText,
         imagePreview: image, images: [], coins: null, elapsedSeconds: 0, error: null, startTime: Date.now(), nodeInfoList: [], engine: 'daotai' });
@@ -1540,7 +1548,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               onSendToH3Page={() => {
                 const img = genState[result.id]?.images?.[0];
                 if (!img) { onError('请先生成图片'); return; }
-                sessionStorage.setItem('history_img2vid', JSON.stringify({ imageUrl: img, prompt: result.prompt, targetModel: 'minimaxh3' }));
+                sessionStorage.setItem('history_img2vid', JSON.stringify({ imageUrl: img, prompt: anchorH3Prompt(result.prompt), targetModel: 'minimaxh3' }));
                 if (onNavigate) onNavigate('img2vid');
               }}
               onUseAsOutput={() => {
@@ -2589,7 +2597,8 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         loop_routes: 1,
         instance: 'plus',
       };
-      const submit = await submitDaotaiVideo(apiKey, h3, body);
+      const anchoredPrompt = anchorH3Prompt(h3);
+      const submit = await submitDaotaiVideo(apiKey, anchoredPrompt, { ...body, prompt: anchoredPrompt });
       publishExternalVideoTask({
         id: localTaskId, taskId: submit.taskId, status: 'RUNNING', prompt: h3,
         imagePreview: image, images: [], coins: null, elapsedSeconds: 0,
