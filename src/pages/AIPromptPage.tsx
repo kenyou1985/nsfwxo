@@ -320,43 +320,124 @@ function generateH3Summary(h3Prompt: string): string {
 /** 以当前图片为首帧，生成规范 H3 六段式视频提示词 */
 function buildAnchoredH3(imagePrompt: string): string {
   const scene = (imagePrompt || '').trim();
-  const low = scene.toLowerCase();
   const times = ['00:00.000','00:05.500','00:11.000','00:16.500','00:22.000','00:27.500','00:33.000','00:38.500','00:44.000','00:49.500','00:55.000'];
-
-  // 动作/场景只从图片提示词提取，外貌不写进视频提示词，交给 Picture 1
   const sentences = scene.split(/(?<=[.!?])\s+/);
   const actionRe = /(sits?|sitting|riding|ride|penetrat|thrust|mouth|oral|suck|lick|masturbat|fuck|grind|facesit|insert|crouch|kneel|spread|touch|stroke|bounce|climax|cunnilingus|blowjob|scissor|missionary|cowgirl|doggy)/i;
   let core = sentences.filter((x) => actionRe.test(x)).join(' ') || scene;
-  core = core
-    .replace(/\b(?:blonde|brunette|redhead|black hair|brown hair|long hair|short hair|straight hair|curly hair|fair skin|pale skin|tan skin|voluptuous|curvy|slim|petite|East Asian|mid-20s|large breasts|big breasts|huge breasts)\b[^,.;]*/gi, '')
-    .replace(/\s{2,}/g, ' ')
-    .trim()
-    .slice(0, 900);
+  core = core.replace(/\b(?:blonde|brunette|redhead|black hair|brown hair|long hair|short hair|straight hair|curly hair|fair skin|pale skin|tan skin|voluptuous|curvy|slim|petite|East Asian|mid-20s|large breasts|big breasts|huge breasts)\b[^,.;]*/gi, '').replace(/\s{2,}/g, ' ').trim().slice(0, 900);
   if (!core) core = 'the exact act and pose shown in Picture 1';
-
+  const place = sentences.find((x) => /(room|salon|street|garden|forest|bed|arches|pool|beach|car|office|bathroom|kitchen|alley|studio)/i.test(x)) || '';
+  const placeLine = place ? `Same location: ${place.slice(0, 240)}` : 'Same location and lighting as Picture 1';
   const womanCount = (scene.match(/\bwoman\b/gi) || []).length + (scene.match(/\bgirl\b/gi) || []).length;
   const twoWomen = /(two women|two girls|lesbian|female partner|another woman|second woman|strap-on|女女|百合|双女|两个女人|两名女性)/i.test(scene) || womanCount >= 2;
   const hasMan = !twoWomen && /\b(man|male|boyfriend|guy|his |he )\b|男人|男性|男主|男友/i.test(scene);
   const solo = !twoWomen && !hasMan;
-
+  const atFacesit = /(sits? astride|sitting on (?:his|the) face|facesit|face-sit|riding (?:his|her) face|mouth beneath|oral sex beneath|cunnilingus|骑脸|坐脸|坐在脸上)/i.test(scene);
+  const atSex = /(penetrat|thrust|insert|cowgirl|doggy|missionary|riding him|inside her|fuck)/i.test(scene);
+  const atOral = /(blowjob|deepthroat|fellatio|sucking|takes him in her mouth|mouth around)/i.test(scene);
+  const wantsAss = /(anal|anus|ass|doggy|behind|plug|glute)/i.test(scene);
+  const wantsOral = /(oral|blowjob|mouth|deepthroat|suck)/i.test(scene);
+  const cumEnding = wantsOral ? 'oral' : wantsAss ? 'ass' : 'internal';
   const first = 'Exactly reproduce Picture 1 as the first frame: identical pose, identical framing, identical clothing state or nudity, identical lighting and background. Hold one beat, then continue the SAME act already happening in the image. Never reset to an earlier stage, never undress or dress again, never switch to a different sex act.';
-  const same = `The act must stay exactly the same as the source image: ${core} Same people, same location, same clothing/nudity state as Picture 1. Do not invent a new position, do not reset, do not change scene.`;
-  const cams = [
-    'Static opening from the exact first frame.',
-    'Same act begins to move: first visible rhythm, hands and hips responding, no cut to another act.',
-    'Medium side angle on the same act: bodies meeting, skin impact, sweat forming, camera slowly orbiting.',
-    'Extreme close on the contact point of the same act: wetness, pressure, flesh compressing, fluid stringing.',
-    'Medium close on the face and chest reaction: mouth open, eyes half-closed, breasts moving with the same rhythm.',
-    'Slight angle change only: deeper pressure, same position, hair and sweat reacting to motion.',
-    'Medium wide: the whole body moves with the act, hands gripping, muscles tensing, no re-entry or reset.',
-    'Close POV: the point of contact fills the frame, then tilts up to the face without breaking the act.',
-    'Rhythm accelerates toward the edge: breathing ragged, thighs trembling, the same act continues.',
-    'One climax only, without changing act or position: body locks, cry breaks out, fluids and aftershock.',
-    'Afterglow in the exact same location and position: chest heaving, wet skin, limbs trembling, no new act.',
-  ];
-  const shots = [first, ...cams.slice(1).map((c) => `${c} ${same}`)];
-  const body = shots.map((action, i) => `[Shot ${i + 1}] ${times[i]} ${action}`).join('\n');
+  const same = `${placeLine}. Same people, same clothing/nudity state as Picture 1. Cut on motion between positions; no reset, no scene change, no character change.`;
+  const ending = cumEnding === 'oral'
+    ? 'Final shot: she pulls him out and takes the single load on her tongue and face, mouth open, cum on lips and chin, swallowing; no second climax.'
+    : cumEnding === 'ass'
+      ? 'Final shot: she arches her back and presents her ass to the camera, he strokes and paints her ass and lower back with thick ropes of cum, skin glistening; no second climax.'
+      : 'Final shot: he buries himself to the hilt and finishes inside her, visible pulsing and creampie, her body convulsing; no second climax.';
+  const after = 'Afterglow in the exact same location and position: chest heaving, wet skin, limbs trembling, cum still visible, no new act.';
 
+  let shots: string[];
+  if (twoWomen) {
+    shots = [
+      first,
+      `The two women kiss deeply, hands sliding over breasts and waists, clothing pulled aside; same location, no male figure. ${same}`,
+      'Medium close: one woman sucks and licks the other’s nipples, then kisses down her stomach; the receiver arches and grips her hair.',
+      'Low-angle: one woman goes down on the other, tongue parting the labia, hands spreading her thighs; eye contact, wetness on her chin.',
+      'Medium side: fingers slide inside while a thumb circles the clit, the receiver’s hips rocking, thighs trembling.',
+      'They shift into scissoring, hips grinding, wetness stringing between them, breasts pressed together, breathing ragged.',
+      'One woman uses a strap-on or double dildo in the same rhythm, the other braces and takes it, breasts bouncing.',
+      'Extreme close on the join: toy or fingers driving in, fluid coating skin, thighs shaking; cut back to their faces.',
+      'Slight angle change: one leg lifted, deeper angle, both women glistening with sweat, rhythm accelerating.',
+      'First squirting climax: one woman gushes clear fluid onto the other’s hand/toy and the surface, thighs soaking, body locking.',
+      'Second wet aftershock: she squirts again in a thinner stream, both women collapsing into the wet sheets, chests heaving, thighs shining.',
+    ];
+  } else if (solo) {
+    shots = [
+      first,
+      'Her own hands roam her body, palms over breasts and belly, back arching, lips parting; no other person enters frame.',
+      'Medium close: fingers pinch and roll her nipples, then trail down her stomach, thighs opening wider, breath hitching.',
+      'Low-angle: fingers part her labia and circle the clit, hips rocking into her own hand, wetness glistening.',
+      'Extreme close: two fingers slide inside, curling to the G-spot, thumb on the clit, fluid coating her hand and thighs.',
+      'She adds a vibrator or dildo, pressing it to her clit then sinking it in, back lifting off the surface, mouth open.',
+      'Close on her face: eyes half-closed, hair sticking to her cheek, moans breaking into gasps as the toy speeds up.',
+      'Slight angle change: she turns on her side or lifts one leg, toy angled deeper, free hand gripping the surface.',
+      'Rhythm accelerates: hips bucking, thighs trembling, she chases the edge, breath cut into short gasps.',
+      'Squirting climax: clear fluid gushes out around the toy/fingers, splashing her thighs and the surface, body locking hard.',
+      'Afterglow: wet thighs and slick surface in frame, chest heaving, toy still resting against her, skin flushed, eyes dazed.',
+    ];
+  } else if (atFacesit) {
+    shots = [
+      first,
+      `She settles her weight onto his mouth, hips rolling slowly, one hand braced on his chest, the other in his hair; no penetration yet. ${same}`,
+      'Extreme close between her thighs: his tongue parts her labia and laps upward, her hips grind down, wetness on his chin.',
+      'Low-angle from below: her face above him, drowsy dominant stare, breasts swaying as she rocks, existing headwear/clothing staying in place.',
+      'Medium side: she leans back on one hand, thighs clamping around his head, grinding faster, stomach tightening.',
+      'She slides down and takes his cock in her mouth, tongue dragging the shaft, cheeks hollowing, saliva shining; his hand on her head.',
+      'Low-angle POV: she looks up at the lens while sucking, one hand stroking the base, then takes him deep, gagging softly.',
+      'Cut to first penetration: she rises and sinks onto him cowgirl, same room, her body jolting, mouth open, hands on his chest.',
+      'Medium side: reverse cowgirl, her back to his chest, hips rolling, his hands gripping her waist, breasts bouncing.',
+      'Cut to doggy on the same surface: he grips her hips and drives deep, her back arching, hair swinging, sweat dripping.',
+      ending,
+      after,
+    ];
+  } else if (atOral) {
+    shots = [
+      first,
+      `She continues the exact oral action: lips sealed around the shaft, tongue dragging, cheeks hollowing, saliva shining. ${same}`,
+      'Medium close: deeper take, glans pressing her throat, gag reflex, saliva spilling from the corner of her mouth; his hand on her head.',
+      'Low-angle POV down her face: eye contact with the lens while she sucks, one hand stroking the base, breathing through her nose.',
+      'She pulls back to lick the corona and shaft, spit strings stretching, then takes him deep again; no scene change.',
+      'Cut to first penetration: she rises and sinks onto him cowgirl, same room, body jolting, mouth open, hands on his chest.',
+      'Reverse cowgirl: her back against his chest, hips rolling, his hands on her waist, breasts bouncing with each thrust.',
+      'Doggy on the same surface: he grips her hips and drives deep, her back arching, hair swinging, skin slapping.',
+      'Side-entry or lifted missionary: one leg over his shoulder, deeper angle, faces close, sweat and breath mixing.',
+      'Extreme close on the join: shaft sliding in and out, labia clinging, fluid stringing, thighs trembling; cut back to her face.',
+      ending,
+      after,
+    ];
+  } else if (atSex) {
+    shots = [
+      first,
+      `Continue the exact penetration from Picture 1: first visible thrust, hips meeting, her body jolting, mouth open, hands gripping. ${same}`,
+      'Same position, rhythm builds: breasts moving with each stroke, sweat on collarbone, her head falling back, moans breaking.',
+      'Cut to cowgirl: she rises and reseats herself facing him, hips rolling, hands on his chest, eye contact, breasts bouncing.',
+      'Medium side cowgirl: deeper strokes, her back arching, his hands on her waist, skin slapping, fluid at the join.',
+      'She slides off and takes him in her mouth: tongue dragging the shaft, cheeks hollowing, saliva shining, eye contact with the lens.',
+      'Low-angle oral close-up: she takes him deep, gagging softly, one hand stroking the base, spit strings on her chin.',
+      'Cut to doggy on the same surface: he grips her hips and drives deep, her back arched, hair swinging, ass meeting each thrust.',
+      'Side view doggy: one leg lifted, deeper angle, his hand in her hair, her mouth open, sweat dripping onto the surface.',
+      'Cut to missionary/lifted: faces close, her legs around him, deep slow thrusts, breasts pressed to his chest, breathing ragged.',
+      ending,
+      after,
+    ];
+  } else {
+    shots = [
+      first,
+      `Foreplay continues from the first frame: his hands slide over her body, pulling cloth aside or over bare skin, her head tilting back. ${same}`,
+      'Medium close: fingers and tongue on nipples and inner thighs, visible wetness, goosebumps; she arches into the touch.',
+      'She sinks down and takes him in her mouth, tongue dragging, cheeks hollowing, saliva shining; his hand on the back of her head.',
+      'Cut to first penetration: cowgirl, she sinks onto him, body jolting, mouth open, hands on his chest.',
+      'Reverse cowgirl: her back to his chest, hips rolling, his hands on her waist, breasts bouncing.',
+      'Doggy on the same surface: he grips her hips, drives deep, her back arching, hair swinging.',
+      'Side-entry or lifted missionary: one leg raised, deeper angle, faces close, sweat and breath mixing.',
+      'Extreme close on the join: shaft sliding in and out, labia clinging, fluid stringing, thighs trembling.',
+      'Rhythm accelerates: deeper strokes, skin slapping, her body rocking, moans breaking into gasps.',
+      ending,
+      after,
+    ];
+  }
+  const body = shots.map((action, i) => `[Shot ${i + 1}] ${times[i]} ${action}`).join('\n');
   const subject2 = twoWomen
     ? '<Subject 2> is @Woman2 — the exact second adult woman shown in Picture 1, if present. Identity and appearance come only from Picture 1; do not describe or invent them.'
     : hasMan
@@ -368,19 +449,19 @@ function buildAnchoredH3(imagePrompt: string): string {
 ${subject2}
 
 summary:
-[reference generation] A cinematic 60-second ${mode} explicit sequence. Picture 1 is the mandatory first frame and the only identity/scene reference. The video continues the exact act, pose, location, clothing/nudity and lighting already present in Picture 1, with camera-angle changes and one climax, no reset and no new act.
+[reference generation] A cinematic 60-second ${mode} explicit sequence. Picture 1 is the mandatory first frame and the only identity/scene reference. The video starts on the exact act in Picture 1, then progresses through multiple positions and oral, ending in ${cumEnding === 'oral' ? 'an oral cumshot' : cumEnding === 'ass' ? 'cum on her ass with her ass toward the camera' : 'an internal creampie'}. No scene change, no character change.
 
 retention_analysis:
 <Subject 1> <Picture 1>: fully_preserved — identity, face, hair, body, clothing/nudity and starting pose come only from the reference image.
 <Picture 1> first frame: fully_preserved as the exact 00:00.000 opening frame, not an approximation.
-Scene and action: fully_preserved from the source image prompt, no invented location or sex act.
+Scene and action: fully_preserved from the source image prompt; only positions progress, location never changes.
 
 detailed_description:
 ${body}
 
 Source image action/scene: ${core}
 
-overall_soundscape: ${solo ? 'Location ambience, her own breathing and soft moans, wet fingers/toy sounds, one climax cry, then trembling after-breaths. No male voice.' : twoWomen ? 'Location ambience, wet kisses, skin-on-skin, both women breathing and moaning, one shared climax cry, then after-breaths. No male voice.' : 'Location ambience under skin-on-skin impact, wet penetration and plug-shifting sounds, fabric friction, heavy breathing, her broken moans and one climax cry, one male groan, then after-breaths.'}
+overall_soundscape: ${solo ? 'Location ambience, her own breathing and soft moans, wet fingers/toy sounds, a clear squirting splash, then trembling after-breaths. No male voice.' : twoWomen ? 'Location ambience, wet kisses, skin-on-skin, both women breathing and moaning, wet squirting splashes, one shared climax cry, then after-breaths. No male voice.' : 'Location ambience under skin-on-skin impact, wet penetration and plug-shifting sounds, fabric friction, heavy breathing, her broken moans and one climax cry, one male groan, then after-breaths.'}
 non_diegetic_music: None`;
 }/**
  * 将 GirlfriendPreset.portraitUrl 转为 File 对象用于上传。
