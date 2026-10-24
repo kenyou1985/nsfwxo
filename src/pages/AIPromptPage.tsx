@@ -395,7 +395,7 @@ function buildAnchoredH3(imagePrompt: string): string {
   const solo = !twoWomen && !hasMan;
   const atFacesit = /(sits? astride|sitting on (?:his|the) face|facesit|face-sit|riding (?:his|her) face|mouth beneath|oral sex beneath|cunnilingus|骑脸|坐脸|坐在脸上)/i.test(scene);
   const atSex = /(penetrat|thrust|insert|cowgirl|doggy|missionary|riding him|inside her|fuck)/i.test(scene);
-  const atOral = /(blowjob|deepthroat|fellatio|sucking|takes him in her mouth|mouth around)/i.test(scene);
+  const atOral = /(blowjob|deepthroat|fellatio|sucking|takes? .{0,50}(?:cock|shaft|penis) .{0,40}(?:mouth|throat)|deep into her throat|lips .{0,30}(?:shaft|cock)|mouth around)/i.test(scene);
   const wantsAss = /(anal|anus|ass|doggy|behind|plug|glute)/i.test(scene);
   const wantsOral = /(oral|blowjob|mouth|deepthroat|suck)/i.test(scene);
   const cumEnding = wantsOral ? 'oral' : wantsAss ? 'ass' : 'internal';
@@ -411,6 +411,7 @@ function buildAnchoredH3(imagePrompt: string): string {
       ? 'Final shot: she arches her back and presents her ass to the camera, he strokes and paints her ass and lower back with thick ropes of cum, skin glistening; no second climax.'
       : 'Final shot: he buries himself to the hilt and finishes inside her, visible pulsing and creampie, her body convulsing; no second climax.';
   const after = 'Afterglow in the exact same location and position: chest heaving, wet skin, limbs trembling, cum still visible, no new act.';
+  const final = `${ending} ${after}`;
 
   let shots: string[];
   if (twoWomen) {
@@ -454,8 +455,7 @@ function buildAnchoredH3(imagePrompt: string): string {
       `${poseTrans[0]} Transition into ${penPoses[0] || 'Cowgirl Wild Ride'}: she rises and sinks onto him, her body jolting, mouth open, hands on his chest. ${same}`,
       `${poseTrans[1]} Transition into ${penPoses[1] || 'Reverse Cowgirl'}: her back to his chest, hips rolling, his hands gripping her waist, breasts bouncing. ${same}`,
       `${poseTrans[2]} Transition into ${penPoses[2] || 'Doggy Classic'}: he grips her hips and drives deep, her back arching, hair swinging, sweat dripping. ${same}`,
-      ending,
-      after,
+      final,
     ];
   } else if (atOral) {
     shots = [
@@ -469,8 +469,7 @@ function buildAnchoredH3(imagePrompt: string): string {
       `${poseTrans[2]} Transition into ${penPoses[2] || 'Doggy Classic'}: he grips her hips and drives deep, her back arching, hair swinging. ${same}`,
       'Side-entry or lifted angle on the same position: one leg over his shoulder, deeper, faces close, sweat and breath mixing.',
       'Extreme close on the join: shaft sliding in and out, labia clinging, fluid stringing, thighs trembling; cut back to her face.',
-      ending,
-      after,
+      final,
     ];
   } else if (atSex) {
     shots = [
@@ -484,8 +483,7 @@ function buildAnchoredH3(imagePrompt: string): string {
       `${poseTrans[1]} Transition into ${penPoses[1] || 'Doggy Classic'}: he grips her hips and drives deep, her back arched, ass meeting each thrust. ${same}`,
       'Side view of the same position: one leg lifted, deeper angle, his hand in her hair, her mouth open, sweat dripping.',
       `${poseTrans[2]} Transition into ${penPoses[2] || 'Missionary Legs Up'}: faces close, legs around him, deep slow thrusts, breasts pressed to his chest. ${same}`,
-      ending,
-      after,
+      final,
     ];
   } else {
     shots = [
@@ -499,17 +497,16 @@ function buildAnchoredH3(imagePrompt: string): string {
       'Side-entry or lifted angle on the same position: one leg raised, deeper, faces close, sweat and breath mixing.',
       'Extreme close on the join: shaft sliding in and out, labia clinging, fluid stringing, thighs trembling.',
       'Rhythm accelerates: deeper strokes, skin slapping, her body rocking, moans breaking into gasps.',
-      ending,
-      after,
+      final,
     ];
   }
-  const d = (zh: string) => `<d>[Chinese] ${zh}</d>`;
+  const d = (zh: string, speaker: 'S1' | 'S2' = 'S1') => `(${speaker}): <d>[Chinese] ${zh}</d>`;
   const female = ['好舒服…', '慢一点…', '求求你…', '快一点…', '我快不行了…', '爸爸操我…', '哥哥我想要…'];
   const male = ['不要动。', '夹紧。', '屁股抬高。', '操死你。', '不要出声。', '嘴巴张开，含住我的鸡巴。', '舔干净，吞下去。', '射了。'];
   const dialogue: string[] = Array(11).fill('');
   if (twoWomen) {
     dialogue[2] = d(female[0]);
-    dialogue[6] = d('舔我…');
+    dialogue[6] = d('舔我…', 'S2');
     dialogue[9] = d('一起…');
   } else if (solo) {
     dialogue[2] = d(female[0]);
@@ -517,9 +514,9 @@ function buildAnchoredH3(imagePrompt: string): string {
     dialogue[9] = d(female[4]);
   } else {
     dialogue[2] = d(female[0]);
-    dialogue[5] = d(male[5]);
+    dialogue[5] = d(male[5], 'S2');
     dialogue[7] = d(female[3]);
-    dialogue[9] = d(male[7]) + ' ' + d(female[4]);
+    dialogue[9] = d(male[7], 'S2') + ' ' + d(female[4]);
   }
   const voiced = shots.map((action, i) => i === 0 || !dialogue[i] ? action : `${action} ${dialogue[i]}`);
   const body = voiced.map((action, i) => `[Shot ${i + 1}] ${times[i]} ${action}`).join('\n');
