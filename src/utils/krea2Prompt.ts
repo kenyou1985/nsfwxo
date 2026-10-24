@@ -12,6 +12,17 @@ export function normalizeKrea2Prompt(input: string): string {
     .replace(/\s{2,}/g, ' ')
     .trim();
 
+  // 修正女性主体被描述成 futanari / 长阴茎的矛盾：改成 strap-on / 玩具
+  text = text
+    .replace(/\b(futanari|shemale|dickgirl|ladyboy|hermaphrodite)\b/gi, '')
+    .replace(/her\s+(?:erect\s+|hard\s+|throbbing\s+|wet\s+)?(?:penis|cock|dick)/gi, 'her strap-on dildo')
+    .replace(/a\s+woman\s+with\s+a\s+(?:penis|cock|dick)/gi, 'a woman with a strap-on dildo')
+    .replace(/woman[^.]{0,80}?erect penis/gi, 'woman with a strap-on dildo')
+    .replace(/\berect penis\b/gi, 'strap-on dildo')
+    .replace(/\bpenis\b/gi, 'strap-on dildo')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
   // 拆成短句，去重并保持原有画面顺序
   const parts = text.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean);
   const seen = new Set<string>();

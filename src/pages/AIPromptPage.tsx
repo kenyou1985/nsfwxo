@@ -41,6 +41,26 @@ function anchorH3Prompt(prompt: string): string {
   return `subject_definitions:\n<Subject 1> is @Woman <Picture 1> — an adult East Asian woman in her mid-20s, long straight black hair, fair skin, refined side profile, voluptuous curvy body; preserve face, hair, body proportions and identity exactly from Picture 1.\n<Subject 2> is @Man — a fully adult muscular man, face kept off close-up.\n\n${prompt}`;
 }
 /** 统一使用 Krea2 最强N版文生图工作流，节点仍按 Krea2 构建 */
+async function copyTextToClipboard(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {}
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    ta.remove();
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
 function buildKrea2NNodeList(prompt: string) {
   const opts = buildUnifiedTxt2ImgOptions(prompt, true);
   opts.workflowId = WORKFLOW.KREA2;
@@ -975,7 +995,10 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   }, []);
 
   const handleCopy = (id: string, text: string) => {
-    navigator.clipboard.writeText(text).then(() => { setCopiedId(id); setTimeout(() => setCopiedId(null), 2000); });
+    void copyTextToClipboard(text).then((ok) => {
+      if (!ok) { onError('复制失败，请手动选择文本'); return; }
+      setCopiedId(id); setTimeout(() => setCopiedId(null), 2000);
+    });
   };
 
   const handleDeleteHistory = (id: string) => { removeExpandHistory(id); setHistory(getExpandHistory()); };
@@ -2139,8 +2162,8 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     }
   };
 
-  const handleCopy = (idx: number, text: string) => { navigator.clipboard.writeText(text).then(() => { setCopiedIdx(idx); setTimeout(() => setCopiedIdx(null), 2000); }); };
-  const handleCopyAll = () => { navigator.clipboard.writeText(results.map((r) => r.prompt).join('\n\n---\n\n')).then(() => { setCopiedIdx(-1); setTimeout(() => setCopiedIdx(null), 2000); }); };
+  const handleCopy = (idx: number, text: string) => { void copyTextToClipboard(text).then((ok) => { if (!ok) { onError('复制失败，请手动选择文本'); return; } setCopiedIdx(idx); setTimeout(() => setCopiedIdx(null), 2000); }); };
+  const handleCopyAll = () => { void copyTextToClipboard(results.map((r) => r.prompt).join('\n\n---\n\n')).then((ok) => { if (!ok) { onError('复制失败，请手动选择文本'); return; } setCopiedIdx(-1); setTimeout(() => setCopiedIdx(null), 2000); }); };
   const handleDeleteHistory = (id: string) => { removeRandomHistory(id); setHistory(getRandomHistory()); };
   const handleHistoryLoad = (item: RandomHistoryItem) => {
     setTheme(item.theme || '');
