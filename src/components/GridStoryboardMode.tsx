@@ -912,15 +912,15 @@ export function GridStoryboardMode({
             }
             return next;
           });
-          // Also persist to the per-theme map so theme-switching restores it.
+          // Persist to the exact theme this task belongs to (may be inactive).
           setRedrawnPanelImagesMap((prev) => {
-            const themeImages = { ...(prev[activeThemeIdx] || {}) };
+            const themeImages = { ...(prev[themeIdx] || {}) };
             for (let i = 0; i < newImages.length; i++) {
               if (newImages[i]) {
                 themeImages[i] = [...(themeImages[i] || []), newImages[i]];
               }
             }
-            return { ...prev, [activeThemeIdx]: themeImages };
+            return { ...prev, [themeIdx]: themeImages };
           });
           // Persist to per-panel image cache so it survives page refresh.
           for (let i = 0; i < newImages.length; i++) {
@@ -2421,6 +2421,22 @@ export function GridStoryboardMode({
                 </button>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* 生图模型（主题库/随机选题时也显示） */}
+        {step === 'themes' && (
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-[10px] text-text-tertiary">生图模型:</span>
+            <select
+              value={imageModel}
+              onChange={(e) => setImageModel(e.target.value as typeof imageModel)}
+              className="px-2 py-1 rounded-lg text-[10px] border border-border bg-white text-text-primary"
+            >
+              <option value="krea2-n">Krea2 最强N版（文生图）</option>
+              <option value="qwen">Qwen 图像（文生图）</option>
+              <option value="official">官方默认</option>
+            </select>
           </div>
         )}
 
