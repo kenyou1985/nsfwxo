@@ -5,7 +5,7 @@ import type { GridPanel } from './storage';
  * 一格一镜；最多 15 个 shot，默认 9 格 9 个 shot。
  */
 export function buildGridH3VideoPrompt(panels: GridPanel[], title = '九宫格分镜'): string {
-  const cells = panels.slice(0, 9);
+  const cells = (panels || []).filter(Boolean).slice(0, 9);
   const shotSpecs = cells.flatMap((p, i) => {
     const raw = (p.image_prompt || p.scene_description || '').replace(/\s+/g, ' ').trim();
     const panelMatch = raw.match(/Panel\s*\d+\s*:\s*(.*)$/i);
