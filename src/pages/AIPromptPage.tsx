@@ -1031,13 +1031,8 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         }
       }
       if (digitalHumanMode && selectedGirlfriend) {
-        const nodes = buildImg2ImgNodeList({
-          prompt: outputText,
-          imagePath: downloadUrl || imagePath,
-          aspectRatio: img2imgAspectRatio,
-        });
-        await taskManager.addTask('img2img', nodes, outputText, WORKFLOW.IMAGE_TO_IMAGE, undefined, undefined, 'expand');
-        onSuccess('任务已提交，生成结果会显示在当前页面');
+        await taskManager.addDaotaiImgTask({ model: 'krea2-muse', ratio: '9:16', batch: 2, refs: [downloadUrl || imagePath] }, outputText);
+        onSuccess('任务已提交（Krea2-Muse 锚定生图），结果会显示在当前页面');
       } else {
         // 最强N版是导演台工作流，必须走 /api/daotai/image，不能走 RunningHub
         await taskManager.addDaotaiImgTask({ model: 'krea2', ratio: '9:16', batch: 2, refs: [] }, outputText);
@@ -1126,14 +1121,9 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       }
     }
     if (digitalHumanMode && selectedGirlfriend) {
-      const nodes = buildImg2ImgNodeList({
-        prompt: result.prompt,
-        imagePath: downloadUrl || imagePath,
-        aspectRatio: img2imgAspectRatio,
-      });
       try {
-        await taskManager.addTask('img2img', nodes, result.prompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, undefined, 'expand');
-        onSuccess('任务已提交，生成结果会显示在当前页面');
+        await taskManager.addDaotaiImgTask({ model: 'krea2-muse', ratio: '9:16', batch: 2, refs: [downloadUrl || imagePath] }, result.prompt);
+        onSuccess('任务已提交（Krea2-Muse 锚定生图），结果会显示在当前页面');
       } catch (err) {
         onError(err instanceof Error ? err.message : '提交失败');
         setGenState((prev) => {
@@ -1183,12 +1173,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     const toSubmit = results.slice(0, availableSlots);
     const tasks = toSubmit.map(async (result) => {
       if (digitalHumanMode && selectedGirlfriend) {
-        const nodes = buildImg2ImgNodeList({
-          prompt: result.prompt,
-          imagePath: downloadUrl || imagePath,
-          aspectRatio: img2imgAspectRatio,
-        });
-        await taskManager.addTask('img2img', nodes, result.prompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, undefined, 'expand');
+        await taskManager.addDaotaiImgTask({ model: 'krea2-muse', ratio: '9:16', batch: 2, refs: [downloadUrl || imagePath] }, result.prompt);
       } else {
         await taskManager.addDaotaiImgTask({ model: 'krea2', ratio: '9:16', batch: 2, refs: [] }, result.prompt);
       }
@@ -2211,14 +2196,9 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       }
     }
     if (digitalHumanMode && selectedGirlfriend) {
-      const nodes = buildImg2ImgNodeList({
-        prompt,
-        imagePath: downloadUrl || imagePath,
-        aspectRatio: img2imgAspectRatio,
-      });
       try {
-        await taskManager.addTask('img2img', nodes, prompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, undefined, 'random', randomTheme || undefined);
-        onSuccess('任务已提交，生成结果会显示在当前页面');
+        await taskManager.addDaotaiImgTask({ model: 'krea2-muse', ratio: '9:16', batch: 2, refs: [downloadUrl || imagePath] }, prompt);
+        onSuccess('任务已提交（Krea2-Muse 锚定生图），结果会显示在当前页面');
       } catch (err) {
         onError(err instanceof Error ? err.message : '提交失败');
         setGenStates((prev) => {
@@ -2387,12 +2367,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       const perTaskTheme = result.theme_label || '';
       const idx = results.indexOf(result);
       if (digitalHumanMode && selectedGirlfriend) {
-        const nodes = buildImg2ImgNodeList({
-          prompt: result.prompt,
-          imagePath: downloadUrl || imagePath,
-          aspectRatio: img2imgAspectRatio,
-        });
-        await taskManager.addTask('img2img', nodes, result.prompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, undefined, 'random', perTaskTheme || undefined);
+        await taskManager.addDaotaiImgTask({ model: 'krea2-muse', ratio: '9:16', batch: 2, refs: [downloadUrl || imagePath] }, result.prompt);
       } else {
         const taskId = await taskManager.addDaotaiImgTask({ model: 'krea2', ratio: '9:16', batch: 2, refs: [] }, result.prompt);
         const ridx = results.indexOf(result);
@@ -2443,67 +2418,10 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       // 2. 超时判断改用大小写不敏感的正则，避免 "Timeout" / "REQUEST TIMEOUT" 漏判。
       // 3. 除了超时外的瞬态错误（500/网络断开）也触发一次兜底重试（fast 模型 + 更长超时）。
       const processOne = async (i: number, result: PromptResult): Promise<void> => {
-        // try-finally 确保 cleanup 同步执行（Promise settle 之前），正确驱动 setH3ProcessingIndices 更新
         try {
-          const perTaskLabel = result.theme_label || themeLabel;
-
-          const isTimeoutErr = (err: unknown): boolean =>
-            err instanceof Error && /timeout/i.test(err.message);
-
-          // Step 1: 把图片提示词扩写成视频提示词
-          let videoRes;
-          let lastErr: unknown;
-          try {
-            videoRes = await expandVideoFromImage(result.prompt, perTaskLabel, r18Mode, 1);
-          } catch (h3Err) {
-            lastErr = h3Err;
-            if (isTimeoutErr(h3Err)) {
-              // 超时 → 用 fast 模型重试（更长超时）
-              console.warn(`[handleBatchGenerateH3] 第 ${i + 1} 个超时，fast 模型重试（150s）`);
-              try {
-                videoRes = await expandVideoFromImage(result.prompt, perTaskLabel, r18Mode, 1, ['grok-4.6', 'grok-4.3'], 150000);
-                lastErr = null; // 重试成功
-              } catch (retryErr) {
-                lastErr = retryErr;
-                // 重试仍超时或失败 → 兜底一次（允许慢模型）
-                if (isTimeoutErr(retryErr) || (retryErr instanceof Error && /50\d|network|fetch/i.test(retryErr.message))) {
-                  console.warn(`[handleBatchGenerateH3] 第 ${i + 1} 个重试仍失败，最后兜底（180s）`);
-                  try {
-                    videoRes = await expandVideoFromImage(result.prompt, perTaskLabel, r18Mode, 1, undefined, 180000);
-                    lastErr = null;
-                  } catch (fallbackErr) {
-                    lastErr = fallbackErr;
-                  }
-                }
-              }
-            } else if (h3Err instanceof Error && /50\d|network|fetch/i.test(h3Err.message)) {
-              // 非超时但可能是瞬态错误（500/网络） → 直接兜底重试
-              console.warn(`[handleBatchGenerateH3] 第 ${i + 1} 个瞬态错误，兜底重试（180s）`);
-              try {
-                videoRes = await expandVideoFromImage(result.prompt, perTaskLabel, r18Mode, 1, undefined, 180000);
-                lastErr = null;
-              } catch (fallbackErr) {
-                lastErr = fallbackErr;
-              }
-            }
-            // else: 已知业务错误（如参数错误），不重试，直接抛
-            if (lastErr) throw lastErr;
-          }
-
-          const videoPrompt = videoRes?.results?.[0]?.prompt?.trim();
-          if (!videoPrompt) {
-            console.warn(`[handleBatchGenerateH3] 第 ${i + 1} 个视频提示词扩写返回为空，跳过`);
-            return;
-          }
-
-          // Step 2: 格式化成 H3 六段式
-          completed[i] = generateH3Prompt({
-            imagePrompt: result.prompt,
-            sceneDescription: videoPrompt,
-            duration: 60,
-            shotCount: 12,
-            r18: r18Mode,
-          });
+          // 固定英文 11 镜 H3 模板，锚定当前图片，不再走 LLM（避免审核拒绝与中文旧模板）
+          completed[i] = buildAnchoredH3(result.prompt);
+          return;
         } finally {
           // 无论成功/失败/空结果，都立即从 processing 集合中移除该索引，
           // 避免失败任务导致对应卡片永远卡在 loading 状态。
@@ -2559,52 +2477,11 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     const perTaskLabel = result.theme_label || THEMES.find(t => t.key === theme)?.label || theme || (r18Mode ? 'R18' : '默认主题');
     
     try {
-      // Step 1: 把图片提示词扩写成视频提示词（超时则自动切换 fast 模型兜底）
-      let videoRes;
-      try {
-        videoRes = await expandVideoFromImage(result.prompt, perTaskLabel, r18Mode, 1);
-      } catch (h3Err) {
-        const isTimeout = h3Err instanceof Error &&
-          (h3Err.message.includes('超时') || h3Err.message.includes('timeout'));
-        if (isTimeout) {
-          console.warn(`[handleGenerateSingleH3] expandVideoFromImage 第 ${idx + 1} 个超时，尝试 fast 模型重试（150s）`);
-          videoRes = await expandVideoFromImage(result.prompt, perTaskLabel, r18Mode, 1, ['grok-4.6', 'grok-4.3'], 150000);
-        } else {
-          throw h3Err;
-        }
-      }
-      
-      const videoPrompt = videoRes.results?.[0]?.prompt?.trim();
-      if (!videoPrompt) {
-        onError(`第 ${idx + 1} 个视频提示词扩写返回为空`);
-        return;
-      }
-      
-      // Step 2: 格式化成 H3 六段式
-      const h3Prompt = generateH3Prompt({
-        imagePrompt: result.prompt,
-        sceneDescription: videoPrompt,
-        duration: 60,
-        shotCount: 12,
-        r18: r18Mode,
-      });
-      
-      // 更新该卡片的 H3 提示词
-      setH3Prompts(prev => ({ ...prev, [idx]: h3Prompt }));
+      // 固定英文 11 镜 H3 模板，锚定当前图片
+      const localH3 = buildAnchoredH3(result.prompt);
+      setH3Prompts(prev => ({ ...prev, [idx]: localH3 }));
       onSuccess(`第 ${idx + 1} 个 H3 视频提示词已生成`);
-      return h3Prompt;
-    } catch (err) {
-      // LLM 审核拒绝时用本地模板兜底，保证仍有 60 秒 12 镜 H3 提示词
-      const fallback = generateH3Prompt({
-        imagePrompt: result.prompt,
-        sceneDescription: result.prompt,
-        duration: 60,
-        shotCount: 12,
-        r18: r18Mode,
-      });
-      setH3Prompts(prev => ({ ...prev, [idx]: fallback }));
-      onSuccess(`第 ${idx + 1} 个 H3 使用本地模板兜底生成`);
-      return fallback;
+      return localH3;
     } finally {
       setH3ProcessingIndices(prev => {
         const next = new Set(prev);
@@ -3258,20 +3135,6 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
                       >
                         <Copy size={12} />
                       </button>
-                      {allDisplayImages.length > 0 && onGotoLongVideoWithH3 && (
-                        <button
-                          onClick={() => {
-                            const imageToUse = selectedImageIndex !== undefined && allDisplayImages[selectedImageIndex]
-                              ? allDisplayImages[selectedImageIndex]
-                              : allDisplayImages[0];
-                            onGotoLongVideoWithH3(imageToUse, h3Prompt);
-                          }}
-                          className="hidden sm:flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90 transition-all"
-                          title={selectedImageIndex !== undefined ? '用已选中的图片生成视频' : '点击图片选中后再生成视频（默认使用第一张）'}
-                        >
-                          <Video size={11} />长视频 1.1
-                        </button>
-                      )}
                       <button
                         type="button"
                         onClick={() => setH3Expanded(v => !v)}
