@@ -9074,6 +9074,42 @@ async def generate_h3_dna_stream(req: GenerateH3DnaRequest, api_key: str = Depen
                 f"\n\nGenerate a COMPLETELY DIFFERENT version # {variation_idx + 1}."
                 f" Use a different pose, angle, lighting, and narrative action."
             )
+        # 多条提示词多样性：按 index 轮换道具/姿势/机位，避免 3 条全是项圈+拍打
+        import random as _rnd
+        if (req.erotic_level or '').lower() == 'sm':
+            sm_props = [
+                'nipple clamps', 'anal plug', 'vibrating egg', 'ball gag', 'wand vibrator',
+                'shibari rope harness', 'blindfold', 'leather handcuffs', 'leather body harness',
+                'riding crop', 'feather tickler', 'spreader bar', 'collar and leash',
+                'ice cubes', 'low-temperature wax candles', 'thigh strap',
+            ]
+            sm_setups = [
+                'wrist suspension from the ceiling', 'hogtie on the bed', 'spread-eagle on the bed',
+                'kneeling with hands bound behind', 'bent over a chair', 'standing against a St. Andrew cross',
+                'locked in a cage', 'tied to a mirror', 'kneeling at the bed edge', 'suspended in rope from a beam',
+            ]
+            p1 = sm_props[(variation_idx * 3) % len(sm_props)]
+            p2 = sm_props[(variation_idx * 3 + 5) % len(sm_props)]
+            setup = sm_setups[(variation_idx * 2 + 1) % len(sm_setups)]
+            hint_suffix += (
+                f"\n\n【本条多样性要求 · 变体 {variation_idx + 1}】\n"
+                f"必须使用道具：{p1} + {p2}；束缚/场景：{setup}。"
+                f"不要重复其它变体已经用过的道具组合；不要把三条都写成项圈+拍打。"
+                f"道具必须实际参与动作，不能只作为背景摆设。"
+            )
+        elif (req.erotic_level or '').lower() == 'normal':
+            positions = [
+                'missionary with legs raised', 'cowgirl facing forward', 'reverse cowgirl',
+                'doggy style over the bed edge', 'spooning side entry', 'standing rear entry',
+                'lotus seated face-to-face', 'side-lying scissor', 'prone bone', 'against the wall',
+            ]
+            pos = positions[variation_idx % len(positions)]
+            hint_suffix += (
+                f"\n\n【本条多样性要求 · 变体 {variation_idx + 1}】\n"
+                f"本条主姿势固定为：{pos}。用 2-3 个不同机位呈现同一姿势，"
+                f"不要和另外几条使用同一姿势或同一机位顺序。"
+            )
+
         return (
             _build_h3_dna_user_prompt(
                 dna=dna,

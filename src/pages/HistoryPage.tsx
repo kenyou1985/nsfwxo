@@ -315,12 +315,27 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
     refreshRecords();
   }, [refreshRecords]);
 
-  const handleCopyPrompt = useCallback((prompt: string) => {
-    navigator.clipboard.writeText(prompt).then(() => {
+  const handleCopyPrompt = useCallback(async (prompt: string) => {
+    try {
+      await navigator.clipboard.writeText(prompt);
       onSuccess?.('提示词已复制');
-    }).catch(() => {
-      onError?.('复制失败');
-    });
+      return;
+    } catch {}
+    // HTTP/权限受限时 navigator.clipboard 会失败，用 textarea 兜底
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = prompt;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      ta.remove();
+      if (ok) onSuccess?.('提示词已复制');
+      else onError?.('复制失败，请手动选择文本复制');
+    } catch {
+      onError?.('复制失败，请手动选择文本复制');
+    }
   }, [onSuccess, onError]);
 
   const handleRegenerateGpt2 = useCallback((record: GptImage2Record) => {
