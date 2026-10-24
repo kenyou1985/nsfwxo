@@ -3555,6 +3555,7 @@ export function GridStoryboardMode({
                   })}
                 </div>
               ) : heroImage ? (
+                <>
                 <div
                   className="relative group cursor-pointer"
                   onClick={() => setShowLightbox(true)}
@@ -3573,6 +3574,21 @@ export function GridStoryboardMode({
                     </div>
                   </div>
                 </div>
+                {gridImages.length > 1 && (
+                  <div className="flex gap-2 mt-2 overflow-x-auto p-1 bg-white">
+                    {gridImages.map((img, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setActiveImageIdx(idx)}
+                        className={`flex-shrink-0 rounded-md overflow-hidden border-2 ${idx === activeImageIdx ? 'border-purple-500' : 'border-transparent'}`}
+                      >
+                        <img src={img} alt={`grid ${idx + 1}`} className="w-20 h-28 object-cover" />
+                        <span className="block text-[9px] text-center py-0.5">图片 {idx + 1}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                </>
               ) : (
                 <div className="aspect-[9/16] flex flex-col items-center justify-center">
                   {isGenerating ? (
