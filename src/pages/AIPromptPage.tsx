@@ -31,6 +31,7 @@ import {
 } from '../services/promptApi';
 import { submitDaotaiVideo, pollDaotaiTask } from '../services/daotai';
 import { publishExternalVideoTask } from '../services/videoTaskBridge';
+import { VIDEO_POSE_PRESETS } from '../data/presetPoses';
 
 const KREA2_N_STRONG_WORKFLOW = '2101119999196127233';
 
@@ -41,6 +42,20 @@ function anchorH3Prompt(prompt: string): string {
   return `subject_definitions:\n<Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1; preserve her face, hair color and hairstyle, skin tone, body proportions and identity exactly from Picture 1.\n<Subject 2> is @Man — a fully adult muscular man, face kept off close-up.\n\n${prompt}`;
 }
 /** 统一使用 Krea2 最强N版文生图工作流，节点仍按 Krea2 构建 */
+function pickPoseNames(kind: 'penetration' | 'oral', count: number): string[] {
+  const oralRe = /口交|69|舔|深喉|oral|blow|lick|suck/i;
+  const penRe = /后入|女上位|传教士|侧卧|站立|抱起|骑乘|插入|doggy|cowgirl|missionary|spoon|standing|carry|riding|penetrat/i;
+  const pool = VIDEO_POSE_PRESETS
+    .filter((p) => {
+      const t = `${p.name} ${p.nameZh}`;
+      return kind === 'oral' ? oralRe.test(t) : penRe.test(t) && !oralRe.test(t);
+    })
+    .map((p) => p.name.replace(/^#\d+\s*/, ''))
+    .filter(Boolean);
+  const shuffled = [...pool].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, count);
+}
+
 async function copyTextToClipboard(text: string): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(text);
@@ -340,6 +355,8 @@ function buildAnchoredH3(imagePrompt: string): string {
   const cumEnding = wantsOral ? 'oral' : wantsAss ? 'ass' : 'internal';
   const first = 'Exactly reproduce Picture 1 as the first frame: identical pose, identical framing, identical clothing state or nudity, identical lighting and background. Hold one beat, then continue the SAME act already happening in the image. Never reset to an earlier stage, never undress or dress again, never switch to a different sex act.';
   const same = `${placeLine}. Same people, same clothing/nudity state as Picture 1. Cut on motion between positions; no reset, no scene change, no character change.`;
+  const penPoses = pickPoseNames('penetration', 3);
+  const oralPose = pickPoseNames('oral', 1)[0] || '69 Mutual Oral';
   const ending = cumEnding === 'oral'
     ? 'Final shot: she pulls him out and takes the single load on her tongue and face, mouth open, cum on lips and chin, swallowing; no second climax.'
     : cumEnding === 'ass'
@@ -383,11 +400,11 @@ function buildAnchoredH3(imagePrompt: string): string {
       'Extreme close between her thighs: his tongue parts her labia and laps upward, her hips grind down, wetness on his chin.',
       'Low-angle from below: her face above him, drowsy dominant stare, breasts swaying as she rocks, existing headwear/clothing staying in place.',
       'Medium side: she leans back on one hand, thighs clamping around his head, grinding faster, stomach tightening.',
-      'She slides down and takes his cock in her mouth, tongue dragging the shaft, cheeks hollowing, saliva shining; his hand on her head.',
+      `She slides down into ${oralPose}: takes his cock in her mouth, tongue dragging the shaft, cheeks hollowing, saliva shining; his hand on her head. ${same}`,
       'Low-angle POV: she looks up at the lens while sucking, one hand stroking the base, then takes him deep, gagging softly.',
-      'Cut to first penetration: she rises and sinks onto him cowgirl, same room, her body jolting, mouth open, hands on his chest.',
-      'Medium side: reverse cowgirl, her back to his chest, hips rolling, his hands gripping her waist, breasts bouncing.',
-      'Cut to doggy on the same surface: he grips her hips and drives deep, her back arching, hair swinging, sweat dripping.',
+      `Cut to ${penPoses[0] || 'Cowgirl Wild Ride'}: she rises and sinks onto him, her body jolting, mouth open, hands on his chest. ${same}`,
+      `Cut to ${penPoses[1] || 'Reverse Cowgirl'}: her back to his chest, hips rolling, his hands gripping her waist, breasts bouncing. ${same}`,
+      `Cut to ${penPoses[2] || 'Doggy Classic'}: he grips her hips and drives deep, her back arching, hair swinging, sweat dripping. ${same}`,
       ending,
       after,
     ];
@@ -398,10 +415,10 @@ function buildAnchoredH3(imagePrompt: string): string {
       'Medium close: deeper take, glans pressing her throat, gag reflex, saliva spilling from the corner of her mouth; his hand on her head.',
       'Low-angle POV down her face: eye contact with the lens while she sucks, one hand stroking the base, breathing through her nose.',
       'She pulls back to lick the corona and shaft, spit strings stretching, then takes him deep again; no scene change.',
-      'Cut to first penetration: she rises and sinks onto him cowgirl, same room, body jolting, mouth open, hands on his chest.',
-      'Reverse cowgirl: her back against his chest, hips rolling, his hands on her waist, breasts bouncing with each thrust.',
-      'Doggy on the same surface: he grips her hips and drives deep, her back arching, hair swinging, skin slapping.',
-      'Side-entry or lifted missionary: one leg over his shoulder, deeper angle, faces close, sweat and breath mixing.',
+      `Cut to ${penPoses[0] || 'Cowgirl Wild Ride'}: she rises and sinks onto him, body jolting, mouth open, hands on his chest. ${same}`,
+      `Cut to ${penPoses[1] || 'Reverse Cowgirl'}: her back against his chest, hips rolling, his hands on her waist, breasts bouncing. ${same}`,
+      `Cut to ${penPoses[2] || 'Doggy Classic'}: he grips her hips and drives deep, her back arching, hair swinging. ${same}`,
+      'Side-entry or lifted angle on the same position: one leg over his shoulder, deeper, faces close, sweat and breath mixing.',
       'Extreme close on the join: shaft sliding in and out, labia clinging, fluid stringing, thighs trembling; cut back to her face.',
       ending,
       after,
@@ -411,13 +428,13 @@ function buildAnchoredH3(imagePrompt: string): string {
       first,
       `Continue the exact penetration from Picture 1: first visible thrust, hips meeting, her body jolting, mouth open, hands gripping. ${same}`,
       'Same position, rhythm builds: breasts moving with each stroke, sweat on collarbone, her head falling back, moans breaking.',
-      'Cut to cowgirl: she rises and reseats herself facing him, hips rolling, hands on his chest, eye contact, breasts bouncing.',
-      'Medium side cowgirl: deeper strokes, her back arching, his hands on her waist, skin slapping, fluid at the join.',
-      'She slides off and takes him in her mouth: tongue dragging the shaft, cheeks hollowing, saliva shining, eye contact with the lens.',
+      `Cut to ${penPoses[0] || 'Cowgirl Wild Ride'}: she changes into this position, hands and hips finding the rhythm, eye contact, breasts bouncing. ${same}`,
+      'Medium side on the same position: deeper strokes, her back arching, his hands on her waist, skin slapping, fluid at the join.',
+      `She slides off and switches to ${oralPose}: tongue dragging the shaft, cheeks hollowing, saliva shining, eye contact with the lens. ${same}`,
       'Low-angle oral close-up: she takes him deep, gagging softly, one hand stroking the base, spit strings on her chin.',
-      'Cut to doggy on the same surface: he grips her hips and drives deep, her back arched, hair swinging, ass meeting each thrust.',
-      'Side view doggy: one leg lifted, deeper angle, his hand in her hair, her mouth open, sweat dripping onto the surface.',
-      'Cut to missionary/lifted: faces close, her legs around him, deep slow thrusts, breasts pressed to his chest, breathing ragged.',
+      `Cut to ${penPoses[1] || 'Doggy Classic'}: he grips her hips and drives deep, her back arched, ass meeting each thrust. ${same}`,
+      'Side view of the same position: one leg lifted, deeper angle, his hand in her hair, her mouth open, sweat dripping.',
+      `Cut to ${penPoses[2] || 'Missionary Legs Up'}: faces close, legs around him, deep slow thrusts, breasts pressed to his chest. ${same}`,
       ending,
       after,
     ];
@@ -427,10 +444,10 @@ function buildAnchoredH3(imagePrompt: string): string {
       `Foreplay continues from the first frame: his hands slide over her body, pulling cloth aside or over bare skin, her head tilting back. ${same}`,
       'Medium close: fingers and tongue on nipples and inner thighs, visible wetness, goosebumps; she arches into the touch.',
       'She sinks down and takes him in her mouth, tongue dragging, cheeks hollowing, saliva shining; his hand on the back of her head.',
-      'Cut to first penetration: cowgirl, she sinks onto him, body jolting, mouth open, hands on his chest.',
-      'Reverse cowgirl: her back to his chest, hips rolling, his hands on her waist, breasts bouncing.',
-      'Doggy on the same surface: he grips her hips, drives deep, her back arching, hair swinging.',
-      'Side-entry or lifted missionary: one leg raised, deeper angle, faces close, sweat and breath mixing.',
+      `Cut to ${penPoses[0] || 'Cowgirl Wild Ride'}: she sinks onto him, body jolting, mouth open, hands on his chest. ${same}`,
+      `Cut to ${penPoses[1] || 'Reverse Cowgirl'}: her back to his chest, hips rolling, his hands on her waist, breasts bouncing. ${same}`,
+      `Cut to ${penPoses[2] || 'Doggy Classic'}: he grips her hips, drives deep, her back arching, hair swinging. ${same}`,
+      'Side-entry or lifted angle on the same position: one leg raised, deeper, faces close, sweat and breath mixing.',
       'Extreme close on the join: shaft sliding in and out, labia clinging, fluid stringing, thighs trembling.',
       'Rhythm accelerates: deeper strokes, skin slapping, her body rocking, moans breaking into gasps.',
       ending,
