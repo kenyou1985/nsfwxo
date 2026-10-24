@@ -1472,7 +1472,12 @@ export function GridStoryboardMode({
       // Restore new theme's images and state
       const themeIdx = completedThemes.findIndex((t) => t.themeTitle === themeTitle);
       const newThemeIdx = themeIdx >= 0 ? themeIdx : activeThemeIdx;
-      const newImages = gridImagesMap[newThemeIdx] || [];
+      let newImages = gridImagesMap[newThemeIdx] || [];
+      // 兜底：内存 map 偶发缺失时，从该主题 history 的本地缓存恢复九宫格图片
+      if (newImages.length === 0) {
+        const hidForCache = currentHistoryIdMap[newThemeIdx];
+        if (hidForCache) newImages = getCachedStoryboardPanelImages(hidForCache, 0);
+      }
       const newIsGenerating = isGeneratingMap[newThemeIdx] || false;
       const newHistoryId = currentHistoryIdMap[newThemeIdx] || null;
       // Restore per-panel images for the target theme (or empty if not yet generated).
@@ -1500,6 +1505,15 @@ export function GridStoryboardMode({
       onSuccess(`已加载「${theme.themeTitle}」分镜`);
     }
   };
+
+  // 主题切换后，如果当前显示图与主题 map 不一致，强制恢复该主题图片
+  useEffect(() => {
+    const imgs = gridImagesMap[activeThemeIdx] || [];
+    if (imgs.length > 0 && gridImages.length === 0) {
+      setGridImages(imgs);
+      setActiveImageIdx(0);
+    }
+  }, [activeThemeIdx, gridImagesMap, gridImages.length]);
 
   // ── Random: pick 3 themes from library and add to theme pool ──
 
