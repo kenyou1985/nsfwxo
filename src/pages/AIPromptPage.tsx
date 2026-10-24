@@ -320,38 +320,40 @@ function generateH3Summary(h3Prompt: string): string {
 /** 以当前图片为首帧，生成规范 H3 六段式视频提示词 */
 function buildAnchoredH3(imagePrompt: string): string {
   const scene = (imagePrompt || '').trim();
-  const cams = [
-    'Medium wide, handheld slight sway, slow push in.',
-    'Medium close, match-cut push, chest close-up.',
-    'Medium side, camera tilts from face to stripped crotch.',
-    'Low-angle close, intimate POV down her face onto the shaft.',
-    'Extreme close on mouth, tracking saliva down her chin.',
-    'Medium full side, standing single-leg-raised side entry.',
-    'Medium front three-quarter, handheld slow push to the wet join.',
-    'Genital close-up, slow-motion micro-push on the wet slide.',
-    'Medium wide lift, camera circles to waist-level tracking.',
-    'Close POV then face, single facial ejaculation in slow motion.',
-    'Medium side handheld, aftershock and after-breaths, continuous motion.',
-  ];
   const times = ['00:00.000','00:05.500','00:11.000','00:16.500','00:22.000','00:27.500','00:33.000','00:38.500','00:44.000','00:49.500','00:55.000'];
-  const shots = cams.map((cam, i) => `[Shot ${i + 1}] ${times[i]} ${cam} ${scene} Same subject, same clothing state, continuous motion from the previous shot; correct human anatomy, five fingers, both legs complete, consistent with Picture 1, no jitter, no frame skips.`).join('\n');
+  const shots = [
+    'Exactly reproduce Picture 1 as the first frame: identical pose, identical framing, identical clothing state or nudity, identical lighting and background. Hold this static opening for one beat, then begin micro-movement only. Do not reset, do not invent clothes, do not change the starting state.',
+    'Continue from the exact first frame. The man closes in and kisses her neck while his hands pull the existing garment aside or slide over bare skin; her head tilts back, lips part, breathing quickens. Same position, same room, same light.',
+    'Medium close on her upper body. Foreplay escalates: fingers, tongue or toy on her nipples and inner thighs, visible wetness and goosebumps. She arches into the touch, eye contact with the lens. No cut-away, continuous motion.',
+    'Low-angle medium. She sinks down and takes his erect penis into her mouth, tongue dragging along the shaft, cheeks hollowing, saliva shining on her lips. His hand rests on the back of her head. Same room and light, no clothing reset.',
+    'Medium wide, side angle. First penetration in the same position as the opening: the head presses in, her body jolts, mouth opens, hands grip the surface beneath her. Slow first thrust, visible tension and wetness.',
+    'Medium side tracking. The same penetration continues at a steady rhythm: hips meeting, her breasts moving with each thrust, sweat beginning to shine on her collarbone and belly. Camera orbits slowly, no position reset.',
+    'Extreme close on the join, same position. The shaft slides in and out, labia stretching and clinging, fluid stringing between them, her thigh trembling. Cut back to her face for the reaction without changing the pose.',
+    'Medium front three-quarter. Rhythm accelerates: deeper strokes, skin slapping, her back arching, toes curling, hair sticking to her cheek. She reaches for him, then braces against the surface. Continuous action, no repeated entrance.',
+    'Medium wide. Slight positional adjustment only: one leg is lifted higher or her hips are tilted up, opening the angle. He keeps the same grip and drives deeper; her breasts bounce, sweat drips, eye contact breaks into a stunned expression.',
+    'Close POV then face. Final hard thrusts build to one climax: his body tenses, he pulls out or stays buried as the single ejaculation lands on her tongue, face, chest or belly. Her orgasm hits with a full-body shudder, mouth open, tears at the corners of her eyes.',
+    'Medium side, handheld. Afterglow in the exact same location: semen on her skin, chest heaving, limbs trembling, she licks her lips or wipes a streak and looks at the lens. No new position, no second climax, natural breathing and aftershocks.',
+  ];
+  const body = shots.map((action, i) => `[Shot ${i + 1}] ${times[i]} ${action}`).join('\n');
   return `subject_definitions:
-<Subject 1> is @Woman <Picture 1> — an adult in her mid-20s East Asian woman with long straight black hair, fair skin, refined side profile and a voluptuous curvy body; preserve face, hair, body proportions and identity exactly from Picture 1.
+<Subject 1> is @Woman <Picture 1> — an adult East Asian woman in her mid-20s with long straight black hair, fair skin, refined side profile and a naturally curvy body. Preserve her face, hair, body proportions, skin tone and identity exactly from Picture 1. Her clothing state and nudity must match Picture 1 at the first frame and stay continuous afterward.
 <Subject 2> is @Man — a fully adult muscular man, face kept off close-up.
 
 summary:
-[reference generation] Cinematic 60-second explicit adult sequence built from the current image, using Picture 1 as the first frame and identity anchor. The scene follows the image prompt through foreplay, oral, penetration and one final climax, with continuous motion and no reset.
+[reference generation] A cinematic 60-second explicit adult sequence. Picture 1 is the mandatory first frame: the video starts on the exact same pose, clothing state, framing and lighting as the reference image, then continues into foreplay, oral, penetration, multiple camera angles of the same act, and one final climax. No scene reset, no clothing reset, no jump cut back to a previous state.
 
 retention_analysis:
-<Subject 1> <Picture 1>: fully_preserved — face, hair, body proportions and identity stay consistent with the reference.
+<Subject 1> <Picture 1>: fully_preserved — face, hair, body proportions, identity and starting clothing/nudity stay consistent with the reference.
+<Picture 1> first frame: fully_preserved as the exact 00:00.000 opening frame, not an approximation.
 
 detailed_description:
-${shots}
+${body}
 
-overall_soundscape: Environment ambience under skin-on-skin slaps, wet oral sounds, breathing, her broken moans and one climax cry, one male groan, then dripping and after-breaths.
+Scene reference from the source image: ${scene}
+
+overall_soundscape: Room ambience under skin-on-skin slaps, wet oral and penetration sounds, fabric friction, heavy breathing, her broken moans and one climax cry, one male groan, then dripping and after-breaths.
 non_diegetic_music: None`;
 }
-
 /**
  * 将 GirlfriendPreset.portraitUrl 转为 File 对象用于上传。
  * fetch 支持 data: / blob: / http: 等各类 URL 类型。
@@ -3171,7 +3173,7 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
                   {h3Prompt && (
                     <>
                       <button
-                        onClick={() => navigator.clipboard.writeText(h3Prompt).catch(() => {})}
+                        onClick={() => { void copyTextToClipboard(h3Prompt); }}
                         className="p-1 rounded-md text-text-tertiary hover:bg-bg-hover transition-colors"
                         title="复制 H3 提示词"
                       >
