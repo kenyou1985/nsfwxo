@@ -454,6 +454,14 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
   const saveToHistoryRef = useRef<(task: VideoTask) => void>(() => {});
 
   useEffect(() => {
+    // 一次性丢弃旧版任务缓存，避免历史失败任务刷新后再次出现
+    try {
+      localStorage.removeItem('nsfwxo_video_tasks');
+      localStorage.removeItem('nsfwxo_external_video_tasks');
+    } catch {}
+  }, []);
+
+  useEffect(() => {
     // 持久化任务到 localStorage。
     //
     // localStorage 默认配额只有 ~5MB；不收敛的话：
