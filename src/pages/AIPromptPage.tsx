@@ -2506,11 +2506,9 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     const rhKey = apiKey;
     if (!rhKey) { onError('请先配置 RunningHub API Key'); setVideoStates(prev => ({ ...prev, [idx]: { loading: false, error: '未配置 API Key' } })); return; }
     try {
-      let h3: string | undefined = h3PromptsRef.current[idx];
-      if (!h3) {
-        h3 = await handleGenerateSingleH3(idx);
-      }
-      if (!h3) throw new Error('H3 视频提示词生成失败');
+      // 始终按当前图片重建英文 11 镜 H3，避免复用旧缓存里的中文模板
+      const h3 = buildAnchoredH3(result.prompt);
+      setH3Prompts(prev => ({ ...prev, [idx]: h3 }));
 
       const localTaskId = `random-video-${Date.now()}-${idx}`;
       const body = {
