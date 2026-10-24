@@ -251,6 +251,14 @@ import {
 } from '../services/promptApi';
 import { submitDaotaiVideo, pollDaotaiTask } from '../services/daotai';
 import { publishExternalVideoTask } from '../services/videoTaskBridge';
+
+const KREA2_N_STRONG_WORKFLOW = '2101119999196127233';
+/** 统一使用 Krea2 最强N版文生图工作流，节点仍按 Krea2 构建 */
+function buildKrea2NNodeList(prompt: string) {
+  const opts = buildUnifiedTxt2ImgOptions(prompt, true);
+  opts.workflowId = WORKFLOW.KREA2;
+  return buildTxt2ImgNodeList(opts);
+}
 import {
   getYunwuKey,
   getExpandHistory, addExpandHistory, removeExpandHistory, clearExpandHistory,
@@ -990,8 +998,8 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         await taskManager.addTask('img2img', nodes, outputText, WORKFLOW.IMAGE_TO_IMAGE, undefined, undefined, 'expand');
         onSuccess('任务已提交，生成结果会显示在当前页面');
       } else {
-        const nodes = buildTxt2ImgNodeList(buildUnifiedTxt2ImgOptions(outputText));
-        await taskManager.addTask('txt2img', nodes, outputText, undefined, undefined, undefined, 'expand');
+        const nodes = buildKrea2NNodeList(outputText);
+        await taskManager.addTask('txt2img', nodes, outputText, KREA2_N_STRONG_WORKFLOW, undefined, undefined, 'expand');
         onSuccess('任务已提交，生成结果会显示在当前页面');
       }
     } catch (err) {
@@ -1092,9 +1100,9 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         });
       }
     } else {
-      const nodes = buildTxt2ImgNodeList(buildUnifiedTxt2ImgOptions(result.prompt));
+      const nodes = buildKrea2NNodeList(result.prompt);
       try {
-        await taskManager.addTask('txt2img', nodes, result.prompt, undefined, undefined, undefined, 'expand');
+        await taskManager.addTask('txt2img', nodes, result.prompt, KREA2_N_STRONG_WORKFLOW, undefined, undefined, 'expand');
         onSuccess('任务已提交，生成结果会显示在当前页面');
       } catch (err) {
         onError(err instanceof Error ? err.message : '提交失败');
@@ -1140,8 +1148,8 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         });
         await taskManager.addTask('img2img', nodes, result.prompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, undefined, 'expand');
       } else {
-        const nodes = buildTxt2ImgNodeList(buildUnifiedTxt2ImgOptions(result.prompt));
-        await taskManager.addTask('txt2img', nodes, result.prompt, undefined, undefined, undefined, 'expand');
+        const nodes = buildKrea2NNodeList(result.prompt);
+        await taskManager.addTask('txt2img', nodes, result.prompt, KREA2_N_STRONG_WORKFLOW, undefined, undefined, 'expand');
       }
     });
     const results_await = await Promise.allSettled(tasks);
@@ -1210,9 +1218,9 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       }
     } else {
       const finalPrompt = withQualityBoost(prompt);
-      const nodes = buildTxt2ImgNodeList(buildUnifiedTxt2ImgOptions(finalPrompt));
+      const nodes = buildKrea2NNodeList(finalPrompt);
       try {
-        await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, storyboardInfo, 'smart-storyboard', context?.themeTitle, context?.panelNumber);
+        await taskManager.addTask('txt2img', nodes, finalPrompt, KREA2_N_STRONG_WORKFLOW, undefined, storyboardInfo, 'smart-storyboard', context?.themeTitle, context?.panelNumber);
         console.log(`[handleExpandModeSinglePanelGenerate] submitted txt2img task, prompt length=${finalPrompt.length}`);
         onSuccess('分镜图片任务已提交');
       } catch (err) {
@@ -1343,8 +1351,8 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         await taskManager.addTask('img2img', nodes, finalPrompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, panelStoryboardInfo, 'storyboard', plotLabel, panelNum);
       } else {
         const finalPrompt = withQualityBoost(panel.image_prompt);
-        const nodes = buildTxt2ImgNodeList(buildUnifiedTxt2ImgOptions(finalPrompt));
-        await taskManager.addTask('txt2img', nodes, finalPrompt, undefined, undefined, panelStoryboardInfo, 'storyboard', plotLabel, panelNum);
+        const nodes = buildKrea2NNodeList(finalPrompt);
+        await taskManager.addTask('txt2img', nodes, finalPrompt, KREA2_N_STRONG_WORKFLOW, undefined, panelStoryboardInfo, 'storyboard', plotLabel, panelNum);
       }
     });
 
@@ -2331,8 +2339,8 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         });
         await taskManager.addTask('img2img', nodes, result.prompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, undefined, 'random', perTaskTheme || undefined);
       } else {
-        const nodes = buildTxt2ImgNodeList(buildUnifiedTxt2ImgOptions(result.prompt));
-        await taskManager.addTask('txt2img', nodes, result.prompt, undefined, undefined, undefined, 'random', perTaskTheme || undefined);
+        const nodes = buildKrea2NNodeList(result.prompt);
+        await taskManager.addTask('txt2img', nodes, result.prompt, KREA2_N_STRONG_WORKFLOW, undefined, undefined, 'random', perTaskTheme || undefined);
       }
     });
     const settled = await Promise.allSettled(tasks);

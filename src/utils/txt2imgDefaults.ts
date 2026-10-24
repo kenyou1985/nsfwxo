@@ -18,8 +18,8 @@ import {
  * 用户通过"模型库 → 设为默认"保存的设置（getLoraDefault / getUnetDefault / getCheckpointDefault）
  * 会覆盖代码内的硬编码默认值。
  */
-export function buildUnifiedTxt2ImgOptions(prompt: string) {
-  const wf = getDefaultWorkflow();
+export function buildUnifiedTxt2ImgOptions(prompt: string, forceKrea2 = false) {
+  const wf = forceKrea2 ? WORKFLOW.KREA2 : getDefaultWorkflow();
   const isKREA2 = wf === WORKFLOW.KREA2;
   const baseParams: {
     width: number;
