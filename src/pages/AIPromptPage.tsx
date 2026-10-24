@@ -2094,9 +2094,13 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         });
       }
     } else {
-      const nodes = buildTxt2ImgNodeList(buildUnifiedTxt2ImgOptions(prompt));
+      // 随机抽卡默认使用 Krea2 最强N版（workflow 2101119999196127233），
+      // 节点仍按 Krea2 的 node id 构建。
+      const txt2imgOptions = buildUnifiedTxt2ImgOptions(prompt);
+      txt2imgOptions.workflowId = WORKFLOW.KREA2;
+      const nodes = buildTxt2ImgNodeList(txt2imgOptions);
       try {
-        await taskManager.addTask('txt2img', nodes, prompt, undefined, undefined, undefined, 'random', randomTheme || undefined);
+        await taskManager.addTask('txt2img', nodes, prompt, '2101119999196127233', undefined, undefined, 'random', randomTheme || undefined);
         onSuccess('任务已提交，请到文生图查看生成结果');
         if (onNavigate) onNavigate('txt2img');
       } catch (err) {
