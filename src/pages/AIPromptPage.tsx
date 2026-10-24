@@ -42,7 +42,7 @@ function anchorH3Prompt(prompt: string): string {
   return `subject_definitions:\n<Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1; preserve her face, hair color and hairstyle, skin tone, body proportions and identity exactly from Picture 1.\n<Subject 2> is @Man — a fully adult muscular man, face kept off close-up.\n\n${prompt}`;
 }
 /** 统一使用 Krea2 最强N版文生图工作流，节点仍按 Krea2 构建 */
-function pickPoseNames(kind: 'penetration' | 'oral', count: number): string[] {
+function pickPoseNames(scene: string, kind: 'penetration' | 'oral', count: number): string[] {
   const oralRe = /口交|69|舔|深喉|oral|blow|lick|suck/i;
   const penRe = /后入|女上位|传教士|侧卧|站立|抱起|骑乘|插入|doggy|cowgirl|missionary|spoon|standing|carry|riding|penetrat/i;
   const pool = VIDEO_POSE_PRESETS
@@ -52,7 +52,13 @@ function pickPoseNames(kind: 'penetration' | 'oral', count: number): string[] {
     })
     .map((p) => p.name.replace(/^#\d+\s*/, ''))
     .filter(Boolean);
-  const shuffled = [...pool].sort(() => Math.random() - 0.5);
+  const seated = /(sits?|sitting|lying|reclin|bed|sofa|couch|crouch|kneel|reverse-cowgirl|cowgirl)/i.test(scene);
+  const standing = /(stand|wall|carry|standing)/i.test(scene);
+  const compatible = pool.filter((name) => {
+    const vertical = /站立|抱起|靠墙|stand|carry|wall/i.test(name);
+    return standing ? vertical : seated ? !vertical : true;
+  });
+  const shuffled = [...(compatible.length ? compatible : pool)].sort(() => Math.random() - 0.5);
   return shuffled.slice(0, count);
 }
 
@@ -355,8 +361,8 @@ function buildAnchoredH3(imagePrompt: string): string {
   const cumEnding = wantsOral ? 'oral' : wantsAss ? 'ass' : 'internal';
   const first = 'Exactly reproduce Picture 1 as the first frame: identical pose, identical framing, identical clothing state or nudity, identical lighting and background. Hold one beat, then continue the SAME act already happening in the image. Never reset to an earlier stage, never undress or dress again, never switch to a different sex act.';
   const same = `${placeLine}. Same people, same clothing/nudity state as Picture 1. Cut on motion between positions; no reset, no scene change, no character change.`;
-  const penPoses = pickPoseNames('penetration', 3);
-  const oralPose = pickPoseNames('oral', 1)[0] || '69 Mutual Oral';
+  const penPoses = pickPoseNames(scene, 'penetration', 3);
+  const oralPose = pickPoseNames(scene, 'oral', 1)[0] || '69 Mutual Oral';
   const ending = cumEnding === 'oral'
     ? 'Final shot: she pulls him out and takes the single load on her tongue and face, mouth open, cum on lips and chin, swallowing; no second climax.'
     : cumEnding === 'ass'
