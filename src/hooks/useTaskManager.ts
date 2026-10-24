@@ -446,6 +446,11 @@ export function useTaskManager({
               )
             );
             onTaskStatusChangeRef.current?.(task.id, 'FINISHED');
+            // 关键：导演台图片任务必须把 images 注册回 FinishedTaskImagesContext，
+            // 否则九宫格逐格生成永远收不到图片，页面一直停在“生成中”。
+            if (!isVideo && images.length > 0) {
+              onTaskImagesReadyRef.current?.(task.id, images, task.storyboardInfo ?? undefined, task.zipUrl ?? undefined);
+            }
             const updatedTask: QueuedTask = {
               ...task,
               status: 'FINISHED',
