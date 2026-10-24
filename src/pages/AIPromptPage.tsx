@@ -1175,8 +1175,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     const toSubmit = results.slice(0, availableSlots);
     const tasks = toSubmit.map(async (result) => {
       if (digitalHumanMode && selectedGirlfriend) {
-        const taskId = await taskManager.addDaotaiImgTask({ model: 'krea2-muse', ratio: '9:16', batch: 2, refs: [downloadUrl || imagePath] }, result.prompt);
-        if (idx >= 0) setGenStates((prev) => ({ ...prev, [idx]: { loading: true, images: [], taskId } }));
+        await taskManager.addDaotaiImgTask({ model: 'krea2-muse', ratio: '9:16', batch: 2, refs: [downloadUrl || imagePath] }, result.prompt);
       } else {
         await taskManager.addDaotaiImgTask({ model: 'krea2', ratio: '9:16', batch: 2, refs: [] }, result.prompt);
       }
@@ -2374,7 +2373,8 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       const perTaskTheme = result.theme_label || '';
       const idx = results.indexOf(result);
       if (digitalHumanMode && selectedGirlfriend) {
-        await taskManager.addDaotaiImgTask({ model: 'krea2-muse', ratio: '9:16', batch: 2, refs: [downloadUrl || imagePath] }, result.prompt);
+        const taskId = await taskManager.addDaotaiImgTask({ model: 'krea2-muse', ratio: '9:16', batch: 2, refs: [downloadUrl || imagePath] }, result.prompt);
+        if (idx >= 0) setGenStates((prev) => ({ ...prev, [idx]: { loading: true, images: [], taskId } }));
       } else {
         const taskId = await taskManager.addDaotaiImgTask({ model: 'krea2', ratio: '9:16', batch: 2, refs: [] }, result.prompt);
         const ridx = results.indexOf(result);
