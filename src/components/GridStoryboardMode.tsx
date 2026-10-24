@@ -2188,16 +2188,19 @@ export function GridStoryboardMode({
     setThisGridVideo({ status: 'running', children });
 
     try {
-      // 1) 裁 9 个格子，逐格上传；每格独立任务，首帧就是该格
-      const frames: string[] = [];
-      for (let i = 0; i < cells; i++) {
-        const file = await cropGridCell(full, i, 3, 3);
+      // 1) 并行裁切 + 上传 9 个格子；任何一步超过 60 秒直接报错，避免永久 0/9
+      const withTimeout = <T,>(p: Promise<T>, ms: number, label: string) => Promise.race([
+        p,
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error(label + '超时')), ms)),
+      ]);
+      const frames: string[] = await Promise.all(Array.from({ length: cells }, async (_, i) => {
+        const file = await withTimeout(cropGridCell(full, i, 3, 3), 20000, `第 ${i + 1} 格裁切`);
         if (!file) throw new Error(`第 ${i + 1} 格裁切失败`);
-        const up = await uploadImage(apiKey, file);
+        const up = await withTimeout(uploadImage(apiKey, file), 60000, `第 ${i + 1} 格上传`);
         let frame = up.downloadUrl || up.imagePath;
         if (frame.startsWith('/')) frame = getBackendUrl().replace(/\/$/, '') + frame;
-        frames.push(frame);
-      }
+        return frame;
+      }));
 
       // 2) 9 个独立 H3 任务，每个 7 秒，提示词 3 个 shot
       children.forEach(c => { c.status = 'running'; });
@@ -3317,11 +3320,11 @@ export function GridStoryboardMode({
                 </select>
                 <button
                   onClick={handleGenerateGridVideo}
-                  disabled={gridVideo.status === 'running' || !heroImage}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-medium ${gridVideo.status === 'running' ? 'bg-purple-200 text-purple-500' : 'bg-purple-600 text-white hover:bg-purple-700'}`}
+                  disabled={(gridVideo.status === 'running' && !!gridVideo.taskId) || !heroImage}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-medium ${gridVideo.status === 'running' && gridVideo.taskId ? 'bg-purple-200 text-purple-500' : 'bg-purple-600 text-white hover:bg-purple-700'}`}
                 >
-                  {gridVideo.status === 'running' ? <Loader2 size={10} className="animate-spin" /> : <Film size={10} />}
-                  {gridVideo.status === 'running' ? '生成中' : '一键视频'}
+                  {gridVideo.status === 'running' && gridVideo.taskId ? <Loader2 size={10} className="animate-spin" /> : <Film size={10} />}
+                  {gridVideo.status === 'running' && gridVideo.taskId ? '生成中' : '一键视频'}
                 </button>
                 {heroImage && (
                   <>
