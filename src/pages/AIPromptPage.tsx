@@ -337,7 +337,7 @@ function buildAnchoredH3(imagePrompt: string): string {
   if (twoWomen) {
     shots = [
       first,
-      'Continue from the exact first frame: the two women kiss deeply, hands sliding over each other’s waists and breasts; clothing is pulled aside or skin pressed to skin. Same room, same light, no male figure appears.',
+      'Continue from the exact first frame: the two women kiss deeply, hands sliding over each other’s waists and breasts; clothing is pulled aside or skin pressed to skin. Same location, same light, no male figure appears.',
       'Medium close: one woman cups and kisses the other’s breasts, tongue circling the nipple, the receiver arches and threads fingers through her hair.',
       'Low-angle medium: one woman kneels and goes down on the other, tongue parting the labia, hands gripping her thighs; the standing woman’s head falls back, mouth open.',
       'Medium side: they shift into scissoring, hips grinding, wetness stringing between them, breasts pressed together, breathing ragged.',
@@ -351,7 +351,7 @@ function buildAnchoredH3(imagePrompt: string): string {
   } else if (solo) {
     shots = [
       first,
-      'Continue from the exact first frame: her own hands roam her body, palms sliding over her breasts and belly, back arching, lips parting. Same room, same light, no other person enters the frame.',
+      'Continue from the exact first frame: her own hands roam her body, palms sliding over her breasts and belly, back arching, lips parting. Same location, same light, no other person enters the frame.',
       'Medium close: her fingers pinch and roll her nipples, then trail down her stomach, thighs opening wider, breath hitching.',
       'Low-angle medium: her fingers part her labia and circle the clit, hips rocking into her own hand, wetness glistening.',
       'Extreme close: two fingers slide inside, curling toward the G-spot, thumb rubbing the clit, fluid coating her hand and inner thighs.',
@@ -365,7 +365,7 @@ function buildAnchoredH3(imagePrompt: string): string {
   } else if (atSex) {
     shots = [
       first,
-      'Continue the exact penetration shown in Picture 1 with no reset: the first visible thrust, hips meeting, her body jolting, mouth opening, hands gripping the surface. Same position, same room, same clothing/nudity state.',
+      'Continue the exact penetration shown in Picture 1 with no reset: the first visible thrust, hips meeting, her body jolting, mouth opening, hands gripping the surface. Same position, same location, same clothing/nudity state.',
       'Medium side angle, same act: steady thrusting, her breasts moving with each stroke, sweat forming on collarbone and belly. Slow camera orbit, no position change.',
       'Extreme close on the join in the same position: shaft sliding in and out, labia stretching and clinging, fluid stringing, thigh trembling. Cut back to her face for reaction without changing pose.',
       'Medium close on her chest and face: each thrust pushes her breasts, nipples hard, mouth open, eye contact breaking into pleasure. Same rhythm, continuous motion.',
@@ -379,11 +379,11 @@ function buildAnchoredH3(imagePrompt: string): string {
   } else if (atOral) {
     shots = [
       first,
-      'Continue the exact oral action shown in Picture 1: lips sealed around the shaft, tongue dragging, cheeks hollowing, saliva shining. Same kneeling pose, same room, no reset.',
+      'Continue the exact oral action shown in Picture 1: lips sealed around the shaft, tongue dragging, cheeks hollowing, saliva shining. Same kneeling pose, same location, no reset.',
       'Medium close on her face: deeper take, glans pressing the throat, gag reflex, saliva spilling from the corner of her mouth. His hand on the back of her head.',
       'Low-angle POV down her face: eye contact with the lens while she sucks, one hand stroking the base, breathing through her nose. Continuous motion.',
       'She pulls back just enough to lick the corona and shaft, spit strings stretching, then takes him deep again. No cut to another scene.',
-      'He lifts her from the kneel without resetting her clothing/nudity: first penetration begins in the same room, her body jolting, mouth open.',
+      'He lifts her from the kneel without resetting her clothing/nudity: first penetration begins in the same location, her body jolting, mouth open.',
       'Medium side tracking, same penetration: steady thrusting, breasts moving, sweat on her collarbone. No re-entry, no position reset.',
       'Extreme close on the join: shaft sliding in and out, labia clinging, fluid stringing, her thigh trembling.',
       'Medium front three-quarter: rhythm accelerates, deeper strokes, skin slapping, her back arching, hair sticking to her cheek.',
@@ -431,7 +431,7 @@ ${body}
 
 Scene reference from the source image: ${scene}
 
-overall_soundscape: ${solo ? 'Room ambience, her own breathing and soft moans, wet fingers/toy sounds, thighs shifting on fabric, one climax cry, then trembling after-breaths. No male voice.' : twoWomen ? 'Room ambience, wet kisses, skin-on-skin, both women breathing and moaning, one shared climax cry, then soft laughter and after-breaths. No male voice.' : 'Room ambience under skin-on-skin slaps, wet oral and penetration sounds, fabric friction, heavy breathing, her broken moans and one climax cry, one male groan, then dripping and after-breaths.'}
+overall_soundscape: ${solo ? 'Location ambience, her own breathing and soft moans, wet fingers/toy sounds, thighs shifting on fabric, one climax cry, then trembling after-breaths. No male voice.' : twoWomen ? 'Location ambience, wet kisses, skin-on-skin, both women breathing and moaning, one shared climax cry, then soft laughter and after-breaths. No male voice.' : 'Location ambience under skin-on-skin slaps, wet oral and penetration sounds, fabric friction, heavy breathing, her broken moans and one climax cry, one male groan, then dripping and after-breaths.'}
 non_diegetic_music: None`;
 }
 /**

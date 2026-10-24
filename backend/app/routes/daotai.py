@@ -73,8 +73,11 @@ def _video_refs(body: dict):
             # 不按 URL 去重：九宫格逐格任务会把同一格重复填满 5 个参考槽，
             # 去重会导致只有 ref_0 有图，其余槽沿用画布默认参考图。
             rf = rh._rh_dl_ref(mu)
-            if rf and rf not in refs:
+            if rf:
                 refs.append(rf)
+    # 只有一张首帧参考图时，复制填满所有参考槽，避免 273/285/406/420 沿用画布旧图造成人物/场景污染
+    if refs and len(refs) < _cap:
+        refs = (refs + [refs[0]] * _cap)[:_cap]
     if not refs:
         refs = ['']
     return refs
