@@ -3,6 +3,7 @@ import { User, MapPin, Shirt, Sparkles, Loader2, RefreshCw, Zap, Download, Copy,
 import type { ClothingInfo, ImageDnaResult } from '../services/promptApi';
 import { extractClothings } from '../services/promptApi';
 import { useToast } from '../hooks/useToast';
+import { TagPickerButton } from './TagPickerButton';
 
 const RUNNINGHUB_CDN = 'https://rh-hk-images-switch.xiaoyaoyou.com/input';
 
@@ -970,6 +971,11 @@ export const ImageDnaPanel: React.FC<ImageDnaPanelProps> = ({
                           : 'text-text-primary border-gray-200 focus:ring-gray-300'
                     }`}
                   />
+                  <div className="mt-1 flex justify-end">
+                    <TagPickerButton
+                      onPick={(tag) => handleSupplementaryItemChange(idx, itemValue ? `${itemValue}，${tag}` : tag)}
+                    />
+                  </div>
                 </div>
               );
             })}
@@ -1024,6 +1030,9 @@ export const ImageDnaPanel: React.FC<ImageDnaPanelProps> = ({
                   rows={3}
                   className="w-full px-2 py-1.5 rounded-lg text-[10px] text-text-primary bg-white border border-emerald-200 placeholder:text-emerald-400/60 focus:outline-none focus:ring-1 focus:ring-emerald-300 resize-y leading-relaxed"
                 />
+                <div className="mt-1 flex justify-end">
+                  <TagPickerButton onPick={(tag) => setDraftSupplementary(prev => prev ? `${prev}，${tag}` : tag)} />
+                </div>
                 <div className="mt-2 flex items-center gap-2">
                   <button
                     onClick={handleSubmitSupplementary}
