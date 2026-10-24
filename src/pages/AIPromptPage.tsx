@@ -38,7 +38,7 @@ const KREA2_N_STRONG_WORKFLOW = '2101119999196127233';
 function anchorH3Prompt(prompt: string): string {
   if (!prompt) return prompt;
   if (prompt.includes('<Picture 1>')) return prompt;
-  return `subject_definitions:\n<Subject 1> is @Woman <Picture 1> — an adult East Asian woman in her mid-20s, long straight black hair, fair skin, refined side profile, voluptuous curvy body; preserve face, hair, body proportions and identity exactly from Picture 1.\n<Subject 2> is @Man — a fully adult muscular man, face kept off close-up.\n\n${prompt}`;
+  return `subject_definitions:\n<Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1; preserve her face, hair color and hairstyle, skin tone, body proportions and identity exactly from Picture 1.\n<Subject 2> is @Man — a fully adult muscular man, face kept off close-up.\n\n${prompt}`;
 }
 /** 统一使用 Krea2 最强N版文生图工作流，节点仍按 Krea2 构建 */
 async function copyTextToClipboard(text: string): Promise<boolean> {
@@ -323,7 +323,8 @@ function buildAnchoredH3(imagePrompt: string): string {
   const times = ['00:00.000','00:05.500','00:11.000','00:16.500','00:22.000','00:27.500','00:33.000','00:38.500','00:44.000','00:49.500','00:55.000'];
   // 先判断图片已经是哪个阶段，避免视频开头倒退成前戏
   const low = scene.toLowerCase();
-  const atSex = /(penis|shaft|cock|dildo).{0,100}(inside|into|penetrat|sink|thrust|entry|deep)|\b(riding|cowgirl|doggy|missionary|sex|fuck|inserted|penetration)\b/.test(low)
+  const atFacesit = /(sits? astride|sitting on (?:his|the) face|facesit|face-sit|riding (?:his|her) face|mouth beneath|oral sex beneath|cunnilingus|骑脸|坐脸|坐在脸上)/i.test(scene);
+  const atSex = !atFacesit && /(penis|shaft|cock|dildo).{0,100}(inside|into|penetrat|sink|thrust|entry|deep)|\b(riding|cowgirl|doggy|missionary|sex|fuck|inserted|penetration)\b/.test(low)
     || /插入|抽插|交合|性交|骑乘|后入|内射/.test(scene);
   const atOral = !atSex && (/(mouth|oral|blowjob|deepthroat|suck|lick|kneel).{0,100}(penis|cock|shaft|glans)|\b(fellatio|deepthroat|blowjob)\b/.test(low)
     || /口交|深喉|含住|舔弄/.test(scene));
@@ -336,7 +337,22 @@ function buildAnchoredH3(imagePrompt: string): string {
   const hasMan = !twoWomen && /\b(man|male|boyfriend|guy|his |he )\b|男人|男性|男主|男友/i.test(scene);
   const solo = !twoWomen && !hasMan;
   let shots: string[];
-  if (twoWomen) {
+  if (atFacesit) {
+    shots = [
+      first,
+      'Continue the exact facesitting already in progress: she settles her weight onto his mouth, hips rolling slowly, one hand braced on his chest, the other gripping his hair. No penetration, no position reset. Same maid headdress and clothing/nudity state.',
+      'Extreme close between her thighs: his tongue parts her labia, laps upward, her hips grind down, wetness shining on her inner thighs and his chin.',
+      'Low-angle medium from below: her face above him, drowsy dominant stare, mouth open, breasts swaying as she rocks; the white lace maid headdress stays in place.',
+      'Medium side: she leans back on one hand, thighs clamping around his head, grinding faster, stomach tightening, sweat on her skin.',
+      'Close on her hand: she reaches back and strokes his shaft while still riding his mouth, his hips twitch, precum slick on her fingers.',
+      'Medium front: her hips roll in a steady rhythm, breasts bouncing, his hands gripping her thighs, her head falling back with a broken moan.',
+      'Extreme close on the join of mouth and vulva: tongue circling the clit, fluid dripping onto his chin, her thighs trembling.',
+      'Medium wide: rhythm accelerates, she rides his face harder, one foot planted, the other leg bent, maid headdress tilted, sweat dripping from her jaw.',
+      'Close POV: her face locked in pleasure, eyes half-closed, mouth wide, hips stuttering as she nears the edge.',
+      'One climax only: she grinds down hard, body locking, thighs shaking around his head, a long cry breaking out; no penetration, no second climax.',
+      'Medium side afterglow: she stays seated on his chest, breathing hard, wet thighs shining, maid headdress askew, his face glistening beneath her.',
+    ];
+  } else if (twoWomen) {
     shots = [
       first,
       'Continue from the exact first frame: the two women kiss deeply, hands sliding over each other’s waists and breasts; clothing is pulled aside or skin pressed to skin. Same location, same light, no male figure appears.',
@@ -418,7 +434,7 @@ function buildAnchoredH3(imagePrompt: string): string {
       ? 'a solo female masturbation sequence (no other person enters the frame)'
       : 'a heterosexual explicit sequence';
   return `subject_definitions:
-<Subject 1> is @Woman <Picture 1> — an adult East Asian woman in her mid-20s with long straight black hair, fair skin, refined side profile and a naturally curvy body. Preserve her face, hair, body proportions, skin tone and identity exactly from Picture 1. Her clothing state and nudity must match Picture 1 at the first frame and stay continuous afterward.
+<Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1. Preserve her face, hair color and hairstyle, skin tone, body proportions, breast size/shape and identity exactly from Picture 1. Do not change her hair color, face, body type or clothing/nudity state at the first frame.
 ${subject2}
 
 summary:
