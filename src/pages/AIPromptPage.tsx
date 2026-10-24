@@ -45,21 +45,37 @@ function anchorH3Prompt(prompt: string): string {
 function pickPoseNames(scene: string, kind: 'penetration' | 'oral', count: number): string[] {
   const oralRe = /口交|69|舔|深喉|oral|blow|lick|suck/i;
   const penRe = /后入|女上位|传教士|侧卧|站立|抱起|骑乘|插入|doggy|cowgirl|missionary|spoon|standing|carry|riding|penetrat/i;
-  const pool = VIDEO_POSE_PRESETS
+  const seated = /(sits?|sitting|lying|reclin|bed|sofa|couch|crouch|kneel|reverse-cowgirl|cowgirl)/i.test(scene);
+  const standing = /(stand|wall|carry|standing)/i.test(scene);
+  const names = VIDEO_POSE_PRESETS
     .filter((p) => {
       const t = `${p.name} ${p.nameZh}`;
       return kind === 'oral' ? oralRe.test(t) : penRe.test(t) && !oralRe.test(t);
     })
-    .map((p) => p.name.replace(/^#\d+\s*/, ''))
-    .filter(Boolean);
-  const seated = /(sits?|sitting|lying|reclin|bed|sofa|couch|crouch|kneel|reverse-cowgirl|cowgirl)/i.test(scene);
-  const standing = /(stand|wall|carry|standing)/i.test(scene);
-  const compatible = pool.filter((name) => {
+    .map((p) => `${p.name.replace(/^#\d+\s*/, '')} (${p.nameZh})`);
+  if (kind === 'oral') return [...names].sort(() => Math.random() - 0.5).slice(0, count);
+  const buckets = [
+    /女上位|骑乘|cowgirl|riding/i,
+    /后入|doggy|prone|spoon|侧卧|趴/i,
+    /传教士|missionary|抬腿|lotus|坐姿|正面/i,
+    /站立|抱起|靠墙|standing|carry|wall/i,
+  ];
+  const compatible = names.filter((name) => {
     const vertical = /站立|抱起|靠墙|stand|carry|wall/i.test(name);
     return standing ? vertical : seated ? !vertical : true;
   });
-  const shuffled = [...(compatible.length ? compatible : pool)].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, count);
+  const source = compatible.length ? compatible : names;
+  const picked: string[] = [];
+  for (const re of [...buckets].sort(() => Math.random() - 0.5)) {
+    if (picked.length >= count) break;
+    const candidates = source.filter((name) => re.test(name) && !picked.includes(name));
+    if (candidates.length) picked.push(candidates[Math.floor(Math.random() * candidates.length)]);
+  }
+  for (const name of [...source].sort(() => Math.random() - 0.5)) {
+    if (picked.length >= count) break;
+    if (!picked.includes(name)) picked.push(name);
+  }
+  return picked;
 }
 
 async function copyTextToClipboard(text: string): Promise<boolean> {
