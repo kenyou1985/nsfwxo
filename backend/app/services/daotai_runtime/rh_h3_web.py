@@ -972,6 +972,7 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
                 # 单路：500 = 完整全局提示词原样（画布内确定性切分）
                 _emit('  [路%d] P. #500.text 注入完整全局提示词（%d 字，503=%d 段，画布内确定性切分；音频净化: 无）: %s…'
                       % (rng[0], len(_gp), _N_det, _gp[:80].replace('\n', ' ')))
+        _M_det = max(2, -(-int(count_shots(_gp) or 1) // max(2, _N_det)))
         _wf['501']['inputs']['value'] = True      # 全局模式（501=true → 505.tt=504=15 轮循环）
         # 2026-10-19 修复（第3轮，符合用户铁律"导演台原有逻辑禁止修改"）：
         #   502 取值完全恢复 wfc 默认（wfc.llm_value，6098=True → 导演台 /api/start 原有 502=true 逻辑逐字不变，
