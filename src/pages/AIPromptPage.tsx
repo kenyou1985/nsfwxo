@@ -529,6 +529,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   const [type, setType] = useState<'image' | 'video'>(savedExpand?.type || 'image');
   const [videoClarity, setVideoClarity] = useState(0.2);
   const [videoSegments, setVideoSegments] = useState(4);
+  const [videoRoutes, setVideoRoutes] = useState(1);
   const [mainVideo, setMainVideo] = useState<{loading:boolean;url?:string;error?:string}>({ loading: false });
   const [count, setCount] = useState(savedExpand?.count || 5);
   const [results, setResults] = useState<{ id: string; original: string; prompt: string; r18: boolean }[]>(savedExpand?.results || []);
@@ -1060,12 +1061,12 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       const body = {
         media: [{ type: 'reference_image', url: image }],
         workflow_id: '2110330160000516098',
-        duration: 60,
+        duration: 15,
         resolution: videoClarity,
         aspect_ratio: '9:16',
         shots_per_seg: videoSegments,
         target_segs: videoSegments,
-        loop_routes: 1,
+        loop_routes: videoRoutes,
         instance: 'plus',
       };
       const anchoredPrompt = buildAnchoredH3(videoText);
@@ -1096,7 +1097,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       setMainVideo({ loading: false, error: msg });
       onError(msg);
     }
-  }, [outputText, selectedOutputIdx, results, genState, digitalHumanMode, selectedGirlfriend, videoClarity, videoSegments, onError, onSuccess]);
+  }, [outputText, selectedOutputIdx, results, genState, digitalHumanMode, selectedGirlfriend, videoClarity, videoSegments, videoRoutes, onError, onSuccess]);
 
   const handleExpandGenerateImage = useCallback(async (result: { id: string; prompt: string }) => {
     if (taskManager.isFull) {
@@ -1421,6 +1422,10 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
                   <label>段数</label>
                   <input type="number" min={2} max={16} step={1} value={videoSegments}
                     onChange={(e) => setVideoSegments(Math.min(16, Math.max(2, Math.round(Number(e.target.value) || 4))))}
+                    className="w-12 px-1 py-0.5 rounded border border-border bg-white text-center" />
+                  <label>并发</label>
+                  <input type="number" min={1} max={16} step={1} value={videoRoutes}
+                    onChange={(e) => setVideoRoutes(Math.min(16, Math.max(1, Math.round(Number(e.target.value) || 1))))}
                     className="w-12 px-1 py-0.5 rounded border border-border bg-white text-center" />
                 </div>
               )}
@@ -1838,6 +1843,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   const [videoStates, setVideoStates] = useState<Record<number, { loading: boolean; url?: string; error?: string }>>({});
   const [videoClarity, setVideoClarity] = useState(0.2);
   const [videoSegments, setVideoSegments] = useState(4);
+  const [videoRoutes, setVideoRoutes] = useState(1);
   const [favorites, setFavorites] = useState<FavoriteItem[]>(() => getFavorites());
   // Track selected image index per card (for 长视频 1.1 selection)
   const [selectedImageIndices, setSelectedImageIndices] = useState<Record<number, number>>({});
@@ -2519,12 +2525,12 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         prompt: h3,
         media: [{ type: 'reference_image', url: image }],
         workflow_id: '2110330160000516098',
-        duration: 60,
+        duration: 15,
         resolution: videoClarity,
         aspect_ratio: '9:16',
         shots_per_seg: videoSegments,
         target_segs: videoSegments,
-        loop_routes: 1,
+        loop_routes: videoRoutes,
         instance: 'plus',
       };
       const anchoredPrompt = anchorH3Prompt(h3);
@@ -2568,7 +2574,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       setVideoStates(prev => ({ ...prev, [idx]: { loading: false, error: msg } }));
       onError(msg);
     }
-  }, [results, selectedImageIndices, videoClarity, videoSegments, apiKey, onError, onSuccess, handleGenerateSingleH3]);
+  }, [results, selectedImageIndices, videoClarity, videoSegments, videoRoutes, apiKey, onError, onSuccess, handleGenerateSingleH3]);
 
   /**
    * 跳转长视频 1.1：把视频提示词和参考图暂存到 sessionStorage，
@@ -2739,8 +2745,10 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               videoState={videoStates[idx]}
               videoClarity={videoClarity}
               videoSegments={videoSegments}
+              videoRoutes={videoRoutes}
               onVideoClarityChange={setVideoClarity}
               onVideoSegmentsChange={setVideoSegments}
+              onVideoRoutesChange={setVideoRoutes}
               onFavorited={(url) => handleToggleFavorite(url, result.prompt)}
               onRetryStuck={() => handleRetryStuckSlot(idx)}
               taskManager={taskManager}
@@ -2865,7 +2873,7 @@ function RandomHistoryPanel({ history, r18Mode, onLoad, onDelete, onClear, onCop
   );
 }
 
-function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r18Mode, onToggle, onCopy, genState, onGenerateImage, onGenerateVideo, onGenerateH3, onSendToH3Page, onFavorited, onRetryStuck, taskManager, digitalHumanMode, selectedGirlfriend, h3Prompt, h3Generating, videoState, videoClarity, videoSegments, onVideoClarityChange, onVideoSegmentsChange, sceneLabel, onGotoLongVideoWithH3, selectedImageIndex, onSelectImage, onPreviewImage }: {
+function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r18Mode, onToggle, onCopy, genState, onGenerateImage, onGenerateVideo, onGenerateH3, onSendToH3Page, onFavorited, onRetryStuck, taskManager, digitalHumanMode, selectedGirlfriend, h3Prompt, h3Generating, videoState, videoClarity, videoSegments, videoRoutes, onVideoClarityChange, onVideoSegmentsChange, onVideoRoutesChange, sceneLabel, onGotoLongVideoWithH3, selectedImageIndex, onSelectImage, onPreviewImage }: {
   index: number; result: PromptResult; isExpanded: boolean; isCopied: boolean; tagsVisible: boolean; r18Mode: boolean; onToggle: () => void; onCopy: () => void;
   genState?: { loading: boolean; images: string[] };
   onGenerateImage: () => void;
@@ -2873,9 +2881,10 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
   onSendToH3Page: () => void;
   onGenerateH3: () => void;
   videoState?: { loading: boolean; url?: string; error?: string };
-  videoClarity: number; videoSegments: number;
+  videoClarity: number; videoSegments: number; videoRoutes: number;
   onVideoClarityChange: (v: number) => void;
   onVideoSegmentsChange: (v: number) => void;
+  onVideoRoutesChange: (v: number) => void;
   onFavorited?: (url: string) => void;
   /** Called when a card has been "loading" for >90s with no stream events.
    *  Lets the user manually retry the slow slot without a full refresh. */
@@ -3050,6 +3059,10 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
                   <label>段数</label>
                   <input type="number" min={2} max={16} step={1} value={videoSegments}
                     onChange={(e) => onVideoSegmentsChange(Math.min(16, Math.max(2, Math.round(Number(e.target.value) || 4))))}
+                    className="w-11 px-1 py-0.5 rounded border border-border bg-white text-center" />
+                  <label>并发</label>
+                  <input type="number" min={1} max={16} step={1} value={videoRoutes}
+                    onChange={(e) => onVideoRoutesChange(Math.min(16, Math.max(1, Math.round(Number(e.target.value) || 1))))}
                     className="w-11 px-1 py-0.5 rounded border border-border bg-white text-center" />
                 </div>
                 {/* 直接生成视频（导演台 H3 det16） */}
