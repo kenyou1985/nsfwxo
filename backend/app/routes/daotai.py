@@ -70,9 +70,8 @@ def _video_refs(body: dict):
             mu = str(m.get('url') or '')
             if not (mu and m.get('type') in ('first_frame', 'reference_image')):
                 continue
-            if mu in seen:
-                continue
-            seen.add(mu)
+            # 不按 URL 去重：九宫格逐格任务会把同一格重复填满 5 个参考槽，
+            # 去重会导致只有 ref_0 有图，其余槽沿用画布默认参考图。
             rf = rh._rh_dl_ref(mu)
             if rf and rf not in refs:
                 refs.append(rf)
