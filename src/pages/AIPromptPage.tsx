@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { extractVideoPromptFromImagePrompt } from '../utils/videoPromptExtractor';
+import { normalizeKrea2Prompt } from '../utils/krea2Prompt';
 import { makeThumbnailForStorage, makePreviewForStorage } from '../utils/imageThumbnail';
 import { AspectAwareImage } from '../components/AspectAwareImage';
 import { OneClickProduce } from '../components/OneClickProduce';
@@ -844,7 +845,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
             setResults((prev) => {
               const next = [...prev];
               while (next.length <= index) next.push({ id: `pending-${handleKey}-${index}`, original: input.trim(), prompt: '', r18: r18Mode });
-              next[index] = { ...next[index], prompt };
+              next[index] = { ...next[index], prompt: normalizeKrea2Prompt(prompt) };
               return next;
             });
             setOutputPrompts((prev) => {
@@ -1052,8 +1053,8 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     const resultId = results[selectedOutputIdx]?.id;
     const image = overrideImage || (resultId ? genState[resultId]?.images?.[0] : '');
     if (!image) { onError('请先生成并选择一张图片'); return; }
-    const key = getYunwuKey();
-    if (!key) { onError('请先配置 API Key'); return; }
+    const key = apiKey;
+    if (!key) { onError('请先配置 RunningHub API Key'); return; }
     setMainVideo({ loading: true });
     try {
       const body = {
@@ -2076,7 +2077,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               next[index] = {
                 ...next[index],
                 theme_label: derivedLabel,
-                prompt,
+                prompt: normalizeKrea2Prompt(prompt),
               };
               return next;
             });
@@ -2297,7 +2298,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               const next = [...prev];
               while (next.length <= index) next.push({ theme_label: '', theme: '', tags_used: {}, prompt: '' });
               const safeLabel = /抱歉|无法生成|无法提供|不能提供|sorry|i can'?t|i cannot|refuse/i.test(theme_label || '') ? '' : (theme_label || '');
-              next[index] = { ...next[index], theme_label: safeLabel || next[index].theme_label || `主题 ${index + 1}`, prompt };
+              next[index] = { ...next[index], theme_label: safeLabel || next[index].theme_label || `主题 ${index + 1}`, prompt: normalizeKrea2Prompt(prompt) };
               return next;
             });
           },
@@ -2500,8 +2501,8 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     if (!image) { onError('请先生成图片，再生成视频'); return; }
 
     setVideoStates(prev => ({ ...prev, [idx]: { loading: true } }));
-    const apiKey = getYunwuKey();
-    if (!apiKey) { onError('请先配置 OpenLux API Key'); setVideoStates(prev => ({ ...prev, [idx]: { loading: false, error: '未配置 API Key' } })); return; }
+    const rhKey = apiKey;
+    if (!rhKey) { onError('请先配置 RunningHub API Key'); setVideoStates(prev => ({ ...prev, [idx]: { loading: false, error: '未配置 API Key' } })); return; }
     try {
       let h3: string | undefined = h3PromptsRef.current[idx];
       if (!h3) {
@@ -2522,7 +2523,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         instance: 'plus',
       };
       const anchoredPrompt = anchorH3Prompt(h3);
-      const submit = await submitDaotaiVideo(apiKey, anchoredPrompt, { ...body, prompt: anchoredPrompt });
+      const submit = await submitDaotaiVideo(rhKey, anchoredPrompt, { ...body, prompt: anchoredPrompt });
       publishExternalVideoTask({
         id: localTaskId, taskId: submit.taskId, status: 'RUNNING', prompt: h3,
         imagePreview: image, images: [], coins: null, elapsedSeconds: 0,
@@ -2532,7 +2533,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       let videoUrl: string | undefined;
       for (let i = 0; i < 120; i++) {
         await new Promise(r => setTimeout(r, 5000));
-        const data = await pollDaotaiTask(apiKey, submit.taskId);
+        const data = await pollDaotaiTask(rhKey, submit.taskId);
         if (data.status === 'SUCCESS') {
           videoUrl = data.video_url || data.output?.video_url || data.url || data.images?.[0] || data.output?.images?.[0];
           break;
@@ -2562,7 +2563,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       setVideoStates(prev => ({ ...prev, [idx]: { loading: false, error: msg } }));
       onError(msg);
     }
-  }, [results, selectedImageIndices, videoClarity, videoSegments, onError, onSuccess, handleGenerateSingleH3]);
+  }, [results, selectedImageIndices, videoClarity, videoSegments, apiKey, onError, onSuccess, handleGenerateSingleH3]);
 
   /**
    * 跳转长视频 1.1：把视频提示词和参考图暂存到 sessionStorage，
@@ -3057,7 +3058,7 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
                   }`}
                   title="用当前图片走导演台 H3 det16 生成视频"
                 >
-                  {videoState?.loading ? <><Loader2 size={11} className="animate-spin" /> 视频生成中</> : <><Play size={11} />生成视频</>}
+                  {videoState?.loading ? <><Loader2 size={11} className="animate-spin" /> 视频生成中</> : <><Play size={11} />生视频 2.2</>}
                 </button>
                 <button
                   onClick={onGenerateImage}
@@ -3252,16 +3253,15 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
                   </div>
                 )}
               </div>
-              {allDisplayImages.length > 0 && onGotoLongVideoWithH3 && (
+              {allDisplayImages.length > 0 && (
                 <div className="flex justify-end mt-2">
                   <button
-                    onClick={() => {
-                      const img = selectedImageIndex !== undefined ? allDisplayImages[selectedImageIndex] : allDisplayImages[0];
-                      onGotoLongVideoWithH3(img, h3Prompt);
-                    }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90 transition-all"
+                    onClick={onGenerateVideo}
+                    disabled={videoState?.loading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90 transition-all disabled:opacity-50"
                   >
-                    <Video size={12} />生视频
+                    {videoState?.loading ? <Loader2 size={12} className="animate-spin" /> : <Video size={12} />}
+                    {videoState?.loading ? '视频生成中' : '生视频 2.2'}
                   </button>
                 </div>
               )}
