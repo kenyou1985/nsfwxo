@@ -411,9 +411,9 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
         : (raw && Array.isArray(raw.tasks) ? (raw.tasks as VideoTask[]) : []);
       const ONE_DAY_MS = 24 * 60 * 60 * 1000;
       const filtered = parsed.filter((t) => {
-        if (t.status === 'FINISHED' || t.status === 'FAILED') {
-          return t.startTime > Date.now() - ONE_DAY_MS;
-        }
+        // 失败任务不在刷新后恢复；只保留运行中/排队中，以及最近 24 小时成功
+        if (t.status === 'FAILED') return false;
+        if (t.status === 'FINISHED') return t.startTime > Date.now() - ONE_DAY_MS;
         return true;
       });
       const ONE_DAY = 24 * 60 * 60 * 1000;
