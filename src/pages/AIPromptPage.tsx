@@ -330,7 +330,9 @@ function buildAnchoredH3(imagePrompt: string): string {
 
   const first = 'Exactly reproduce Picture 1 as the first frame: identical pose, identical framing, identical clothing state or nudity, identical lighting and background. Hold one beat, then continue the SAME action already happening in the image. Never reset to an earlier stage, never undress or dress again, never cut back to foreplay.';
 
-  const twoWomen = /(two women|two girls|lesbian|female partner|woman with (?:a )?woman|女女|百合|双女|两个女人|两名女性|闺蜜|女友)/i.test(scene);
+  const womanCount = (scene.match(/\bwoman\b/gi) || []).length + (scene.match(/\bgirl\b/gi) || []).length;
+  const twoWomen = /(two women|two girls|lesbian|female partner|woman with (?:a )?woman|another woman|second woman|strap-on|女女|百合|双女|两个女人|两名女性|闺蜜|女友)/i.test(scene)
+    || womanCount >= 2;
   const hasMan = !twoWomen && /\b(man|male|boyfriend|guy|his |he )\b|男人|男性|男主|男友/i.test(scene);
   const solo = !twoWomen && !hasMan;
   let shots: string[];
