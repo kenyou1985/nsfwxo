@@ -2199,7 +2199,8 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     }
     if (digitalHumanMode && selectedGirlfriend) {
       try {
-        await taskManager.addDaotaiImgTask({ model: 'krea2-muse', ratio: '9:16', batch: 2, refs: [downloadUrl || imagePath] }, prompt);
+        const taskId = await taskManager.addDaotaiImgTask({ model: 'krea2-muse', ratio: '9:16', batch: 2, refs: [downloadUrl || imagePath] }, prompt);
+        setGenStates((prev) => ({ ...prev, [idx]: { loading: true, images: [], taskId } }));
         onSuccess('任务已提交（Krea2-Muse 锚定生图），结果会显示在当前页面');
       } catch (err) {
         onError(err instanceof Error ? err.message : '提交失败');
