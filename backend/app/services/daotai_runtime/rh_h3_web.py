@@ -3368,7 +3368,7 @@ _NEUTRAL_FN = {}   # api_key -> 中性图平台 fileName（复用，避免重复
 # 本层把请求桥接为工作台内部 Workflow API（/task/openapi/create + 自杀链），实现免扣费。
 RH_OPENAPI = {}
 RH_OPENAPI_LIVE = {}          # taskId -> {'kind':'image'|'video','api_key','task_id','job_id'}
-RH_IMAGE_MODELS = ('qwen2.1', 'flux-dev', 'sdxl', 'qwen-image', 'qwen2.5')
+RH_IMAGE_MODELS = ('qwen2.1', 'qwen-image-2.1', 'flux-dev', 'sdxl', 'qwen-image', 'qwen2.5')
 RH_VIDEO_MODELS = ('minimaxh3', 'cogvideox', 'animatediff', 'seedance', 'minimax')
 RH_IMG_WFID = '2104862502025711618'  # 老工作流（文生图+图生图合一；横屏画布默认16:9 Widescreen不注入，easy sleep链805免扣费+WS拿图）
 
