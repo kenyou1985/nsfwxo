@@ -380,7 +380,7 @@ ${body}
 
 Source image action/scene: ${core}
 
-overall_soundscape: ${solo ? 'Location ambience, her own breathing and soft moans, wet fingers/toy sounds, one climax cry, then trembling after-breaths. No male voice.' : twoWomen ? 'Location ambience, wet kisses, skin-on-skin, both women breathing and moaning, one shared climax cry, then after-breaths. No male voice.' : 'Location ambience under skin-on-skin impact, wet oral/penetration sounds, fabric friction, heavy breathing, her broken moans and one climax cry, one male groan, then after-breaths.'}
+overall_soundscape: ${solo ? 'Location ambience, her own breathing and soft moans, wet fingers/toy sounds, one climax cry, then trembling after-breaths. No male voice.' : twoWomen ? 'Location ambience, wet kisses, skin-on-skin, both women breathing and moaning, one shared climax cry, then after-breaths. No male voice.' : 'Location ambience under skin-on-skin impact, wet penetration and plug-shifting sounds, fabric friction, heavy breathing, her broken moans and one climax cry, one male groan, then after-breaths.'}
 non_diegetic_music: None`;
 }/**
  * 将 GirlfriendPreset.portraitUrl 转为 File 对象用于上传。
