@@ -477,7 +477,41 @@ function buildAnchoredH3(imagePrompt: string): string {
       after,
     ];
   }
-  const body = shots.map((action, i) => `[Shot ${i + 1}] ${times[i]} ${action}`).join('\n');
+  const d = (zh: string) => `<d>[Chinese] ${zh}</d>`;
+  const female = ['好舒服…', '慢一点…', '求求你…', '快一点…', '我快不行了…', '爸爸操我…', '哥哥我想要…'];
+  const male = ['不要动。', '夹紧。', '屁股抬高。', '操死你。', '不要出声。', '嘴巴张开，含住我的鸡巴。', '舔干净，吞下去。'];
+  const dialogue: string[] = Array(11).fill('');
+  if (twoWomen) {
+    dialogue[1] = d(female[0]) + ' ' + d('舔我…');
+    dialogue[3] = d(female[0]);
+    dialogue[5] = d('磨我…');
+    dialogue[7] = d(female[3]);
+    dialogue[9] = d('一起…');
+    dialogue[10] = d(female[0]);
+  } else if (solo) {
+    dialogue[1] = d(female[0]);
+    dialogue[2] = d(female[1]);
+    dialogue[3] = d(female[2]);
+    dialogue[4] = d(female[3]);
+    dialogue[6] = d(female[4]);
+    dialogue[8] = d(female[3]);
+    dialogue[10] = d(female[4]);
+    dialogue[11] = d(female[0]);
+  } else {
+    dialogue[1] = d(female[0]) + ' ' + d(male[1]);
+    dialogue[2] = d(male[2]);
+    dialogue[3] = d(female[1]);
+    dialogue[4] = d(male[4]) + ' ' + d(female[2]);
+    dialogue[5] = d(male[5]);
+    dialogue[6] = d(male[3]) + ' ' + d(female[5]);
+    dialogue[7] = d(female[3]);
+    dialogue[8] = d(male[0]);
+    dialogue[9] = d(male[6]) + ' ' + d(female[4]);
+    dialogue[10] = d(female[0]);
+  }
+  const voiced = shots.map((action, i) => i === 0 || !dialogue[i] ? action : `${action} ${dialogue[i]}`);
+  const body = voiced.map((action, i) => `[Shot ${i + 1}] ${times[i]} ${action}`).join('\n');
+  const speakerMap = twoWomen ? '{"S1":"female_voice","S2":"female_voice_2"}' : solo ? '{"S1":"female_voice"}' : '{"S1":"female_voice","S2":"male_voice"}';
   const subject2 = twoWomen
     ? '<Subject 2> is @Woman2 — the exact second adult woman shown in Picture 1, if present. Identity and appearance come only from Picture 1; do not describe or invent them.'
     : hasMan
@@ -522,7 +556,8 @@ ${body}
 Source image action/scene: ${displayCore}
 
 overall_soundscape: ${solo ? 'Location ambience, her own breathing and soft moans, wet fingers/toy sounds, a clear squirting splash, then trembling after-breaths. No male voice.' : twoWomen ? 'Location ambience, wet kisses, skin-on-skin, both women breathing and moaning, wet squirting splashes, one shared climax cry, then after-breaths. No male voice.' : 'Location ambience under skin-on-skin impact, wet penetration and plug-shifting sounds, fabric friction, heavy breathing, her broken moans and one climax cry, one male groan, then after-breaths.'}
-non_diegetic_music: None`;
+non_diegetic_music: None
+speaker_mapping: ${speakerMap}`;
 }/**
  * 将 GirlfriendPreset.portraitUrl 转为 File 对象用于上传。
  * fetch 支持 data: / blob: / http: 等各类 URL 类型。
