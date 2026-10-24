@@ -514,7 +514,8 @@ function buildAnchoredH3(imagePrompt: string): string {
     dialogue[9] = d(female[4]);
   } else {
     dialogue[2] = d(female[0]);
-    dialogue[5] = d(male[5], 'S2');
+    if (atOral) dialogue[3] = d(male[5], 'S2');
+    else dialogue[5] = d(male[5], 'S2');
     dialogue[7] = d(female[3]);
     dialogue[9] = d(male[7], 'S2') + ' ' + d(female[4]);
   }
