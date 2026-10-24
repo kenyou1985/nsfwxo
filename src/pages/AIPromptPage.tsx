@@ -12,6 +12,69 @@ import {
   ChevronLeft, ChevronRight, Video, ZoomIn, RefreshCw, Bookmark,
   Grid3X3, ShieldCheck, Play,
 } from 'lucide-react';
+import {
+  expandPrompt,
+  expandVideoFromImage,
+  randomPrompt,
+  streamRandomPrompt,
+  streamExpandPrompt,
+  generateStoryboard,
+  generateStoryboardThemes,
+  generateStoryboardOutline,
+  generateVideoScript,
+  listStoryboardThemes,
+  pollPromptTask,
+  getPromptTaskStatus,
+  type PromptTaskStatus,
+  PromptResult,
+} from '../services/promptApi';
+import { submitDaotaiVideo, pollDaotaiTask } from '../services/daotai';
+import { publishExternalVideoTask } from '../services/videoTaskBridge';
+
+const KREA2_N_STRONG_WORKFLOW = '2101119999196127233';
+
+/** 保证视频提示词英文并以 <Picture 1> 锚定参考图 */
+function anchorH3Prompt(prompt: string): string {
+  if (!prompt) return prompt;
+  if (prompt.includes('<Picture 1>')) return prompt;
+  return `subject_definitions:\n<Subject 1> is @Woman <Picture 1> — an adult East Asian woman in her mid-20s, long straight black hair, fair skin, refined side profile, voluptuous curvy body; preserve face, hair, body proportions and identity exactly from Picture 1.\n<Subject 2> is @Man — a fully adult muscular man, face kept off close-up.\n\n${prompt}`;
+}
+/** 统一使用 Krea2 最强N版文生图工作流，节点仍按 Krea2 构建 */
+function buildKrea2NNodeList(prompt: string) {
+  const opts = buildUnifiedTxt2ImgOptions(prompt, true);
+  opts.workflowId = WORKFLOW.KREA2;
+  return buildTxt2ImgNodeList(opts);
+}
+import {
+  getYunwuKey,
+  getExpandHistory, addExpandHistory, removeExpandHistory, clearExpandHistory,
+  getRandomHistory, addRandomHistory, removeRandomHistory, clearRandomHistory,
+  getStoryboardHistory, addStoryboardHistory, removeStoryboardHistory, clearStoryboardHistory,
+  updateStoryboardHistoryImages,
+  updateStoryboardHistoryPreview,
+  updateRandomHistoryImages,
+  getExpandSession, saveExpandSession, clearExpandSession,
+  getRandomSession, saveRandomSession, clearRandomSession,
+  getStoryboardSession, saveStoryboardSession, clearStoryboardSession,
+  cacheStoryboardPanelImages, getAllCachedPanelImages,
+  addFavorite, removeFavorite, getFavorites, clearFavorites, isFavorited,
+  type ExpandHistoryItem, type RandomHistoryItem, type StoryboardHistoryItem, type FavoriteItem,
+  resolvePanelImages,
+} from '../services/storage';
+import { loadCachedOrExtractPanelImages, getCachedImages, getCachedStoryboardPanelImages, storeImage } from '../services/imageCacheService';
+import { extractImagesFromZipAsDataUrls } from '../services/runninghub';
+import { useFinishedTaskImages } from '../contexts/FinishedTaskImagesContext';
+import { MAX_TASKS, type TaskManagerReturn } from '../hooks/useTaskManager';
+import type { GirlfriendPreset } from '../data/girlfriendPresets';
+import { GirlfriendSelector } from '../components/GirlfriendSelector';
+import { StoryboardSection } from '../components/StoryboardSection';
+import { GridStoryboardMode } from '../components/GridStoryboardMode';
+import { ErrorBoundary } from '../components/ErrorBoundary';
+import { buildTxt2ImgNodeList } from '../utils/txt2imgNodeBuilder';
+import type { QueuedTask, TabType, NodeInfo } from '../types';
+import { withQualityBoost, sanitizePromptForClip } from '../constants';
+import { WORKFLOW, getWorkflowFormat, uploadImage, ensureDataUrl } from '../services/runninghub';
+import { buildUnifiedTxt2ImgOptions } from '../utils/txt2imgDefaults';
 
 /** H3 提示词强制约束文本（开启约束开关时追加到完整提示词前） */
 const H3_CONSTRAINT_TEXT = `【最高优先级强制约束】
@@ -233,69 +296,40 @@ function generateH3Summary(h3Prompt: string): string {
   const uniqueParts = [...new Set(parts)].slice(0, 3);
   return uniqueParts.join(' · ');
 }
-import {
-  expandPrompt,
-  expandVideoFromImage,
-  randomPrompt,
-  streamRandomPrompt,
-  streamExpandPrompt,
-  generateStoryboard,
-  generateStoryboardThemes,
-  generateStoryboardOutline,
-  generateVideoScript,
-  listStoryboardThemes,
-  pollPromptTask,
-  getPromptTaskStatus,
-  type PromptTaskStatus,
-  PromptResult,
-} from '../services/promptApi';
-import { submitDaotaiVideo, pollDaotaiTask } from '../services/daotai';
-import { publishExternalVideoTask } from '../services/videoTaskBridge';
+/** 以当前图片为首帧，生成规范 H3 六段式视频提示词 */
+function buildAnchoredH3(imagePrompt: string): string {
+  const scene = (imagePrompt || '').trim();
+  const cams = [
+    'Medium wide, handheld slight sway, slow push in.',
+    'Medium close, match-cut push, chest close-up.',
+    'Medium side, camera tilts from face to stripped crotch.',
+    'Low-angle close, intimate POV down her face onto the shaft.',
+    'Extreme close on mouth, tracking saliva down her chin.',
+    'Medium full side, standing single-leg-raised side entry.',
+    'Medium front three-quarter, handheld slow push to the wet join.',
+    'Genital close-up, slow-motion micro-push on the wet slide.',
+    'Medium wide lift, camera circles to waist-level tracking.',
+    'Close POV then face, single facial ejaculation in slow motion.',
+    'Medium side handheld, aftershock and after-breaths, continuous motion.',
+  ];
+  const times = ['00:00.000','00:05.500','00:11.000','00:16.500','00:22.000','00:27.500','00:33.000','00:38.500','00:44.000','00:49.500','00:55.000'];
+  const shots = cams.map((cam, i) => `[Shot ${i + 1}] ${times[i]} ${cam} ${scene} Same subject, same clothing state, continuous motion from the previous shot; correct human anatomy, five fingers, both legs complete, consistent with Picture 1, no jitter, no frame skips.`).join('\n');
+  return `subject_definitions:
+<Subject 1> is @Woman <Picture 1> — an adult in her mid-20s East Asian woman with long straight black hair, fair skin, refined side profile and a voluptuous curvy body; preserve face, hair, body proportions and identity exactly from Picture 1.
+<Subject 2> is @Man — a fully adult muscular man, face kept off close-up.
 
-const KREA2_N_STRONG_WORKFLOW = '2101119999196127233';
+summary:
+[reference generation] Cinematic 60-second explicit adult sequence built from the current image, using Picture 1 as the first frame and identity anchor. The scene follows the image prompt through foreplay, oral, penetration and one final climax, with continuous motion and no reset.
 
-/** 保证视频提示词英文并以 <Picture 1> 锚定参考图 */
-function anchorH3Prompt(prompt: string): string {
-  if (!prompt) return prompt;
-  if (prompt.includes('<Picture 1>')) return prompt;
-  return `subject_definitions:\n<Subject 1> is @Woman <Picture 1> — an adult East Asian woman in her mid-20s, long straight black hair, fair skin, refined side profile, voluptuous curvy body; preserve face, hair, body proportions and identity exactly from Picture 1.\n<Subject 2> is @Man — a fully adult muscular man, face kept off close-up.\n\n${prompt}`;
+retention_analysis:
+<Subject 1> <Picture 1>: fully_preserved — face, hair, body proportions and identity stay consistent with the reference.
+
+detailed_description:
+${shots}
+
+overall_soundscape: Environment ambience under skin-on-skin slaps, wet oral sounds, breathing, her broken moans and one climax cry, one male groan, then dripping and after-breaths.
+non_diegetic_music: None`;
 }
-/** 统一使用 Krea2 最强N版文生图工作流，节点仍按 Krea2 构建 */
-function buildKrea2NNodeList(prompt: string) {
-  const opts = buildUnifiedTxt2ImgOptions(prompt, true);
-  opts.workflowId = WORKFLOW.KREA2;
-  return buildTxt2ImgNodeList(opts);
-}
-import {
-  getYunwuKey,
-  getExpandHistory, addExpandHistory, removeExpandHistory, clearExpandHistory,
-  getRandomHistory, addRandomHistory, removeRandomHistory, clearRandomHistory,
-  getStoryboardHistory, addStoryboardHistory, removeStoryboardHistory, clearStoryboardHistory,
-  updateStoryboardHistoryImages,
-  updateStoryboardHistoryPreview,
-  updateRandomHistoryImages,
-  getExpandSession, saveExpandSession, clearExpandSession,
-  getRandomSession, saveRandomSession, clearRandomSession,
-  getStoryboardSession, saveStoryboardSession, clearStoryboardSession,
-  cacheStoryboardPanelImages, getAllCachedPanelImages,
-  addFavorite, removeFavorite, getFavorites, clearFavorites, isFavorited,
-  type ExpandHistoryItem, type RandomHistoryItem, type StoryboardHistoryItem, type FavoriteItem,
-  resolvePanelImages,
-} from '../services/storage';
-import { loadCachedOrExtractPanelImages, getCachedImages, getCachedStoryboardPanelImages, storeImage } from '../services/imageCacheService';
-import { extractImagesFromZipAsDataUrls } from '../services/runninghub';
-import { useFinishedTaskImages } from '../contexts/FinishedTaskImagesContext';
-import { MAX_TASKS, type TaskManagerReturn } from '../hooks/useTaskManager';
-import type { GirlfriendPreset } from '../data/girlfriendPresets';
-import { GirlfriendSelector } from '../components/GirlfriendSelector';
-import { StoryboardSection } from '../components/StoryboardSection';
-import { GridStoryboardMode } from '../components/GridStoryboardMode';
-import { ErrorBoundary } from '../components/ErrorBoundary';
-import { buildTxt2ImgNodeList } from '../utils/txt2imgNodeBuilder';
-import type { QueuedTask, TabType, NodeInfo } from '../types';
-import { withQualityBoost, sanitizePromptForClip } from '../constants';
-import { WORKFLOW, getWorkflowFormat, uploadImage, ensureDataUrl } from '../services/runninghub';
-import { buildUnifiedTxt2ImgOptions } from '../utils/txt2imgDefaults';
 
 /**
  * 将 GirlfriendPreset.portraitUrl 转为 File 对象用于上传。
@@ -1016,11 +1050,12 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     }
   }, [outputText, taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, onNavigate]);
 
-  const handleMainGenerateVideo = useCallback(async () => {
-    if (!outputText.trim()) { onError('请先生成或选择提示词'); return; }
+  const handleMainGenerateVideo = useCallback(async (overridePrompt?: string, overrideImage?: string) => {
+    const videoText = overridePrompt || outputText;
+    if (!videoText.trim()) { onError('请先生成或选择提示词'); return; }
     if (!digitalHumanMode || !selectedGirlfriend) { onError('请先开启数字人锚定，才能生成视频'); return; }
     const resultId = results[selectedOutputIdx]?.id;
-    const image = resultId ? genState[resultId]?.images?.[0] : '';
+    const image = overrideImage || (resultId ? genState[resultId]?.images?.[0] : '');
     if (!image) { onError('请先生成并选择一张图片'); return; }
     const key = getYunwuKey();
     if (!key) { onError('请先配置 API Key'); return; }
@@ -1036,10 +1071,10 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         loop_routes: 1,
         instance: 'plus',
       };
-      const anchoredPrompt = anchorH3Prompt(outputText);
+      const anchoredPrompt = buildAnchoredH3(videoText);
       const submit = await submitDaotaiVideo(key, anchoredPrompt, { ...body, prompt: anchoredPrompt });
       const localId = `expand-video-${Date.now()}`;
-      publishExternalVideoTask({ id: localId, taskId: submit.taskId, status: 'RUNNING', prompt: outputText,
+      publishExternalVideoTask({ id: localId, taskId: submit.taskId, status: 'RUNNING', prompt: videoText,
         imagePreview: image, images: [], coins: null, elapsedSeconds: 0, error: null, startTime: Date.now(), nodeInfoList: [], engine: 'daotai' });
       let url: string | undefined;
       for (let i = 0; i < 120; i++) {
@@ -1050,11 +1085,11 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       }
       if (!url) throw new Error('视频生成超时');
       setMainVideo({ loading: false, url });
-      publishExternalVideoTask({ id: localId, taskId: submit.taskId, status: 'FINISHED', prompt: outputText,
+      publishExternalVideoTask({ id: localId, taskId: submit.taskId, status: 'FINISHED', prompt: videoText,
         imagePreview: image, images: [url], coins: null, elapsedSeconds: 0, error: null, startTime: Date.now(), nodeInfoList: [], engine: 'daotai' });
       try {
         const records = JSON.parse(localStorage.getItem('nsfwxo_video_history') || '[]');
-        records.unshift({ id: `${localId}-${Date.now()}`, prompt: outputText, images: [url], coins: null,
+        records.unshift({ id: `${localId}-${Date.now()}`, prompt: videoText, images: [url], coins: null,
           taskId: submit.taskId, nodeInfoList: [], createdAt: Date.now(), workflowId: '2110330160000516098' });
         localStorage.setItem('nsfwxo_video_history', JSON.stringify(records.slice(0, 50)));
       } catch {}
@@ -1479,7 +1514,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
                 className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-medium transition-all ${r18Mode ? 'bg-red-50 text-red-500 hover:bg-red-100 border border-red-200' : 'bg-bg-elevated text-text-tertiary hover:bg-bg-hover'}`}>
                 <Copy size={12} />复制提示词
               </button>
-              <button onClick={handleMainGenerateVideo}
+              <button onClick={() => void handleMainGenerateVideo()}
                 disabled={mainVideo.loading || !outputText.trim() || !digitalHumanMode || !selectedGirlfriend}
                 className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl font-medium text-sm transition-all ${
                   mainVideo.loading || !outputText.trim() || !digitalHumanMode
@@ -1548,8 +1583,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               onSendToH3Page={() => {
                 const img = genState[result.id]?.images?.[0];
                 if (!img) { onError('请先生成图片'); return; }
-                sessionStorage.setItem('history_img2vid', JSON.stringify({ imageUrl: img, prompt: anchorH3Prompt(result.prompt), targetModel: 'minimaxh3' }));
-                if (onNavigate) onNavigate('img2vid');
+                void handleMainGenerateVideo(result.prompt, img);
               }}
               onUseAsOutput={() => {
                 const idx = results.findIndex((r) => r.id === result.id);
