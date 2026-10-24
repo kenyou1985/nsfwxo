@@ -1064,6 +1064,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         resolution: videoClarity,
         aspect_ratio: '9:16',
         shots_per_seg: videoSegments,
+        target_segs: videoSegments,
         loop_routes: 1,
         instance: 'plus',
       };
@@ -2519,6 +2520,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         resolution: videoClarity,
         aspect_ratio: '9:16',
         shots_per_seg: videoSegments,
+        target_segs: videoSegments,
         loop_routes: 1,
         instance: 'plus',
       };

@@ -980,6 +980,8 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
         #   127.prompt=516→514（不吃 228）、228.custom_prompt 置空 → 火宝 4151 字大提示词永不爆窗（24713>16384 已修复）。
         _llm_val = False if cfg.get('_from_openapi') else bool(wfc.get('llm_value', True))
         _wf['502']['inputs']['value'] = _llm_val
+        if '1269' in _wf:
+            _wf['1269']['inputs']['value'] = _M_det   # 每段分镜数：4 段 × 3 = 12，覆盖 11 个 Shot
         _wf['503']['inputs']['value'] = _N_det    # 总段数（504 = 503-1 = N-1 轮循环 + 首段 = N 段）
         _wf['159']['inputs']['value'] = int(cfg.get('duration', 15))   # 159→9 帧数→93/95 length→127.length
         # 2026-10-19 时长补偿（仅外部开放API火宝路径，导演台原版提交的 9 表达式保持画布默认）：
@@ -2700,7 +2702,8 @@ def run_job(job):
                 _emit('⚠ 未检测到 [Shot N] 分镜标记，确定性切分需要 [Shot 1]..[Shot N] 锚点，拒绝提交')
                 job.set_status('failed')
                 return
-            _M_det = 2   # 1269 每段分镜数（画布默认 2，不注入）
+            # 每段分镜数：保证 4 段时 11 个 Shot 全部覆盖（ceil(11/4)=3，1269=3）
+            _M_det = max(2, -(-int(_ns_det) // max(2, _N_det)))
             _cap_det = _M_det * _N_det
             if _ns_det > _cap_det:
                 _emit('  ⚠ 提示词有 %d 个分镜，但 503=%d 段 × 1269=%d 分镜/段 只覆盖前 %d 个 → '
