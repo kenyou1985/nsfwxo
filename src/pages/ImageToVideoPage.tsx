@@ -991,6 +991,7 @@ function MiniMaxH3Panel({
 }: MiniMaxH3PanelProps) {
   // 主题库批量生成状态
   const [themeBatchProgress, setThemeBatchProgress] = useState<{ current: number; total: number } | null>(null);
+  const [h3InitialImage, setH3InitialImage] = useState<{ path: string; url?: string } | null>(null);
   // 每个槽位的上传状态（移动端优化：避免一个上传阻塞全部 9 个槽位）
   const [mmUploadingSlots, setMmUploadingSlots] = useState<Set<number>>(new Set());
 
@@ -1830,6 +1831,7 @@ function MiniMaxH3T2VPanel({
 }: MiniMaxH3T2VPanelProps) {
   // 主题库批量生成状态
   const [themeBatchProgress, setThemeBatchProgress] = useState<{ current: number; total: number } | null>(null);
+  const [h3InitialImage, setH3InitialImage] = useState<{ path: string; url?: string } | null>(null);
 
   const buildNodeList = (): NodeInfo[] => {
     const nodeList: NodeInfo[] = [
@@ -2582,6 +2584,7 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
           const { imageUrl, imagePath: uploadedPath, prompt: videoPrompt, targetModel } = JSON.parse(data);
           let finalImagePath = uploadedPath || '';
           let finalImagePreview = imageUrl;
+          let finalImageUrl = imageUrl || '';
 
           // Upload image if it's a data URL or blob
           if (imageUrl && (imageUrl.startsWith('data:') || imageUrl.startsWith('blob:'))) {
@@ -2591,6 +2594,7 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
               const file = new File([blob], `storyboard_${Date.now()}.jpg`, { type: 'image/jpeg' });
               const uploadResult = await uploadImage(apiKey, file);
               finalImagePath = uploadResult.imagePath;
+              finalImageUrl = uploadResult.downloadUrl || uploadResult.imagePath;
               finalImagePreview = imageUrl;
             } catch {
               // If upload fails, we'll show error below
@@ -2617,8 +2621,8 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
           } else if (targetModel === 'minimaxh3') {
             // 切换到 MiniMax H3 模型
             setVideoModel('daotai-h3');
-            // 设置图片到 MiniMax H3 面板
-            setMmImages([{ path: finalImagePath, preview: finalImagePreview }, { path: '', preview: '' }, { path: '', preview: '' }]);
+            // 自动填入导演台 H3 的 ref_image_0
+            setH3InitialImage({ path: finalImagePath, url: finalImageUrl });
           } else {
             // 默认使用 Wan 2.2 模型
             setImagePreview(finalImagePreview);
@@ -2874,6 +2878,7 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
   };
 
   const [themeBatchProgress, setThemeBatchProgress] = useState<{ current: number; total: number } | null>(null);
+  const [h3InitialImage, setH3InitialImage] = useState<{ path: string; url?: string } | null>(null);
 
   const handlePoseSelect = (posePrompt: string, poseName: string) => {
     setPrompt(posePrompt);
@@ -2992,6 +2997,7 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
           onError={onError}
           onSuccess={onSuccess}
           taskListRef={taskListRef}
+          initialImage={h3InitialImage}
         />
       )}
 

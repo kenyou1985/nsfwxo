@@ -33,6 +33,8 @@ interface DaotaiH3PanelProps {
   onSuccess: (msg: string) => void;
   /** 页面顶部 VideoTaskList 的句柄：H3 任务挂载到全局任务列表，刷新后恢复轮询 */
   taskListRef?: React.RefObject<DaotaiTaskListHandle | null>;
+  /** 从 GPT Image2 / 历史记录导入的图片，自动填入 ref_image_0 */
+  initialImage?: { path: string; url?: string } | null;
 }
 
 const DURATION_OPTIONS = [
@@ -62,9 +64,17 @@ const ASPECT_RATIO_OPTIONS = [
 
 const MAX_REFS = 5; // det16 ref_nodes = 5
 
-export function DaotaiH3Panel({ apiKey, onError, onSuccess, taskListRef }: DaotaiH3PanelProps) {
+export function DaotaiH3Panel({ apiKey, onError, onSuccess, taskListRef, initialImage }: DaotaiH3PanelProps) {
   // 5 固定槽参考图（与导演台一致；槽位索引与数字人锚定对齐）
   const [refs, setRefs] = useState<(DaotaiRefImage | null)[]>(Array(MAX_REFS).fill(null));
+  useEffect(() => {
+    if (!initialImage?.path) return;
+    setRefs(prev => {
+      const next = [...prev];
+      next[0] = { path: initialImage.path, url: initialImage.url || initialImage.path };
+      return next;
+    });
+  }, [initialImage?.path, initialImage?.url]);
   const [uploadingSlot, setUploadingSlot] = useState<number | null>(null);
   const [prompt, setPrompt] = useState('');
   const [duration, setDuration] = useState(15);

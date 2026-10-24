@@ -371,6 +371,17 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
     onNavigate('img2vid');
   }, [onNavigate, onError, gpt2CachedImages]);
 
+  // GPT Image 2 → 导演台 H3 det16
+  const handleGpt2DaotaiH3 = useCallback((record: GptImage2Record, imgIndex: number) => {
+    if (!onNavigate) { onError?.('当前页面无法跳转到图生视频'); return; }
+    const url = gpt2CachedImages[record.id]?.[imgIndex];
+    if (!url) { onError?.('图片尚未加载完成'); return; }
+    try {
+      sessionStorage.setItem('history_img2vid', JSON.stringify({ imageUrl: url, targetModel: 'minimaxh3' }));
+    } catch { onError?.('保存图片失败'); return; }
+    onNavigate('img2vid');
+  }, [onNavigate, onError, gpt2CachedImages]);
+
   const handleGpt2Edit = useCallback((record: GptImage2Record, imgIndex: number) => {
     if (!onNavigate) {
       onError?.('当前页面无法跳转到图生图');
@@ -1605,6 +1616,13 @@ export function HistoryPage({ onRegenerate, onSuccess, onError, onNavigate, refr
                             title={`使用第 ${(selectedGpt2Img2vidIdx[record.id] ?? 0) + 1} 张图片生长视频 V2`}
                           >
                             <Video size={11} />长视频 V2
+                          </button>
+                          <button
+                            onClick={() => handleGpt2DaotaiH3(record, selectedGpt2Img2vidIdx[record.id] ?? 0)}
+                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90 transition-all"
+                            title={`使用第 ${(selectedGpt2Img2vidIdx[record.id] ?? 0) + 1} 张图片走导演台 H3 det16`}
+                          >
+                            <Video size={11} />导演台 H3
                           </button>
                         </div>
                       )}

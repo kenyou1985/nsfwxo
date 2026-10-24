@@ -896,6 +896,11 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
 
   const clearCompleted = useCallback(() => {
     setTasks((prev) => prev.filter((t) => t.status !== 'FINISHED' && t.status !== 'FAILED'));
+    // 同步清理外部九宫格任务，否则刷新后又从 external 列表恢复
+    try {
+      const ext = getExternalVideoTasks().filter(t => t.status !== 'FINISHED' && t.status !== 'FAILED');
+      localStorage.setItem('nsfwxo_external_video_tasks', JSON.stringify(ext));
+    } catch {}
   }, []);
 
   useImperativeHandle(ref, () => ({
