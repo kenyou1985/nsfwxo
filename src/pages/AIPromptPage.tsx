@@ -10,7 +10,7 @@ import {
   AlertCircle, Settings, Eye, Tag, History, Trash2, Plus, Clock,
   Image, Zap, X, Download, User, Heart, Star, Clapperboard,
   ChevronLeft, ChevronRight, Video, ZoomIn, RefreshCw, Bookmark,
-  Grid3X3, ShieldCheck,
+  Grid3X3, ShieldCheck, Play,
 } from 'lucide-react';
 
 /** H3 提示词强制约束文本（开启约束开关时追加到完整提示词前） */
@@ -249,6 +249,8 @@ import {
   type PromptTaskStatus,
   PromptResult,
 } from '../services/promptApi';
+import { submitDaotaiVideo, pollDaotaiTask } from '../services/daotai';
+import { publishExternalVideoTask } from '../services/videoTaskBridge';
 import {
   getYunwuKey,
   getExpandHistory, addExpandHistory, removeExpandHistory, clearExpandHistory,
@@ -1713,6 +1715,8 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   const [h3Progress, setH3Progress] = useState<{ current: number; total: number } | null>(null);
   // Track which indices are currently being processed (for parallel loading indicators)
   const [h3ProcessingIndices, setH3ProcessingIndices] = useState<Set<number>>(new Set());
+  const autoH3Ref = useRef(false);
+  const [videoStates, setVideoStates] = useState<Record<number, { loading: boolean; url?: string; error?: string }>>({});
   const [favorites, setFavorites] = useState<FavoriteItem[]>(() => getFavorites());
   // Track selected image index per card (for 长视频 1.1 selection)
   const [selectedImageIndices, setSelectedImageIndices] = useState<Record<number, number>>({});
@@ -1842,6 +1846,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     if (!getYunwuKey()) { onError('请先在设置中配置 OpenLux API Key'); return; }
     setLoading(true);
     setExpandedIdx(null);
+    autoH3Ref.current = true;
 
     // Seed N placeholder cards so the UI renders an empty shell for every
     // slot immediately, then we stream text into them as NDJSON chunks
@@ -1940,7 +1945,8 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
             // scene labels even after a long English descriptor block.
             // If THAT also returns empty, fall back to "主题 N" so the
             // badge always has SOME content — never an empty label.
-            const backendLabel = (theme_label ?? '').trim();
+            const rawLabel = (theme_label ?? '').trim();
+            const backendLabel = /抱歉|无法生成|无法提供|不能提供|sorry|i can'?t|i cannot|refuse/i.test(rawLabel) ? '' : rawLabel;
             const derivedLabel = !backendLabel ? (deriveThemeLabel(prompt) || `主题 ${index + 1}`) : backendLabel;
             setResults((prev) => {
               const next = [...prev];
@@ -2173,7 +2179,8 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
             setResults((prev) => {
               const next = [...prev];
               while (next.length <= index) next.push({ theme_label: '', theme: '', tags_used: {}, prompt: '' });
-              next[index] = { ...next[index], theme_label: theme_label || next[index].theme_label || '', prompt };
+              const safeLabel = /抱歉|无法生成|无法提供|不能提供|sorry|i can'?t|i cannot|refuse/i.test(theme_label || '') ? '' : (theme_label || '');
+              next[index] = { ...next[index], theme_label: safeLabel || next[index].theme_label || `主题 ${index + 1}`, prompt };
               return next;
             });
           },
@@ -2276,8 +2283,9 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
 
   const handleBatchGenerateH3 = useCallback(async () => {
     if (results.length === 0) { onError('请先生成图片提示词'); return; }
-    const validResults = results.filter((r) => r.prompt);
-    if (validResults.length === 0) { onError('没有可用的图片提示词'); return; }
+    const isRefusal = (t: string) => /抱歉|无法生成|无法提供|不能提供|sorry|i can'?t|i cannot|refuse/i.test(t);
+    const validResults = results.filter((r) => r.prompt && !r.prompt.startsWith('[错误]') && !isRefusal(r.prompt));
+    if (validResults.length === 0) { onError('提示词均为审核拒绝内容，请重新抽卡'); return; }
 
     // Mark all valid indices as processing
     const validIndices = results.map((r, i) => r.prompt ? i : -1).filter(i => i >= 0);
@@ -2353,7 +2361,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           completed[i] = generateH3Prompt({
             imagePrompt: result.prompt,
             sceneDescription: videoPrompt,
-            duration: 15,
+            duration: 60,
             r18: r18Mode,
           });
         } finally {
@@ -2389,11 +2397,21 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     }
   }, [results, theme, r18Mode, onError, onSuccess]);
 
+  // 随机抽卡完成后自动生成 H3（60 秒 / 9 shot）
+  useEffect(() => {
+    if (!autoH3Ref.current) return;
+    if (loading) return;
+    if (results.length === 0) return;
+    if (results.every((r) => !r.prompt)) return;
+    autoH3Ref.current = false;
+    void handleBatchGenerateH3();
+  }, [loading, results, handleBatchGenerateH3]);
+
   // ── 单个生成 H3 视频提示词 ──
   // 用于每个抽卡结果卡片的独立"生成视频提示词"按钮
   const handleGenerateSingleH3 = useCallback(async (idx: number) => {
     const result = results[idx];
-    if (!result?.prompt) { onError('该提示词尚未生成'); return; }
+    if (!result?.prompt) { onError('该提示词尚未生成'); return undefined; }
     
     // 标记该卡片为处理中
     setH3ProcessingIndices(prev => new Set([...prev, idx]));
@@ -2426,15 +2444,17 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       const h3Prompt = generateH3Prompt({
         imagePrompt: result.prompt,
         sceneDescription: videoPrompt,
-        duration: 15,
+        duration: 60,
         r18: r18Mode,
       });
       
       // 更新该卡片的 H3 提示词
       setH3Prompts(prev => ({ ...prev, [idx]: h3Prompt }));
       onSuccess(`第 ${idx + 1} 个 H3 视频提示词已生成`);
+      return h3Prompt;
     } catch (err) {
       onError(err instanceof Error ? err.message : `第 ${idx + 1} 个 H3 提示词生成失败`);
+      return undefined;
     } finally {
       setH3ProcessingIndices(prev => {
         const next = new Set(prev);
@@ -2443,6 +2463,78 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       });
     }
   }, [results, theme, r18Mode, onError, onSuccess]);
+
+  // 当前卡片直接生成视频（导演台 H3 det16），并同步任务列表/历史
+  const handleGenerateVideo = useCallback(async (idx: number) => {
+    const result = results[idx];
+    if (!result?.prompt) { onError('请先生成提示词'); return; }
+    const image = genStatesRef.current[idx]?.images?.[selectedImageIndices[idx] ?? 0]
+      || genStatesRef.current[idx]?.images?.[0];
+    if (!image) { onError('请先生成图片，再生成视频'); return; }
+
+    setVideoStates(prev => ({ ...prev, [idx]: { loading: true } }));
+    const apiKey = getYunwuKey();
+    if (!apiKey) { onError('请先配置 OpenLux API Key'); setVideoStates(prev => ({ ...prev, [idx]: { loading: false, error: '未配置 API Key' } })); return; }
+    try {
+      let h3: string | undefined = h3PromptsRef.current[idx];
+      if (!h3) {
+        h3 = await handleGenerateSingleH3(idx);
+      }
+      if (!h3) throw new Error('H3 视频提示词生成失败');
+
+      const localTaskId = `random-video-${Date.now()}-${idx}`;
+      const body = {
+        prompt: h3,
+        media: [{ type: 'reference_image', url: image }],
+        workflow_id: '2110330160000516098',
+        duration: 60,
+        resolution: '720p',
+        aspect_ratio: '9:16',
+        shots_per_seg: 9,
+        loop_routes: 1,
+        instance: 'plus',
+      };
+      const submit = await submitDaotaiVideo(apiKey, h3, body);
+      publishExternalVideoTask({
+        id: localTaskId, taskId: submit.taskId, status: 'RUNNING', prompt: h3,
+        imagePreview: image, images: [], coins: null, elapsedSeconds: 0,
+        error: null, startTime: Date.now(), nodeInfoList: [], engine: 'daotai',
+      });
+
+      let videoUrl: string | undefined;
+      for (let i = 0; i < 120; i++) {
+        await new Promise(r => setTimeout(r, 5000));
+        const data = await pollDaotaiTask(apiKey, submit.taskId);
+        if (data.status === 'SUCCESS') {
+          videoUrl = data.video_url || data.output?.video_url || data.url || data.images?.[0] || data.output?.images?.[0];
+          break;
+        }
+        if (data.status === 'FAILED') throw new Error(data.message || '视频生成失败');
+      }
+      if (!videoUrl) throw new Error('视频生成超时或未返回视频地址');
+
+      setVideoStates(prev => ({ ...prev, [idx]: { loading: false, url: videoUrl } }));
+      publishExternalVideoTask({
+        id: localTaskId, taskId: submit.taskId, status: 'FINISHED', prompt: h3,
+        imagePreview: image, images: [videoUrl], coins: null, elapsedSeconds: 0,
+        error: null, startTime: Date.now(), nodeInfoList: [], engine: 'daotai',
+      });
+      try {
+        const records = JSON.parse(localStorage.getItem('nsfwxo_video_history') || '[]');
+        records.unshift({
+          id: `${localTaskId}-${Date.now()}`, prompt: h3, images: [videoUrl],
+          coins: null, taskId: submit.taskId, nodeInfoList: [], createdAt: Date.now(),
+          workflowId: '2110330160000516098',
+        });
+        localStorage.setItem('nsfwxo_video_history', JSON.stringify(records.slice(0, 50)));
+      } catch {}
+      onSuccess('视频已生成');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '视频生成失败';
+      setVideoStates(prev => ({ ...prev, [idx]: { loading: false, error: msg } }));
+      onError(msg);
+    }
+  }, [results, selectedImageIndices, onError, onSuccess, handleGenerateSingleH3]);
 
   /**
    * 跳转长视频 1.1：把视频提示词和参考图暂存到 sessionStorage，
@@ -2564,26 +2656,6 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           <div className="flex items-center justify-between px-1">
             <span className="text-xs text-text-tertiary font-medium">提示词列表 · {results.length} 个</span>
             <div className="flex items-center gap-2">
-              {/* 一键批量视频提示词（H3）—— 在生图按钮左侧 */}
-              <button
-                onClick={handleBatchGenerateH3}
-                disabled={h3Loading || results.length === 0}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  h3Loading || results.length === 0
-                    ? 'bg-bg-elevated text-text-secondary cursor-not-allowed'
-                    : 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90 active:scale-[0.98]'
-                }`}
-                title="为所有已生成的图片提示词批量生成 H3 视频提示词"
-              >
-                {h3Loading ? (
-                  <>
-                    <Loader2 size={12} className="animate-spin" />
-                    {h3Progress ? `第 ${h3Progress.current}/${h3Progress.total} 个...` : '生成中...'}
-                  </>
-                ) : (
-                  <><Sparkles size={12} />一键批量视频提示词</>
-                )}
-              </button>
               <button
                 onClick={handleBatchGenerate}
                 disabled={batchLoading || taskManager.isFull || (digitalHumanMode && !selectedGirlfriend)}
@@ -2610,7 +2682,8 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               onCopy={() => handleCopy(idx, result.prompt)}
               genState={genStates[idx]}
               onGenerateImage={() => handleRandomGenerateImage(idx, result.prompt)}
-              onGenerateSingleH3={() => handleGenerateSingleH3(idx)}
+              onGenerateVideo={() => handleGenerateVideo(idx)}
+              videoState={videoStates[idx]}
               onFavorited={(url) => handleToggleFavorite(url, result.prompt)}
               onRetryStuck={() => handleRetryStuckSlot(idx)}
               taskManager={taskManager}
@@ -2735,12 +2808,12 @@ function RandomHistoryPanel({ history, r18Mode, onLoad, onDelete, onClear, onCop
   );
 }
 
-function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r18Mode, onToggle, onCopy, genState, onGenerateImage, onGenerateSingleH3, onFavorited, onRetryStuck, taskManager, digitalHumanMode, selectedGirlfriend, h3Prompt, h3Generating, sceneLabel, onGotoLongVideoWithH3, selectedImageIndex, onSelectImage, onPreviewImage }: {
+function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r18Mode, onToggle, onCopy, genState, onGenerateImage, onGenerateVideo, onFavorited, onRetryStuck, taskManager, digitalHumanMode, selectedGirlfriend, h3Prompt, h3Generating, videoState, sceneLabel, onGotoLongVideoWithH3, selectedImageIndex, onSelectImage, onPreviewImage }: {
   index: number; result: PromptResult; isExpanded: boolean; isCopied: boolean; tagsVisible: boolean; r18Mode: boolean; onToggle: () => void; onCopy: () => void;
   genState?: { loading: boolean; images: string[] };
   onGenerateImage: () => void;
-  /** 单个生成 H3 视频提示词回调 */
-  onGenerateSingleH3: () => void;
+  onGenerateVideo: () => void;
+  videoState?: { loading: boolean; url?: string; error?: string };
   onFavorited?: (url: string) => void;
   /** Called when a card has been "loading" for >90s with no stream events.
    *  Lets the user manually retry the slow slot without a full refresh. */
@@ -2906,18 +2979,18 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
                 提示词 {isPromptLoading && <span className="text-text-tertiary/70">· 生成中...</span>}
               </span>
               <div className="flex items-center gap-1.5">
-                {/* 单个生成视频提示词按钮 */}
+                {/* 直接生成视频（导演台 H3 det16） */}
                 <button
-                  onClick={onGenerateSingleH3}
-                  disabled={h3Generating || isPromptLoading}
+                  onClick={onGenerateVideo}
+                  disabled={videoState?.loading || isPromptLoading}
                   className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-all ${
                     h3Generating || isPromptLoading
                       ? 'bg-indigo-100 text-indigo-400 cursor-not-allowed'
                       : 'bg-indigo-500 text-white hover:bg-indigo-600'
                   }`}
-                  title="基于此图片提示词生成 H3 视频提示词"
+                  title="用当前图片走导演台 H3 det16 生成视频"
                 >
-                  {h3Generating ? <><Loader2 size={11} className="animate-spin" /> 生成中</> : <><Sparkles size={11} />生成视频提示词</>}
+                  {videoState?.loading ? <><Loader2 size={11} className="animate-spin" /> 视频生成中</> : <><Play size={11} />生成视频</>}
                 </button>
                 <button
                   onClick={onGenerateImage}
@@ -2944,6 +3017,15 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
               )}
             </div>
           </div>
+
+          {videoState?.url && (
+            <div className="mb-3 rounded-xl overflow-hidden border border-border bg-black">
+              <video src={videoState.url} controls playsInline className="w-full max-h-[420px] object-contain" />
+            </div>
+          )}
+          {videoState?.error && (
+            <p className="mb-3 text-[11px] text-red-500">{videoState.error}</p>
+          )}
 
           {/* H3 视频提示词（来自一键批量视频提示词按钮） —— 默认折叠，与电脑端展示一致 */}
           {(h3Prompt || h3Generating) && (
