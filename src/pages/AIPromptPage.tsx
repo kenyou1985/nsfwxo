@@ -1175,7 +1175,8 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     const toSubmit = results.slice(0, availableSlots);
     const tasks = toSubmit.map(async (result) => {
       if (digitalHumanMode && selectedGirlfriend) {
-        await taskManager.addDaotaiImgTask({ model: 'krea2-muse', ratio: '9:16', batch: 2, refs: [downloadUrl || imagePath] }, result.prompt);
+        const taskId = await taskManager.addDaotaiImgTask({ model: 'krea2-muse', ratio: '9:16', batch: 2, refs: [downloadUrl || imagePath] }, result.prompt);
+        if (idx >= 0) setGenStates((prev) => ({ ...prev, [idx]: { loading: true, images: [], taskId } }));
       } else {
         await taskManager.addDaotaiImgTask({ model: 'krea2', ratio: '9:16', batch: 2, refs: [] }, result.prompt);
       }
@@ -1942,7 +1943,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       }
       return changed ? next : prev;
     });
-  }, [taskManager.tasks, results]);
+  }, [taskManager.tasks, results, genStates]);
 
   const THEMES = [
     { key: '', label: '完全随机' },
