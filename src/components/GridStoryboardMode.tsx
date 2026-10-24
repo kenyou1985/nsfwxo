@@ -2183,7 +2183,10 @@ export function GridStoryboardMode({
     if (!full) { onError('还没有九宫格图片，先生成图片'); return; }
     if (!apiKey) { onError('缺少 RunningHub API Key'); return; }
 
-    const cells = Math.min(9, Math.max(1, panels.length));
+    // 以网格尺寸为准，不能只依赖 panels.length（某些历史/单图状态只有 1 个 panel）
+    const cells = Math.min(12, Math.max(Number(gridSize) || 9, panels.length));
+    const cols = cells === 4 ? 2 : 3;
+    const rows = cells === 4 ? 2 : cells === 6 ? 2 : cells === 12 ? 4 : 3;
     const children: Array<{ index: number; status: string; taskId?: string; url?: string; error?: string }> = Array.from({ length: cells }, (_, i) => ({ index: i, status: 'uploading' }));
     setThisGridVideo({ status: 'running', children });
 
@@ -2194,7 +2197,7 @@ export function GridStoryboardMode({
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error(label + '超时')), ms)),
       ]);
       const frames: string[] = await Promise.all(Array.from({ length: cells }, async (_, i) => {
-        const file = await withTimeout(cropGridCell(full, i, 3, 3), 20000, `第 ${i + 1} 格裁切`);
+        const file = await withTimeout(cropGridCell(full, i, cols, rows), 20000, `第 ${i + 1} 格裁切`);
         if (!file) throw new Error(`第 ${i + 1} 格裁切失败`);
         const up = await withTimeout(uploadImage(apiKey, file), 60000, `第 ${i + 1} 格上传`);
         let frame = up.downloadUrl || up.imagePath;
