@@ -35,6 +35,7 @@ interface DaotaiH3PanelProps {
   taskListRef?: React.RefObject<DaotaiTaskListHandle | null>;
   /** 从 GPT Image2 / 历史记录导入的图片，自动填入 ref_image_0 */
   initialImage?: { path: string; url?: string } | null;
+  initialPrompt?: string;
 }
 
 const DURATION_OPTIONS = [
@@ -64,7 +65,7 @@ const ASPECT_RATIO_OPTIONS = [
 
 const MAX_REFS = 5; // det16 ref_nodes = 5
 
-export function DaotaiH3Panel({ apiKey, onError, onSuccess, taskListRef, initialImage }: DaotaiH3PanelProps) {
+export function DaotaiH3Panel({ apiKey, onError, onSuccess, taskListRef, initialImage, initialPrompt }: DaotaiH3PanelProps) {
   // 5 固定槽参考图（与导演台一致；槽位索引与数字人锚定对齐）
   const [refs, setRefs] = useState<(DaotaiRefImage | null)[]>(Array(MAX_REFS).fill(null));
   useEffect(() => {
@@ -75,6 +76,11 @@ export function DaotaiH3Panel({ apiKey, onError, onSuccess, taskListRef, initial
       return next;
     });
   }, [initialImage?.path, initialImage?.url]);
+
+  useEffect(() => {
+    if (!initialPrompt) return;
+    setPrompt(initialPrompt);
+  }, [initialPrompt]);
   const [uploadingSlot, setUploadingSlot] = useState<number | null>(null);
   const [prompt, setPrompt] = useState('');
   const [duration, setDuration] = useState(15);

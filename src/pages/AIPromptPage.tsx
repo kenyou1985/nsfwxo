@@ -999,7 +999,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         onSuccess('任务已提交，生成结果会显示在当前页面');
       } else {
         // 最强N版是导演台工作流，必须走 /api/daotai/image，不能走 RunningHub
-        await taskManager.addDaotaiImgTask({ model: 'krea2', ratio: '9:16', batch: 1, refs: [] }, outputText);
+        await taskManager.addDaotaiImgTask({ model: 'krea2', ratio: '9:16', batch: 2, refs: [] }, outputText);
         onSuccess('任务已提交，生成结果会显示在当前页面');
       }
     } catch (err) {
@@ -1101,7 +1101,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       }
     } else {
       try {
-        await taskManager.addDaotaiImgTask({ model: 'krea2', ratio: '9:16', batch: 1, refs: [] }, result.prompt);
+        await taskManager.addDaotaiImgTask({ model: 'krea2', ratio: '9:16', batch: 2, refs: [] }, result.prompt);
         onSuccess('任务已提交，生成结果会显示在当前页面');
       } catch (err) {
         onError(err instanceof Error ? err.message : '提交失败');
@@ -1147,7 +1147,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         });
         await taskManager.addTask('img2img', nodes, result.prompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, undefined, 'expand');
       } else {
-        await taskManager.addDaotaiImgTask({ model: 'krea2', ratio: '9:16', batch: 1, refs: [] }, result.prompt);
+        await taskManager.addDaotaiImgTask({ model: 'krea2', ratio: '9:16', batch: 2, refs: [] }, result.prompt);
       }
     });
     const results_await = await Promise.allSettled(tasks);
@@ -1537,6 +1537,12 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
                 }
               }}
               onGenerateImage={() => handleExpandGenerateImage(result)}
+              onSendToH3Page={() => {
+                const img = genState[result.id]?.images?.[0];
+                if (!img) { onError('请先生成图片'); return; }
+                sessionStorage.setItem('history_img2vid', JSON.stringify({ imageUrl: img, prompt: result.prompt, targetModel: 'minimaxh3' }));
+                if (onNavigate) onNavigate('img2vid');
+              }}
               onUseAsOutput={() => {
                 const idx = results.findIndex((r) => r.id === result.id);
                 setSelectedOutputIdx(idx);
@@ -1645,11 +1651,11 @@ function ExpandHistoryPanel({ history, r18Mode, onLoad, onDelete, onClear, onCop
   );
 }
 
-function ExpandResultCard({ result, r18Mode, isCopied, genState, onCopy, onDelete, onGenerateImage, onUseAsOutput, onFavorited, taskManager, digitalHumanMode, selectedGirlfriend }: {
+function ExpandResultCard({ result, r18Mode, isCopied, genState, onCopy, onDelete, onGenerateImage, onSendToH3Page, onUseAsOutput, onFavorited, taskManager, digitalHumanMode, selectedGirlfriend }: {
   result: { id: string; original: string; prompt: string; r18: boolean };
   r18Mode: boolean; isCopied: boolean;
   genState?: { loading: boolean; images: string[]; taskId: string | null };
-  onCopy: () => void; onDelete: () => void; onGenerateImage: () => void; onUseAsOutput: () => void;
+  onCopy: () => void; onDelete: () => void; onGenerateImage: () => void; onSendToH3Page: () => void; onUseAsOutput: () => void;
   onFavorited?: (url: string) => void;
   taskManager: TaskManagerReturn;
   digitalHumanMode?: boolean; selectedGirlfriend?: GirlfriendPreset | null;
@@ -1700,6 +1706,13 @@ function ExpandResultCard({ result, r18Mode, isCopied, genState, onCopy, onDelet
         >
           {isGenLoading ? <Loader2 size={11} className="animate-spin" /> : <Image size={11} />}
           {digitalHumanMode && selectedGirlfriend ? '图生图' : '生图'}
+        </button>
+        <button onClick={onSendToH3Page}
+          disabled={!genState?.images?.length}
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium flex-shrink-0 ${!genState?.images?.length ? 'bg-indigo-100 text-indigo-300 cursor-not-allowed' : 'bg-indigo-500 text-white hover:bg-indigo-600'}`}
+          title="把当前图片和 H3 提示词送入导演台 det16"
+        >
+          <Video size={11} />生视频
         </button>
         <button onClick={onUseAsOutput}
           disabled={isPromptLoading}
@@ -1887,7 +1900,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           } else if (matchedTask.status === 'FINISHED' && matchedTask.images && matchedTask.images.length > 0) {
             // Task finished with images — update genState to show the result and clear loading
             const existing = prev[i];
-            if (!existing || existing.images.length === 0 || JSON.stringify(existing.images) !== JSON.stringify(matchedTask.images)) {
+            if (!existing || existing.loading || existing.images.length === 0 || JSON.stringify(existing.images) !== JSON.stringify(matchedTask.images)) {
               next[i] = { loading: false, images: matchedTask.images };
               changed = true;
             }
@@ -2337,7 +2350,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         });
         await taskManager.addTask('img2img', nodes, result.prompt, WORKFLOW.IMAGE_TO_IMAGE, undefined, undefined, 'random', perTaskTheme || undefined);
       } else {
-        await taskManager.addDaotaiImgTask({ model: 'krea2', ratio: '9:16', batch: 1, refs: [] }, result.prompt);
+        await taskManager.addDaotaiImgTask({ model: 'krea2', ratio: '9:16', batch: 2, refs: [] }, result.prompt);
       }
     });
     const settled = await Promise.allSettled(tasks);
@@ -2626,6 +2639,23 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
    * @param idx 当前卡片索引（用于获取对应的 H3 提示词）
    * @param videoPrompt 可选的视频提示词
    */
+  const handleSendToH3Page = useCallback(async (idx: number) => {
+    const result = results[idx];
+    if (!result?.prompt) { onError('请先生成提示词'); return; }
+    const image = genStatesRef.current[idx]?.images?.[selectedImageIndices[idx] ?? 0]
+      || genStatesRef.current[idx]?.images?.[0];
+    if (!image) { onError('请先生成图片'); return; }
+    let h3: string | undefined = h3PromptsRef.current[idx];
+    if (!h3) h3 = await handleGenerateSingleH3(idx);
+    if (!h3) { onError('H3 提示词生成失败'); return; }
+    try {
+      sessionStorage.setItem('history_img2vid', JSON.stringify({
+        imageUrl: image, prompt: h3, targetModel: 'minimaxh3',
+      }));
+    } catch { onError('保存失败'); return; }
+    if (onNavigate) onNavigate('img2vid');
+  }, [results, selectedImageIndices, handleGenerateSingleH3, onNavigate, onError]);
+
   const handleGotoLongVideoWithH3 = useCallback(async (imageUrl: string, idx: number, videoPrompt?: string) => {
     if (!imageUrl) { onError('需要先生成图片'); return; }
     const result = results[idx];
@@ -2765,6 +2795,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               genState={genStates[idx]}
               onGenerateImage={() => handleRandomGenerateImage(idx, result.prompt)}
               onGenerateVideo={() => handleGenerateVideo(idx)}
+              onSendToH3Page={() => handleSendToH3Page(idx)}
               videoState={videoStates[idx]}
               videoClarity={videoClarity}
               videoSegments={videoSegments}
@@ -2894,11 +2925,12 @@ function RandomHistoryPanel({ history, r18Mode, onLoad, onDelete, onClear, onCop
   );
 }
 
-function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r18Mode, onToggle, onCopy, genState, onGenerateImage, onGenerateVideo, onFavorited, onRetryStuck, taskManager, digitalHumanMode, selectedGirlfriend, h3Prompt, h3Generating, videoState, videoClarity, videoSegments, onVideoClarityChange, onVideoSegmentsChange, sceneLabel, onGotoLongVideoWithH3, selectedImageIndex, onSelectImage, onPreviewImage }: {
+function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r18Mode, onToggle, onCopy, genState, onGenerateImage, onGenerateVideo, onSendToH3Page, onFavorited, onRetryStuck, taskManager, digitalHumanMode, selectedGirlfriend, h3Prompt, h3Generating, videoState, videoClarity, videoSegments, onVideoClarityChange, onVideoSegmentsChange, sceneLabel, onGotoLongVideoWithH3, selectedImageIndex, onSelectImage, onPreviewImage }: {
   index: number; result: PromptResult; isExpanded: boolean; isCopied: boolean; tagsVisible: boolean; r18Mode: boolean; onToggle: () => void; onCopy: () => void;
   genState?: { loading: boolean; images: string[] };
   onGenerateImage: () => void;
   onGenerateVideo: () => void;
+  onSendToH3Page: () => void;
   videoState?: { loading: boolean; url?: string; error?: string };
   videoClarity: number; videoSegments: number;
   onVideoClarityChange: (v: number) => void;

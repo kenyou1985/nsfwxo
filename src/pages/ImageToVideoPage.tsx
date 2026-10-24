@@ -2623,6 +2623,7 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
             setVideoModel('daotai-h3');
             // 自动填入导演台 H3 的 ref_image_0
             setH3InitialImage({ path: finalImagePath, url: finalImageUrl });
+            if (videoPrompt) setH3InitialPrompt(videoPrompt);
           } else {
             // 默认使用 Wan 2.2 模型
             setImagePreview(finalImagePreview);
@@ -2879,6 +2880,7 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
 
   const [themeBatchProgress, setThemeBatchProgress] = useState<{ current: number; total: number } | null>(null);
   const [h3InitialImage, setH3InitialImage] = useState<{ path: string; url?: string } | null>(null);
+  const [h3InitialPrompt, setH3InitialPrompt] = useState<string>('');
 
   const handlePoseSelect = (posePrompt: string, poseName: string) => {
     setPrompt(posePrompt);
@@ -2998,6 +3000,7 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
           onSuccess={onSuccess}
           taskListRef={taskListRef}
           initialImage={h3InitialImage}
+          initialPrompt={h3InitialPrompt}
         />
       )}
 
