@@ -272,6 +272,7 @@ import type { GirlfriendPreset } from '../data/girlfriendPresets';
 import { GirlfriendSelector } from '../components/GirlfriendSelector';
 import { StoryboardSection } from '../components/StoryboardSection';
 import { GridStoryboardMode } from '../components/GridStoryboardMode';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import { buildTxt2ImgNodeList } from '../utils/txt2imgNodeBuilder';
 import type { QueuedTask, TabType, NodeInfo } from '../types';
 import { withQualityBoost, sanitizePromptForClip } from '../constants';
@@ -6126,6 +6127,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
 
       {/* Grid Storyboard Mode */}
       {subMode === 'grid' && (
+        <ErrorBoundary name="九宫格分镜">
         <GridStoryboardMode
           r18Mode={r18Mode}
           taskManager={taskManager}
@@ -6137,6 +6139,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
           onSuccess={onSuccess}
           onNavigate={onNavigate}
         />
+        </ErrorBoundary>
       )}
 
       {/* Linear Storyboard Mode (existing) */}
