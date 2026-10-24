@@ -42,40 +42,64 @@ function anchorH3Prompt(prompt: string): string {
   return `subject_definitions:\n<Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1; preserve her face, hair color and hairstyle, skin tone, body proportions and identity exactly from Picture 1.\n<Subject 2> is @Man — a fully adult muscular man, face kept off close-up.\n\n${prompt}`;
 }
 /** 统一使用 Krea2 最强N版文生图工作流，节点仍按 Krea2 构建 */
-function pickPoseNames(scene: string, kind: 'penetration' | 'oral', count: number): string[] {
-  const oralRe = /口交|69|舔|深喉|oral|blow|lick|suck/i;
-  const penRe = /后入|女上位|传教士|侧卧|站立|抱起|骑乘|插入|doggy|cowgirl|missionary|spoon|standing|carry|riding|penetrat/i;
-  const seated = /(sits?|sitting|lying|reclin|bed|sofa|couch|crouch|kneel|reverse-cowgirl|cowgirl)/i.test(scene);
-  const standing = /(stand|wall|carry|standing)/i.test(scene);
-  const names = VIDEO_POSE_PRESETS
-    .filter((p) => {
-      const t = `${p.name} ${p.nameZh}`;
-      return kind === 'oral' ? oralRe.test(t) : penRe.test(t) && !oralRe.test(t);
-    })
-    .map((p) => `${p.name.replace(/^#\d+\s*/, '')} (${p.nameZh})`);
-  if (kind === 'oral') return [...names].sort(() => Math.random() - 0.5).slice(0, count);
-  const buckets = [
-    /女上位|骑乘|cowgirl|riding/i,
-    /后入|doggy|prone|spoon|侧卧|趴/i,
-    /传教士|missionary|抬腿|lotus|坐姿|正面/i,
-    /站立|抱起|靠墙|standing|carry|wall/i,
+type PosePick = { name: string; transition: string };
+
+function pickPoseSequence(scene: string): PosePick[] {
+  const names = VIDEO_POSE_PRESETS.map((p) => p.name.replace(/^#\d+\s*/, '')).filter(Boolean);
+  const pick = (re: RegExp, exclude?: RegExp): string | null => {
+    const pool = names.filter((n) => re.test(n) && (!exclude || !exclude.test(n)));
+    return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+  };
+  const reverse = /反向女上位|reverse cowgirl/i;
+  const cowgirl = /女上位|骑乘|cowgirl|riding/i;
+  const doggy = /后入|doggy/i;
+  const prone = /趴|prone/i;
+  const spoon = /侧卧|spoon/i;
+  const missionary = /传教士|missionary|抬腿/i;
+  const standing = /站立|standing|靠墙|wall|抱起|carry/i;
+  const p = (re: RegExp, exclude?: RegExp, fallback?: string) => pick(re, exclude) || fallback || 'Cowgirl Wild Ride';
+
+  const startReverse = /reverse[- ]?cowgirl|反向女上位|背对.*骑/i.test(scene);
+  const startCowgirl = !startReverse && /cowgirl|女上位|骑乘|riding/i.test(scene);
+  const startDoggy = /doggy|后入|behind|prone|趴/i.test(scene);
+  const startMissionary = /missionary|传教士|legs up|抬腿|lying on her back/i.test(scene);
+  const startStanding = /standing|站立|wall|靠墙|carry|抱起/i.test(scene);
+
+  if (/astride.*face|facesit|sitting on (?:his|the) face|mouth beneath/i.test(scene)) return [
+    { name: p(cowgirl, undefined, 'Cowgirl Wild Ride'), transition: 'She rises from his mouth and sinks down onto his cock, staying over him.' },
+    { name: p(reverse, undefined, 'Reverse Cowgirl'), transition: 'She turns her back to him without lifting off, reversing the ride.' },
+    { name: p(doggy, undefined, 'Doggy Classic'), transition: 'She lifts to all fours and he follows behind, staying inside.' },
   ];
-  const compatible = names.filter((name) => {
-    const vertical = /站立|抱起|靠墙|stand|carry|wall/i.test(name);
-    return standing ? vertical : seated ? !vertical : true;
-  });
-  const source = compatible.length ? compatible : names;
-  const picked: string[] = [];
-  for (const re of [...buckets].sort(() => Math.random() - 0.5)) {
-    if (picked.length >= count) break;
-    const candidates = source.filter((name) => re.test(name) && !picked.includes(name));
-    if (candidates.length) picked.push(candidates[Math.floor(Math.random() * candidates.length)]);
-  }
-  for (const name of [...source].sort(() => Math.random() - 0.5)) {
-    if (picked.length >= count) break;
-    if (!picked.includes(name)) picked.push(name);
-  }
-  return picked;
+  if (startReverse) return [
+    { name: p(cowgirl, reverse, 'Cowgirl Wild Ride'), transition: 'She turns around on his lap without lifting off, now facing him.' },
+    { name: p(doggy, undefined, 'Doggy Classic'), transition: 'She rises onto all fours and he follows into her from behind.' },
+    { name: p(missionary, undefined, 'Missionary Legs Up'), transition: 'He turns her onto her back and stays inside, legs up.' },
+  ];
+  if (startCowgirl) return [
+    { name: p(reverse, undefined, 'Reverse Cowgirl'), transition: 'She turns her back to him on the same lap, reversing the ride without a cut.' },
+    { name: p(doggy, undefined, 'Doggy Classic'), transition: 'She lifts to all fours and he follows behind, staying inside.' },
+    { name: p(missionary, undefined, 'Missionary Legs Up'), transition: 'He lays her back and stays inside, legs rising.' },
+  ];
+  if (startDoggy) return [
+    { name: p(prone, undefined, 'Prone Bone Deep'), transition: 'She lowers her chest to the surface, he presses down and keeps the rhythm.' },
+    { name: p(spoon, undefined, 'Spooning Side'), transition: 'He rolls her onto her side, staying inside, leg lifted.' },
+    { name: p(missionary, undefined, 'Missionary Legs Up'), transition: 'He turns her onto her back without pulling out, legs up.' },
+  ];
+  if (startMissionary) return [
+    { name: p(cowgirl, undefined, 'Cowgirl Wild Ride'), transition: 'She sits up and rises onto him as he lies back, staying connected.' },
+    { name: p(reverse, undefined, 'Reverse Cowgirl'), transition: 'She turns around on top into reverse cowgirl, no cut.' },
+    { name: p(doggy, undefined, 'Doggy Classic'), transition: 'She turns onto all fours and he follows behind.' },
+  ];
+  if (startStanding) return [
+    { name: p(standing, undefined, 'Standing Doggy Wall'), transition: 'He turns her to the wall, same standing height, enters from behind.' },
+    { name: p(cowgirl, undefined, 'Cowgirl Wild Ride'), transition: 'He lowers her onto the nearest surface and she rises on top.' },
+    { name: p(missionary, undefined, 'Missionary Legs Up'), transition: 'He lays her back and stays inside, legs up.' },
+  ];
+  return [
+    { name: p(cowgirl, undefined, 'Cowgirl Wild Ride'), transition: 'She rises and sinks onto him, he lies back.' },
+    { name: p(reverse, undefined, 'Reverse Cowgirl'), transition: 'She turns around on top, reversing the ride.' },
+    { name: p(doggy, undefined, 'Doggy Classic'), transition: 'She turns onto all fours and he follows behind.' },
+  ];
 }
 
 async function copyTextToClipboard(text: string): Promise<boolean> {
@@ -376,9 +400,11 @@ function buildAnchoredH3(imagePrompt: string): string {
   const wantsOral = /(oral|blowjob|mouth|deepthroat|suck)/i.test(scene);
   const cumEnding = wantsOral ? 'oral' : wantsAss ? 'ass' : 'internal';
   const first = 'Exactly reproduce Picture 1 as the first frame: identical pose, identical framing, identical clothing state or nudity, identical lighting and background. Hold one beat, then continue the SAME act already happening in the image. Never reset to an earlier stage, never undress or dress again, never switch to a different sex act.';
-  const same = `${placeLine}. Same people, same clothing/nudity state as Picture 1. Hard cut between positions; the new shot must show a different body configuration, not just a new camera angle. No reset, no scene change, no character change.`;
-  const penPoses = pickPoseNames(scene, 'penetration', 3);
-  const oralPose = pickPoseNames(scene, 'oral', 1)[0] || '69 Mutual Oral';
+  const same = `${placeLine}. Same people, same clothing/nudity state as Picture 1. Cut smoothly between positions; the next shot starts from the previous body configuration and changes only the minimum needed. No reset, no scene change, no character change.`;
+  const poseSeq = pickPoseSequence(scene);
+  const penPoses = poseSeq.map((p) => p.name);
+  const poseTrans = poseSeq.map((p) => p.transition);
+  const oralPose = (() => { const n = VIDEO_POSE_PRESETS.map((p) => p.name.replace(/^#\d+\s*/, '')).filter((x) => /口交|69|舔|深喉|oral|blow|lick|suck/i.test(x)); return n.length ? n[Math.floor(Math.random() * n.length)] : '69 Mutual Oral'; })();
   const ending = cumEnding === 'oral'
     ? 'Final shot: she pulls him out and takes the single load on her tongue and face, mouth open, cum on lips and chin, swallowing; no second climax.'
     : cumEnding === 'ass'
@@ -425,9 +451,9 @@ function buildAnchoredH3(imagePrompt: string): string {
       'Medium side: she leans back on one hand, thighs clamping around his head, grinding faster, stomach tightening.',
       `She slides down into ${oralPose}: takes his cock in her mouth, tongue dragging the shaft, cheeks hollowing, saliva shining; his hand on her head. ${same}`,
       'Low-angle POV: she looks up at the lens while sucking, one hand stroking the base, then takes him deep, gagging softly.',
-      `Hard cut to a completely different position: ${penPoses[0] || 'Cowgirl Wild Ride'}: she rises and sinks onto him, her body jolting, mouth open, hands on his chest. ${same}`,
-      `Hard cut to a completely different position: ${penPoses[1] || 'Reverse Cowgirl'}: her back to his chest, hips rolling, his hands gripping her waist, breasts bouncing. ${same}`,
-      `Hard cut to a completely different position: ${penPoses[2] || 'Doggy Classic'}: he grips her hips and drives deep, her back arching, hair swinging, sweat dripping. ${same}`,
+      `${poseTrans[0]} Transition into ${penPoses[0] || 'Cowgirl Wild Ride'}: she rises and sinks onto him, her body jolting, mouth open, hands on his chest. ${same}`,
+      `${poseTrans[1]} Transition into ${penPoses[1] || 'Reverse Cowgirl'}: her back to his chest, hips rolling, his hands gripping her waist, breasts bouncing. ${same}`,
+      `${poseTrans[2]} Transition into ${penPoses[2] || 'Doggy Classic'}: he grips her hips and drives deep, her back arching, hair swinging, sweat dripping. ${same}`,
       ending,
       after,
     ];
@@ -438,9 +464,9 @@ function buildAnchoredH3(imagePrompt: string): string {
       'Medium close: deeper take, glans pressing her throat, gag reflex, saliva spilling from the corner of her mouth; his hand on her head.',
       'Low-angle POV down her face: eye contact with the lens while she sucks, one hand stroking the base, breathing through her nose.',
       'She pulls back to lick the corona and shaft, spit strings stretching, then takes him deep again; no scene change.',
-      `Hard cut to a completely different position: ${penPoses[0] || 'Cowgirl Wild Ride'}: she rises and sinks onto him, body jolting, mouth open, hands on his chest. ${same}`,
-      `Hard cut to a completely different position: ${penPoses[1] || 'Reverse Cowgirl'}: her back against his chest, hips rolling, his hands on her waist, breasts bouncing. ${same}`,
-      `Hard cut to a completely different position: ${penPoses[2] || 'Doggy Classic'}: he grips her hips and drives deep, her back arching, hair swinging. ${same}`,
+      `${poseTrans[0]} Transition into ${penPoses[0] || 'Cowgirl Wild Ride'}: she rises and sinks onto him, body jolting, mouth open, hands on his chest. ${same}`,
+      `${poseTrans[1]} Transition into ${penPoses[1] || 'Reverse Cowgirl'}: her back against his chest, hips rolling, his hands on her waist, breasts bouncing. ${same}`,
+      `${poseTrans[2]} Transition into ${penPoses[2] || 'Doggy Classic'}: he grips her hips and drives deep, her back arching, hair swinging. ${same}`,
       'Side-entry or lifted angle on the same position: one leg over his shoulder, deeper, faces close, sweat and breath mixing.',
       'Extreme close on the join: shaft sliding in and out, labia clinging, fluid stringing, thighs trembling; cut back to her face.',
       ending,
@@ -451,13 +477,13 @@ function buildAnchoredH3(imagePrompt: string): string {
       first,
       `Continue the exact penetration from Picture 1: first visible thrust, hips meeting, her body jolting, mouth open, hands gripping. ${same}`,
       'Same position, rhythm builds: breasts moving with each stroke, sweat on collarbone, her head falling back, moans breaking.',
-      `Hard cut to a completely different position: ${penPoses[0] || 'Cowgirl Wild Ride'}: she changes into this position, hands and hips finding the rhythm, eye contact, breasts bouncing. ${same}`,
+      `${poseTrans[0]} Transition into ${penPoses[0] || 'Cowgirl Wild Ride'}: she changes into this position, hands and hips finding the rhythm, eye contact, breasts bouncing. ${same}`,
       'Medium side on the same position: deeper strokes, her back arching, his hands on her waist, skin slapping, fluid at the join.',
       `She slides off and switches to ${oralPose}: tongue dragging the shaft, cheeks hollowing, saliva shining, eye contact with the lens. ${same}`,
       'Low-angle oral close-up: she takes him deep, gagging softly, one hand stroking the base, spit strings on her chin.',
-      `Hard cut to a completely different position: ${penPoses[1] || 'Doggy Classic'}: he grips her hips and drives deep, her back arched, ass meeting each thrust. ${same}`,
+      `${poseTrans[1]} Transition into ${penPoses[1] || 'Doggy Classic'}: he grips her hips and drives deep, her back arched, ass meeting each thrust. ${same}`,
       'Side view of the same position: one leg lifted, deeper angle, his hand in her hair, her mouth open, sweat dripping.',
-      `Hard cut to a completely different position: ${penPoses[2] || 'Missionary Legs Up'}: faces close, legs around him, deep slow thrusts, breasts pressed to his chest. ${same}`,
+      `${poseTrans[2]} Transition into ${penPoses[2] || 'Missionary Legs Up'}: faces close, legs around him, deep slow thrusts, breasts pressed to his chest. ${same}`,
       ending,
       after,
     ];
@@ -467,9 +493,9 @@ function buildAnchoredH3(imagePrompt: string): string {
       `Foreplay continues from the first frame: his hands slide over her body, pulling cloth aside or over bare skin, her head tilting back. ${same}`,
       'Medium close: fingers and tongue on nipples and inner thighs, visible wetness, goosebumps; she arches into the touch.',
       'She sinks down and takes him in her mouth, tongue dragging, cheeks hollowing, saliva shining; his hand on the back of her head.',
-      `Hard cut to a completely different position: ${penPoses[0] || 'Cowgirl Wild Ride'}: she sinks onto him, body jolting, mouth open, hands on his chest. ${same}`,
-      `Hard cut to a completely different position: ${penPoses[1] || 'Reverse Cowgirl'}: her back to his chest, hips rolling, his hands on her waist, breasts bouncing. ${same}`,
-      `Hard cut to a completely different position: ${penPoses[2] || 'Doggy Classic'}: he grips her hips, drives deep, her back arching, hair swinging. ${same}`,
+      `${poseTrans[0]} Transition into ${penPoses[0] || 'Cowgirl Wild Ride'}: she sinks onto him, body jolting, mouth open, hands on his chest. ${same}`,
+      `${poseTrans[1]} Transition into ${penPoses[1] || 'Reverse Cowgirl'}: her back to his chest, hips rolling, his hands on her waist, breasts bouncing. ${same}`,
+      `${poseTrans[2]} Transition into ${penPoses[2] || 'Doggy Classic'}: he grips her hips, drives deep, her back arching, hair swinging. ${same}`,
       'Side-entry or lifted angle on the same position: one leg raised, deeper, faces close, sweat and breath mixing.',
       'Extreme close on the join: shaft sliding in and out, labia clinging, fluid stringing, thighs trembling.',
       'Rhythm accelerates: deeper strokes, skin slapping, her body rocking, moans breaking into gasps.',
@@ -482,32 +508,18 @@ function buildAnchoredH3(imagePrompt: string): string {
   const male = ['不要动。', '夹紧。', '屁股抬高。', '操死你。', '不要出声。', '嘴巴张开，含住我的鸡巴。', '舔干净，吞下去。', '射了。'];
   const dialogue: string[] = Array(11).fill('');
   if (twoWomen) {
-    dialogue[1] = d(female[0]) + ' ' + d('舔我…');
-    dialogue[3] = d(female[0]);
-    dialogue[5] = d('磨我…');
-    dialogue[7] = d(female[3]);
+    dialogue[2] = d(female[0]);
+    dialogue[6] = d('舔我…');
     dialogue[9] = d('一起…');
-    dialogue[10] = d(female[0]);
   } else if (solo) {
-    dialogue[1] = d(female[0]);
-    dialogue[2] = d(female[1]);
-    dialogue[3] = d(female[2]);
-    dialogue[4] = d(female[3]);
+    dialogue[2] = d(female[0]);
     dialogue[6] = d(female[4]);
-    dialogue[8] = d(female[3]);
-    dialogue[10] = d(female[4]);
-    dialogue[11] = d(female[0]);
+    dialogue[9] = d(female[4]);
   } else {
-    dialogue[1] = d(female[0]) + ' ' + d(male[1]);
-    dialogue[2] = d(male[2]);
-    dialogue[3] = d(female[1]);
-    dialogue[4] = d(male[4]) + ' ' + d(female[2]);
+    dialogue[2] = d(female[0]);
     dialogue[5] = d(male[5]);
-    dialogue[6] = d(male[3]) + ' ' + d(female[5]);
     dialogue[7] = d(female[3]);
-    dialogue[8] = d(male[0]);
     dialogue[9] = d(male[7]) + ' ' + d(female[4]);
-    dialogue[10] = d(female[0]);
   }
   const voiced = shots.map((action, i) => i === 0 || !dialogue[i] ? action : `${action} ${dialogue[i]}`);
   const body = voiced.map((action, i) => `[Shot ${i + 1}] ${times[i]} ${action}`).join('\n');
