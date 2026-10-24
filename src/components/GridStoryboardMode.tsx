@@ -133,18 +133,18 @@ function dedupeGridPanels(panels: GridPanel[]): GridPanel[] {
     }
     // 每格强制不同机位/动作，避免模板库 9 格都是同一个跑步机正面
     const variations = [
-      'wide establishing shot, full body in the environment',
-      'medium frontal shot, face and hands clearly visible',
-      'three-quarter side shot, different body angle',
-      'over-the-shoulder medium shot',
-      'low-angle medium close-up',
-      'high-angle wide shot',
-      'profile medium shot, looking away',
-      'close-up on hands and contact point',
-      'rear three-quarter wide shot',
+      'SHOT 1 — WIDE ESTABLISHING: full body, entire room and furniture visible, character small in frame',
+      'SHOT 2 — MEDIUM TWO-SHOT: both people from knees up, environment visible behind them',
+      'SHOT 3 — CLOSE FACE AND SHOULDERS: emotional expression, hands near face, one single close-up only',
+      'SHOT 4 — MEDIUM SIDE PROFILE: full torso, clear body angle change, hands visible',
+      'SHOT 5 — WIDE LOW ANGLE: full body from floor level, room context visible',
+      'SHOT 6 — CONTACT DETAIL: tight close-up on hands, skin contact or clothing being pulled, no face',
+      'SHOT 7 — REAR THREE-QUARTER WIDE: full body from behind, environment visible',
+      'SHOT 8 — OVER-THE-SHOULDER MEDIUM: one person foreground shoulder, the other full torso visible',
+      'SHOT 9 — WIDE ENDING: full body, both people and entire room visible, clear ending pose',
     ];
-    if (!/distinct framing/i.test(img)) {
-      img = `${img}, ${variations[i % variations.length]}, distinct framing and pose from every other panel`;
+    if (!/SHOT \d+ —/i.test(img)) {
+      img = `${variations[i % variations.length]}. ${img}. Unique camera angle and pose, not a duplicate of any other panel.`;
     }
     const key = img.replace(/\s+/g, ' ').trim().toLowerCase();
     if (!key) return { ...p, image_prompt: img };
