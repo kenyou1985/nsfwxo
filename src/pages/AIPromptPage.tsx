@@ -1166,6 +1166,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     setMainVideo({ loading: true });
     try {
       const body = {
+        firstFrameUrl: image,
         media: [{ type: 'reference_image', url: image }],
         workflow_id: '2110330160000516098',
         duration: 15,
@@ -2630,6 +2631,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       const localTaskId = `random-video-${Date.now()}-${idx}`;
       const body = {
         prompt: h3,
+        firstFrameUrl: image,
         media: [{ type: 'reference_image', url: image }],
         workflow_id: '2110330160000516098',
         duration: 15,

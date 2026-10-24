@@ -75,9 +75,9 @@ def _video_refs(body: dict):
             rf = rh._rh_dl_ref(mu)
             if rf:
                 refs.append(rf)
-    # 首帧是第一参考图；强制复制到所有参考槽，彻底避免 273/285/406/420 残留旧图污染
-    if refs and refs[0]:
-        refs = [refs[0]] * _cap
+    # 只保留首帧一个参考图；其余槽由运行时显式清空为 None，避免重复参考图导致 H3 生成多个人物
+    if refs:
+        refs = [refs[0]]
     if not refs:
         refs = ['']
     return refs

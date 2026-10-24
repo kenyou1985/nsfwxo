@@ -917,6 +917,9 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
                 else:
                     _emit('  [路%d] 复用参考图%d -> %s（已上传）' % (rng[0], i + 1, job.uploaded[p]))
             _wf[ref_nodes[i]]['inputs']['image'] = job.uploaded[p]
+        # 其余参考槽必须清空，禁止沿用画布旧图造成人物/场景污染
+        for _i in range(len(_refs), len(ref_nodes)):
+            _wf[ref_nodes[_i]]['inputs']['image'] = 'None'
         # ===== LLM 15/228 视觉置空：新增节点 9999 = LoadImage(1×1 透明) → 276/282 组合图全部图像槽 =====
         # 实证链（本次探测 taskId 2110428239992836097，1路×2段×ref1.jpg+ref2.png 同款爆窗大图 → 视频 26.17s 正常）：
         #   ①push None 无效 —— 平台忽略 null，276/282 保留默认直连 → LLM 15/228 吃大图 → 16384 爆窗；
