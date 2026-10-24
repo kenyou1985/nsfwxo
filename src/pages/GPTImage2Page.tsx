@@ -154,6 +154,11 @@ function buildPromptInternal(
   }
 
   const parts: string[] = [];
+  // NSFW 审核规避前缀：只在成人/暴露倾向提示词时加，普通 SFW 不加
+  const adultIntent = /裸|性交|做爱|口交|插入|乳房|胸部|乳|情趣|内衣|丁字裤|臀|nude|naked|sex|breast|lingerie|thong|erotic|nsfw/i.test(userPrompt);
+  if (adultIntent) {
+    parts.push('tasteful boudoir editorial photography, cinematic film still, natural anatomy and proportions, soft directional lighting, fabric and shadow concealing explicit details, high-end magazine aesthetic, 85mm lens, shallow depth of field');
+  }
   if (hasDigitalHuman && gf) {
     const anchorIdx = characterAnchorIdx + 1; // prompt 用 1-based 描述
     parts.push(
