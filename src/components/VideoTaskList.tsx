@@ -416,7 +416,12 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
         }
         return true;
       });
-      const external = getExternalVideoTasks() as unknown as VideoTask[];
+      const ONE_DAY = 24 * 60 * 60 * 1000;
+      // 外部任务只恢复：运行中/排队中，或最近 24 小时成功的；失败任务不再回填
+      const external = (getExternalVideoTasks() as unknown as VideoTask[]).filter(e =>
+        e.status === 'RUNNING' || e.status === 'QUEUEING' ||
+        (e.status === 'FINISHED' && e.startTime > Date.now() - ONE_DAY)
+      );
       const merged = [...external.filter(e => !filtered.some(t => t.id === e.id)), ...filtered];
       console.log(`[VideoTaskList] Restored ${merged.length} tasks (${external.length} external) from localStorage`);
       return merged;
@@ -428,7 +433,7 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
   useEffect(() => {
     const handler = (e: Event) => {
       const task = (e as CustomEvent<ExternalVideoTask>).detail;
-      if (!task?.id) return;
+      if (!task?.id || task.status === 'FAILED') return;
       setTasks(prev => [task as unknown as VideoTask, ...prev.filter(t => t.id !== task.id)]);
     };
     window.addEventListener('nsfwxo:external-video-task', handler);
