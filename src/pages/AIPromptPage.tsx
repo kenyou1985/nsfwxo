@@ -402,18 +402,19 @@ function buildAnchoredH3(imagePrompt: string): string {
       'Second wet aftershock: she squirts again in a thinner stream, both women collapsing into the wet sheets, chests heaving, thighs shining.',
     ];
   } else if (solo) {
+    const soloGuard = 'Only her own body, her own hand or toy; no man, no male hand, no penis, no other person enters frame.';
     shots = [
       first,
-      'Her own hands roam her body, palms over breasts and belly, back arching, lips parting; no other person enters frame.',
-      'Medium close: fingers pinch and roll her nipples, then trail down her stomach, thighs opening wider, breath hitching.',
-      'Low-angle: fingers part her labia and circle the clit, hips rocking into her own hand, wetness glistening.',
-      'Extreme close: two fingers slide inside, curling to the G-spot, thumb on the clit, fluid coating her hand and thighs.',
-      'She adds a vibrator or dildo, pressing it to her clit then sinking it in, back lifting off the surface, mouth open.',
-      'Close on her face: eyes half-closed, hair sticking to her cheek, moans breaking into gasps as the toy speeds up.',
-      'Slight angle change: she turns on her side or lifts one leg, toy angled deeper, free hand gripping the surface.',
-      'Rhythm accelerates: hips bucking, thighs trembling, she chases the edge, breath cut into short gasps.',
-      'Squirting climax: clear fluid gushes out around the toy/fingers, splashing her thighs and the surface, body locking hard.',
-      'Afterglow: wet thighs and slick surface in frame, chest heaving, toy still resting against her, skin flushed, eyes dazed.',
+      `Standing against the same wall: her own hand slides down her stomach and between her thighs, hips pushing back, head turned over her shoulder. ${placeLine}. ${soloGuard}`,
+      `She sinks to her knees on the floor, thighs apart, her own fingers circling her clit then sliding inside, back arching. ${placeLine}. ${soloGuard}`,
+      `She lies back on the nearest surface, legs spread wide, her own fingers working her clit and entrance, breasts rising with each breath. ${placeLine}. ${soloGuard}`,
+      `Side-lying with one leg lifted: her own hand reaches between her thighs, fingers curling inside, the other hand gripping her breast. ${placeLine}. ${soloGuard}`,
+      `She squats over a suction-cup dildo and lowers herself onto it, riding it with her hands braced on her knees, mouth open. ${placeLine}. ${soloGuard}`,
+      `On all fours, she reaches back with her own hand to finger herself, then presses a dildo in from behind, hips rocking. ${placeLine}. ${soloGuard}`,
+      `Sitting on the edge of the surface, she presses a wand vibrator to her clit, thighs trembling, free hand clawing the edge. ${placeLine}. ${soloGuard}`,
+      `Standing on one leg with the other foot raised, she works a bullet vibrator over her clit, hips bucking, breath breaking. ${placeLine}. ${soloGuard}`,
+      `Squirting climax: clear fluid gushes out around her own fingers/toy, splashing her thighs and the surface, body locking hard. ${soloGuard}`,
+      `Afterglow: wet thighs and slick surface in frame, chest heaving, toy still resting against her, skin flushed, eyes dazed. ${soloGuard}`,
     ];
   } else if (atFacesit) {
     shots = [
@@ -483,12 +484,32 @@ function buildAnchoredH3(imagePrompt: string): string {
       ? '<Subject 2> is @Man — the exact adult man shown in Picture 1; face kept off close-up, appearance comes only from Picture 1.'
       : '';
   const mode = twoWomen ? 'two-woman' : solo ? 'solo female' : 'heterosexual';
+  const endingText = solo
+    ? 'a squirting climax with no male participant, no penis and no cumshot'
+    : twoWomen
+      ? 'a shared squirting climax with no male participant'
+      : cumEnding === 'oral'
+        ? 'an oral cumshot'
+        : cumEnding === 'ass'
+          ? 'cum on her ass with her ass toward the camera'
+          : 'an internal creampie';
+  const displayCore = solo
+    ? core
+        .replace(/\b(cum|semen|ejaculat\w*)\b/gi, 'wetness')
+        .replace(/\b(?:a|one) finger\b/gi, 'her own finger')
+        .replace(/\bfingers\b/gi, 'her own fingers')
+    : core;
+  const progression = solo
+    ? 'multiple solo positions with her own fingers and toys'
+    : twoWomen
+      ? 'multiple positions and mutual oral'
+      : 'multiple positions and oral';
   return `subject_definitions:
 <Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1. Face, hair color, hairstyle, skin tone, body proportions, breast size/shape, clothing and nudity are defined ONLY by Picture 1; do not describe or invent them in text.
 ${subject2}
 
 summary:
-[reference generation] A cinematic 60-second ${mode} explicit sequence. Picture 1 is the mandatory first frame and the only identity/scene reference. The video starts on the exact act in Picture 1, then progresses through multiple positions and oral, ending in ${cumEnding === 'oral' ? 'an oral cumshot' : cumEnding === 'ass' ? 'cum on her ass with her ass toward the camera' : 'an internal creampie'}. No scene change, no character change.
+[reference generation] A cinematic 60-second ${mode} explicit sequence. Picture 1 is the mandatory first frame and the only identity/scene reference. The video starts on the exact act in Picture 1, then progresses through ${progression}, ending in ${endingText}. No scene change, no character change, no extra person.
 
 retention_analysis:
 <Subject 1> <Picture 1>: fully_preserved — identity, face, hair, body, clothing/nudity and starting pose come only from the reference image.
@@ -498,7 +519,7 @@ Scene and action: fully_preserved from the source image prompt; only positions p
 detailed_description:
 ${body}
 
-Source image action/scene: ${core}
+Source image action/scene: ${displayCore}
 
 overall_soundscape: ${solo ? 'Location ambience, her own breathing and soft moans, wet fingers/toy sounds, a clear squirting splash, then trembling after-breaths. No male voice.' : twoWomen ? 'Location ambience, wet kisses, skin-on-skin, both women breathing and moaning, wet squirting splashes, one shared climax cry, then after-breaths. No male voice.' : 'Location ambience under skin-on-skin impact, wet penetration and plug-shifting sounds, fabric friction, heavy breathing, her broken moans and one climax cry, one male groan, then after-breaths.'}
 non_diegetic_music: None`;
