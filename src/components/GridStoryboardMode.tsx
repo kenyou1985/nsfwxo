@@ -623,7 +623,7 @@ export function GridStoryboardMode({
   // When true, txt2img submits one task per panel (like digital-human mode),
   // each going to redrawnPanelImages so they auto-compose after completion.
   // Locked to true when digitalHumanMode is active.
-  const [generateSeparatePanels, setGenerateSeparatePanels] = useState(true);
+  const [generateSeparatePanels, setGenerateSeparatePanels] = useState(false);
   // Dedicated historyId for the separate-panel generation batch — used by
   // finishedTasks to distinguish these tasks from the composite-grid path.
   const [separatePanelsHistoryId, setSeparatePanelsHistoryId] = useState<string | null>(null);
@@ -1050,6 +1050,7 @@ export function GridStoryboardMode({
       image_prompt: `${template.basePrompt}\n${p.image_prompt}`,
     }));
     setPanels(templatePanels);
+    setGenerateSeparatePanels(false);
     setGridSize(templatePanels.length as GridSize);
     setStep('edit');
     onSuccess(`已加载模板「${template.titleZh}」，可编辑提示词后生成图片`);
@@ -1703,8 +1704,7 @@ export function GridStoryboardMode({
     // ── Determine the effective generation mode ────────────────────────────
     // digitalHumanMode always uses separate-per-panel tasks (character anchor).
     // For txt2img, the user can choose via the generateSeparatePanels toggle.
-    // 6 格以上强制逐格生成，再本地拼成严格 3×3/3×4，避免模型自由发挥成 6 格/缺格
-    const useSeparatePanels = digitalHumanMode || generateSeparatePanels || panels.length >= 6;
+    const useSeparatePanels = digitalHumanMode || generateSeparatePanels;
 
     try {
       if (useSeparatePanels && selectedGirlfriend && digitalHumanMode) {
@@ -2437,6 +2437,14 @@ export function GridStoryboardMode({
               <option value="qwen">Qwen 图像（文生图）</option>
               <option value="official">官方默认</option>
             </select>
+            <label className="flex items-center gap-1 text-[10px] text-text-secondary ml-2">
+              <input
+                type="checkbox"
+                checked={generateSeparatePanels}
+                onChange={(e) => setGenerateSeparatePanels(e.target.checked)}
+              />
+              逐格生成（9 张单图）
+            </label>
           </div>
         )}
 
