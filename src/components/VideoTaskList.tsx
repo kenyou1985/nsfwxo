@@ -403,7 +403,7 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
   //   - v1 (旧): 直接是 VideoTask[]
   const [tasks, setTasks] = useState<VideoTask[]>(() => {
     try {
-      const saved = localStorage.getItem('nsfwxo_video_tasks_v3');
+      const saved = localStorage.getItem('nsfwxo_video_tasks_v4');
       if (!saved) return [];
       const raw = JSON.parse(saved);
       const parsed: VideoTask[] = Array.isArray(raw)
@@ -463,6 +463,8 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
     try {
       localStorage.removeItem('nsfwxo_video_tasks');
       localStorage.removeItem('nsfwxo_external_video_tasks');
+      localStorage.removeItem('nsfwxo_video_tasks_v3');
+      localStorage.removeItem('nsfwxo_external_video_tasks_v3');
     } catch {}
   }, []);
 
@@ -479,7 +481,7 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
     //   2. 用 tryPersistWithFallback 按 cap 阶梯 (30 → 10 → 5) 尝试；
     //   3. 全部失败就清掉这个 key，下一轮重新累积，避免持续抛 quota 阻塞 commit。
     tryPersistWithFallback(
-      'nsfwxo_video_tasks_v3',
+      'nsfwxo_video_tasks_v4',
       (cap) => ({
         v: 2, // schema 版本号，跟读取端配套
         tasks: tasks.slice(0, cap).map(stripHeavyMedia),
@@ -913,9 +915,9 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
     // 同步写回 localStorage：只留运行中/排队中的任务，防止刷新后已完成任务又回来
     try {
       const payload = { v: 2, tasks: active.map(stripHeavyMedia).slice(0, 30) };
-      localStorage.setItem('nsfwxo_video_tasks_v3', JSON.stringify(payload));
+      localStorage.setItem('nsfwxo_video_tasks_v4', JSON.stringify(payload));
     } catch {
-      try { localStorage.removeItem('nsfwxo_video_tasks_v3'); } catch {}
+      try { localStorage.removeItem('nsfwxo_video_tasks_v4'); } catch {}
     }
     try {
       const ext = getExternalVideoTasks().filter(t => t.status !== 'FINISHED' && t.status !== 'FAILED');
