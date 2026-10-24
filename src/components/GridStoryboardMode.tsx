@@ -2242,7 +2242,7 @@ export function GridStoryboardMode({
         }), 60000, '九宫格裁切');
         const splitData = await splitResp.json().catch(() => ({}));
         if (Array.isArray(splitData.images) && splitData.images.length) {
-          cellUrls = splitData.images.slice(0, 9);
+          cellUrls = splitData.images.slice(0, 12);
         }
       } catch (e) {
         console.warn('[grid-video] server split failed, fallback to canvas', e);
@@ -2257,14 +2257,10 @@ export function GridStoryboardMode({
           return frame;
         }));
       }
-      const frames: string[] = await Promise.all(cellUrls.map(async (url, i) => {
-        const blob = await withTimeout((await fetch(url)).blob(), 30000, `第 ${i + 1} 格下载`);
-        const up = await withTimeout(uploadImage(apiKey, new File([blob], `cell_${i + 1}.jpg`, { type: blob.type || 'image/jpeg' })), 60000, `第 ${i + 1} 格上传`);
-        let frame = up.downloadUrl || up.imagePath;
-        if (frame.startsWith('/')) frame = getBackendUrl().replace(/\/$/, '') + frame;
-        return frame;
-      }));
-      const actualCells = Math.min(9, frames.length);
+      // 后端裁切结果已经是 9000 可直接访问的 URL，导演台 Job 会自行下载，
+      // 不必再逐格上传 RunningHub（9 个并发上传很容易限流/卡住）。
+      const frames: string[] = cellUrls;
+      const actualCells = Math.min(12, frames.length);
       children.length = actualCells;
 
       // 2) 9 个独立 H3 任务，每个 7 秒，提示词 3 个 shot
