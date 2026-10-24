@@ -619,11 +619,11 @@ async def split_grid(request: Request):
     v_lines, h_lines = [], []
     for x in range(0, w, step_x):
         n = sum(1 for y in range(0, h, step_y) if is_white(x, y))
-        if n / max(1, len(range(0, h, step_y))) > 0.82:
+        if n / max(1, len(range(0, h, step_y))) > 0.65:
             v_lines.append(x)
     for y in range(0, h, step_y):
         n = sum(1 for x in range(0, w, step_x) if is_white(x, y))
-        if n / max(1, len(range(0, w, step_x))) > 0.82:
+        if n / max(1, len(range(0, w, step_x))) > 0.65:
             h_lines.append(y)
     def groups(arr):
         out = []
