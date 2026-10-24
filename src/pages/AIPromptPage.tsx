@@ -610,7 +610,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       }
       return changed ? next : prev;
     });
-  }, [taskManager.tasks, results]);
+  }, [taskManager.tasks, results, genStates]);
 
   // Refs for callbacks used inside async effects — avoids stale closure issues
   const onSuccessRef = useRef(onSuccess);
@@ -1934,6 +1934,9 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               next[i] = { loading: false, images: matchedTask.images };
               changed = true;
             }
+          } else if (matchedTask.status === 'FAILED' && prev[i]?.loading) {
+            next[i] = { loading: false, images: [] };
+            changed = true;
           }
         }
       }
