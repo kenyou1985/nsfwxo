@@ -371,7 +371,16 @@ async def _stream_model_single(
             )
             collected_parts: List[str] = []
             refusal_detected = False
-            async for chunk in stream:
+            # 读流增加 60 秒空闲超时：上游连接 CLOSE_WAIT 但 async for 不结束时，
+            # 旧逻辑会永久挂住（前端一直转圈、后端无日志）。
+            iterator = stream.__aiter__()
+            while True:
+                try:
+                    chunk = await asyncio.wait_for(iterator.__anext__(), timeout=60)
+                except StopAsyncIteration:
+                    break
+                except asyncio.TimeoutError:
+                    raise OpenLuxTimeoutError("LLM 流式读取 60 秒无新数据，已中断")
                 if not chunk.choices:
                     continue
                 delta = chunk.choices[0].delta

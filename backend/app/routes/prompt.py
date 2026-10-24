@@ -9129,11 +9129,10 @@ async def generate_h3_dna_stream(req: GenerateH3DnaRequest, api_key: str = Depen
             t0 = _time.time()
             up = _sanitize_age_terms(_build_prompt(idx, prev_ending))
             collected: List[str] = []
-            logging.info(
-                "[h3dna] start idx=%s level=%s duration=%s max_tokens=%s user_hint_len=%s",
-                idx, req.erotic_level, req.duration,
-                8192 if int(req.duration or 60) <= 60 else 16384,
-                len(req.user_hint or ''),
+            print(
+                f"[h3dna] start idx={idx} level={req.erotic_level} duration={req.duration} "
+                f"max_tokens={8192 if int(req.duration or 60) <= 60 else 16384} "
+                f"user_hint_len={len(req.user_hint or '')}", flush=True,
             )
 
             yield _ndjson_event({"event": "start", "index": idx})
@@ -9150,10 +9149,10 @@ async def generate_h3_dna_stream(req: GenerateH3DnaRequest, api_key: str = Depen
             result_clean = _postprocess_h3_prompt(result_clean)
             check_prompt_safety(result_clean)
             results[idx] = result_clean  # 供 sequential 模式提取上一集结尾
-            logging.info(
-                "[h3dna] done idx=%s chars=%s elapsed=%.1fs preview=%s",
-                idx, len(result_clean), _time.time() - t0,
-                result_clean[:180].replace("\n", " "),
+            print(
+                f"[h3dna] done idx={idx} chars={len(result_clean)} "
+                f"elapsed={_time.time() - t0:.1f}s preview={result_clean[:180].replace(chr(10), ' ')}",
+                flush=True,
             )
 
             yield _ndjson_event({
