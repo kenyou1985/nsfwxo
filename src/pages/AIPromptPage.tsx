@@ -321,26 +321,65 @@ function generateH3Summary(h3Prompt: string): string {
 function buildAnchoredH3(imagePrompt: string): string {
   const scene = (imagePrompt || '').trim();
   const times = ['00:00.000','00:05.500','00:11.000','00:16.500','00:22.000','00:27.500','00:33.000','00:38.500','00:44.000','00:49.500','00:55.000'];
-  const shots = [
-    'Exactly reproduce Picture 1 as the first frame: identical pose, identical framing, identical clothing state or nudity, identical lighting and background. Hold this static opening for one beat, then begin micro-movement only. Do not reset, do not invent clothes, do not change the starting state.',
-    'Continue from the exact first frame. The man closes in and kisses her neck while his hands pull the existing garment aside or slide over bare skin; her head tilts back, lips part, breathing quickens. Same position, same room, same light.',
-    'Medium close on her upper body. Foreplay escalates: fingers, tongue or toy on her nipples and inner thighs, visible wetness and goosebumps. She arches into the touch, eye contact with the lens. No cut-away, continuous motion.',
-    'Low-angle medium. She sinks down and takes his erect penis into her mouth, tongue dragging along the shaft, cheeks hollowing, saliva shining on her lips. His hand rests on the back of her head. Same room and light, no clothing reset.',
-    'Medium wide, side angle. First penetration in the same position as the opening: the head presses in, her body jolts, mouth opens, hands grip the surface beneath her. Slow first thrust, visible tension and wetness.',
-    'Medium side tracking. The same penetration continues at a steady rhythm: hips meeting, her breasts moving with each thrust, sweat beginning to shine on her collarbone and belly. Camera orbits slowly, no position reset.',
-    'Extreme close on the join, same position. The shaft slides in and out, labia stretching and clinging, fluid stringing between them, her thigh trembling. Cut back to her face for the reaction without changing the pose.',
-    'Medium front three-quarter. Rhythm accelerates: deeper strokes, skin slapping, her back arching, toes curling, hair sticking to her cheek. She reaches for him, then braces against the surface. Continuous action, no repeated entrance.',
-    'Medium wide. Slight positional adjustment only: one leg is lifted higher or her hips are tilted up, opening the angle. He keeps the same grip and drives deeper; her breasts bounce, sweat drips, eye contact breaks into a stunned expression.',
-    'Close POV then face. Final hard thrusts build to one climax: his body tenses, he pulls out or stays buried as the single ejaculation lands on her tongue, face, chest or belly. Her orgasm hits with a full-body shudder, mouth open, tears at the corners of her eyes.',
-    'Medium side, handheld. Afterglow in the exact same location: semen on her skin, chest heaving, limbs trembling, she licks her lips or wipes a streak and looks at the lens. No new position, no second climax, natural breathing and aftershocks.',
-  ];
-  const body = shots.map((action, i) => `[Shot ${i + 1}] ${times[i]} ${action}`).join('\n');
+  // 先判断图片已经是哪个阶段，避免视频开头倒退成前戏
+  const low = scene.toLowerCase();
+  const atSex = /(penis|shaft|cock|dildo).{0,100}(inside|into|penetrat|sink|thrust|entry|deep)|\b(riding|cowgirl|doggy|missionary|sex|fuck|inserted|penetration)\b/.test(low)
+    || /插入|抽插|交合|性交|骑乘|后入|内射/.test(scene);
+  const atOral = !atSex && (/(mouth|oral|blowjob|deepthroat|suck|lick|kneel).{0,100}(penis|cock|shaft|glans)|\b(fellatio|deepthroat|blowjob)\b/.test(low)
+    || /口交|深喉|含住|舔弄/.test(scene));
+
+  const first = 'Exactly reproduce Picture 1 as the first frame: identical pose, identical framing, identical clothing state or nudity, identical lighting and background. Hold one beat, then continue the SAME action already happening in the image. Never reset to an earlier stage, never undress or dress again, never cut back to foreplay.';
+
+  let shots: string[];
+  if (atSex) {
+    shots = [
+      first,
+      'Continue the exact penetration shown in Picture 1 with no reset: the first visible thrust, hips meeting, her body jolting, mouth opening, hands gripping the surface. Same position, same room, same clothing/nudity state.',
+      'Medium side angle, same act: steady thrusting, her breasts moving with each stroke, sweat forming on collarbone and belly. Slow camera orbit, no position change.',
+      'Extreme close on the join in the same position: shaft sliding in and out, labia stretching and clinging, fluid stringing, thigh trembling. Cut back to her face for reaction without changing pose.',
+      'Medium close on her chest and face: each thrust pushes her breasts, nipples hard, mouth open, eye contact breaking into pleasure. Same rhythm, continuous motion.',
+      'Medium front three-quarter, slight angle change only: deeper strokes, skin slapping, her back arching, toes curling, hair sticking to her cheek. No re-entry, no reset.',
+      'Slight positional adjustment: one leg lifted higher or hips tilted up, opening the angle. He keeps the same grip and drives deeper; breasts bounce, sweat drips.',
+      'Medium wide: rhythm accelerates, her whole body rocks with the thrusts, hands claw at his back, moans break into gasps. Continuous action from the previous shot.',
+      'Close POV then her face: final hard thrusts, her eyes roll, mouth wide, body trembling on the edge. Camera stays on the same act.',
+      'One climax only: his body tenses and the single ejaculation lands on her tongue, face, chest or belly while she shudders through orgasm. No second climax, no position reset.',
+      'Medium side handheld afterglow: semen on skin, chest heaving, limbs trembling, she licks her lips or wipes a streak and looks at the lens. Same location, no new act.',
+    ];
+  } else if (atOral) {
+    shots = [
+      first,
+      'Continue the exact oral action shown in Picture 1: lips sealed around the shaft, tongue dragging, cheeks hollowing, saliva shining. Same kneeling pose, same room, no reset.',
+      'Medium close on her face: deeper take, glans pressing the throat, gag reflex, saliva spilling from the corner of her mouth. His hand on the back of her head.',
+      'Low-angle POV down her face: eye contact with the lens while she sucks, one hand stroking the base, breathing through her nose. Continuous motion.',
+      'She pulls back just enough to lick the corona and shaft, spit strings stretching, then takes him deep again. No cut to another scene.',
+      'He lifts her from the kneel without resetting her clothing/nudity: first penetration begins in the same room, her body jolting, mouth open.',
+      'Medium side tracking, same penetration: steady thrusting, breasts moving, sweat on her collarbone. No re-entry, no position reset.',
+      'Extreme close on the join: shaft sliding in and out, labia clinging, fluid stringing, her thigh trembling.',
+      'Medium front three-quarter: rhythm accelerates, deeper strokes, skin slapping, her back arching, hair sticking to her cheek.',
+      'Close POV then face: final hard thrusts and one climax, semen on tongue/face/chest, her full-body shudder.',
+      'Medium side afterglow: semen on skin, chest heaving, she licks her lips and looks at the lens. No second climax.',
+    ];
+  } else {
+    shots = [
+      first,
+      'Continue from the exact first frame: his hands slide over her body, pulling the existing garment aside or over bare skin; her head tilts back, lips part, breathing quickens. Same position and light.',
+      'Medium close on her upper body: foreplay escalates, fingers/tongue/toy on nipples and inner thighs, visible wetness and goosebumps. She arches into the touch, eye contact with the lens.',
+      'Low-angle medium: she sinks down and takes his erect penis into her mouth, tongue dragging, cheeks hollowing, saliva shining. No clothing reset.',
+      'Medium wide side angle: first penetration in the same position as the opening, the head presses in, her body jolts, hands grip the surface. Slow first thrust.',
+      'Medium side tracking: the same penetration continues, hips meeting, breasts moving, sweat forming. Camera orbits slowly, no reset.',
+      'Extreme close on the join: shaft sliding in and out, labia stretching, fluid stringing, thigh trembling. Cut back to her face without changing pose.',
+      'Medium front three-quarter: rhythm accelerates, deeper strokes, skin slapping, back arching, toes curling.',
+      'Slight positional adjustment: one leg lifted or hips tilted, deeper angle, breasts bouncing, sweat dripping.',
+      'Close POV then face: final hard thrusts and one climax, semen on tongue/face/chest, full-body shudder.',
+      'Medium side afterglow: semen on skin, chest heaving, she licks her lips and looks at the lens. No new act.',
+    ];
+  }  const body = shots.map((action, i) => `[Shot ${i + 1}] ${times[i]} ${action}`).join('\n');
   return `subject_definitions:
 <Subject 1> is @Woman <Picture 1> — an adult East Asian woman in her mid-20s with long straight black hair, fair skin, refined side profile and a naturally curvy body. Preserve her face, hair, body proportions, skin tone and identity exactly from Picture 1. Her clothing state and nudity must match Picture 1 at the first frame and stay continuous afterward.
 <Subject 2> is @Man — a fully adult muscular man, face kept off close-up.
 
 summary:
-[reference generation] A cinematic 60-second explicit adult sequence. Picture 1 is the mandatory first frame: the video starts on the exact same pose, clothing state, framing and lighting as the reference image, then continues into foreplay, oral, penetration, multiple camera angles of the same act, and one final climax. No scene reset, no clothing reset, no jump cut back to a previous state.
+[reference generation] A cinematic 60-second explicit adult sequence. Picture 1 is the mandatory first frame: the video starts on the exact same pose, clothing state, framing and lighting as the reference image, then continues directly from whatever action is already happening in Picture 1 — no reset to foreplay, no re-entry, no clothing change — with multiple camera angles and one final climax.
 
 retention_analysis:
 <Subject 1> <Picture 1>: fully_preserved — face, hair, body proportions, identity and starting clothing/nudity stay consistent with the reference.
