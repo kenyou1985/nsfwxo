@@ -479,7 +479,7 @@ function buildAnchoredH3(imagePrompt: string): string {
   }
   const d = (zh: string) => `<d>[Chinese] ${zh}</d>`;
   const female = ['好舒服…', '慢一点…', '求求你…', '快一点…', '我快不行了…', '爸爸操我…', '哥哥我想要…'];
-  const male = ['不要动。', '夹紧。', '屁股抬高。', '操死你。', '不要出声。', '嘴巴张开，含住我的鸡巴。', '舔干净，吞下去。'];
+  const male = ['不要动。', '夹紧。', '屁股抬高。', '操死你。', '不要出声。', '嘴巴张开，含住我的鸡巴。', '舔干净，吞下去。', '射了。'];
   const dialogue: string[] = Array(11).fill('');
   if (twoWomen) {
     dialogue[1] = d(female[0]) + ' ' + d('舔我…');
@@ -506,7 +506,7 @@ function buildAnchoredH3(imagePrompt: string): string {
     dialogue[6] = d(male[3]) + ' ' + d(female[5]);
     dialogue[7] = d(female[3]);
     dialogue[8] = d(male[0]);
-    dialogue[9] = d(male[6]) + ' ' + d(female[4]);
+    dialogue[9] = d(male[7]) + ' ' + d(female[4]);
     dialogue[10] = d(female[0]);
   }
   const voiced = shots.map((action, i) => i === 0 || !dialogue[i] ? action : `${action} ${dialogue[i]}`);
