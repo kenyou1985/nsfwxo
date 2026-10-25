@@ -995,14 +995,8 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               throw new Error(`第 ${i + 1} 个视频提示词扩写返回为空`);
             }
 
-            // Step 3: 格式化成 H3 六段式
-            const h3 = generateH3Prompt({
-              imagePrompt: expandedImgPrompt,
-              sceneDescription: videoPrompt,
-              duration: 60,
-              shotCount: 12,
-              r18: r18Mode,
-            });
+            // Step 3: 统一走英文 11 镜 H3 模板，锚定参考图，禁止中文旧模板
+            const h3 = buildAnchoredH3(expandedImgPrompt);
 
             return { index: i, id: ids[i], prompt: h3, error: null };
           } catch (err) {
@@ -1341,7 +1335,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     if (!videoText.trim()) { onError('请先生成或选择提示词'); return; }
     if (!digitalHumanMode || !selectedGirlfriend) { onError('请先开启数字人锚定，才能生成视频'); return; }
     const resultId = results[selectedOutputIdx]?.id;
-    const image = overrideImage || (resultId ? genState[resultId]?.images?.[0] : '');
+    const image = overrideImage || (resultId ? genState[resultId]?.images?.[0] : '') || selectedGirlfriend?.portraitUrl || '';
     if (!image) { onError('请先生成并选择一张图片'); return; }
     const key = apiKey;
     if (!key) { onError('请先配置 RunningHub API Key'); return; }
