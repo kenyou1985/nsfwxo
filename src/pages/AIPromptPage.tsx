@@ -1181,21 +1181,31 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         const tasks = Array.from({ length: count }, async (_, i) => {
           await new Promise((r) => setTimeout(r, i * 1500));
           try {
-            // Step 1: 扩写成图片提示词（超时则自动切换 fast 模型兜底）
-            let expandRes;
-            try {
-              expandRes = await expandPrompt(input.trim(), 'image', r18Mode, 1);
-            } catch (firstErr) {
-              const isTimeout = firstErr instanceof Error &&
-                (firstErr.message.includes('超时') || firstErr.message.includes('timeout'));
-              if (isTimeout) {
-                console.warn(`[智能扩写] expandPrompt 超时，尝试 fast 模型重试`);
-                expandRes = await expandPrompt(input.trim(), 'image', r18Mode, 1, 0, undefined, false, undefined, ['grok-4.6', 'grok-4.3']);
-              } else {
-                throw firstErr;
-              }
-            }
-            const expandedImgPrompt = expandRes.results?.[0]?.prompt?.trim();
+            // Step 1: SSE 流式扩写，边生成边写入当前卡片
+            const expandedImgPrompt = await new Promise<string>((resolve, reject) => {
+              let acc = '';
+              let settled = false;
+              const finish = (value: string, err?: Error) => {
+                if (settled) return;
+                settled = true;
+                if (err) reject(err); else resolve(value);
+              };
+              void streamExpandPrompt(input.trim(), 'image', r18Mode, 1, i, undefined, false, undefined, {
+                onStart: () => {
+                  setResults((prev) => prev.map((r, idx) => idx === i ? { ...r, prompt: '生成中…' } : r));
+                },
+                onDelta: ({ text }) => {
+                  acc += text;
+                  setResults((prev) => prev.map((r, idx) => idx === i ? { ...r, prompt: acc } : r));
+                },
+                onEnd: ({ prompt }) => {
+                  const final = (prompt || acc).trim();
+                  finish(final);
+                },
+                onError: ({ message }) => finish('', new Error(message || '扩写失败')),
+                onDone: () => finish(acc.trim()),
+              }).catch((err) => finish('', err instanceof Error ? err : new Error(String(err))));
+            });
             if (!expandedImgPrompt) {
               throw new Error(`第 ${i + 1} 个图片提示词扩写返回为空`);
             }
@@ -1235,8 +1245,14 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           }
         });
 
-        // 并行执行，实时更新 UI
-        const settled = await Promise.all(tasks);
+        // 逐个等待：每完成一条立即写入卡片，不等全部
+        const settled: { index: number; id: string; prompt: string; error: string | null }[] = [];
+        for (const task of tasks) {
+          const item = await task;
+          settled.push(item);
+          setResults((prev) => prev.map((r) => r.id === item.id ? { ...r, prompt: item.prompt } : r));
+          setOutputPrompts((prev) => { const next = [...prev]; next[item.index] = item.prompt; return next; });
+        }
 
         // 排序并更新 UI
         const sorted = settled.sort((a, b) => a.index - b.index);
