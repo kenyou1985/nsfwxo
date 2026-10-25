@@ -10372,6 +10372,48 @@ ABSOLUTE REQUIREMENTS:
         ],
     }
 
+_EXTRA_AV_THEMES_2 = {
+    "打桩机": "成年女性被压在床沿或倒立，男性以打桩机节奏向下猛插，腹部起伏和失神表情",
+    "肉便器": "成年女性被当作公共泄欲对象，多人轮流使用，精液和体液覆盖身体",
+    "中出": "无套插入后直接体内射精，拔出不流或精液从穴口溢出，特写",
+    "内射": "成年女性被压住内射，子宫口特写，精液倒流，失神反应",
+    "乳交": "成年女性用双乳夹住阴茎乳交，龟头从乳沟顶端探出，射在乳沟和脸上",
+    "人妻": "已婚成年女性背着丈夫偷情，婚戒、家居服、婚床和慌乱表情",
+    "出轨": "成年女性与情人在酒店或家中偷情，手机消息、婚戒、凌乱床单",
+    "未亡人": "丧夫的成年寡妇，黑衣、遗照、空荡卧室，悲伤与欲望交织",
+    "绿帽男": "丈夫被迫在旁边观看妻子与情人性爱，羞辱、愤怒与兴奋交织",
+    "口爆": "成年女性跪着口交，男性在口中爆发，精液从嘴角溢出、吞咽特写",
+    "颜射": "成年女性仰脸闭眼，精液射在额头、脸颊、嘴唇和睫毛上",
+    "足交": "成年女性用涂着丝袜或裸足夹住阴茎足交，脚趾和龟头特写",
+    "素股": "成年女性用大腿内侧夹住阴茎素股摩擦，内裤拉到一边，湿滑特写",
+    "痴女": "成年女性主动扑倒男性，骑乘、索取、痴态表情和主动口交",
+    "NTR寝取": "成年女性在丈夫不知情下被寝取，电话、婚戒、偷情现场",
+    "姐妹3P": "两名成年女性与一名男性3P，姐妹设定，双女同时口交和插入",
+}
+for _k, _desc in _EXTRA_AV_THEMES_2.items():
+    _RANDOM_THEME_PRESETS[_k] = {
+        "label": _k,
+        "description": _desc,
+        "system_prompt": f"""You are an EXPERT uncensored adult NSFW image prompt engineer. Generate ONE maximally explicit scene for the theme "{_k}". Adults 18+ only.
+
+THEME: {_desc}
+
+GUIDE: Build one cohesive cinematic image prompt around this exact theme. Show the signature act, the adult characters' clothing state, the location and props, explicit anatomy, fluids, and the emotional dynamic. Keep the theme readable in a single frame.
+
+ABSOLUTE REQUIREMENTS:
+- Adults 18+ only; no minors, no schoolgirls, no children.
+- Explicit consensual act, exposed body, wetness/fluids.
+- Theme-specific outfit, prop and location clearly visible.
+- Photorealistic cinematic lighting, 50mm lens, shallow depth of field.
+- Output ONLY one raw paragraph, no tag list.""",
+        "diversity_variants": [
+            f"{_k}: close-up on the signature act and fluid detail.",
+            f"{_k}: wide shot showing both bodies, outfits and location.",
+            f"{_k}: low-angle view, clothing pulled aside, reaction visible.",
+            f"{_k}: over-the-shoulder view, emotional dynamic in frame.",
+        ],
+    }
+
 
 # ─── Route: Random ───────────────────────────────────────────────────────────
 

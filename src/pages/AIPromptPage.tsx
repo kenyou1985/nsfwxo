@@ -2241,6 +2241,22 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     { key: '时间循环', label: '时间循环' },
     { key: '镜中分身', label: '镜中分身' },
     { key: '人妻出轨', label: '人妻出轨' },
+    { key: '打桩机', label: '打桩机' },
+    { key: '肉便器', label: '肉便器' },
+    { key: '中出', label: '中出' },
+    { key: '内射', label: '内射' },
+    { key: '乳交', label: '乳交' },
+    { key: '人妻', label: '人妻' },
+    { key: '出轨', label: '出轨' },
+    { key: '未亡人', label: '未亡人' },
+    { key: '绿帽男', label: '绿帽男' },
+    { key: '口爆', label: '口爆' },
+    { key: '颜射', label: '颜射' },
+    { key: '足交', label: '足交' },
+    { key: '素股', label: '素股' },
+    { key: '痴女', label: '痴女' },
+    { key: 'NTR寝取', label: 'NTR寝取' },
+    { key: '姐妹3P', label: '姐妹3P' },
   ];
 
   const handleGenerate = async () => {
