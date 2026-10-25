@@ -1980,58 +1980,6 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         </div>
       </div>
 
-      {/* Output Section - Only show when prompts are generated */}
-      {outputPrompts.length > 0 && (
-        <div className="rounded-2xl bg-white border border-border shadow-card overflow-hidden">
-          {/* Output Tabs */}
-          <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border/50 bg-bg-elevated overflow-x-auto">
-            <span className={`px-2.5 py-0.5 rounded-full text-white text-[11px] font-bold bg-gradient-to-r ${r18Mode ? 'from-red-500 to-pink-500' : 'from-primary to-indigo-500'} flex-shrink-0`}>扩写</span>
-            <div className="flex gap-1.5 overflow-x-auto">
-              {outputPrompts.map((_, idx) => (
-                <button key={idx} onClick={() => handleOutputSelect(idx)}
-                  className={`px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-all flex-shrink-0 ${
-                    selectedOutputIdx === idx
-                      ? (r18Mode ? 'bg-red-500 text-white' : 'bg-primary text-white')
-                      : 'bg-bg-elevated text-text-tertiary hover:bg-bg-hover'
-                  }`}>
-                  {idx + 1}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Output Textarea */}
-          <div className="p-4">
-            <textarea
-              value={outputText}
-              onChange={(e) => handleOutputTextChange(e.target.value)}
-              rows={6}
-              className={`w-full border rounded-xl px-4 py-3 text-sm leading-relaxed placeholder:text-text-secondary focus:outline-none transition-colors resize-none font-mono ${r18Mode ? 'bg-red-50/50 border-red-200 focus:border-red-400 text-red-800' : 'bg-bg-elevated border-border focus:border-primary text-text-secondary'}`}
-              placeholder="扩写后的提示词将显示在这里..."
-            />
-            {mainVideo.url && (
-              <video src={mainVideo.url} controls playsInline className="w-full mt-3 rounded-xl border border-border bg-black max-h-[420px]" />
-            )}
-            {mainVideo.error && <p className="mt-2 text-xs text-red-500">{mainVideo.error}</p>}
-            <div className="flex gap-2 mt-3">
-              <button onClick={() => navigator.clipboard.writeText(outputText).then(() => { onSuccess('已复制到剪贴板'); setTimeout(() => {}, 2000); })}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-medium transition-all ${r18Mode ? 'bg-red-50 text-red-500 hover:bg-red-100 border border-red-200' : 'bg-bg-elevated text-text-tertiary hover:bg-bg-hover'}`}>
-                <Copy size={12} />复制提示词
-              </button>
-              <button onClick={() => void handleMainGenerateVideo()}
-                disabled={mainVideo.loading || !outputText.trim() || !digitalHumanMode || !selectedGirlfriend}
-                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl font-medium text-sm transition-all ${
-                  mainVideo.loading || !outputText.trim() || !digitalHumanMode
-                    ? 'bg-bg-elevated text-text-secondary cursor-not-allowed'
-                    : 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90 active:scale-[0.98]'
-                }`}>
-                {mainVideo.loading ? <><Loader2 size={14} className="animate-spin" /> 视频生成中...</> : <><Video size={14} />生成视频</>}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Expand History */}
       {showHistory && (
         <ExpandHistoryPanel
@@ -2304,6 +2252,13 @@ function ExpandResultCard({ result, r18Mode, isCopied, genState, videoState, onC
             </div>
           </div>
         )}
+
+        {videoState?.url && (
+          <div className="mt-3 pt-3 border-t border-border/50">
+            <video src={videoState.url} controls playsInline className="w-full rounded-xl border border-border bg-black max-h-[420px] object-contain" />
+          </div>
+        )}
+        {videoState?.error && <p className="mt-2 text-[11px] text-red-500">{videoState.error}</p>}
 
         {/* Running tasks status */}
         {relatedTasks.filter((t: QueuedTask) => t.status === 'RUNNING' || t.status === 'QUEUEING').length > 0 && displayImages.length === 0 && (
