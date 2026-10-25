@@ -1039,7 +1039,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
             }
 
             // Step 3: 统一走英文 11 镜 H3 模板，锚定参考图，禁止中文旧模板
-            const h3 = buildAnchoredH3(expandedImgPrompt);
+            const h3 = buildAnchoredH3(`${expandedImgPrompt}\nOriginal user request: ${input.trim()}`);
 
             return { index: i, id: ids[i], prompt: h3, error: null };
           } catch (err) {
