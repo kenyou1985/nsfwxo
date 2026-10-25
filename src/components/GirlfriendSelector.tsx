@@ -21,7 +21,7 @@ import {
   toPreset,
   type CustomGirlfriend,
 } from '../services/girlfriendStorage';
-import { DEFAULT_GIRLFRIEND_PRESETS } from '../data/girlfriendPresets';
+import { DEFAULT_GIRLFRIEND_PRESETS, getDefaultAnchorId, setDefaultAnchorId } from '../data/girlfriendPresets';
 
 interface GirlfriendSelectorProps {
   /** 已选 ID 列表（多数字人锚定场景使用） */
@@ -535,6 +535,12 @@ function AvatarBubble({
   disabled,
 }: AvatarBubbleProps) {
   const [imgError, setImgError] = useState(false);
+  const [isDefault, setIsDefault] = useState(() => getDefaultAnchorId(girlfriend.gender) === girlfriend.id);
+  const handleSetDefault = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDefaultAnchorId(girlfriend.gender, girlfriend.id);
+    setIsDefault(true);
+  };
 
   const handleClick = () => {
     if (!disabled) onSelect(girlfriend);
@@ -559,6 +565,13 @@ function AvatarBubble({
         onDoubleClick={handleDoubleClick}
         title={`${girlfriend.nameZh || girlfriend.name} — 双击预览`}
       >
+        <button
+          onClick={handleSetDefault}
+          title={isDefault ? '当前默认锚定' : '设为默认锚定'}
+          className={`absolute -top-1 -right-1 z-10 w-4 h-4 rounded-full flex items-center justify-center border ${isDefault ? 'bg-amber-400 border-amber-500 text-white' : 'bg-white/90 border-border text-text-tertiary hover:text-amber-500'}`}
+        >
+          <Star size={9} fill={isDefault ? 'currentColor' : 'none'} />
+        </button>
         {/* Ring */}
         <div
           className={`rounded-full p-0.5 transition-all ${

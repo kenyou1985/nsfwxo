@@ -34,8 +34,8 @@ import { publishExternalVideoTask } from '../services/videoTaskBridge';
 import { VIDEO_POSE_PRESETS } from '../data/presetPoses';
 
 const KREA2_N_STRONG_WORKFLOW = '2101119999196127233';
-const DEFAULT_FEMALE_ANCHOR = DEFAULT_GIRLFRIEND_PRESETS.find((p) => p.gender === 'female') || null;
-const DEFAULT_MALE_ANCHOR = DEFAULT_GIRLFRIEND_PRESETS.find((p) => p.gender === 'male') || null;
+const DEFAULT_FEMALE_ANCHOR = getDefaultAnchor('female');
+const DEFAULT_MALE_ANCHOR = getDefaultAnchor('male');
 
 /** 保证视频提示词英文并以 <Picture 1> 锚定参考图 */
 function anchorH3Prompt(prompt: string): string {
@@ -204,7 +204,7 @@ import { loadCachedOrExtractPanelImages, getCachedImages, getCachedStoryboardPan
 import { extractImagesFromZipAsDataUrls } from '../services/runninghub';
 import { useFinishedTaskImages } from '../contexts/FinishedTaskImagesContext';
 import { MAX_TASKS, type TaskManagerReturn } from '../hooks/useTaskManager';
-import { DEFAULT_GIRLFRIEND_PRESETS, type GirlfriendPreset } from '../data/girlfriendPresets';
+import { DEFAULT_GIRLFRIEND_PRESETS, getDefaultAnchor, type GirlfriendPreset } from '../data/girlfriendPresets';
 import { GirlfriendSelector } from '../components/GirlfriendSelector';
 import { StoryboardSection } from '../components/StoryboardSection';
 import { GridStoryboardMode } from '../components/GridStoryboardMode';
@@ -873,7 +873,7 @@ export function AIPromptPage({ onError, onSuccess, onOpenSettings, taskManager, 
             </div>
           </div>
           <button
-            onClick={() => { const next = !digitalHumanMode; setDigitalHumanMode(next); if (!next) setSelectedGirlfriend(null); else if (!selectedGirlfriend) setSelectedGirlfriend(DEFAULT_FEMALE_ANCHOR); }}
+            onClick={() => { const next = !digitalHumanMode; setDigitalHumanMode(next); if (!next) setSelectedGirlfriend(null); else if (!selectedGirlfriend) setSelectedGirlfriend(getDefaultAnchor('female')); }}
             className={`relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0 ${digitalHumanMode ? 'bg-red-500' : 'bg-gray-300'}`}
           >
             <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all duration-300 ${digitalHumanMode ? 'left-[26px]' : 'left-0.5'}`} />
@@ -1173,7 +1173,8 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
             }
 
             // Step 3: 统一走英文 11 镜 H3 模板，锚定参考图，禁止中文旧模板
-            const h3 = buildAnchoredH3(`${expandedImgPrompt}\nOriginal user request: ${input.trim()}`, i);
+            const hasMaleRole = /(\bman\b|\bmale\b|男子|男人|男性|男友|男主)/i.test(`${expandedImgPrompt} ${input}`);
+            const h3 = buildAnchoredH3(`${expandedImgPrompt}\nOriginal user request: ${input.trim()}`, i, hasMaleRole);
 
             return { index: i, id: ids[i], prompt: h3, error: null };
           } catch (err) {
@@ -1511,7 +1512,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     const videoText = overridePrompt || outputText;
     if (!videoText.trim()) { onError('请先生成或选择提示词'); return; }
     if (!digitalHumanMode) { onError('请先开启数字人锚定，才能生成视频'); return; }
-    const femaleAnchor = selectedGirlfriend || DEFAULT_FEMALE_ANCHOR;
+    const femaleAnchor = selectedGirlfriend || getDefaultAnchor('female');
     if (!femaleAnchor) { onError('没有可用数字人'); return; }
     const resultId = results[selectedOutputIdx]?.id;
     let image = '';
@@ -1529,10 +1530,11 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     if (!image) { onError('请先锚定数字人或生成图片'); return; }
     const key = apiKey;
     if (!key) { onError('请先配置 RunningHub API Key'); return; }
-    const needsMale = /(\bman\b|\bmale\b|男人|男性|男子|男友|男主|his\b)/i.test(videoText + ' ' + input);
+    const wantsMalePicture = /<Picture\s*2>/i.test(videoText);
     let maleImage = '';
-    if (needsMale && DEFAULT_MALE_ANCHOR) {
-      try { maleImage = await urlToDataUrl(DEFAULT_MALE_ANCHOR.portraitUrl); } catch {}
+    const maleAnchor = getDefaultAnchor('male');
+    if (wantsMalePicture && maleAnchor) {
+      try { maleImage = await urlToDataUrl(maleAnchor.portraitUrl); } catch {}
     }
     const vk = cardKey || videoText;
     setCardVideoStates(prev => ({ ...prev, [vk]: { loading: true } }));

@@ -437,3 +437,29 @@ export const DEFAULT_GIRLFRIEND_PRESETS: GirlfriendPreset[] = [
     gender: 'female',
   },
 ];
+
+// ─── Default anchor selection ────────────────────────────────────────────────
+const DEFAULT_ANCHOR_KEY = 'nsfwxo_default_anchor_ids_v1';
+
+export function getDefaultAnchorId(gender: 'female' | 'male'): string {
+  try {
+    const saved = JSON.parse(localStorage.getItem(DEFAULT_ANCHOR_KEY) || '{}');
+    if (saved[gender]) return saved[gender];
+  } catch {}
+  return gender === 'female' ? 'kawakita' : 'marcus';
+}
+
+export function setDefaultAnchorId(gender: 'female' | 'male', id: string): void {
+  try {
+    const saved = JSON.parse(localStorage.getItem(DEFAULT_ANCHOR_KEY) || '{}');
+    saved[gender] = id;
+    localStorage.setItem(DEFAULT_ANCHOR_KEY, JSON.stringify(saved));
+  } catch {}
+}
+
+export function getDefaultAnchor(gender: 'female' | 'male'): GirlfriendPreset | null {
+  const id = getDefaultAnchorId(gender);
+  return DEFAULT_GIRLFRIEND_PRESETS.find((p) => p.id === id)
+    || DEFAULT_GIRLFRIEND_PRESETS.find((p) => p.gender === gender)
+    || null;
+}
