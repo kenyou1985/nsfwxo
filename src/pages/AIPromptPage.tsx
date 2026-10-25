@@ -559,7 +559,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false):
   } else if (hasMan && !explicitAct) {
     const chaseVariants = [
       [
-        `He catches up on his bike and grabs her waist, pulling her to a stop on the wild path; she gasps, bike wobbling. ${placeLine}.`,
+        `He catches up ON HIS BICYCLE, pedaling hard, and grabs her waist, pulling her to a stop on the wild path; she gasps, her bike wobbling. ${placeLine}.`,
         'He pulls her off the bicycle and pins her against the frame, one hand on her throat, the other wrenching the tight cycling suit down.',
         'Close: the suit is stripped to her waist, breasts spill out, sweat on her skin, her hands trapped behind her back.',
         'He bends her over the bicycle seat, pulls the suit down her thighs, exposes her bare ass, and slaps it.',
@@ -570,7 +570,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false):
         'Rhythm accelerates: hips slamming, sweat flying, her mouth open in a broken moan, the bike creaking under them.',
       ],
       [
-        `He catches up and yanks her off the bike onto the forest floor, the bicycle skidding into the ferns. ${placeLine}.`,
+        `He catches up ON HIS BICYCLE, pedaling hard, then yanks her off her bike onto the forest floor, both bicycles skidding into the ferns. ${placeLine}.`,
         'He shoves her back against a pine trunk, pins her wrists above her head, and tears the zipper of the cycling suit open.',
         'Close: the suit is peeled to her waist, breasts crushed against his chest, one thigh lifted around his hip.',
         'He pushes her to her knees on the moss and feeds her his cock; she looks up, lips stretched, saliva dripping.',
@@ -581,7 +581,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false):
         'Rhythm accelerates on the log: hips slamming, leaves in her hair, her mouth open in a broken cry.',
       ],
       [
-        `He catches up and shoves her off the trail into the tall ferns, the bike crashing down behind them. ${placeLine}.`,
+        `He catches up ON HIS BICYCLE, pedaling hard, then shoves her off the trail into the tall ferns, both bikes crashing down behind them. ${placeLine}.`,
         'He forces her face-down into the undergrowth, knee between her thighs, and rips the cycling suit down her back.',
         'Close: her bare ass is up, suit bunched at her knees, face turned in the leaves, mouth open and gasping.',
         'He spanks her exposed cheeks, then spreads them and spits, the head of his cock pressing against her.',
@@ -701,8 +701,8 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false):
     ? '<Subject 2> is @Woman2 — the exact second cisgender adult woman shown in Picture 1, if present. She has a vulva only: no penis, no futanari, no male genitalia. Identity and appearance come only from Picture 1.'
     : hasMan
       ? malePicture
-        ? '<Subject 2> is @Man <Picture 2> — the exact adult man shown in Picture 2. Preserve his face, hair, body proportions and identity from Picture 2; face kept off extreme close-up.'
-        : '<Subject 2> is @Man — the adult man in the scene; if he appears in Picture 1 preserve his face, otherwise use a fully adult muscular man with face kept off close-up. Appearance comes from Picture 1 when visible.'
+        ? '<Subject 2> is @Man <Picture 2> — the exact adult man shown in Picture 2, wearing a black cycling jersey and black cycling shorts, standing astride or riding a black bicycle. Preserve his face, hair, body proportions and identity from Picture 2; face kept off extreme close-up.'
+        : '<Subject 2> is @Man — the adult man in the scene; if he appears in Picture 1 preserve his face, otherwise use a fully adult muscular Black man with face kept off close-up, wearing a black cycling jersey and black cycling shorts, standing astride or riding a black bicycle. Appearance comes from Picture 1 when visible.'
       : '';
   const mode = twoWomen ? 'two-woman' : solo ? 'solo female' : 'heterosexual';
   const endingText = solo
@@ -742,7 +742,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false):
 ${subject2}
 
 summary:
-[reference generation] A cinematic 60-second ${mode} explicit sequence. Picture 1 is a full identity/scene reference, NOT a static first frame. The video starts directly in the live-action scene, already in motion, then progresses through ${progression}, ending in ${endingText}. ${clothingPolicy} ${coercive ? 'She is coerced and pleading; he threatens and overpowers her.' : ''} No scene change, no character change, no extra person.
+[reference generation] A cinematic 60-second ${mode} explicit sequence. Picture 1 is a full identity/scene reference, NOT a static first frame. The video starts directly in the live-action scene, already in motion, then progresses through ${progression}, ending in ${endingText}. ${clothingPolicy} ${coercive ? 'She is coerced and pleading; he threatens and overpowers her. The man is riding a bicycle, not running.' : ''} No scene change, no character change, no extra person.
 
 retention_analysis:
 <Subject 1> <Picture 1>: fully_preserved — identity, face, hair and body come from the reference image; starting clothing is used only for Shot 1, then the shot sequence controls nudity.
@@ -1712,10 +1712,14 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     if (type !== 'video') { onError('当前是生图模式，请切换到视频模式'); return; }
     if (!results.length || batchVideoLoading) return;
     setBatchVideoLoading(true);
-    const settled = await Promise.allSettled(
-      results.map((r) => handleMainGenerateVideo(r.prompt, undefined, r.id)),
-    );
-    const ok = settled.filter((x) => x.status === 'fulfilled').length;
+    let ok = 0;
+    // 串行提交，避免 3 个并发视频轮询互相覆盖 mainVideo 状态
+    for (const r of results) {
+      try {
+        await handleMainGenerateVideo(r.prompt, undefined, r.id);
+        ok += 1;
+      } catch {}
+    }
     setBatchVideoLoading(false);
     onSuccess(`已提交 ${ok} 个视频任务`);
   }, [type, results, batchVideoLoading, handleMainGenerateVideo, onError, onSuccess]);
