@@ -634,6 +634,18 @@ speaker_mapping: ${speakerMap}`;
  * 将 GirlfriendPreset.portraitUrl 转为 File 对象用于上传。
  * fetch 支持 data: / blob: / http: 等各类 URL 类型。
  */
+async function urlToDataUrl(url: string): Promise<string> {
+  if (url.startsWith('data:')) return url;
+  const res = await fetch(url);
+  const blob = await res.blob();
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(reader.error || new Error('read failed'));
+    reader.readAsDataURL(blob);
+  });
+}
+
 async function gfUrlToFile(portraitUrl: string, id: string): Promise<File> {
   const res = await fetch(portraitUrl);
   const blob = await res.blob();
@@ -1354,10 +1366,14 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     let image = overrideImage || (resultId ? genState[resultId]?.images?.[0] : '') || selectedGirlfriend?.portraitUrl || '';
     if (!image && digitalHumanMode && selectedGirlfriend) {
       try {
-        const file = await gfUrlToFile(selectedGirlfriend.portraitUrl, selectedGirlfriend.id);
-        const up = await uploadImage(apiKey, file);
-        image = up.downloadUrl || up.imagePath;
-      } catch {}
+        image = await urlToDataUrl(selectedGirlfriend.portraitUrl);
+      } catch {
+        try {
+          const file = await gfUrlToFile(selectedGirlfriend.portraitUrl, selectedGirlfriend.id);
+          const up = await uploadImage(apiKey, file);
+          image = up.downloadUrl || up.imagePath;
+        } catch {}
+      }
     }
     if (!image) { onError('请先锚定数字人或生成图片'); return; }
     const key = apiKey;

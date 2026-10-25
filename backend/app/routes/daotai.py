@@ -46,6 +46,29 @@ router = APIRouter(prefix='/api/daotai', tags=['daotai'])
 _SAFE = re.compile(r'^[\w\-. ()%]+$')
 
 
+def _video_ref_value(u: str):
+    """Resolve a data URL, public URL, or RunningHub fileName to a local/loadable ref."""
+    u = (u or '').strip()
+    if not u:
+        return None
+    if u.startswith('data:image'):
+        try:
+            import base64 as _b64
+            _hdr, _data = u.split(',', 1)
+            _ext = 'png' if 'png' in _hdr else 'jpg' if ('jpeg' in _hdr or 'jpg' in _hdr) else 'webp' if 'webp' in _hdr else 'png'
+            _ud = os.path.abspath(os.path.join(rh.WEB_ROOT, 'image', '_uploads'))
+            os.makedirs(_ud, exist_ok=True)
+            _fp = os.path.join(_ud, 'video_ref_%s.%s' % (int(time.time() * 1000), _ext))
+            with open(_fp, 'wb') as _f:
+                _f.write(_b64.b64decode(_data))
+            return _fp
+        except Exception:
+            return None
+    if u.startswith('http://') or u.startswith('https://'):
+        return rh._rh_dl_ref(u)
+    return u
+
+
 def _video_refs(body: dict):
     """复刻 8765 openapi 视频分支的参考图收集：显式 firstFrameUrl 为 ref[0]，再收 media。
 
@@ -58,7 +81,7 @@ def _video_refs(body: dict):
     _main = body.get('firstFrameUrl') or body.get('first_frame') or body.get('imageUrl')
     if _main:
         seen.add(str(_main))
-        rf = rh._rh_dl_ref(str(_main))
+        rf = _video_ref_value(str(_main))
         if rf:
             refs.append(rf)
     if isinstance(body.get('media'), list):
@@ -72,7 +95,7 @@ def _video_refs(body: dict):
                 continue
             # 不按 URL 去重：九宫格逐格任务会把同一格重复填满 5 个参考槽，
             # 去重会导致只有 ref_0 有图，其余槽沿用画布默认参考图。
-            rf = rh._rh_dl_ref(mu)
+            rf = _video_ref_value(mu)
             if rf:
                 refs.append(rf)
     # 只保留首帧一个参考图；其余槽由运行时显式清空为 None，避免重复参考图导致 H3 生成多个人物
