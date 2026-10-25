@@ -434,7 +434,7 @@ function generateH3Summary(h3Prompt: string): string {
   return uniqueParts.join(' · ');
 }
 /** 以当前图片为首帧，生成规范 H3 六段式视频提示词 */
-function buildAnchoredH3(imagePrompt: string): string {
+function buildAnchoredH3(imagePrompt: string, variant = 0): string {
   const scene = (imagePrompt || '').trim();
   const times = ['00:00.000','00:05.500','00:11.000','00:16.500','00:22.000','00:27.500','00:33.000','00:38.500','00:44.000','00:49.500','00:55.000'];
   const sentences = scene.split(/(?<=[.!?])\s+/);
@@ -454,7 +454,7 @@ function buildAnchoredH3(imagePrompt: string): string {
   const atOral = /(blowjob|deepthroat|fellatio|sucking|takes? .{0,50}(?:cock|shaft|penis) .{0,40}(?:mouth|throat)|deep into her throat|lips .{0,30}(?:shaft|cock)|mouth around)/i.test(scene);
   const wantsAss = /(anal|anus|ass|doggy|behind|plug|glute)/i.test(scene);
   const wantsOral = /(oral|blowjob|mouth|deepthroat|suck)/i.test(scene);
-  const cumEnding = wantsOral ? 'oral' : wantsAss ? 'ass' : 'internal';
+  const cumEnding = hasMan ? ['ass', 'oral', 'internal'][variant % 3] : wantsOral ? 'oral' : wantsAss ? 'ass' : 'internal';
   const first = 'Exactly reproduce Picture 1 as the first frame: identical pose, identical framing, identical clothing state or nudity, identical lighting and background. Hold one beat, then continue the SAME act already happening in the image. Never reset to an earlier stage, never undress or dress again, never switch to a different sex act.';
   const same = `${placeLine}. Same people. Cut smoothly between positions; the next shot starts from the previous body configuration and changes only the minimum needed. No reset, no scene change, no character change.`;
   const poseSeq = pickPoseSequence(scene);
@@ -592,7 +592,7 @@ function buildAnchoredH3(imagePrompt: string): string {
   const needsNude = /(nude|naked|topless|bare breasts|exposed breasts|pulled aside|tugged aside|bunched around|off her shoulders|skirt up|undress|strips?|lingerie|bikini)/i.test(scene);
   if (needsNude && twoWomen) {
     shots = shots.map((s, i) => i === 0 ? s : i === 1 ? `${s} Both women strip off the remaining clothing; from this shot onward both are completely nude and no clothing returns.` : `${s} Both women are completely nude: bare breasts, bare vulva, bare ass; no bra, no panties, no fabric.`);
-  } else if (needsNude) {
+  } else if (needsNude && !(hasMan && !explicitAct)) {
     shots = shots.map((s, i) => i === 0 ? s : i === 1 ? `${s} ${nudeLine}` : `${s} She is completely nude: bare breasts, bare vulva, bare ass; no bra, no panties, no fabric.`);
   }
   const d = (zh: string, speaker: 'S1' | 'S2' = 'S1') => `(${speaker}): <d>[Chinese] ${zh}</d>`;
@@ -645,7 +645,11 @@ function buildAnchoredH3(imagePrompt: string): string {
         .replace(/\b(?:a|one) finger\b/gi, 'her own finger')
         .replace(/\bfingers\b/gi, 'her own fingers')
     : core;
-  const clothingPolicy = needsNude ? 'Shot 1 uses the reference clothing; Shot 2 strips it off; Shot 3 onward both are completely nude with bare breasts, vulva and ass, no bra, no panties, no fabric.' : 'Clothing follows Picture 1.';
+  const clothingPolicy = (hasMan && !explicitAct)
+    ? 'Shot 1 uses the reference clothing; Shot 2 catches her; Shot 3 strips the suit; Shot 4 onward she is completely nude with bare breasts, ass and vulva, no bra, no panties, no fabric.'
+    : needsNude
+      ? 'Shot 1 uses the reference clothing; Shot 2 strips it off; Shot 3 onward both are completely nude with bare breasts, vulva and ass, no bra, no panties, no fabric.'
+      : 'Clothing follows Picture 1.';
   const progression = solo
     ? 'multiple solo positions with her own fingers and toys'
     : twoWomen
@@ -882,6 +886,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   const [videoSegments, setVideoSegments] = useState(4);
   const [videoRoutes, setVideoRoutes] = useState(1);
   const [mainVideo, setMainVideo] = useState<{loading:boolean;url?:string;error?:string}>({ loading: false });
+  const [cardVideoStates, setCardVideoStates] = useState<Record<string, { loading: boolean; url?: string; error?: string }>>({});
   const [count, setCount] = useState(savedExpand?.count || 5);
   const [results, setResults] = useState<{ id: string; original: string; prompt: string; r18: boolean }[]>(savedExpand?.results || []);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -1093,7 +1098,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
             }
 
             // Step 3: 统一走英文 11 镜 H3 模板，锚定参考图，禁止中文旧模板
-            const h3 = buildAnchoredH3(`${expandedImgPrompt}\nOriginal user request: ${input.trim()}`);
+            const h3 = buildAnchoredH3(`${expandedImgPrompt}\nOriginal user request: ${input.trim()}`, i);
 
             return { index: i, id: ids[i], prompt: h3, error: null };
           } catch (err) {
@@ -1427,7 +1432,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     }
   }, [outputText, taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, onNavigate]);
 
-  const handleMainGenerateVideo = useCallback(async (overridePrompt?: string, overrideImage?: string) => {
+  const handleMainGenerateVideo = useCallback(async (overridePrompt?: string, overrideImage?: string, cardKey?: string) => {
     const videoText = overridePrompt || outputText;
     if (!videoText.trim()) { onError('请先生成或选择提示词'); return; }
     if (!digitalHumanMode || !selectedGirlfriend) { onError('请先开启数字人锚定，才能生成视频'); return; }
@@ -1449,6 +1454,8 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     if (!image) { onError('请先锚定数字人或生成图片'); return; }
     const key = apiKey;
     if (!key) { onError('请先配置 RunningHub API Key'); return; }
+    const vk = cardKey || videoText;
+    setCardVideoStates(prev => ({ ...prev, [vk]: { loading: true } }));
     setMainVideo({ loading: true });
     try {
       const body = {
@@ -1478,6 +1485,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       }
       if (!url) throw new Error('视频生成超时');
       setMainVideo({ loading: false, url });
+      setCardVideoStates(prev => ({ ...prev, [vk]: { loading: false, url } }));
       saveMainVideoDone(videoText, url);
       clearMainPending();
       publishExternalVideoTask({ id: localId, taskId: submit.taskId, status: 'FINISHED', prompt: videoText,
@@ -1492,6 +1500,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     } catch (err) {
       const msg = err instanceof Error ? err.message : '视频生成失败';
       setMainVideo({ loading: false, error: msg });
+      setCardVideoStates(prev => ({ ...prev, [vk]: { loading: false, error: msg } }));
       clearMainPending();
       onError(msg);
     }
@@ -1955,7 +1964,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               r18Mode={r18Mode}
               isCopied={copiedId === result.id}
               genState={genState[result.id]}
-              videoState={outputText === result.prompt ? mainVideo : undefined}
+              videoState={cardVideoStates[result.id] || (outputText === result.prompt ? mainVideo : undefined)}
               digitalHumanMode={digitalHumanMode}
               selectedGirlfriend={selectedGirlfriend}
               onCopy={() => handleCopy(result.id, result.prompt)}
@@ -1975,7 +1984,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
                 if (!digitalHumanMode || !selectedGirlfriend) { onError('请先锚定数字人'); return; }
                 const img = genState[result.id]?.images?.[0] || selectedGirlfriend.portraitUrl;
                 if (!img) { onError('请先选择数字人'); return; }
-                void handleMainGenerateVideo(result.prompt, img);
+                void handleMainGenerateVideo(result.prompt, img, result.id);
               }}
               onUseAsOutput={() => {
                 const idx = results.findIndex((r) => r.id === result.id);
