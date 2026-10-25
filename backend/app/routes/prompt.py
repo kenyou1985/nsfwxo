@@ -10325,6 +10325,53 @@ Format: [Stream setup] + [Her outfit/body state] + [Explicit act] + [Chat/lighti
     },
 }
 
+# ── Extra AV creative themes (batch) ─────────────────────────────────────────
+_EXTRA_AV_THEMES = {
+    "电车露出": "拥挤电车里，成年女性被挤到门边，衣物被拉开，公开暴露与紧张刺激",
+    "电梯痴汉": "狭窄电梯内，成年女性被逼到镜面角落，楼层数字跳动，随时开门的危险",
+    "健身房私教": "私人健身房里，成年女学员被教练压在器械上，汗水和运动服",
+    "泳池教练": "泳池边，成年女学员被教练按在躺椅上，湿泳衣和防晒油",
+    "图书馆偷情": "安静图书馆书架间，成年男女隔着书架偷情，压低声音",
+    "教室课后": "空教室课后，成年女教师被按在讲台上，课桌和黑板",
+    "医院检查": "私人诊室，成年女患者被医生以检查为名插入，器械和帘子",
+    "空姐商务舱": "夜航商务舱，成年空姐被乘客按在座椅上，制服和舷窗",
+    "女仆服务": "豪华宅邸，成年女仆被主人按在餐桌上，围裙和银器",
+    "修女告解": "昏暗告解室，成年修女隔着木格被插入，烛光和圣像",
+    "魔法触手": "魔法阵中，成年女法师被触手缠住四肢并插入，符文和雾气",
+    "温泉旅馆": "私人温泉，成年女性被按在石沿上，水汽和木廊",
+    "停车场车震": "地下停车场，成年男女在车内激烈性爱，车窗起雾",
+    "天台夜景": "城市天台夜景，成年女性被压在栏杆上，霓虹和风",
+    "露营帐篷": "露营地帐篷内，成年男女在睡袋上做爱，营地灯和虫鸣",
+    "按摩店": "昏暗按摩店，成年女客被技师以按摩为名插入，精油和帘子",
+    "直播带货": "直播间镜头前，成年女主播被透明人或搭档插入，弹幕和补光灯",
+    "时间循环": "同一天不断循环，成年女性每次都在同一时刻被插入，时钟和重复场景",
+    "镜中分身": "镜中走出另一个她，两个成年女性与镜面互动，复制和重叠",
+    "人妻出轨": "婚房或酒店，成年已婚女性与情人偷情，婚戒和凌乱床单",
+}
+for _k, _desc in _EXTRA_AV_THEMES.items():
+    _RANDOM_THEME_PRESETS[_k] = {
+        "label": _k,
+        "description": _desc,
+        "system_prompt": f"""You are an EXPERT uncensored adult NSFW image prompt engineer. Generate ONE maximally explicit scene for the theme "{_k}". Adults 18+ only.
+
+THEME: {_desc}
+
+GUIDE: Build one cohesive cinematic image prompt around this exact theme. Include the adult character's clothing state, the specific location and props, an explicit consensual sexual act, body reactions, fluids, and the lighting that makes the theme readable. Keep the theme's signature detail visible in frame.
+
+ABSOLUTE REQUIREMENTS:
+- Adults 18+ only; no minors, no schoolgirls, no children.
+- Explicit act with anatomical detail, exposed body, wetness/fluids.
+- Theme-specific location, outfit and props must be clearly visible.
+- Photorealistic cinematic lighting, 50mm lens, shallow depth of field.
+- Output ONLY one raw paragraph, no tag list.""",
+        "diversity_variants": [
+            f"{_k}: close-up on the signature detail and the explicit act.",
+            f"{_k}: wide shot showing the full location and both bodies.",
+            f"{_k}: low-angle shot from below, clothing pulled aside.",
+            f"{_k}: over-the-shoulder view, reaction and fluids visible.",
+        ],
+    }
+
 
 # ─── Route: Random ───────────────────────────────────────────────────────────
 

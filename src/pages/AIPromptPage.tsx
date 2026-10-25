@@ -413,6 +413,8 @@ function buildAnchoredH3(imagePrompt: string): string {
   const after = 'Afterglow in the exact same location and position: chest heaving, wet skin, limbs trembling, cum still visible, no new act.';
   const final = `${ending} ${after}`;
 
+  const soloToy = ['wand vibrator', 'silicone dildo', 'rabbit vibrator'][Math.floor(Math.random() * 3)];
+  const lesToy = Math.random() < 0.5 ? 'strap-on' : 'double dildo';
   let shots: string[];
   if (twoWomen) {
     shots = [
@@ -422,8 +424,8 @@ function buildAnchoredH3(imagePrompt: string): string {
       'Low-angle: one woman goes down on the other, tongue parting the labia, hands spreading her thighs; eye contact, wetness on her chin.',
       'Medium side: fingers slide inside while a thumb circles the clit, the receiver’s hips rocking, thighs trembling.',
       'They shift into scissoring, hips grinding, wetness stringing between them, breasts pressed together, breathing ragged.',
-      'One woman uses a strap-on or double dildo in the same rhythm, the other braces and takes it, breasts bouncing.',
-      'Extreme close on the join: toy or fingers driving in, fluid coating skin, thighs shaking; cut back to their faces.',
+      `One woman uses the same ${lesToy} in a steady rhythm, the other braces and takes it, breasts bouncing.`,
+      `Extreme close on the join: the same ${lesToy} driving in, fluid coating skin, thighs shaking; cut back to their faces.`,
       'Slight angle change: one leg lifted, deeper angle, both women glistening with sweat, rhythm accelerating.',
       'First squirting climax: one woman gushes clear fluid onto the other’s hand/toy and the surface, thighs soaking, body locking.',
       'Second wet aftershock: she squirts again in a thinner stream, both women collapsing into the wet sheets, chests heaving, thighs shining.',
@@ -436,10 +438,10 @@ function buildAnchoredH3(imagePrompt: string): string {
       `She sinks to her knees on the floor, thighs apart, her own fingers circling her clit then sliding inside, back arching. ${placeLine}. ${soloGuard}`,
       `She lies back on the nearest surface, legs spread wide, her own fingers working her clit and entrance, breasts rising with each breath. ${placeLine}. ${soloGuard}`,
       `Side-lying with one leg lifted: her own hand reaches between her thighs, fingers curling inside, the other hand gripping her breast. ${placeLine}. ${soloGuard}`,
-      `She squats over a suction-cup dildo and lowers herself onto it, riding it with her hands braced on her knees, mouth open. ${placeLine}. ${soloGuard}`,
-      `On all fours, she reaches back with her own hand to finger herself, then presses a dildo in from behind, hips rocking. ${placeLine}. ${soloGuard}`,
-      `Sitting on the edge of the surface, she presses a wand vibrator to her clit, thighs trembling, free hand clawing the edge. ${placeLine}. ${soloGuard}`,
-      `Standing on one leg with the other foot raised, she works a bullet vibrator over her clit, hips bucking, breath breaking. ${placeLine}. ${soloGuard}`,
+      `She kneels and presses the same ${soloToy} to her clit, then sinks it in, riding it with her hips, mouth open. ${placeLine}. ${soloGuard}`,
+      `On all fours, she reaches back with her own hand to finger herself, then presses the same ${soloToy} in from behind, hips rocking. ${placeLine}. ${soloGuard}`,
+      `Sitting on the edge of the surface, she presses the same ${soloToy} to her clit, thighs trembling, free hand clawing the edge. ${placeLine}. ${soloGuard}`,
+      `Standing on one leg with the other foot raised, she works the same ${soloToy} over her clit, hips bucking, breath breaking. ${placeLine}. ${soloGuard}`,
       `Squirting climax: clear fluid gushes out around her own fingers/toy, splashing her thighs and the surface, body locking hard. ${soloGuard}`,
       `Afterglow: wet thighs and slick surface in frame, chest heaving, toy still resting against her, skin flushed, eyes dazed. ${soloGuard}`,
     ];
@@ -2219,6 +2221,26 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     { key: '魔法镜', label: '魔法镜' },
     { key: '催眠玩偶', label: '催眠玩偶' },
     { key: '直播事故', label: '直播事故' },
+    { key: '电车露出', label: '电车露出' },
+    { key: '电梯痴汉', label: '电梯痴汉' },
+    { key: '健身房私教', label: '健身房私教' },
+    { key: '泳池教练', label: '泳池教练' },
+    { key: '图书馆偷情', label: '图书馆偷情' },
+    { key: '教室课后', label: '教室课后' },
+    { key: '医院检查', label: '医院检查' },
+    { key: '空姐商务舱', label: '空姐商务舱' },
+    { key: '女仆服务', label: '女仆服务' },
+    { key: '修女告解', label: '修女告解' },
+    { key: '魔法触手', label: '魔法触手' },
+    { key: '温泉旅馆', label: '温泉旅馆' },
+    { key: '停车场车震', label: '停车场车震' },
+    { key: '天台夜景', label: '天台夜景' },
+    { key: '露营帐篷', label: '露营帐篷' },
+    { key: '按摩店', label: '按摩店' },
+    { key: '直播带货', label: '直播带货' },
+    { key: '时间循环', label: '时间循环' },
+    { key: '镜中分身', label: '镜中分身' },
+    { key: '人妻出轨', label: '人妻出轨' },
   ];
 
   const handleGenerate = async () => {
