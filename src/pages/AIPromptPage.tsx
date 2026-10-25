@@ -122,6 +122,23 @@ async function copyTextToClipboard(text: string): Promise<boolean> {
   }
 }
 
+type InlinePendingVideo = { taskId: string; promptKey: string; idx: number; startTime: number };
+const INLINE_VIDEO_PENDING_KEY = 'nsfwxo_inline_video_pending_v1';
+
+function readInlinePending(): InlinePendingVideo[] {
+  try { return JSON.parse(localStorage.getItem(INLINE_VIDEO_PENDING_KEY) || '[]'); } catch { return []; }
+}
+function writeInlinePending(items: InlinePendingVideo[]): void {
+  try { localStorage.setItem(INLINE_VIDEO_PENDING_KEY, JSON.stringify(items.slice(0, 30))); } catch {}
+}
+function addInlinePending(item: InlinePendingVideo): void {
+  const list = readInlinePending().filter((x) => x.taskId !== item.taskId);
+  writeInlinePending([item, ...list]);
+}
+function removeInlinePending(taskId: string): void {
+  writeInlinePending(readInlinePending().filter((x) => x.taskId !== taskId));
+}
+
 function buildKrea2NNodeList(prompt: string) {
   const opts = buildUnifiedTxt2ImgOptions(prompt, true);
   opts.workflowId = WORKFLOW.KREA2;
@@ -400,7 +417,7 @@ function buildAnchoredH3(imagePrompt: string): string {
   const wantsOral = /(oral|blowjob|mouth|deepthroat|suck)/i.test(scene);
   const cumEnding = wantsOral ? 'oral' : wantsAss ? 'ass' : 'internal';
   const first = 'Exactly reproduce Picture 1 as the first frame: identical pose, identical framing, identical clothing state or nudity, identical lighting and background. Hold one beat, then continue the SAME act already happening in the image. Never reset to an earlier stage, never undress or dress again, never switch to a different sex act.';
-  const same = `${placeLine}. Same people, same clothing/nudity state as Picture 1. Cut smoothly between positions; the next shot starts from the previous body configuration and changes only the minimum needed. No reset, no scene change, no character change.`;
+  const same = `${placeLine}. Same people. Cut smoothly between positions; the next shot starts from the previous body configuration and changes only the minimum needed. No reset, no scene change, no character change.`;
   const poseSeq = pickPoseSequence(scene);
   const penPoses = poseSeq.map((p) => p.name);
   const poseTrans = poseSeq.map((p) => p.transition);
@@ -504,6 +521,12 @@ function buildAnchoredH3(imagePrompt: string): string {
       final,
     ];
   }
+  const nudeLine = 'She strips off the remaining clothing; from this shot onward she is completely nude, and no clothing returns.';
+  if (twoWomen) {
+    shots = shots.map((s, i) => i === 0 ? s : i === 1 ? `${s} Both women strip off the remaining clothing; from this shot onward both are completely nude and no clothing returns.` : `${s} Both women remain completely nude; no clothing returns.`);
+  } else {
+    shots = shots.map((s, i) => i === 0 ? s : i === 1 ? `${s} ${nudeLine}` : `${s} She remains completely nude; no clothing returns.`);
+  }
   const d = (zh: string, speaker: 'S1' | 'S2' = 'S1') => `(${speaker}): <d>[Chinese] ${zh}</d>`;
   const female = ['好舒服…', '慢一点…', '求求你…', '快一点…', '我快不行了…', '爸爸操我…', '哥哥我想要…'];
   const male = ['不要动。', '夹紧。', '屁股抬高。', '操死你。', '不要出声。', '嘴巴张开，含住我的鸡巴。', '舔干净，吞下去。', '射了。'];
@@ -525,7 +548,7 @@ function buildAnchoredH3(imagePrompt: string): string {
   }
   const voiced = shots.map((action, i) => i === 0 || !dialogue[i] ? action : `${action} ${dialogue[i]}`);
   const body = voiced.map((action, i) => `[Shot ${i + 1}] ${times[i]} ${action}`).join('\n');
-  const speakerMap = twoWomen ? '{"S1":"female_voice","S2":"female_voice_2"}' : solo ? '{"S1":"female_voice"}' : '{"S1":"female_voice","S2":"male_voice"}';
+  const speakerMap = twoWomen ? '{"S1":"Chinese (Mandarin)_Adult_Female_Soft","S2":"Chinese (Mandarin)_Adult_Female_Soft"}' : solo ? '{"S1":"Chinese (Mandarin)_Adult_Female_Soft"}' : '{"S1":"Chinese (Mandarin)_Adult_Female_Soft","S2":"Chinese (Mandarin)_Adult_Male_Low"}';
   const subject2 = twoWomen
     ? '<Subject 2> is @Woman2 — the exact second cisgender adult woman shown in Picture 1, if present. She has a vulva only: no penis, no futanari, no male genitalia. Identity and appearance come only from Picture 1.'
     : hasMan
@@ -2089,6 +2112,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   const [h3ProcessingIndices, setH3ProcessingIndices] = useState<Set<number>>(new Set());
   const autoH3Ref = useRef(false);
   const [videoStates, setVideoStates] = useState<Record<number, { loading: boolean; url?: string; error?: string }>>({});
+  const inlineRestoredRef = useRef<Set<string>>(new Set());
   const [videoClarity, setVideoClarity] = useState(0.2);
   const [videoSegments, setVideoSegments] = useState(4);
   const [videoRoutes, setVideoRoutes] = useState(1);
@@ -2105,6 +2129,39 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   // Latest results mirror for use inside async callbacks (the `results` state
   // closure value would be stale by the time the stream finishes).
   const resultsRef = useRef<PromptResult[]>(results);
+  // 刷新/切页后恢复当前卡片的“视频生成中”状态，继续轮询直到返回
+  useEffect(() => {
+    if (!apiKey) return;
+    const items = readInlinePending();
+    for (const item of items) {
+      if (inlineRestoredRef.current.has(item.taskId)) continue;
+      const idx = results.findIndex((r) => r.prompt === item.promptKey);
+      if (idx < 0) continue;
+      inlineRestoredRef.current.add(item.taskId);
+      setVideoStates((prev) => ({ ...prev, [idx]: { loading: true } }));
+      void (async () => {
+        let url: string | undefined;
+        try {
+          for (let i = 0; i < 480; i++) {
+            await new Promise((r) => setTimeout(r, 5000));
+            const data = await pollDaotaiTask(apiKey, item.taskId);
+            if (data.status === 'SUCCESS') {
+              url = data.video_url || data.output?.video_url || data.url || data.images?.[0];
+              break;
+            }
+            if (data.status === 'FAILED') throw new Error(data.message || '视频生成失败');
+          }
+          if (!url) throw new Error('视频生成超时');
+          setVideoStates((prev) => ({ ...prev, [idx]: { loading: false, url } }));
+        } catch (err) {
+          setVideoStates((prev) => ({ ...prev, [idx]: { loading: false, error: err instanceof Error ? err.message : '视频生成失败' } }));
+        } finally {
+          removeInlinePending(item.taskId);
+        }
+      })();
+    }
+  }, [apiKey, results]);
+
   useEffect(() => { resultsRef.current = results; }, [results]);
   // Refs for the toast callbacks — same pattern as ExpandMode/StoryboardMode.
   // Needed so async stream events (especially the per-slot stuck-retry path
@@ -2806,6 +2863,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
 
     setVideoStates(prev => ({ ...prev, [idx]: { loading: true } }));
     const rhKey = apiKey;
+    let submittedTaskId: string | undefined;
     if (!rhKey) { onError('请先配置 RunningHub API Key'); setVideoStates(prev => ({ ...prev, [idx]: { loading: false, error: '未配置 API Key' } })); return; }
     try {
       // 始终按当前图片重建英文 11 镜 H3，避免复用旧缓存里的中文模板
@@ -2828,11 +2886,13 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       };
       const anchoredPrompt = anchorH3Prompt(h3);
       const submit = await submitDaotaiVideo(rhKey, anchoredPrompt, { ...body, prompt: anchoredPrompt });
+      submittedTaskId = submit.taskId;
       publishExternalVideoTask({
         id: localTaskId, taskId: submit.taskId, status: 'RUNNING', prompt: h3,
         imagePreview: image, images: [], coins: null, elapsedSeconds: 0,
         error: null, startTime: Date.now(), nodeInfoList: [], engine: 'daotai',
       });
+      addInlinePending({ taskId: submit.taskId, promptKey: result.prompt, idx, startTime: Date.now() });
 
       let videoUrl: string | undefined;
       for (let i = 0; i < 480; i++) {
@@ -2847,6 +2907,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       if (!videoUrl) throw new Error('视频生成超时或未返回视频地址');
 
       setVideoStates(prev => ({ ...prev, [idx]: { loading: false, url: videoUrl } }));
+      removeInlinePending(submit.taskId);
       publishExternalVideoTask({
         id: localTaskId, taskId: submit.taskId, status: 'FINISHED', prompt: h3,
         imagePreview: image, images: [videoUrl], coins: null, elapsedSeconds: 0,
@@ -2865,6 +2926,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     } catch (err) {
       const msg = err instanceof Error ? err.message : '视频生成失败';
       setVideoStates(prev => ({ ...prev, [idx]: { loading: false, error: msg } }));
+      if (submittedTaskId) removeInlinePending(submittedTaskId);
       onError(msg);
     }
   }, [results, selectedImageIndices, videoClarity, videoSegments, videoRoutes, apiKey, onError, onSuccess, handleGenerateSingleH3]);
