@@ -1098,7 +1098,6 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   const [videoRoutes, setVideoRoutes] = useState(1);
   const [mainVideo, setMainVideo] = useState<{loading:boolean;url?:string;error?:string}>({ loading: false });
   const [cardVideoStates, setCardVideoStates] = useState<Record<string, { loading: boolean; url?: string; error?: string }>>({});
-  const videoQueueRef = useRef<Promise<void>>(Promise.resolve());
   const [count, setCount] = useState(savedExpand?.count || 5);
   const [results, setResults] = useState<{ id: string; original: string; prompt: string; r18: boolean }[]>(savedExpand?.results || []);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -1751,13 +1750,8 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     }
   }, [outputText, selectedOutputIdx, results, genState, digitalHumanMode, selectedGirlfriend, videoClarity, videoSegments, videoShotCount, videoRoutes, onError, onSuccess]);
 
-  // 后端 H3 runtime 不能同时跑多个视频任务，否则多个任务共用一个 WS/分段状态，
-  // 会出现“视频已生成但任务一直 PROCESSING”。所有入口统一串行排队。
-  const handleMainGenerateVideo = useCallback((overridePrompt?: string, overrideImage?: string, cardKey?: string) => {
-    const next = videoQueueRef.current.then(() => runMainGenerateVideo(overridePrompt, overrideImage, cardKey));
-    videoQueueRef.current = next.catch(() => {});
-    return next;
-  }, [runMainGenerateVideo]);
+  // 每张卡独立提交；不要做全局串行，否则第二、三张卡会看起来无法点击
+  const handleMainGenerateVideo = runMainGenerateVideo;
 
   const handleExpandGenerateImage = useCallback(async (result: { id: string; prompt: string }) => {
     if (taskManager.isFull) {
@@ -1858,14 +1852,10 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     if (type !== 'video') { onError('当前是生图模式，请切换到视频模式'); return; }
     if (!results.length || batchVideoLoading) return;
     setBatchVideoLoading(true);
-    let ok = 0;
-    // 串行提交，避免 3 个并发视频轮询互相覆盖 mainVideo 状态
-    for (const r of results) {
-      try {
-        await handleMainGenerateVideo(r.prompt, undefined, r.id);
-        ok += 1;
-      } catch {}
-    }
+    const submitted = await Promise.allSettled(
+      results.map((r) => handleMainGenerateVideo(r.prompt, undefined, r.id)),
+    );
+    const ok = submitted.filter((x) => x.status === 'fulfilled').length;
     setBatchVideoLoading(false);
     onSuccess(`已提交 ${ok} 个视频任务`);
   }, [type, results, batchVideoLoading, handleMainGenerateVideo, onError, onSuccess]);
