@@ -642,7 +642,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0): string {
     const v = variant % 3;
     if (v === 0) {
       dialogue[2] = d(female[0]);
-      dialogue[5] = d(male[5], 'S2');
+      dialogue[6] = d(male[3], 'S2');
       dialogue[7] = d(female[3]);
       dialogue[9] = d(male[7], 'S2') + ' ' + d(female[4]);
     } else if (v === 1) {
