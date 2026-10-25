@@ -471,7 +471,8 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   const wantsOral = /(oral|blowjob|mouth|deepthroat|suck)/i.test(scene);
   const cumEnding = hasMan ? ['ass', 'oral', 'internal'][variant % 3] : wantsOral ? 'oral' : wantsAss ? 'ass' : 'internal';
   const openingCandidates = sentences.filter((x) => /(walk|walking|follow|following|approach|street|alley|corridor|entrance|office|home|room|path|trail)/i.test(x) && !/(nude|naked|penetrat|thrust|cock|pussy|sex|bound|rope|climax)/i.test(x));
-  const openingScene = (openingCandidates[0] || userHint || core).slice(0, 260);
+  const englishScene = /[\u4e00-\u9fff]/.test(scene) ? '' : scene;
+  const openingScene = (openingCandidates[0] || englishScene || 'The scene begins in the live-action location, with the woman already walking and the man following behind her at a distance.').slice(0, 260);
   const first = `The video opens directly in the live-action scene, already in motion: ${openingScene}. Picture 1 is an identity and scene reference, NOT a static first frame: do not start on a portrait, reference-sheet pose, photo face shot, or frozen replica of Picture 1. The woman's identity comes from Picture 1, but the opening frame is a real cinematic action frame with the body, clothing and environment already moving.`;
   const same = `${placeLine}. Same people. Cut smoothly between positions; the next shot starts from the previous body configuration and changes only the minimum needed. No reset, no scene change, no character change.`;
   const poseSeq = pickPoseSequence(scene);
@@ -859,7 +860,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
 ${subject2}
 
 summary:
-[reference generation] A cinematic ${targetDuration}-second ${mode} explicit sequence. Picture 1 is a full identity/scene reference, NOT a static first frame. The video starts directly in the live-action scene, already in motion, then progresses through ${progression}, ending in ${endingText}. ${clothingPolicy} ${coercive ? `She is coerced and pleading; he threatens and overpowers her. ${isCycling ? 'The man is riding a bicycle, not running.' : 'He closes in and overpowers her; there is no bicycle in this scene.'}` : ''} No scene change, no character change, no extra person.
+[reference generation] Theme outline: ${openingScene}. A cinematic ${targetDuration}-second ${mode} explicit sequence. Picture 1 is a full identity/scene reference, NOT a static first frame. The video starts directly in the live-action scene, already in motion, then progresses through ${progression}, ending in ${endingText}. ${clothingPolicy} ${coercive ? `She is coerced and pleading; he threatens and overpowers her. ${isCycling ? 'The man is riding a bicycle, not running.' : 'He closes in and overpowers her; there is no bicycle in this scene.'}` : ''} No scene change, no character change, no extra person.
 
 retention_analysis:
 <Subject 1> <Picture 1>: fully_preserved — identity, face, hair and body come from the reference image; starting clothing is used only for Shot 1, then the shot sequence controls nudity.
