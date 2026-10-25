@@ -6866,6 +6866,9 @@ async def _generate_single_expand(
         )
         system_for_this = system_prompt
 
+    if use_character_anchor and character_prompt:
+        user_prompt += f"\n\nCHARACTER ANCHOR (translate into English; do not copy Chinese text): {character_prompt.strip()}\nKeep this identity in the English prompt."
+
     for attempt in range(MAX_RETRIES):
         try:
             result = await call_grok(api_key, system_for_this, user_prompt, model_order=model_order)
@@ -6878,10 +6881,6 @@ async def _generate_single_expand(
                 result_clean = await rewrite_coherent_prompt(result_clean, api_key)
 
             # Inject character anchor prompt if digital human mode is enabled
-            if use_character_anchor:
-                anchor = character_prompt.strip()
-                if not result_clean.startswith(anchor):
-                    result_clean = f"{anchor}, {result_clean}"
 
             return {
                 "original": user_input,
@@ -6990,6 +6989,8 @@ async def _stream_single_expand(
                 f"IMPORTANT: All characters must be adults (18+). Return ONLY the prompt text, nothing else."
             )
 
+        if use_character_anchor and character_prompt:
+            user_prompt += f"\n\nCHARACTER ANCHOR (translate into English; do not copy Chinese text): {character_prompt.strip()}\nKeep this identity in the English prompt."
         yield _ndjson_event({
             "event": "start",
             "index": index,
@@ -7010,10 +7011,6 @@ async def _stream_single_expand(
                 conflicts = detect_prompt_conflicts(result_clean)
                 if conflicts:
                     result_clean = await rewrite_coherent_prompt(result_clean, api_key)
-                if use_character_anchor and character_prompt:
-                    anchor = character_prompt.strip()
-                    if not result_clean.startswith(anchor):
-                        result_clean = f"{anchor}, {result_clean}"
                 yield _ndjson_event({
                     "event": "end",
                     "index": index,
@@ -9544,11 +9541,9 @@ async def _generate_single_prompt(
             except Exception:
                 theme_label = preset["label"]
 
-            # Inject character anchor prompt if digital human mode is enabled
+            # Inject an English identity anchor; never prepend the raw Chinese character text
             if use_character_anchor:
-                anchor = character_prompt.strip()
-                if not result_clean.startswith(anchor):
-                    result_clean = f"{anchor}, {result_clean}"
+                result_clean = f"same face, same hair, same body proportions and identity as the provided character reference, {result_clean}"
 
             return PromptResult(
                 theme_label=theme_label,
@@ -10636,9 +10631,7 @@ async def _stream_single_random_prompt(
                     theme_label = preset["label"]
 
                 if use_character_anchor and character_prompt:
-                    anchor = character_prompt.strip()
-                    if not result_clean.startswith(anchor):
-                        result_clean = f"{anchor}, {result_clean}"
+                    result_clean = f"same face, same hair, same body proportions and identity as the provided character reference, {result_clean}"
 
                 yield _ndjson_event({
                     "event": "end",

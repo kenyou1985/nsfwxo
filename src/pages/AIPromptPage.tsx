@@ -139,6 +139,20 @@ function removeInlinePending(taskId: string): void {
   writeInlinePending(readInlinePending().filter((x) => x.taskId !== taskId));
 }
 
+const INLINE_VIDEO_DONE_KEY = 'nsfwxo_inline_video_done_v1';
+function readInlineDone(): Record<string, string> {
+  try { return JSON.parse(localStorage.getItem(INLINE_VIDEO_DONE_KEY) || '{}'); } catch { return {}; }
+}
+function saveInlineDone(promptKey: string, url: string): void {
+  try {
+    const map = readInlineDone();
+    map[promptKey] = url;
+    const keys = Object.keys(map);
+    if (keys.length > 40) for (const k of keys.slice(0, keys.length - 40)) delete map[k];
+    localStorage.setItem(INLINE_VIDEO_DONE_KEY, JSON.stringify(map));
+  } catch {}
+}
+
 function buildKrea2NNodeList(prompt: string) {
   const opts = buildUnifiedTxt2ImgOptions(prompt, true);
   opts.workflowId = WORKFLOW.KREA2;
@@ -530,7 +544,7 @@ function buildAnchoredH3(imagePrompt: string): string {
   }
   const d = (zh: string, speaker: 'S1' | 'S2' = 'S1') => `(${speaker}): <d>[Chinese] ${zh}</d>`;
   const female = ['好舒服…', '慢一点…', '求求你…', '快一点…', '我快不行了…', '爸爸操我…', '哥哥我想要…'];
-  const male = ['不要动。', '夹紧。', '屁股抬高。', '操死你。', '不要出声。', '嘴巴张开，含住我的鸡巴。', '舔干净，吞下去。', '射了。'];
+  const male = ['不要动。', '夹紧。', '屁股抬高。', '操死你。', '不要出声。', '嘴巴张开。', '舔干净，吞下去。', '射了。'];
   const dialogue: string[] = Array(11).fill('');
   if (twoWomen) {
     dialogue[2] = d(female[0]);
@@ -568,7 +582,10 @@ function buildAnchoredH3(imagePrompt: string): string {
   const displayCore = twoWomen
     ? core
         .replace(/\b(cum|semen|ejaculat\w*)\b/gi, 'silicone lubricant')
-        .replace(/\b(cock|penis)\b/gi, 'strap-on dildo')
+        .replace(/\b(cock|penis)\b/gi, 'silicone strap-on')
+        .replace(/\b(?:a|the) man\b/gi, 'the other woman')
+        .replace(/\bhis\b/gi, 'her')
+        .replace(/\bhe\b/gi, 'she')
     : solo
     ? core
         .replace(/\b(cum|semen|ejaculat\w*)\b/gi, 'wetness')
@@ -2134,6 +2151,10 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   // 刷新/切页后恢复当前卡片的“视频生成中”状态，继续轮询直到返回
   useEffect(() => {
     if (!apiKey) return;
+    const done = readInlineDone();
+    const doneState: Record<number, { loading: boolean; url: string }> = {};
+    results.forEach((r, i) => { if (done[r.prompt]) doneState[i] = { loading: false, url: done[r.prompt] }; });
+    if (Object.keys(doneState).length) setVideoStates((prev) => ({ ...doneState, ...prev }));
     const items = readInlinePending();
     for (const item of items) {
       if (inlineRestoredRef.current.has(item.taskId)) continue;
@@ -2909,6 +2930,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       if (!videoUrl) throw new Error('视频生成超时或未返回视频地址');
 
       setVideoStates(prev => ({ ...prev, [idx]: { loading: false, url: videoUrl } }));
+      saveInlineDone(result.prompt, videoUrl);
       removeInlinePending(submit.taskId);
       publishExternalVideoTask({
         id: localTaskId, taskId: submit.taskId, status: 'FINISHED', prompt: h3,
