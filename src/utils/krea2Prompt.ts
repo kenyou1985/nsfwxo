@@ -23,6 +23,17 @@ export function normalizeKrea2Prompt(input: string): string {
     .replace(/\s{2,}/g, ' ')
     .trim();
 
+  // 女女主题：禁止 futanari / 真阴茎，所有插入物必须是硅胶假阳具
+  const twoWomen = /(two women|both women|two girls|lesbian|strapless strap-on|double dildo)/i.test(text)
+    && !/\b(man|male|boyfriend|guy)\b/i.test(text);
+  if (twoWomen) {
+    text = text
+      .replace(/\b(cum|semen|ejaculat\w*)\b/gi, 'silicone lubricant')
+      .replace(/\b(realistic|real|flesh|human)\s+(?:penis|cock)\b/gi, 'silicone strap-on')
+      .replace(/\bpenis\b/gi, 'silicone strap-on');
+    text += ', both subjects are cisgender adult women with vulvas only, no penis, no futanari, no shemale, no male genitalia; any penetration is by a silicone strap-on or dildo only';
+  }
+
   // 拆成短句，去重并保持原有画面顺序
   const parts = text.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean);
   const seen = new Set<string>();
