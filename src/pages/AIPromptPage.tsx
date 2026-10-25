@@ -1696,6 +1696,9 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     if (anchorList[2] && /<Picture\s*3>/i.test(videoText)) {
       try { extraAnchorImages.push(await urlToDataUrl(anchorList[2].portraitUrl)); } catch {}
     }
+    // H3 只允许明确引用的参考图；没有 <Picture 3> 时强制最多 2 张，避免 H3 把多余参考图当成新人物
+    const maxRefs = /<Picture\s*3>/i.test(videoText) ? 3 : 2;
+    extraAnchorImages = extraAnchorImages.slice(0, Math.max(1, maxRefs - 1));
     const vk = cardKey || videoText;
     setCardVideoStates(prev => ({ ...prev, [vk]: { loading: true } }));
     setMainVideo({ loading: true });
