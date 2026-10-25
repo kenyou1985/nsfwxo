@@ -1550,7 +1550,9 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         loop_routes: videoRoutes,
         instance: 'plus',
       };
-      const anchoredPrompt = buildAnchoredH3(videoText, 0, !!maleImage);
+      // 智能扩写卡片里已经是完整 H3；不能再拿 H3 当图片提示词二次 build，否则会把上一版女女/男模板混进来
+      const isH3Prompt = /^\s*subject_definitions\s*:/i.test(videoText);
+      const anchoredPrompt = isH3Prompt ? videoText : buildAnchoredH3(videoText, 0, !!maleImage);
       const submit = await submitDaotaiVideo(key, anchoredPrompt, { ...body, prompt: anchoredPrompt });
       saveMainPending({ taskId: submit.taskId, promptKey: videoText, startTime: Date.now() });
       const localId = `expand-video-${Date.now()}`;
