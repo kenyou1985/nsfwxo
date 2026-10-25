@@ -546,19 +546,42 @@ function buildAnchoredH3(imagePrompt: string, variant = 0): string {
       final,
     ];
   } else if (hasMan && !explicitAct) {
-    shots = [
-      first,
-      `He catches up on his bike and grabs her waist, pulling her to a stop on the wild path; she gasps, bike wobbling. ${placeLine}.`,
-      'He pulls her off the bicycle and pins her against the frame, one hand on her throat, the other wrenching the tight cycling suit down.',
-      'Close: the suit is stripped to her waist, breasts spill out, sweat on her skin, her hands trapped behind her back.',
-      'He bends her over the bicycle seat, pulls the suit down her thighs, exposes her bare ass, and slaps it.',
-      'He drops to his knees behind her, spreads her cheeks and licks her from clit to ass, his tongue wet and demanding.',
-      'He straightens and drives into her from behind, bent over the bike, her body jolting with each thrust.',
-      'Medium side: doggy against the bicycle, her hands gripping the handlebars, breasts swinging, the bike rocking.',
-      'He lifts her onto the seat, spreads her legs and enters facing her, deep strokes, her back arching.',
-      'Rhythm accelerates: hips slamming, sweat flying, her mouth open in a broken moan, the bike creaking under them.',
-      final,
+    const chaseVariants = [
+      [
+        `He catches up on his bike and grabs her waist, pulling her to a stop on the wild path; she gasps, bike wobbling. ${placeLine}.`,
+        'He pulls her off the bicycle and pins her against the frame, one hand on her throat, the other wrenching the tight cycling suit down.',
+        'Close: the suit is stripped to her waist, breasts spill out, sweat on her skin, her hands trapped behind her back.',
+        'He bends her over the bicycle seat, pulls the suit down her thighs, exposes her bare ass, and slaps it.',
+        'He drops to his knees behind her, spreads her cheeks and licks her from clit to ass, his tongue wet and demanding.',
+        'He straightens and drives into her from behind, bent over the bike, her body jolting with each thrust.',
+        'Medium side: doggy against the bicycle, her hands gripping the handlebars, breasts swinging, the bike rocking.',
+        'He lifts her onto the seat, spreads her legs and enters facing her, deep strokes, her back arching.',
+        'Rhythm accelerates: hips slamming, sweat flying, her mouth open in a broken moan, the bike creaking under them.',
+      ],
+      [
+        `He catches up and yanks her off the bike onto the forest floor, the bicycle skidding into the ferns. ${placeLine}.`,
+        'He shoves her back against a pine trunk, pins her wrists above her head, and tears the zipper of the cycling suit open.',
+        'Close: the suit is peeled to her waist, breasts crushed against his chest, one thigh lifted around his hip.',
+        'He pushes her to her knees on the moss and feeds her his cock; she looks up, lips stretched, saliva dripping.',
+        'Low-angle close: deep throat against the tree, his hand in her hair, her mascara smeared, gagging softly.',
+        'He lifts her by the thighs into a standing carry against the trunk and drives into her, feet off the ground.',
+        'Side view standing carry: her back scraping bark, legs locked around him, breasts bouncing with each thrust.',
+        'He lowers her onto a fallen log and takes her missionary, legs over his shoulders, deep slow strokes.',
+        'Rhythm accelerates on the log: hips slamming, leaves in her hair, her mouth open in a broken cry.',
+      ],
+      [
+        `He catches up and shoves her off the trail into the tall ferns, the bike crashing down behind them. ${placeLine}.`,
+        'He forces her face-down into the undergrowth, knee between her thighs, and rips the cycling suit down her back.',
+        'Close: her bare ass is up, suit bunched at her knees, face turned in the leaves, mouth open and gasping.',
+        'He spanks her exposed cheeks, then spreads them and spits, the head of his cock pressing against her.',
+        'Prone bone: he lies over her, chest to her back, and drives deep into the dirt, her fingers clawing the soil.',
+        'He pulls out and flips her onto her back in the ferns, knees pushed to her chest, and enters again.',
+        'Missionary in the dirt: faces close, sweat and leaf litter on her skin, her legs wrapped around him.',
+        'He sits back and pulls her on top, cowgirl in the forest, her hands on his chest, hips rolling.',
+        'She bounces harder, breasts in his face, the ferns shaking around them, both breathing ragged.',
+      ],
     ];
+    shots = [first, ...(chaseVariants[variant % 3] || chaseVariants[0]), final];
   } else if (!explicitAct) {
     shots = [
       first,
@@ -613,6 +636,26 @@ function buildAnchoredH3(imagePrompt: string, variant = 0): string {
     else dialogue[5] = d(male[5], 'S2');
     dialogue[7] = d(female[3]);
     dialogue[9] = d(male[7], 'S2') + ' ' + d(female[4]);
+  }
+  if (hasMan && !explicitAct) {
+    dialogue.fill('');
+    const v = variant % 3;
+    if (v === 0) {
+      dialogue[2] = d(female[0]);
+      dialogue[5] = d(male[5], 'S2');
+      dialogue[7] = d(female[3]);
+      dialogue[9] = d(male[7], 'S2') + ' ' + d(female[4]);
+    } else if (v === 1) {
+      dialogue[3] = d(female[1]);
+      dialogue[4] = d(male[5], 'S2');
+      dialogue[7] = d(male[2], 'S2');
+      dialogue[9] = d(female[4]);
+    } else {
+      dialogue[3] = d(male[3], 'S2');
+      dialogue[5] = d(female[5]);
+      dialogue[8] = d(male[1], 'S2');
+      dialogue[9] = d(female[4]);
+    }
   }
   const voiced = shots.map((action, i) => i === 0 || !dialogue[i] ? action : `${action} ${dialogue[i]}`);
   const body = voiced.map((action, i) => `[Shot ${i + 1}] ${times[i]} ${action}`).join('\n');
