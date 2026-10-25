@@ -436,6 +436,13 @@ function generateH3Summary(h3Prompt: string): string {
   return uniqueParts.join(' · ');
 }
 /** 以当前图片为首帧，生成规范 H3 六段式视频提示词 */
+function applyAnchorNames(prompt: string, anchors: GirlfriendPreset[]): string {
+  return prompt.replace(/<Picture\s+(\d+)>/gi, (m, n) => {
+    const gf = anchors[Number(n) - 1];
+    return gf ? `<Picture ${n}>@${gf.nameZh || gf.name}` : m;
+  });
+}
+
 function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false): string {
   const scene = (imagePrompt || '').trim();
   const times = ['00:00.000','00:05.500','00:11.000','00:16.500','00:22.000','00:27.500','00:33.000','00:38.500','00:44.000','00:49.500','00:55.000'];
@@ -811,6 +818,7 @@ export function AIPromptPage({ onError, onSuccess, onOpenSettings, taskManager, 
   const [r18Mode, setR18Mode] = useState(false);
   const [digitalHumanMode, setDigitalHumanMode] = useState(false);
   const [selectedGirlfriend, setSelectedGirlfriend] = useState<GirlfriendPreset | null>(null);
+  const [selectedAnchors, setSelectedAnchors] = useState<GirlfriendPreset[]>([]);
   // Aspect ratio for img2img: 'portrait' (9:16) or 'landscape' (16:9)
   const [img2imgAspectRatio, setImg2imgAspectRatio] = useState<'portrait' | 'landscape'>('portrait');
 
@@ -873,43 +881,50 @@ export function AIPromptPage({ onError, onSuccess, onOpenSettings, taskManager, 
             </div>
           </div>
           <button
-            onClick={() => { const next = !digitalHumanMode; setDigitalHumanMode(next); if (!next) setSelectedGirlfriend(null); else if (!selectedGirlfriend) setSelectedGirlfriend(getDefaultAnchor('female')); }}
+            onClick={() => { const next = !digitalHumanMode; setDigitalHumanMode(next); if (!next) { setSelectedGirlfriend(null); setSelectedAnchors([]); } else if (!selectedAnchors.length) { const f = getDefaultAnchor('female'); const m = getDefaultAnchor('male'); const list = [f, m].filter(Boolean) as GirlfriendPreset[]; setSelectedAnchors(list); setSelectedGirlfriend(f); } }}
             className={`relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0 ${digitalHumanMode ? 'bg-red-500' : 'bg-gray-300'}`}
           >
             <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all duration-300 ${digitalHumanMode ? 'left-[26px]' : 'left-0.5'}`} />
           </button>
         </div>
         {digitalHumanMode && (
-          <div className="px-4 pb-4">
-            {selectedGirlfriend ? (
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-white border border-border">
-                <img
-                  src={selectedGirlfriend.thumbnailUrl || selectedGirlfriend.portraitUrl}
-                  alt={selectedGirlfriend.nameZh}
-                  className="w-11 h-11 rounded-full object-cover border-2 border-red-300"
-                />
+          <div className="px-4 pb-4 space-y-2">
+            {selectedAnchors.map((gf, idx) => (
+              <div key={gf.id} className="flex items-center gap-3 p-2.5 rounded-xl bg-white border border-border">
+                <span className="w-12 text-[10px] font-bold text-red-500">Picture {idx + 1}</span>
+                <img src={gf.thumbnailUrl || gf.portraitUrl} alt={gf.nameZh} className="w-10 h-10 rounded-full object-cover border-2 border-red-300" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-text-primary">{selectedGirlfriend.nameZh || selectedGirlfriend.name}</p>
-                  <p className="text-xs text-text-tertiary">{selectedGirlfriend.description}</p>
+                  <p className="text-sm font-medium text-text-primary">{gf.nameZh || gf.name}</p>
+                  <p className="text-[11px] text-text-tertiary">{gf.description}</p>
                 </div>
                 <button
-                  onClick={() => setSelectedGirlfriend(null)}
-                  className="w-8 h-8 rounded-full bg-bg-elevated flex items-center justify-center text-text-tertiary hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0"
+                  onClick={() => {
+                    const next = selectedAnchors.filter((x) => x.id !== gf.id);
+                    setSelectedAnchors(next);
+                    setSelectedGirlfriend(next.find((x) => x.gender === 'female') || next[0] || null);
+                  }}
+                  className="w-7 h-7 rounded-full bg-bg-elevated flex items-center justify-center text-text-tertiary hover:text-red-500 hover:bg-red-50"
+                  title="取消该数字人锚定"
                 >
-                  <X size={14} />
+                  <X size={13} />
                 </button>
               </div>
-            ) : (
-              <GirlfriendSelector
-                selectedId={null}
-                onSelect={(gf) => setSelectedGirlfriend(gf)}
-              />
-            )}
+            ))}
+            <GirlfriendSelector
+              selectedIds={selectedAnchors.map((g) => g.id)}
+              onSelect={(gf) => {
+                const next = selectedAnchors.some((x) => x.id === gf.id)
+                  ? selectedAnchors.filter((x) => x.id !== gf.id)
+                  : [...selectedAnchors, gf];
+                setSelectedAnchors(next);
+                setSelectedGirlfriend(next.find((x) => x.gender === 'female') || next[0] || null);
+              }}
+            />
           </div>
         )}
       </div>
 
-      {activeMode === 'expand' && <ExpandMode onError={onError} onSuccess={onSuccess} loading={loading} setLoading={setLoading} r18Mode={r18Mode} taskManager={taskManager} apiKey={apiKey} digitalHumanMode={digitalHumanMode} selectedGirlfriend={selectedGirlfriend} onNavigate={onNavigate} setDigitalHumanMode={setDigitalHumanMode} setSelectedGirlfriend={setSelectedGirlfriend} img2imgAspectRatio={img2imgAspectRatio} setImg2imgAspectRatio={setImg2imgAspectRatio} />}
+      {activeMode === 'expand' && <ExpandMode onError={onError} onSuccess={onSuccess} loading={loading} setLoading={setLoading} r18Mode={r18Mode} taskManager={taskManager} apiKey={apiKey} digitalHumanMode={digitalHumanMode} selectedGirlfriend={selectedGirlfriend} selectedAnchors={selectedAnchors} onNavigate={onNavigate} setDigitalHumanMode={setDigitalHumanMode} setSelectedGirlfriend={setSelectedGirlfriend} img2imgAspectRatio={img2imgAspectRatio} setImg2imgAspectRatio={setImg2imgAspectRatio} />}
       {activeMode === 'random' && <RandomMode onError={onError} onSuccess={onSuccess} loading={loading} setLoading={setLoading} r18Mode={r18Mode} taskManager={taskManager} apiKey={apiKey} digitalHumanMode={digitalHumanMode} selectedGirlfriend={selectedGirlfriend} onNavigate={onNavigate} setDigitalHumanMode={setDigitalHumanMode} setSelectedGirlfriend={setSelectedGirlfriend} img2imgAspectRatio={img2imgAspectRatio} setImg2imgAspectRatio={setImg2imgAspectRatio} />}
       {activeMode === 'storyboard' && <StoryboardMode onError={onError} onSuccess={onSuccess} loading={loading} setLoading={setLoading} r18Mode={r18Mode} taskManager={taskManager} apiKey={apiKey} digitalHumanMode={digitalHumanMode} selectedGirlfriend={selectedGirlfriend} onNavigate={onNavigate} setDigitalHumanMode={setDigitalHumanMode} setSelectedGirlfriend={setSelectedGirlfriend} img2imgAspectRatio={img2imgAspectRatio} setImg2imgAspectRatio={setImg2imgAspectRatio} />}
     </div>
@@ -947,10 +962,10 @@ function formatTime(seconds: number): string {
 
 // ─── Expand Mode ─────────────────────────────────────────────────────────────
 
-function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskManager, apiKey, onNavigate, digitalHumanMode, setDigitalHumanMode, selectedGirlfriend, setSelectedGirlfriend, img2imgAspectRatio, setImg2imgAspectRatio }: {
+function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskManager, apiKey, onNavigate, digitalHumanMode, setDigitalHumanMode, selectedGirlfriend, selectedAnchors, setSelectedGirlfriend, img2imgAspectRatio, setImg2imgAspectRatio }: {
   onError: (msg: string) => void; onSuccess: (msg: string) => void; loading: boolean; setLoading: (v: boolean) => void; r18Mode: boolean;
   taskManager: TaskManagerReturn; apiKey: string; onNavigate?: (tab: TabType) => void;
-  digitalHumanMode: boolean; setDigitalHumanMode: (v: boolean) => void; selectedGirlfriend: GirlfriendPreset | null; setSelectedGirlfriend: (gf: GirlfriendPreset | null) => void;
+  digitalHumanMode: boolean; setDigitalHumanMode: (v: boolean) => void; selectedGirlfriend: GirlfriendPreset | null; selectedAnchors: GirlfriendPreset[]; setSelectedGirlfriend: (gf: GirlfriendPreset | null) => void;
   img2imgAspectRatio: 'portrait' | 'landscape';
   setImg2imgAspectRatio: (v: 'portrait' | 'landscape') => void;
 }) {
@@ -1174,7 +1189,8 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
 
             // Step 3: 统一走英文 11 镜 H3 模板，锚定参考图，禁止中文旧模板
             const hasMaleRole = /(\bman\b|\bmale\b|男子|男人|男性|男友|男主)/i.test(`${expandedImgPrompt} ${input}`);
-            const h3 = buildAnchoredH3(`${expandedImgPrompt}\nOriginal user request: ${input.trim()}`, i, hasMaleRole);
+            const h3Anchors = selectedAnchors.length ? selectedAnchors : ([getDefaultAnchor('female'), getDefaultAnchor('male')].filter(Boolean) as GirlfriendPreset[]);
+            const h3 = applyAnchorNames(buildAnchoredH3(`${expandedImgPrompt}\nOriginal user request: ${input.trim()}`, i, hasMaleRole), h3Anchors);
 
             return { index: i, id: ids[i], prompt: h3, error: null };
           } catch (err) {
@@ -1512,7 +1528,8 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     const videoText = overridePrompt || outputText;
     if (!videoText.trim()) { onError('请先生成或选择提示词'); return; }
     if (!digitalHumanMode) { onError('请先开启数字人锚定，才能生成视频'); return; }
-    const femaleAnchor = selectedGirlfriend || getDefaultAnchor('female');
+    const anchorList = selectedAnchors.length ? selectedAnchors : ([selectedGirlfriend, getDefaultAnchor('female'), getDefaultAnchor('male')].filter(Boolean) as GirlfriendPreset[]);
+    const femaleAnchor = anchorList.find((g) => g.gender === 'female') || getDefaultAnchor('female');
     if (!femaleAnchor) { onError('没有可用数字人'); return; }
     const resultId = results[selectedOutputIdx]?.id;
     let image = '';
@@ -1532,9 +1549,13 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     if (!key) { onError('请先配置 RunningHub API Key'); return; }
     const wantsMalePicture = /<Picture\s*2>/i.test(videoText);
     let maleImage = '';
-    const maleAnchor = getDefaultAnchor('male');
+    const maleAnchor = anchorList.find((g) => g.gender === 'male') || getDefaultAnchor('male');
     if (wantsMalePicture && maleAnchor) {
       try { maleImage = await urlToDataUrl(maleAnchor.portraitUrl); } catch {}
+    }
+    let extraAnchorImages: string[] = maleImage ? [maleImage] : [];
+    if (anchorList[2] && /<Picture\s*3>/i.test(videoText)) {
+      try { extraAnchorImages.push(await urlToDataUrl(anchorList[2].portraitUrl)); } catch {}
     }
     const vk = cardKey || videoText;
     setCardVideoStates(prev => ({ ...prev, [vk]: { loading: true } }));
@@ -1542,7 +1563,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     try {
       const body = {
         firstFrameUrl: image,
-        media: [{ type: 'reference_image', url: image }, ...(maleImage ? [{ type: 'reference_image', url: maleImage }] : [])],
+        media: [{ type: 'reference_image', url: image }, ...extraAnchorImages.map((u) => ({ type: 'reference_image', url: u }))],
         workflow_id: '2110330160000516098',
         duration: 15,
         resolution: videoClarity,
@@ -1554,7 +1575,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       };
       // 智能扩写卡片里已经是完整 H3；不能再拿 H3 当图片提示词二次 build，否则会把上一版女女/男模板混进来
       const isH3Prompt = /^\s*subject_definitions\s*:/i.test(videoText);
-      const anchoredPrompt = isH3Prompt ? videoText : buildAnchoredH3(videoText, 0, !!maleImage);
+      const anchoredPrompt = applyAnchorNames(isH3Prompt ? videoText : buildAnchoredH3(videoText, 0, !!maleImage), anchorList);
       const submit = await submitDaotaiVideo(key, anchoredPrompt, { ...body, prompt: anchoredPrompt });
       saveMainPending({ taskId: submit.taskId, promptKey: videoText, startTime: Date.now() });
       const localId = `expand-video-${Date.now()}`;
@@ -2196,6 +2217,7 @@ function ExpandResultCard({ result, r18Mode, isCopied, genState, videoState, onC
   // Without this guard, the card body renders empty during the stream
   // — the user reported "点击扩写，没有任何生成中的状态显示".
   const isPromptLoading = !result.prompt;
+  const [promptExpanded, setPromptExpanded] = useState(false);
   // Tick once per second so the "已等待 X 秒" label re-renders.
   const [loadingSeconds, setLoadingSeconds] = useState(0);
   useEffect(() => {
@@ -2249,7 +2271,12 @@ function ExpandResultCard({ result, r18Mode, isCopied, genState, videoState, onC
               <div className={`h-3 rounded w-[80%] animate-pulse ${r18Mode ? 'bg-red-200/70' : 'bg-text-tertiary/15'}`} />
             </div>
           ) : (
-            <p className={`text-sm leading-relaxed whitespace-pre-wrap flex-1 ${r18Mode ? 'text-red-700' : 'text-text-secondary'}`}>{result.prompt}</p>
+            <div className="flex-1 min-w-0">
+              <p className={`text-sm leading-relaxed whitespace-pre-wrap ${promptExpanded ? '' : 'max-h-28 overflow-hidden'} ${r18Mode ? 'text-red-700' : 'text-text-secondary'}`}>{result.prompt}</p>
+              <button onClick={() => setPromptExpanded((v) => !v)} className="mt-1 text-[11px] text-text-tertiary hover:text-primary">
+                {promptExpanded ? '收起提示词' : '展开提示词'}
+              </button>
+            </div>
           )}
           <button onClick={onCopy}
             disabled={isPromptLoading}

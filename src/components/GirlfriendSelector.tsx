@@ -21,7 +21,7 @@ import {
   toPreset,
   type CustomGirlfriend,
 } from '../services/girlfriendStorage';
-import { DEFAULT_GIRLFRIEND_PRESETS, getDefaultAnchorId, setDefaultAnchorId } from '../data/girlfriendPresets';
+import { DEFAULT_GIRLFRIEND_PRESETS, clearDefaultAnchor, getDefaultAnchorId, setDefaultAnchorId } from '../data/girlfriendPresets';
 
 interface GirlfriendSelectorProps {
   /** 已选 ID 列表（多数字人锚定场景使用） */
@@ -538,8 +538,13 @@ function AvatarBubble({
   const [isDefault, setIsDefault] = useState(() => getDefaultAnchorId(girlfriend.gender) === girlfriend.id);
   const handleSetDefault = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setDefaultAnchorId(girlfriend.gender, girlfriend.id);
-    setIsDefault(true);
+    if (isDefault) {
+      clearDefaultAnchor(girlfriend.gender);
+      setIsDefault(false);
+    } else {
+      setDefaultAnchorId(girlfriend.gender, girlfriend.id);
+      setIsDefault(true);
+    }
   };
 
   const handleClick = () => {

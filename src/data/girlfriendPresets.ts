@@ -463,3 +463,11 @@ export function getDefaultAnchor(gender: 'female' | 'male'): GirlfriendPreset | 
     || DEFAULT_GIRLFRIEND_PRESETS.find((p) => p.gender === gender)
     || null;
 }
+
+export function clearDefaultAnchor(gender: 'female' | 'male'): void {
+  try {
+    const saved = JSON.parse(localStorage.getItem(DEFAULT_ANCHOR_KEY) || '{}');
+    delete saved[gender];
+    localStorage.setItem(DEFAULT_ANCHOR_KEY, JSON.stringify(saved));
+  } catch {}
+}
