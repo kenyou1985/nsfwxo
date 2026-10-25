@@ -213,11 +213,11 @@ async def submit_video(request: Request):
         or (isinstance(body.get('media'), list)
             and any(isinstance(m, dict) and m.get('url') for m in body['media']))
     )
-    if _want_refs and not any(refs):
+    if not any(refs):
         return JSONResponse(status_code=400, content={
-            'error': '参考图下载失败（平台 CDN 连接被断开 / 下载 URL 失效）——已中止提交，'
-                     '避免工作流沿用画布旧参考图生成错误人物。请重新上传参考图后重试。',
-            'kind': 'ref_download_failed',
+            'error': '参考图未落地（firstFrameUrl/media 为空或下载失败）——已中止提交，'
+                     '避免工作流沿用画布旧参考图生成错误人物。请重新选择数字人或上传图片后重试。',
+            'kind': 'ref_missing',
         })
     shots_per_seg = max(1, int(body.get('shots_per_seg') or 1))
     # 分镜标记归一化（[分镜 N]/[镜头 N]/行首 Shot N → [Shot N]），保证画布切分链锚点命中
@@ -268,7 +268,7 @@ async def submit_video(request: Request):
     rh.RH_OPENAPI[job.id] = {'kind': 'video', 'job_id': job.id, 'api_key': key,
                              'run_dir': job.run_dir}
     rh._save_state()   # 持久化 video taskId → run_dir 映射：容器重启后 query 仍能从磁盘恢复视频
-    rh._emit(f'[daotai] 视频已提交 {job.id}（model=minimaxh3，refs={len([r for r in refs if r])}，'
+    rh._emit(f'[daotai] 视频已提交 {job.id}（model=minimaxh3，refs={len([r for r in refs if r])}，ref0={os.path.basename(refs[0]) if refs and refs[0] else "NONE"}，'
              f'shots_per_seg={shots_per_seg}，loop_routes={cfg["loop_routes"]}）')
     return {'taskId': job.id, 'task_id': job.id}
 

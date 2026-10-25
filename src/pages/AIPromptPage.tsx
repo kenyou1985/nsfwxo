@@ -1432,8 +1432,9 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     if (!videoText.trim()) { onError('请先生成或选择提示词'); return; }
     if (!digitalHumanMode || !selectedGirlfriend) { onError('请先开启数字人锚定，才能生成视频'); return; }
     const resultId = results[selectedOutputIdx]?.id;
-    let image = overrideImage || (resultId ? genState[resultId]?.images?.[0] : '') || selectedGirlfriend?.portraitUrl || '';
-    if (!image && digitalHumanMode && selectedGirlfriend) {
+    let image = '';
+    // 智能扩写生视频：锚定数字人时优先使用数字人头像，不能拿卡片里的旧生成图当参考
+    if (digitalHumanMode && selectedGirlfriend) {
       try {
         image = await urlToDataUrl(selectedGirlfriend.portraitUrl);
       } catch {
@@ -1444,6 +1445,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         } catch {}
       }
     }
+    image = image || overrideImage || (resultId ? genState[resultId]?.images?.[0] : '') || '';
     if (!image) { onError('请先锚定数字人或生成图片'); return; }
     const key = apiKey;
     if (!key) { onError('请先配置 RunningHub API Key'); return; }
