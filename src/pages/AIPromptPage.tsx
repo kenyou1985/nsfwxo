@@ -522,9 +522,10 @@ function buildAnchoredH3(imagePrompt: string): string {
     ];
   }
   const nudeLine = 'She strips off the remaining clothing; from this shot onward she is completely nude, and no clothing returns.';
-  if (twoWomen) {
+  const needsNude = /(nude|naked|topless|bare breasts|exposed breasts|pulled aside|tugged aside|bunched around|off her shoulders|skirt up|undress|strips?|lingerie|bikini)/i.test(scene);
+  if (needsNude && twoWomen) {
     shots = shots.map((s, i) => i === 0 ? s : i === 1 ? `${s} Both women strip off the remaining clothing; from this shot onward both are completely nude and no clothing returns.` : `${s} Both women remain completely nude; no clothing returns.`);
-  } else {
+  } else if (needsNude) {
     shots = shots.map((s, i) => i === 0 ? s : i === 1 ? `${s} ${nudeLine}` : `${s} She remains completely nude; no clothing returns.`);
   }
   const d = (zh: string, speaker: 'S1' | 'S2' = 'S1') => `(${speaker}): <d>[Chinese] ${zh}</d>`;
