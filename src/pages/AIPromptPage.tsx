@@ -441,7 +441,7 @@ function applyAnchorNames(prompt: string, anchors: GirlfriendPreset[]): string {
   return prompt.replace(/<Picture\s+(\d+)>(?!@)/gi, (m, n) => {
     const gf = anchors[Number(n) - 1];
     return gf ? `<Picture ${n}>@${gf.nameZh || gf.name}` : m;
-  }).replace(/(<Picture\s+\d+>@[^@\s—,，;；:：]+)@\2/g, '$1');
+  }).replace(/(<Picture\s+\d+>@)([^@\s—,，;；:：]+)@\2/g, '$1$2');
 }
 
 function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false): string {
