@@ -524,9 +524,9 @@ function buildAnchoredH3(imagePrompt: string): string {
   const nudeLine = 'She strips off the remaining clothing; from this shot onward she is completely nude, and no clothing returns.';
   const needsNude = /(nude|naked|topless|bare breasts|exposed breasts|pulled aside|tugged aside|bunched around|off her shoulders|skirt up|undress|strips?|lingerie|bikini)/i.test(scene);
   if (needsNude && twoWomen) {
-    shots = shots.map((s, i) => i === 0 ? s : i === 1 ? `${s} Both women strip off the remaining clothing; from this shot onward both are completely nude and no clothing returns.` : `${s} Both women remain completely nude; no clothing returns.`);
+    shots = shots.map((s, i) => i === 0 ? s : i === 1 ? `${s} Both women strip off the remaining clothing; from this shot onward both are completely nude and no clothing returns.` : `${s} Both women are completely nude: bare breasts, bare vulva, bare ass; no bra, no panties, no fabric.`);
   } else if (needsNude) {
-    shots = shots.map((s, i) => i === 0 ? s : i === 1 ? `${s} ${nudeLine}` : `${s} She remains completely nude; no clothing returns.`);
+    shots = shots.map((s, i) => i === 0 ? s : i === 1 ? `${s} ${nudeLine}` : `${s} She is completely nude: bare breasts, bare vulva, bare ass; no bra, no panties, no fabric.`);
   }
   const d = (zh: string, speaker: 'S1' | 'S2' = 'S1') => `(${speaker}): <d>[Chinese] ${zh}</d>`;
   const female = ['好舒服…', '慢一点…', '求求你…', '快一点…', '我快不行了…', '爸爸操我…', '哥哥我想要…'];
@@ -575,20 +575,21 @@ function buildAnchoredH3(imagePrompt: string): string {
         .replace(/\b(?:a|one) finger\b/gi, 'her own finger')
         .replace(/\bfingers\b/gi, 'her own fingers')
     : core;
+  const clothingPolicy = needsNude ? 'Shot 1 uses the reference clothing; Shot 2 strips it off; Shot 3 onward both are completely nude with bare breasts, vulva and ass, no bra, no panties, no fabric.' : 'Clothing follows Picture 1.';
   const progression = solo
     ? 'multiple solo positions with her own fingers and toys'
     : twoWomen
       ? 'multiple positions and mutual oral'
       : 'multiple positions and oral';
   return `subject_definitions:
-<Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1. Face, hair color, hairstyle, skin tone, body proportions, breast size/shape, clothing and nudity are defined ONLY by Picture 1; do not describe or invent them in text.
+<Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1. Face, hair color, hairstyle, skin tone, body proportions and breast size/shape come ONLY from Picture 1. Clothing applies only to Shot 1: from Shot 2 onward follow the detailed_description nude state, not the reference image.
 ${subject2}
 
 summary:
-[reference generation] A cinematic 60-second ${mode} explicit sequence. Picture 1 is the mandatory first frame and the only identity/scene reference. The video starts on the exact act in Picture 1, then progresses through ${progression}, ending in ${endingText}. No scene change, no character change, no extra person.
+[reference generation] A cinematic 60-second ${mode} explicit sequence. Picture 1 is the mandatory first frame and the only identity/scene reference. The video starts on the exact act in Picture 1, then progresses through ${progression}, ending in ${endingText}. ${clothingPolicy} No scene change, no character change, no extra person.
 
 retention_analysis:
-<Subject 1> <Picture 1>: fully_preserved — identity, face, hair, body, clothing/nudity and starting pose come only from the reference image.
+<Subject 1> <Picture 1>: fully_preserved — identity, face, hair and body come from the reference image; starting clothing is used only for Shot 1, then the shot sequence controls nudity.
 <Picture 1> first frame: fully_preserved as the exact 00:00.000 opening frame, not an approximation.
 Scene and action: fully_preserved from the source image prompt; only positions progress, location never changes.
 
