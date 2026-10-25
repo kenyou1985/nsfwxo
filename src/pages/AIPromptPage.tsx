@@ -462,7 +462,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   const solo = !twoWomen && !hasMan;
   const coercive = hasMan && /(尾随|跟踪|胁迫|强迫|不情愿|强奸|强暴|抓住|按在|扒光|追上|野外|跟着|rape|force|stalk|follow|catch)/i.test(themeText);
   const forcePrelude = hasMan && /(尾随|跟踪|胁迫|强迫|不情愿|强奸|强暴|抓住|按在|扒光|追上|跟着|跟踪|尾随)/i.test(userHint);
-  const placeLine = forcePrelude ? `Same location: ${(userHint || place || 'the opening scene').slice(0, 240)}` : place ? `Same location: ${place.slice(0, 240)}` : 'Same location and lighting as Picture 1';
+  const placeLine = place ? `Same location: ${place.slice(0, 240)}` : 'Same location and lighting as the opening scene';
   const explicitAct = /(penetrat|thrust|insert|cunnilingus|blowjob|fellatio|fuck|sex scene|inside her|riding him|takes? .{0,40}(?:cock|shaft) .{0,30}(?:mouth|throat))/i.test(scene);
   const atFacesit = /(sits? astride|sitting on (?:his|the) face|facesit|face-sit|riding (?:his|her) face|mouth beneath|oral sex beneath|cunnilingus|骑脸|坐脸|坐在脸上)/i.test(scene);
   const atSex = /(penetrat|thrust|insert|cowgirl|doggy|missionary|riding him|inside her|fuck)/i.test(scene);
@@ -470,7 +470,8 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   const wantsAss = /(anal|anus|ass|doggy|behind|plug|glute)/i.test(scene);
   const wantsOral = /(oral|blowjob|mouth|deepthroat|suck)/i.test(scene);
   const cumEnding = hasMan ? ['ass', 'oral', 'internal'][variant % 3] : wantsOral ? 'oral' : wantsAss ? 'ass' : 'internal';
-  const openingScene = (userHint || core).slice(0, 260);
+  const openingCandidates = sentences.filter((x) => /(walk|walking|follow|following|approach|street|alley|corridor|entrance|office|home|room|path|trail)/i.test(x) && !/(nude|naked|penetrat|thrust|cock|pussy|sex|bound|rope|climax)/i.test(x));
+  const openingScene = (openingCandidates[0] || userHint || core).slice(0, 260);
   const first = `The video opens directly in the live-action scene, already in motion: ${openingScene}. Picture 1 is an identity and scene reference, NOT a static first frame: do not start on a portrait, reference-sheet pose, photo face shot, or frozen replica of Picture 1. The woman's identity comes from Picture 1, but the opening frame is a real cinematic action frame with the body, clothing and environment already moving.`;
   const same = `${placeLine}. Same people. Cut smoothly between positions; the next shot starts from the previous body configuration and changes only the minimum needed. No reset, no scene change, no character change.`;
   const poseSeq = pickPoseSequence(scene);
