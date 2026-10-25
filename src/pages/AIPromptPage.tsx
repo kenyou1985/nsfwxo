@@ -2211,6 +2211,14 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     { key: '浴室缠绵', label: '浴室缠绵' },
     { key: '后入猛烈', label: '后入猛烈' },
     { key: '羞耻play', label: '羞耻play' },
+    { key: '时间停止器', label: '时间停止器' },
+    { key: '透明人播报', label: '透明人播报' },
+    { key: '墙壁锁孔', label: '墙壁锁孔' },
+    { key: '隐形人', label: '隐形人' },
+    { key: '人体家具', label: '人体家具' },
+    { key: '魔法镜', label: '魔法镜' },
+    { key: '催眠玩偶', label: '催眠玩偶' },
+    { key: '直播事故', label: '直播事故' },
   ];
 
   const handleGenerate = async () => {
