@@ -753,7 +753,6 @@ Scene and action: fully_preserved from the source image prompt; only positions p
 detailed_description:
 ${body}
 
-Source image action/scene: ${displayCore}
 
 overall_soundscape: ${solo ? 'Location ambience, her own breathing and soft moans, wet fingers/toy sounds, a clear squirting splash, then trembling after-breaths. No male voice.' : twoWomen ? 'Location ambience, wet kisses, skin-on-skin, both women breathing and moaning, wet squirting splashes, one shared climax cry, then after-breaths. No male voice.' : 'Location ambience under skin-on-skin impact, wet penetration and plug-shifting sounds, fabric friction, heavy breathing, her broken moans and one climax cry, one male groan, then after-breaths.'}
 non_diegetic_music: None
@@ -1192,7 +1191,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
             // Step 3: 统一走英文 11 镜 H3 模板，锚定参考图，禁止中文旧模板
             const hasMaleRole = /(\bman\b|\bmale\b|男子|男人|男性|男友|男主)/i.test(`${expandedImgPrompt} ${input}`);
             const h3Anchors = selectedAnchors.length ? selectedAnchors : ([getDefaultAnchor('female'), getDefaultAnchor('male')].filter(Boolean) as GirlfriendPreset[]);
-            const h3 = applyAnchorNames(buildAnchoredH3(`${expandedImgPrompt}\nOriginal user request: ${input.trim()}`, i, hasMaleRole), h3Anchors);
+            const h3 = applyAnchorNames(buildAnchoredH3(expandedImgPrompt, i, hasMaleRole), h3Anchors);
 
             return { index: i, id: ids[i], prompt: h3, error: null };
           } catch (err) {
