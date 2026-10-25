@@ -414,7 +414,8 @@ function buildAnchoredH3(imagePrompt: string): string {
   const final = `${ending} ${after}`;
 
   const soloToy = ['wand vibrator', 'silicone dildo', 'rabbit vibrator'][Math.floor(Math.random() * 3)];
-  const lesToy = Math.random() < 0.5 ? 'strap-on' : 'double dildo';
+  const lesToy = /strapless strap-on/i.test(scene) ? 'strapless strap-on' : /double dildo/i.test(scene) ? 'double dildo' : 'silicone strap-on';
+  const lesGuard = 'Both subjects are cisgender adult women with vulvas only; no penis, no futanari, no shemale, no dickgirl, no male genitalia. Any penetration is by a silicone strap-on/dildo only.';
   let shots: string[];
   if (twoWomen) {
     shots = [
@@ -430,6 +431,7 @@ function buildAnchoredH3(imagePrompt: string): string {
       'First squirting climax: one woman gushes clear fluid onto the other’s hand/toy and the surface, thighs soaking, body locking.',
       'Second wet aftershock: she squirts again in a thinner stream, both women collapsing into the wet sheets, chests heaving, thighs shining.',
     ];
+    shots = shots.map((action) => `${action} ${lesGuard}`);
   } else if (solo) {
     const soloGuard = 'Only her own body, her own hand or toy; no man, no male hand, no penis, no other person enters frame.';
     shots = [
@@ -525,7 +527,7 @@ function buildAnchoredH3(imagePrompt: string): string {
   const body = voiced.map((action, i) => `[Shot ${i + 1}] ${times[i]} ${action}`).join('\n');
   const speakerMap = twoWomen ? '{"S1":"female_voice","S2":"female_voice_2"}' : solo ? '{"S1":"female_voice"}' : '{"S1":"female_voice","S2":"male_voice"}';
   const subject2 = twoWomen
-    ? '<Subject 2> is @Woman2 — the exact second adult woman shown in Picture 1, if present. Identity and appearance come only from Picture 1; do not describe or invent them.'
+    ? '<Subject 2> is @Woman2 — the exact second cisgender adult woman shown in Picture 1, if present. She has a vulva only: no penis, no futanari, no male genitalia. Identity and appearance come only from Picture 1.'
     : hasMan
       ? '<Subject 2> is @Man — the exact adult man shown in Picture 1; face kept off close-up, appearance comes only from Picture 1.'
       : '';
@@ -533,13 +535,17 @@ function buildAnchoredH3(imagePrompt: string): string {
   const endingText = solo
     ? 'a squirting climax with no male participant, no penis and no cumshot'
     : twoWomen
-      ? 'a shared squirting climax with no male participant'
+      ? 'a shared squirting climax with no male participant, no penis and no futanari'
       : cumEnding === 'oral'
         ? 'an oral cumshot'
         : cumEnding === 'ass'
           ? 'cum on her ass with her ass toward the camera'
           : 'an internal creampie';
-  const displayCore = solo
+  const displayCore = twoWomen
+    ? core
+        .replace(/\b(cum|semen|ejaculat\w*)\b/gi, 'silicone lubricant')
+        .replace(/\b(cock|penis)\b/gi, 'strap-on dildo')
+    : solo
     ? core
         .replace(/\b(cum|semen|ejaculat\w*)\b/gi, 'wetness')
         .replace(/\b(?:a|one) finger\b/gi, 'her own finger')
