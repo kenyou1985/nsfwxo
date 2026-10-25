@@ -444,9 +444,9 @@ function applyAnchorNames(prompt: string, anchors: GirlfriendPreset[]): string {
   }).replace(/(<Picture\s+\d+>@)([^@\s—,，;；:：]+)@\2/g, '$1$2');
 }
 
-function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false): string {
+function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, shotCount = 11): string {
   const scene = (imagePrompt || '').trim();
-  const times = ['00:00.000','00:05.500','00:11.000','00:16.500','00:22.000','00:27.500','00:33.000','00:38.500','00:44.000','00:49.500','00:55.000'];
+  const targetDuration = shotCount >= 30 ? 180 : shotCount >= 20 ? 120 : 60;
   const sentences = scene.split(/(?<=[.!?])\s+/);
   const actionRe = /(sits?|sitting|riding|ride|penetrat|thrust|mouth|oral|suck|lick|masturbat|fuck|grind|facesit|insert|crouch|kneel|spread|touch|stroke|bounce|climax|cunnilingus|blowjob|scissor|missionary|cowgirl|doggy)/i;
   let core = sentences.filter((x) => actionRe.test(x)).join(' ') || scene;
@@ -694,7 +694,37 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false):
     dialogue[7] = d(femalePlea[4]);
     dialogue[9] = d(maleThreat[6], 'S2') + ' ' + d(femalePlea[4]);
   }
-  const voiced = shots.map((action, i) => i === 0 || !dialogue[i] ? action : `${action} ${dialogue[i]}`);
+  const extraPool = [
+    'Close on her hands gripping the ground, knuckles white, sweat dripping from her chin as he pins her down.',
+    'He drags her deeper into the undergrowth, one hand in her hair, the other holding her hip, twigs snapping under them.',
+    'She tries to crawl away; he catches her ankle and pulls her back, her nails raking the dirt.',
+    'He flips her over and pins both wrists above her head, breathing hard into her face before kissing her neck.',
+    'Low angle: her legs shaking in the air, his body covering hers, the forest floor blurring behind them.',
+    'He slows down and grinds deep, making her gasp, then pulls almost all the way out and slams back in.',
+    'Close on the wet join, fluid on her thighs, his cock sliding out and pushing back with a heavy squelch.',
+    'He turns her onto her side, lifts one leg, and enters at a new angle, holding her leg against his chest.',
+    'Side view: both bodies shining with sweat, her breasts swaying, his hand locked around her throat.',
+    'He pulls her up onto her knees, presses her back against his chest, and keeps thrusting upward.',
+    'Reach-around close: his fingers circle her clit while he fucks her, her mouth falling open.',
+    'She clenches around him; he groans, slaps her ass once, and tells her to take it.',
+    'He bends her over a fallen branch, kicks her legs wider, and drives in from behind again.',
+    'Rear view: her ass bouncing against his hips, leaves stuck to her sweaty skin, the branch creaking.',
+    'He grabs her ponytail as a handle and pounds harder, her back arching, eyes rolling.',
+    'She begs him to slow down; he covers her mouth and keeps the same brutal rhythm.',
+    'He pulls out and slaps his cock against her wet ass, then pushes back in without warning.',
+    'Close on her face: tears, sweat, smeared mascara, mouth open in a broken plea as she takes the last strokes.',
+    'He holds her down with his weight, hips stuttering, both bodies tense and covered in forest debris.',
+  ];
+  const finalAction = shots[shots.length - 1];
+  const baseActions = shots.slice(0, -1);
+  const wantedExtras = Math.max(0, shotCount - 11);
+  const longActions = [...baseActions, ...extraPool.slice(0, wantedExtras), finalAction];
+  const duration = targetDuration;
+  const times = longActions.map((_, i) => {
+    const sec = i === 0 ? 0 : (i * (duration - 5)) / (longActions.length - 1);
+    return `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(Math.floor(sec % 60)).padStart(2, '0')}.${String(Math.round((sec % 1) * 1000)).padStart(3, '0')}`;
+  });
+  const voiced = longActions.map((action, i) => i === 0 || !dialogue[i] ? action : `${action} ${dialogue[i]}`);
   const body = voiced.map((action, i) => `[Shot ${i + 1}] ${times[i]} ${action}`).join('\n');
   const speakerMap = twoWomen ? '{"S1":"Chinese (Mandarin)_Adult_Female_Soft","S2":"Chinese (Mandarin)_Adult_Female_Soft"}' : solo ? '{"S1":"Chinese (Mandarin)_Adult_Female_Soft"}' : '{"S1":"Chinese (Mandarin)_Adult_Female_Soft","S2":"Chinese (Mandarin)_Adult_Male_Low"}';
   const subject2 = twoWomen
@@ -742,7 +772,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false):
 ${subject2}
 
 summary:
-[reference generation] A cinematic 60-second ${mode} explicit sequence. Picture 1 is a full identity/scene reference, NOT a static first frame. The video starts directly in the live-action scene, already in motion, then progresses through ${progression}, ending in ${endingText}. ${clothingPolicy} ${coercive ? 'She is coerced and pleading; he threatens and overpowers her. The man is riding a bicycle, not running.' : ''} No scene change, no character change, no extra person.
+[reference generation] A cinematic ${targetDuration}-second ${mode} explicit sequence. Picture 1 is a full identity/scene reference, NOT a static first frame. The video starts directly in the live-action scene, already in motion, then progresses through ${progression}, ending in ${endingText}. ${clothingPolicy} ${coercive ? 'She is coerced and pleading; he threatens and overpowers her. The man is riding a bicycle, not running.' : ''} No scene change, no character change, no extra person.
 
 retention_analysis:
 <Subject 1> <Picture 1>: fully_preserved — identity, face, hair and body come from the reference image; starting clothing is used only for Shot 1, then the shot sequence controls nudity.
@@ -972,6 +1002,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   const savedExpand = getExpandSession();
   const [input, setInput] = useState(savedExpand?.input || '');
   const [type, setType] = useState<'image' | 'video'>(savedExpand?.type || 'image');
+  const [videoShotCount, setVideoShotCount] = useState(11);
   const [videoClarity, setVideoClarity] = useState(0.2);
   const [videoSegments, setVideoSegments] = useState(4);
   const [videoRoutes, setVideoRoutes] = useState(1);
@@ -1191,7 +1222,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
             // Step 3: 统一走英文 11 镜 H3 模板，锚定参考图，禁止中文旧模板
             const hasMaleRole = /(\bman\b|\bmale\b|男子|男人|男性|男友|男主)/i.test(`${expandedImgPrompt} ${input}`);
             const h3Anchors = selectedAnchors.length ? selectedAnchors : ([getDefaultAnchor('female'), getDefaultAnchor('male')].filter(Boolean) as GirlfriendPreset[]);
-            const h3 = applyAnchorNames(buildAnchoredH3(expandedImgPrompt, i, hasMaleRole), h3Anchors);
+            const h3 = applyAnchorNames(buildAnchoredH3(expandedImgPrompt, i, hasMaleRole, videoShotCount), h3Anchors);
 
             return { index: i, id: ids[i], prompt: h3, error: null };
           } catch (err) {
@@ -1569,14 +1600,14 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         duration: 15,
         resolution: videoClarity,
         aspect_ratio: '9:16',
-        shots_per_seg: videoSegments,
-        target_segs: videoSegments,
+        shots_per_seg: videoShotCount >= 30 ? 3 : videoShotCount >= 20 ? 3 : videoSegments,
+        target_segs: videoShotCount >= 30 ? 12 : videoShotCount >= 20 ? 8 : videoSegments,
         loop_routes: videoRoutes,
         instance: 'plus',
       };
       // 智能扩写卡片里已经是完整 H3；不能再拿 H3 当图片提示词二次 build，否则会把上一版女女/男模板混进来
       const isH3Prompt = /^\s*subject_definitions\s*:/i.test(videoText);
-      const anchoredPrompt = applyAnchorNames(isH3Prompt ? videoText : buildAnchoredH3(videoText, 0, !!maleImage), anchorList);
+      const anchoredPrompt = applyAnchorNames(isH3Prompt ? videoText : buildAnchoredH3(videoText, 0, !!maleImage, videoShotCount), anchorList);
       const submit = await submitDaotaiVideo(key, anchoredPrompt, { ...body, prompt: anchoredPrompt });
       saveMainPending({ taskId: submit.taskId, promptKey: videoText, startTime: Date.now() });
       const localId = `expand-video-${Date.now()}`;
@@ -1610,7 +1641,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       clearMainPending();
       onError(msg);
     }
-  }, [outputText, selectedOutputIdx, results, genState, digitalHumanMode, selectedGirlfriend, videoClarity, videoSegments, videoRoutes, onError, onSuccess]);
+  }, [outputText, selectedOutputIdx, results, genState, digitalHumanMode, selectedGirlfriend, videoClarity, videoSegments, videoShotCount, videoRoutes, onError, onSuccess]);
 
   const handleExpandGenerateImage = useCallback(async (result: { id: string; prompt: string }) => {
     if (taskManager.isFull) {
@@ -1952,6 +1983,13 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
                   <input type="number" min={2} max={16} step={1} value={videoSegments}
                     onChange={(e) => setVideoSegments(Math.min(16, Math.max(2, Math.round(Number(e.target.value) || 4))))}
                     className="w-12 px-1 py-0.5 rounded border border-border bg-white text-center" />
+                  <label>分镜</label>
+                  <select value={videoShotCount} onChange={(e) => setVideoShotCount(Number(e.target.value))}
+                    className="px-1 py-0.5 rounded border border-border bg-white text-center text-[10px]">
+                    <option value={11}>11 / 60s</option>
+                    <option value={20}>20 / 120s</option>
+                    <option value={30}>30 / 180s</option>
+                  </select>
                   <label>并发</label>
                   <input type="number" min={1} max={16} step={1} value={videoRoutes}
                     onChange={(e) => setVideoRoutes(Math.min(16, Math.max(1, Math.round(Number(e.target.value) || 1))))}
