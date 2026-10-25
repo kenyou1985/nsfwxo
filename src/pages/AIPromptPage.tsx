@@ -165,6 +165,18 @@ function saveMainVideoDone(promptKey: string, url: string): void {
   } catch {}
 }
 
+const MAIN_VIDEO_PENDING_KEY = 'nsfwxo_main_video_pending_v1';
+type MainPending = { taskId: string; promptKey: string; startTime: number };
+function readMainPending(): MainPending | null {
+  try { const v = JSON.parse(localStorage.getItem(MAIN_VIDEO_PENDING_KEY) || 'null'); return v && v.taskId ? v : null; } catch { return null; }
+}
+function saveMainPending(p: MainPending): void {
+  try { localStorage.setItem(MAIN_VIDEO_PENDING_KEY, JSON.stringify(p)); } catch {}
+}
+function clearMainPending(): void {
+  try { localStorage.removeItem(MAIN_VIDEO_PENDING_KEY); } catch {}
+}
+
 function buildKrea2NNodeList(prompt: string) {
   const opts = buildUnifiedTxt2ImgOptions(prompt, true);
   opts.workflowId = WORKFLOW.KREA2;
@@ -434,7 +446,7 @@ function buildAnchoredH3(imagePrompt: string): string {
   const placeLine = place ? `Same location: ${place.slice(0, 240)}` : 'Same location and lighting as Picture 1';
   const womanCount = (scene.match(/\bwoman\b/gi) || []).length + (scene.match(/\bgirl\b/gi) || []).length;
   const twoWomen = /(two women|two girls|lesbian|female partner|another woman|second woman|strap-on|女女|百合|双女|两个女人|两名女性)/i.test(scene) || womanCount >= 2;
-  const hasMan = !twoWomen && /\b(man|male|boyfriend|guy|his |he )\b|男人|男性|男主|男友/i.test(scene);
+  const hasMan = !twoWomen && /\b(man|male|boyfriend|guy|his |he )\b|男人|男性|男主|男友|男子/i.test(scene);
   const solo = !twoWomen && !hasMan;
   const explicitAct = /(penetrat|thrust|insert|cunnilingus|blowjob|fellatio|fuck|sex scene|inside her|riding him|takes? .{0,40}(?:cock|shaft) .{0,30}(?:mouth|throat))/i.test(scene);
   const atFacesit = /(sits? astride|sitting on (?:his|the) face|facesit|face-sit|riding (?:his|her) face|mouth beneath|oral sex beneath|cunnilingus|骑脸|坐脸|坐在脸上)/i.test(scene);
@@ -531,6 +543,20 @@ function buildAnchoredH3(imagePrompt: string): string {
       `${poseTrans[1]} Transition into ${penPoses[1] || 'Doggy Classic'}: he grips her hips and drives deep, her back arched, ass meeting each thrust. ${same}`,
       'Side view of the same position: one leg lifted, deeper angle, his hand in her hair, her mouth open, sweat dripping.',
       `${poseTrans[2]} Transition into ${penPoses[2] || 'Missionary Legs Up'}: faces close, legs around him, deep slow thrusts, breasts pressed to his chest. ${same}`,
+      final,
+    ];
+  } else if (hasMan && !explicitAct) {
+    shots = [
+      first,
+      `He catches up on his bike and grabs her waist, pulling her to a stop on the wild path; she gasps, bike wobbling. ${placeLine}.`,
+      'He pulls her off the bicycle and pins her against the frame, one hand on her throat, the other wrenching the tight cycling suit down.',
+      'Close: the suit is stripped to her waist, breasts spill out, sweat on her skin, her hands trapped behind her back.',
+      'He bends her over the bicycle seat, pulls the suit down her thighs, exposes her bare ass, and slaps it.',
+      'He drops to his knees behind her, spreads her cheeks and licks her from clit to ass, his tongue wet and demanding.',
+      'He straightens and drives into her from behind, bent over the bike, her body jolting with each thrust.',
+      'Medium side: doggy against the bicycle, her hands gripping the handlebars, breasts swinging, the bike rocking.',
+      'He lifts her onto the seat, spreads her legs and enters facing her, deep strokes, her back arching.',
+      'Rhythm accelerates: hips slamming, sweat flying, her mouth open in a broken moan, the bike creaking under them.',
       final,
     ];
   } else if (!explicitAct) {
@@ -885,6 +911,33 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     const done = readMainVideoDone();
     if (outputText && done[outputText]) setMainVideo({ loading: false, url: done[outputText] });
   }, [outputText]);
+  const mainResumeRef = useRef(false);
+  useEffect(() => {
+    if (mainResumeRef.current || !apiKey) return;
+    const p = readMainPending();
+    if (!p) return;
+    mainResumeRef.current = true;
+    setMainVideo({ loading: true });
+    void (async () => {
+      try {
+        for (let i = 0; i < 480; i++) {
+          await new Promise((r) => setTimeout(r, 5000));
+          const data = await pollDaotaiTask(apiKey, p.taskId);
+          if (data.status === 'SUCCESS') {
+            const url = data.video_url || data.output?.video_url || data.url;
+            if (url) { setMainVideo({ loading: false, url }); saveMainVideoDone(p.promptKey, url); }
+            clearMainPending();
+            return;
+          }
+          if (data.status === 'FAILED') throw new Error(data.message || '视频生成失败');
+        }
+        throw new Error('视频生成超时');
+      } catch (err) {
+        setMainVideo({ loading: false, error: err instanceof Error ? err.message : '视频生成失败' });
+        clearMainPending();
+      }
+    })();
+  }, [apiKey]);
   const [generatingMain, setGeneratingMain] = useState(false);
   const [girlfriendUploading, setGirlfriendUploading] = useState(false);
   const [favorites, setFavorites] = useState<FavoriteItem[]>(() => getFavorites());
@@ -999,6 +1052,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         let firstError: string | null = null;
 
         const tasks = Array.from({ length: count }, async (_, i) => {
+          await new Promise((r) => setTimeout(r, i * 1500));
           try {
             // Step 1: 扩写成图片提示词（超时则自动切换 fast 模型兜底）
             let expandRes;
@@ -1409,6 +1463,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       };
       const anchoredPrompt = buildAnchoredH3(videoText);
       const submit = await submitDaotaiVideo(key, anchoredPrompt, { ...body, prompt: anchoredPrompt });
+      saveMainPending({ taskId: submit.taskId, promptKey: videoText, startTime: Date.now() });
       const localId = `expand-video-${Date.now()}`;
       publishExternalVideoTask({ id: localId, taskId: submit.taskId, status: 'RUNNING', prompt: videoText,
         imagePreview: image, images: [], coins: null, elapsedSeconds: 0, error: null, startTime: Date.now(), nodeInfoList: [], engine: 'daotai' });
@@ -1422,6 +1477,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       if (!url) throw new Error('视频生成超时');
       setMainVideo({ loading: false, url });
       saveMainVideoDone(videoText, url);
+      clearMainPending();
       publishExternalVideoTask({ id: localId, taskId: submit.taskId, status: 'FINISHED', prompt: videoText,
         imagePreview: image, images: [url], coins: null, elapsedSeconds: 0, error: null, startTime: Date.now(), nodeInfoList: [], engine: 'daotai' });
       try {
@@ -1434,6 +1490,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     } catch (err) {
       const msg = err instanceof Error ? err.message : '视频生成失败';
       setMainVideo({ loading: false, error: msg });
+      clearMainPending();
       onError(msg);
     }
   }, [outputText, selectedOutputIdx, results, genState, digitalHumanMode, selectedGirlfriend, videoClarity, videoSegments, videoRoutes, onError, onSuccess]);
@@ -1896,6 +1953,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               r18Mode={r18Mode}
               isCopied={copiedId === result.id}
               genState={genState[result.id]}
+              videoState={outputText === result.prompt ? mainVideo : undefined}
               digitalHumanMode={digitalHumanMode}
               selectedGirlfriend={selectedGirlfriend}
               onCopy={() => handleCopy(result.id, result.prompt)}
@@ -2025,12 +2083,13 @@ function ExpandHistoryPanel({ history, r18Mode, onLoad, onDelete, onClear, onCop
   );
 }
 
-function ExpandResultCard({ result, r18Mode, isCopied, genState, onCopy, onDelete, onGenerateImage, onSendToH3Page, onUseAsOutput, onFavorited, taskManager, digitalHumanMode, selectedGirlfriend }: {
+function ExpandResultCard({ result, r18Mode, isCopied, genState, videoState, onCopy, onDelete, onGenerateImage, onSendToH3Page, onUseAsOutput, onFavorited, taskManager, digitalHumanMode, selectedGirlfriend }: {
   result: { id: string; original: string; prompt: string; r18: boolean };
   r18Mode: boolean; isCopied: boolean;
   genState?: { loading: boolean; images: string[]; taskId: string | null };
   onCopy: () => void; onDelete: () => void; onGenerateImage: () => void; onSendToH3Page: () => void; onUseAsOutput: () => void;
   onFavorited?: (url: string) => void;
+  videoState?: { loading: boolean; url?: string; error?: string };
   taskManager: TaskManagerReturn;
   digitalHumanMode?: boolean; selectedGirlfriend?: GirlfriendPreset | null;
 }) {
@@ -2075,7 +2134,7 @@ function ExpandResultCard({ result, r18Mode, isCopied, genState, onCopy, onDelet
           className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium flex-shrink-0 ml-auto ${!digitalHumanMode || !selectedGirlfriend ? 'bg-indigo-100 text-indigo-300 cursor-not-allowed' : 'bg-indigo-500 text-white hover:bg-indigo-600'}`}
           title={!digitalHumanMode || !selectedGirlfriend ? '请先锚定数字人' : '用数字人锚定生成视频'}
         >
-          <Video size={11} />生视频
+          {videoState?.loading ? <><Loader2 size={11} className="animate-spin" /> 视频生成中...</> : <><Video size={11} />生视频</>}
         </button>
         <button onClick={onUseAsOutput}
           disabled={isPromptLoading}

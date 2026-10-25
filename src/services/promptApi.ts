@@ -209,7 +209,7 @@ export async function expandPrompt(
 
   const controller = new AbortController();
   // 代理层超时上限约 120s，客户端超时设 90s 留余量
-  const timeout = setTimeout(() => controller.abort(), 90000);
+  const timeout = setTimeout(() => controller.abort(), 150000);
   try {
     const response = await apiRequest<ExpandResponse>(
       url,
