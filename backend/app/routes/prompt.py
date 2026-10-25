@@ -9451,6 +9451,10 @@ async def _generate_single_prompt(
 
     # Select theme preset - if theme is empty or unknown, use "完全随机"
     theme_key = req.theme if req.theme in _RANDOM_THEME_PRESETS else "完全随机"
+    if theme_key == "完全随机":
+        _random_keys = [k for k, v in _RANDOM_THEME_PRESETS.items() if k != "完全随机" and v.get("system_prompt")]
+        if _random_keys:
+            theme_key = random.choice(_random_keys)
     preset = _RANDOM_THEME_PRESETS[theme_key]
     diversity_variant = preset["diversity_variants"][variant_index % len(preset["diversity_variants"])]
 
@@ -10449,6 +10453,10 @@ def _build_random_prompt_context(
     tags_str = ", ".join([str(t.get("_name", t)) for t in tags_used])
 
     theme_key = req.theme if req.theme in _RANDOM_THEME_PRESETS else "完全随机"
+    if theme_key == "完全随机":
+        _random_keys = [k for k, v in _RANDOM_THEME_PRESETS.items() if k != "完全随机" and v.get("system_prompt")]
+        if _random_keys:
+            theme_key = random.choice(_random_keys)
     preset = _RANDOM_THEME_PRESETS[theme_key]
     diversity_variant = preset["diversity_variants"][variant_index % len(preset["diversity_variants"])]
 
