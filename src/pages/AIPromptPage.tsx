@@ -444,8 +444,8 @@ function applyAnchorNames(prompt: string, anchors: GirlfriendPreset[]): string {
   }).replace(/(<Picture\s+\d+>@)([^@\s—,，;；:：]+)@\2/g, '$1$2');
 }
 
-function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, shotCount = 11): string {
-  const scene = (imagePrompt || '').trim();
+function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, shotCount = 11, userHint = ''): string {
+  const scene = (imagePrompt || '').replace(/\[错误\][^\n]*/g, '').trim();
   const targetDuration = shotCount >= 30 ? 180 : shotCount >= 20 ? 120 : 60;
   const sentences = scene.split(/(?<=[.!?])\s+/);
   const actionRe = /(sits?|sitting|riding|ride|penetrat|thrust|mouth|oral|suck|lick|masturbat|fuck|grind|facesit|insert|crouch|kneel|spread|touch|stroke|bounce|climax|cunnilingus|blowjob|scissor|missionary|cowgirl|doggy)/i;
@@ -1315,7 +1315,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
             // Step 3: 统一走英文 11 镜 H3 模板，锚定参考图，禁止中文旧模板
             const hasMaleRole = /(\bman\b|\bmale\b|男子|男人|男性|男友|男主)/i.test(`${expandedImgPrompt} ${input}`);
             const h3Anchors = selectedAnchors.length ? selectedAnchors : ([getDefaultAnchor('female'), getDefaultAnchor('male')].filter(Boolean) as GirlfriendPreset[]);
-            const h3 = applyAnchorNames(buildAnchoredH3(expandedImgPrompt, i, hasMaleRole, videoShotCount), h3Anchors);
+            const h3 = applyAnchorNames(buildAnchoredH3(expandedImgPrompt, i, hasMaleRole, videoShotCount, input), h3Anchors);
 
             return { index: i, id: ids[i], prompt: h3, error: null };
           } catch (err) {
@@ -1706,7 +1706,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       };
       // 智能扩写卡片里已经是完整 H3；不能再拿 H3 当图片提示词二次 build，否则会把上一版女女/男模板混进来
       const isH3Prompt = /^\s*subject_definitions\s*:/i.test(videoText);
-      const anchoredPrompt = applyAnchorNames(isH3Prompt ? videoText : buildAnchoredH3(videoText, 0, !!maleImage, videoShotCount), anchorList);
+      const anchoredPrompt = applyAnchorNames(isH3Prompt ? videoText : buildAnchoredH3(videoText, 0, !!maleImage, videoShotCount, input), anchorList);
       const submit = await submitDaotaiVideo(key, anchoredPrompt, { ...body, prompt: anchoredPrompt });
       saveMainPending({ taskId: submit.taskId, promptKey: videoText, startTime: Date.now() });
       const localId = `expand-video-${Date.now()}`;
