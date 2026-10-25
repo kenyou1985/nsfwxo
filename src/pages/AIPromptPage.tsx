@@ -436,6 +436,7 @@ function buildAnchoredH3(imagePrompt: string): string {
   const twoWomen = /(two women|two girls|lesbian|female partner|another woman|second woman|strap-on|女女|百合|双女|两个女人|两名女性)/i.test(scene) || womanCount >= 2;
   const hasMan = !twoWomen && /\b(man|male|boyfriend|guy|his |he )\b|男人|男性|男主|男友/i.test(scene);
   const solo = !twoWomen && !hasMan;
+  const explicitAct = /(penetrat|thrust|insert|cunnilingus|blowjob|fellatio|fuck|sex scene|inside her|riding him|takes? .{0,40}(?:cock|shaft) .{0,30}(?:mouth|throat))/i.test(scene);
   const atFacesit = /(sits? astride|sitting on (?:his|the) face|facesit|face-sit|riding (?:his|her) face|mouth beneath|oral sex beneath|cunnilingus|骑脸|坐脸|坐在脸上)/i.test(scene);
   const atSex = /(penetrat|thrust|insert|cowgirl|doggy|missionary|riding him|inside her|fuck)/i.test(scene);
   const atOral = /(blowjob|deepthroat|fellatio|sucking|takes? .{0,50}(?:cock|shaft|penis) .{0,40}(?:mouth|throat)|deep into her throat|lips .{0,30}(?:shaft|cock)|mouth around)/i.test(scene);
@@ -531,6 +532,20 @@ function buildAnchoredH3(imagePrompt: string): string {
       'Side view of the same position: one leg lifted, deeper angle, his hand in her hair, her mouth open, sweat dripping.',
       `${poseTrans[2]} Transition into ${penPoses[2] || 'Missionary Legs Up'}: faces close, legs around him, deep slow thrusts, breasts pressed to his chest. ${same}`,
       final,
+    ];
+  } else if (!explicitAct) {
+    shots = [
+      first,
+      `The same woman keeps riding along the same outdoor route, hips rocking with the bike, hair and clothing moving in the wind. ${placeLine}. Same people, no new act.`,
+      'Low-angle tracking shot from behind: her tight cycling suit strains across her hips, thighs pumping, sweat on her lower back.',
+      'Close on her peach-shaped ass in the saddle, fabric pulling with each pedal stroke, the bicycle seat pressing between her cheeks.',
+      'Medium side tracking: her chest and hips move with the ride, lips parted, eyes on the road, wind flattening the suit to her body.',
+      'Over-the-shoulder view of the black-clad man following on his bike, his gaze fixed on her, distance closing.',
+      'Low rear three-quarter: both bicycles in frame, her hips rising slightly off the saddle, the man accelerating behind her.',
+      'Close on her sweating neck and collarbone, suit zipper pulled lower, breath quickening with the ride.',
+      'Side profile: she glances back at him, hair whipping across her face, a knowing look, both still riding.',
+      'Wide shot: the two bikes race along the wild outdoor path, sunlight flashing through trees, no sexual act yet.',
+      'Final shot: she slows at the edge of the path and looks back over her shoulder, hips still on the saddle, the man stopping behind her.',
     ];
   } else {
     shots = [
