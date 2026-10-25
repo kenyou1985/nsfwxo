@@ -456,7 +456,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0): string {
   const wantsAss = /(anal|anus|ass|doggy|behind|plug|glute)/i.test(scene);
   const wantsOral = /(oral|blowjob|mouth|deepthroat|suck)/i.test(scene);
   const cumEnding = hasMan ? ['ass', 'oral', 'internal'][variant % 3] : wantsOral ? 'oral' : wantsAss ? 'ass' : 'internal';
-  const first = 'Exactly reproduce Picture 1 as the first frame: identical pose, identical framing, identical clothing state or nudity, identical lighting and background. Hold one beat, then continue the SAME act already happening in the image. Never reset to an earlier stage, never undress or dress again, never switch to a different sex act.';
+  const first = 'Exactly reproduce Picture 1 as the first frame: identical pose, identical framing, identical clothing state or nudity, identical lighting and background. Hold one beat, then continue the SAME act already happening in the image. Never reset to an earlier stage; clothing may be removed in Shot 2/3, but after that never re-dress, and never switch to a different sex act.';
   const same = `${placeLine}. Same people. Cut smoothly between positions; the next shot starts from the previous body configuration and changes only the minimum needed. No reset, no scene change, no character change.`;
   const poseSeq = pickPoseSequence(scene);
   const penPoses = poseSeq.map((p) => p.name);
