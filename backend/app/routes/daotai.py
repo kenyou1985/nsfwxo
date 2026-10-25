@@ -100,7 +100,7 @@ def _video_refs(body: dict):
                 refs.append(rf)
     # 只保留首帧一个参考图；其余槽由运行时显式清空为 None，避免重复参考图导致 H3 生成多个人物
     if refs:
-        refs = [refs[0]]
+        refs = refs[:2]
     if not refs:
         refs = ['']
     return refs

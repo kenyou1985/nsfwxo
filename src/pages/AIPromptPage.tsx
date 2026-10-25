@@ -34,6 +34,8 @@ import { publishExternalVideoTask } from '../services/videoTaskBridge';
 import { VIDEO_POSE_PRESETS } from '../data/presetPoses';
 
 const KREA2_N_STRONG_WORKFLOW = '2101119999196127233';
+const DEFAULT_FEMALE_ANCHOR = DEFAULT_GIRLFRIEND_PRESETS.find((p) => p.gender === 'female') || null;
+const DEFAULT_MALE_ANCHOR = DEFAULT_GIRLFRIEND_PRESETS.find((p) => p.gender === 'male') || null;
 
 /** 保证视频提示词英文并以 <Picture 1> 锚定参考图 */
 function anchorH3Prompt(prompt: string): string {
@@ -202,7 +204,7 @@ import { loadCachedOrExtractPanelImages, getCachedImages, getCachedStoryboardPan
 import { extractImagesFromZipAsDataUrls } from '../services/runninghub';
 import { useFinishedTaskImages } from '../contexts/FinishedTaskImagesContext';
 import { MAX_TASKS, type TaskManagerReturn } from '../hooks/useTaskManager';
-import type { GirlfriendPreset } from '../data/girlfriendPresets';
+import { DEFAULT_GIRLFRIEND_PRESETS, type GirlfriendPreset } from '../data/girlfriendPresets';
 import { GirlfriendSelector } from '../components/GirlfriendSelector';
 import { StoryboardSection } from '../components/StoryboardSection';
 import { GridStoryboardMode } from '../components/GridStoryboardMode';
@@ -434,7 +436,7 @@ function generateH3Summary(h3Prompt: string): string {
   return uniqueParts.join(' · ');
 }
 /** 以当前图片为首帧，生成规范 H3 六段式视频提示词 */
-function buildAnchoredH3(imagePrompt: string, variant = 0): string {
+function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false): string {
   const scene = (imagePrompt || '').trim();
   const times = ['00:00.000','00:05.500','00:11.000','00:16.500','00:22.000','00:27.500','00:33.000','00:38.500','00:44.000','00:49.500','00:55.000'];
   const sentences = scene.split(/(?<=[.!?])\s+/);
@@ -690,7 +692,9 @@ function buildAnchoredH3(imagePrompt: string, variant = 0): string {
   const subject2 = twoWomen
     ? '<Subject 2> is @Woman2 — the exact second cisgender adult woman shown in Picture 1, if present. She has a vulva only: no penis, no futanari, no male genitalia. Identity and appearance come only from Picture 1.'
     : hasMan
-      ? '<Subject 2> is @Man — the adult man in the scene; if he appears in Picture 1 preserve his face, otherwise use a fully adult muscular man with face kept off close-up. Appearance comes from Picture 1 when visible.'
+      ? malePicture
+        ? '<Subject 2> is @Man <Picture 2> — the exact adult man shown in Picture 2. Preserve his face, hair, body proportions and identity from Picture 2; face kept off extreme close-up.'
+        : '<Subject 2> is @Man — the adult man in the scene; if he appears in Picture 1 preserve his face, otherwise use a fully adult muscular man with face kept off close-up. Appearance comes from Picture 1 when visible.'
       : '';
   const mode = twoWomen ? 'two-woman' : solo ? 'solo female' : 'heterosexual';
   const endingText = solo
@@ -735,6 +739,7 @@ summary:
 retention_analysis:
 <Subject 1> <Picture 1>: fully_preserved — identity, face, hair and body come from the reference image; starting clothing is used only for Shot 1, then the shot sequence controls nudity.
 <Picture 1> first frame: fully_preserved as the exact 00:00.000 opening frame, not an approximation.
+${malePicture ? '<Picture 2> identity: fully_preserved — the male lead face, hair and body come only from Picture 2.' : ''}
 Scene and action: fully_preserved from the source image prompt; only positions progress, location never changes.
 
 detailed_description:
@@ -868,7 +873,7 @@ export function AIPromptPage({ onError, onSuccess, onOpenSettings, taskManager, 
             </div>
           </div>
           <button
-            onClick={() => { setDigitalHumanMode(!digitalHumanMode); if (digitalHumanMode) setSelectedGirlfriend(null); }}
+            onClick={() => { const next = !digitalHumanMode; setDigitalHumanMode(next); if (!next) setSelectedGirlfriend(null); else if (!selectedGirlfriend) setSelectedGirlfriend(DEFAULT_FEMALE_ANCHOR); }}
             className={`relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0 ${digitalHumanMode ? 'bg-red-500' : 'bg-gray-300'}`}
           >
             <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all duration-300 ${digitalHumanMode ? 'left-[26px]' : 'left-0.5'}`} />
@@ -1505,32 +1510,37 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   const handleMainGenerateVideo = useCallback(async (overridePrompt?: string, overrideImage?: string, cardKey?: string) => {
     const videoText = overridePrompt || outputText;
     if (!videoText.trim()) { onError('请先生成或选择提示词'); return; }
-    if (!digitalHumanMode || !selectedGirlfriend) { onError('请先开启数字人锚定，才能生成视频'); return; }
+    if (!digitalHumanMode) { onError('请先开启数字人锚定，才能生成视频'); return; }
+    const femaleAnchor = selectedGirlfriend || DEFAULT_FEMALE_ANCHOR;
+    if (!femaleAnchor) { onError('没有可用数字人'); return; }
     const resultId = results[selectedOutputIdx]?.id;
     let image = '';
-    // 智能扩写生视频：锚定数字人时优先使用数字人头像，不能拿卡片里的旧生成图当参考
-    if (digitalHumanMode && selectedGirlfriend) {
+    // 智能扩写生视频：数字人锚定优先使用默认/已选头像，绝不复用旧生成图
+    try {
+      image = await urlToDataUrl(femaleAnchor.portraitUrl);
+    } catch {
       try {
-        image = await urlToDataUrl(selectedGirlfriend.portraitUrl);
-      } catch {
-        try {
-          const file = await gfUrlToFile(selectedGirlfriend.portraitUrl, selectedGirlfriend.id);
-          const up = await uploadImage(apiKey, file);
-          image = up.downloadUrl || up.imagePath;
-        } catch {}
-      }
+        const file = await gfUrlToFile(femaleAnchor.portraitUrl, femaleAnchor.id);
+        const up = await uploadImage(apiKey, file);
+        image = up.downloadUrl || up.imagePath;
+      } catch {}
     }
     image = image || overrideImage || (resultId ? genState[resultId]?.images?.[0] : '') || '';
     if (!image) { onError('请先锚定数字人或生成图片'); return; }
     const key = apiKey;
     if (!key) { onError('请先配置 RunningHub API Key'); return; }
+    const needsMale = /(\bman\b|\bmale\b|男人|男性|男子|男友|男主|his\b)/i.test(videoText + ' ' + input);
+    let maleImage = '';
+    if (needsMale && DEFAULT_MALE_ANCHOR) {
+      try { maleImage = await urlToDataUrl(DEFAULT_MALE_ANCHOR.portraitUrl); } catch {}
+    }
     const vk = cardKey || videoText;
     setCardVideoStates(prev => ({ ...prev, [vk]: { loading: true } }));
     setMainVideo({ loading: true });
     try {
       const body = {
         firstFrameUrl: image,
-        media: [{ type: 'reference_image', url: image }],
+        media: [{ type: 'reference_image', url: image }, ...(maleImage ? [{ type: 'reference_image', url: maleImage }] : [])],
         workflow_id: '2110330160000516098',
         duration: 15,
         resolution: videoClarity,
@@ -1540,7 +1550,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         loop_routes: videoRoutes,
         instance: 'plus',
       };
-      const anchoredPrompt = buildAnchoredH3(videoText);
+      const anchoredPrompt = buildAnchoredH3(videoText, 0, !!maleImage);
       const submit = await submitDaotaiVideo(key, anchoredPrompt, { ...body, prompt: anchoredPrompt });
       saveMainPending({ taskId: submit.taskId, promptKey: videoText, startTime: Date.now() });
       const localId = `expand-video-${Date.now()}`;

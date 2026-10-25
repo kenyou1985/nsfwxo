@@ -908,18 +908,17 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
         _wf = copy.deepcopy(job.wf_json or {})   # 修改版工作流 JSON（submit 走 workflow 参数，覆盖 workflowId）
         # ===== 参考图（LoadImage 28/273/285/406/420 → H3 127/199.ref_image + 尺寸链 24/26）=====
         # 285/406/420 保持 image='None'（LoadImage 无图 → 空输出；H3 ref_image_2-4 无图不污染；LLM 视觉由 9999 接管）
-        _refs = [p for p in (cfg.get('refs') or []) if p and os.path.exists(p)]
-        # 只允许第一个参考图进入 H3；多余槽一律清空，避免旧画布图/重复图污染人物
-        if _refs:
-            _first = _refs[0]
+        _refs = [p for p in (cfg.get('refs') or []) if p and os.path.exists(p)][:len(ref_nodes)]
+        # 明确传入的参考图才绑定；woman=Picture1，man=Picture2，其余槽清空
+        for i, p in enumerate(_refs):
             with UPLOAD_LOCK:
-                if _first not in job.uploaded:
-                    _emit('  [路%d] 上传首帧参考图 -> %s' % (rng[0], os.path.basename(_first)))
-                    job.uploaded[_first] = upload_file(job, _first)
+                if p not in job.uploaded:
+                    _emit('  [路%d] 上传参考图%d -> %s' % (rng[0], i + 1, os.path.basename(p)))
+                    job.uploaded[p] = upload_file(job, p)
                 else:
-                    _emit('  [路%d] 复用首帧参考图 -> %s（已上传）' % (rng[0], os.path.basename(_first)))
-            _wf[ref_nodes[0]]['inputs']['image'] = job.uploaded[_first]
-        for _i in range(1, len(ref_nodes)):
+                    _emit('  [路%d] 复用参考图%d -> %s（已上传）' % (rng[0], i + 1, os.path.basename(p)))
+            _wf[ref_nodes[i]]['inputs']['image'] = job.uploaded[p]
+        for _i in range(len(_refs), len(ref_nodes)):
             _wf[ref_nodes[_i]]['inputs']['image'] = 'None'
         # ===== LLM 15/228 视觉置空：新增节点 9999 = LoadImage(1×1 透明) → 276/282 组合图全部图像槽 =====
         # 实证链（本次探测 taskId 2110428239992836097，1路×2段×ref1.jpg+ref2.png 同款爆窗大图 → 视频 26.17s 正常）：
