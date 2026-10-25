@@ -570,7 +570,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
       [
         `He catches up ON HIS BICYCLE, pedaling hard, and grabs her waist, pulling her to a stop on the wild path; she gasps, her bike wobbling. ${placeLine}.`,
         'He pulls her off the bicycle and pins her against the frame, one hand on her throat, the other wrenching the tight cycling suit down.',
-        'Close: the suit is stripped to her waist, breasts spill out, sweat on her skin, her hands trapped behind her back.',
+        'Close: the cycling suit is ripped completely off; by the end of this shot she is completely nude, breasts and ass bare, sweat on her skin, hands trapped behind her back.',
         'He bends her over the bicycle seat, pulls the suit down her thighs, exposes her bare ass, and slaps it.',
         'He drops to his knees behind her, spreads her cheeks and licks her from clit to ass, his tongue wet and demanding.',
         'He straightens, yanks his cycling shorts down to his thighs, frees his cock, and drives into her from behind, bent over the bike, her body jolting with each thrust.',
@@ -581,7 +581,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
       [
         `He catches up ON HIS BICYCLE, pedaling hard, then yanks her off her bike onto the forest floor, both bicycles skidding into the ferns. ${placeLine}.`,
         'He shoves her back against a pine trunk, pins her wrists above her head, and tears the zipper of the cycling suit open.',
-        'Close: the suit is peeled to her waist, breasts crushed against his chest, one thigh lifted around his hip.',
+        'Close: the suit is peeled completely off; by the end of this shot she is completely nude, breasts crushed against his chest, one thigh lifted around his hip.',
         'He pushes her to her knees on the moss and feeds her his cock; she looks up, lips stretched, saliva dripping.',
         'Low-angle close: deep throat against the tree, his hand in her hair, her mascara smeared, gagging softly.',
         'He shoves his cycling shorts down, lifts her by the thighs into a standing carry against the trunk, and drives into her, feet off the ground.',
@@ -592,7 +592,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
       [
         `He catches up ON HIS BICYCLE, pedaling hard, then shoves her off the trail into the tall ferns, both bikes crashing down behind them. ${placeLine}.`,
         'He forces her face-down into the undergrowth, knee between her thighs, and rips the cycling suit down her back.',
-        'Close: her bare ass is up, suit bunched at her knees, face turned in the leaves, mouth open and gasping.',
+        'Close: the suit is ripped completely off; by the end of this shot she is completely nude, bare ass up, face turned in the leaves, mouth open and gasping.',
         'He spanks her exposed cheeks, then spreads them and spits, the head of his cock pressing against her.',
         'He yanks his shorts down, then prone-bones her: chest to her back, driving deep into the dirt, her fingers clawing the soil.',
         'He pulls out and flips her onto her back in the ferns, knees pushed to her chest, and enters again.',
@@ -605,9 +605,9 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
       [
         `He closes the distance in the scene and grabs her wrist; she tries to pull away, he tightens his grip and threatens her under his breath. ${placeLine}.`,
         'He pins her against the nearest wall or surface, one hand on her throat, the other pulling her top open; she pleads, he tells her to shut up.',
-        'He pulls her bra or chest covering down, gropes her bare breasts, then drags her to a more hidden spot and bends her over the nearest surface.',
-        'He pushes her to her knees, unbuckles his belt, pulls his trousers open, and feeds her his cock; she gags, tears in her eyes.',
-        'He hauls her up, pulls her lower garment up or down, yanks her underwear aside, and presses her against the surface.',
+        'He rips her top and bra off, shoves her skirt up, yanks her panties down; by the end of this shot she is completely nude, then he drags her to a more hidden spot and bends her over the nearest surface.',
+        'She is already completely nude; he pushes her to her knees, opens his trousers, and feeds her his cock; she gags, tears in her eyes.',
+        'He hauls her up; she is already completely nude; he presses her against the surface, spreads her legs, and lines up.',
         'He shoves his trousers and boxers down to his ankles, spreads her legs, and pushes into her from behind; she cries out.',
         'He fucks her against the surface, one hand over her mouth, the other gripping her hip, her feet barely touching the ground.',
         'He bends her further over, lifts one leg onto the surface, and drives deeper; her clothes bunch around her waist.',
@@ -615,8 +615,8 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
       ],
       [
         `He follows her into a more enclosed part of the location, clamps a hand over her mouth, and drags her out of sight; she struggles, he threatens her. ${placeLine}.`,
-        'He pins her to the nearest support, bends her over it, and pulls her top and bra down, exposing her breasts to the air.',
-        'He lifts her lower garment, pulls her underwear aside, and shoves two fingers into her while she begs him to stop.',
+        'He pins her to the nearest support, rips her top and bra off, pulls her lower garment and panties down; by the end of this shot she is completely nude.',
+        'She is already completely nude; he bends her over and shoves two fingers into her while she begs him to stop.',
         'He forces her to her knees on the floor, opens his trousers, and pushes his cock into her mouth; she chokes.',
         'He pulls her up by the hair, bends her over the support, and yanks his trousers down to his knees.',
         'He enters her from behind on the spot, one hand in her hair, the other holding her hip; her clothes ride up.',
@@ -626,8 +626,8 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
       ],
       [
         `He corners her at the end of the location, grabs a fistful of her hair, and threatens her; she freezes, trembling. ${placeLine}.`,
-        'He forces her through the nearest door or opening into a more private space, throws her down, and pins her.',
-        'He tears her top open, pulls her lower garment up, and strips her bra and underwear off; she tries to cover herself.',
+        'He forces her through the nearest door, throws her down, pins her, and strips her top, bra, lower garment and panties off; by the end of this shot she is completely nude.',
+        'She is already completely nude and trying to cover herself; he pins her wrists and spreads her legs.',
         'He pushes her head down to his crotch, opens his trousers, and makes her suck him; she gags and drools.',
         'He bends her over the nearest object, kicks her legs apart, and pulls his trousers and boxers down to his ankles.',
         'He spits on his cock and pushes into her from behind; she claws the surface, crying out.',
@@ -847,7 +847,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
     : core;
   const clothingPolicy = (hasMan && !explicitAct)
     ? isCycling
-      ? 'Shot 1 uses the reference clothing; Shot 2 he catches her on his bicycle; Shot 3 strips the cycling suit; Shot 4 onward she is completely nude with bare breasts, ass and vulva, no bra, no panties, no fabric. He keeps his cycling shorts on until Shot 6, then pulls them down to his thighs before penetration.'
+      ? 'Shot 1 uses the reference clothing; Shot 2 he catches her on his bicycle; Shot 3 rips the cycling suit completely off; she is completely nude by the end of Shot 3, no bra, no panties, no fabric. He keeps his cycling shorts on until Shot 6, then pulls them down to his thighs before penetration.'
       : 'Shot 1 uses the clothing shown in Picture 1 or the source scene; Shot 2 he closes in and grabs her; Shot 3 he strips her top and bra; Shot 4 he pulls her lower garment up and underwear aside; Shot 5 she is bottomless; Shot 6 he pulls his trousers and boxers down to his ankles before penetration; from Shot 6 onward she is completely nude with bare breasts, ass and vulva.'
     : needsNude
       ? 'Shot 1 uses the reference clothing; Shot 2 strips it off; Shot 3 onward both are completely nude with bare breasts, vulva and ass, no bra, no panties, no fabric.'
