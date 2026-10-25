@@ -462,8 +462,8 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   const solo = !twoWomen && !hasMan;
   const coercive = hasMan && /(尾随|跟踪|胁迫|强迫|不情愿|强奸|强暴|抓住|按在|扒光|追上|野外|跟着|rape|force|stalk|follow|catch)/i.test(themeText);
   const forcePrelude = hasMan && /(尾随|跟踪|胁迫|强迫|不情愿|强奸|强暴|抓住|按在|扒光|追上|跟着|跟踪|尾随)/i.test(userHint);
-  const locationMatch = scene.match(/(?:down|along|through|inside|in)\s+(?:a|an|the)?\s*([^.,;]{3,80}?(?:alley|street|room|office|corridor|entrance|path|trail|house|home|beach|park|garage|club|bar|hotel|classroom|warehouse))/i);
-  const locationLabel = (locationMatch?.[1] || 'the opening location').replace(/\s+/g, ' ').trim();
+  const locationMatch = scene.match(/((?:[A-Za-z-]+\s+){0,4}(?:alley|lane|street|road|sidewalk|room|office|corridor|entrance|path|trail|house|home|beach|park|garage|club|bar|hotel|classroom|warehouse|stairwell|landing))/i);
+  const locationLabel = (locationMatch?.[0] || 'the opening location').replace(/[.,;]+$/g, '').replace(/\s+/g, ' ').trim();
   const placeLine = `Same location: ${locationLabel}, same lighting.`;
   const explicitAct = /(penetrat|thrust|insert|cunnilingus|blowjob|fellatio|fuck|sex scene|inside her|riding him|takes? .{0,40}(?:cock|shaft) .{0,30}(?:mouth|throat))/i.test(scene);
   const atFacesit = /(sits? astride|sitting on (?:his|the) face|facesit|face-sit|riding (?:his|her) face|mouth beneath|oral sex beneath|cunnilingus|骑脸|坐脸|坐在脸上)/i.test(scene);
