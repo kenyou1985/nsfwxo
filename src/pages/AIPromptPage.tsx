@@ -153,6 +153,18 @@ function saveInlineDone(promptKey: string, url: string): void {
   } catch {}
 }
 
+const MAIN_VIDEO_DONE_KEY = 'nsfwxo_main_video_done_v1';
+function readMainVideoDone(): Record<string, string> {
+  try { return JSON.parse(localStorage.getItem(MAIN_VIDEO_DONE_KEY) || '{}'); } catch { return {}; }
+}
+function saveMainVideoDone(promptKey: string, url: string): void {
+  try {
+    const map = readMainVideoDone();
+    map[promptKey] = url;
+    localStorage.setItem(MAIN_VIDEO_DONE_KEY, JSON.stringify(map));
+  } catch {}
+}
+
 function buildKrea2NNodeList(prompt: string) {
   const opts = buildUnifiedTxt2ImgOptions(prompt, true);
   opts.workflowId = WORKFLOW.KREA2;
@@ -842,6 +854,10 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   const [outputPrompts, setOutputPrompts] = useState<string[]>(savedExpand?.outputPrompts || []);
   const [selectedOutputIdx, setSelectedOutputIdx] = useState(savedExpand?.selectedOutputIdx || 0);
   const [outputText, setOutputText] = useState(savedExpand?.outputText || '');
+  useEffect(() => {
+    const done = readMainVideoDone();
+    if (outputText && done[outputText]) setMainVideo({ loading: false, url: done[outputText] });
+  }, [outputText]);
   const [generatingMain, setGeneratingMain] = useState(false);
   const [girlfriendUploading, setGirlfriendUploading] = useState(false);
   const [favorites, setFavorites] = useState<FavoriteItem[]>(() => getFavorites());
@@ -1367,6 +1383,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       }
       if (!url) throw new Error('视频生成超时');
       setMainVideo({ loading: false, url });
+      saveMainVideoDone(videoText, url);
       publishExternalVideoTask({ id: localId, taskId: submit.taskId, status: 'FINISHED', prompt: videoText,
         imagePreview: image, images: [url], coins: null, elapsedSeconds: 0, error: null, startTime: Date.now(), nodeInfoList: [], engine: 'daotai' });
       try {
