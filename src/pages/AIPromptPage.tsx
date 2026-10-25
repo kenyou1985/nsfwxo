@@ -620,7 +620,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0): string {
   const subject2 = twoWomen
     ? '<Subject 2> is @Woman2 — the exact second cisgender adult woman shown in Picture 1, if present. She has a vulva only: no penis, no futanari, no male genitalia. Identity and appearance come only from Picture 1.'
     : hasMan
-      ? '<Subject 2> is @Man — the exact adult man shown in Picture 1; face kept off close-up, appearance comes only from Picture 1.'
+      ? '<Subject 2> is @Man — the adult man in the scene; if he appears in Picture 1 preserve his face, otherwise use a fully adult muscular man with face kept off close-up. Appearance comes from Picture 1 when visible.'
       : '';
   const mode = twoWomen ? 'two-woman' : solo ? 'solo female' : 'heterosexual';
   const endingText = solo
