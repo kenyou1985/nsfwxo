@@ -263,7 +263,7 @@ async def submit_video(request: Request):
         return JSONResponse(status_code=500, content={'error': _err, 'kind': 'backend_error'})
     with rh.JOBS_LOCK:
         rh.JOBS[job.id] = job
-    job.thread = __import__('threading').Thread(target=rh.run_job_serial, args=(job,), daemon=True)
+    job.thread = __import__('threading').Thread(target=rh.run_job, args=(job,), daemon=True)
     job.thread.start()
     rh.RH_OPENAPI[job.id] = {'kind': 'video', 'job_id': job.id, 'api_key': key,
                              'run_dir': job.run_dir}
