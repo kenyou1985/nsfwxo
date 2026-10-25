@@ -1098,6 +1098,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   const [videoRoutes, setVideoRoutes] = useState(1);
   const [mainVideo, setMainVideo] = useState<{loading:boolean;url?:string;error?:string}>({ loading: false });
   const [cardVideoStates, setCardVideoStates] = useState<Record<string, { loading: boolean; url?: string; error?: string }>>({});
+  const videoQueueRef = useRef<Promise<void>>(Promise.resolve());
   const [count, setCount] = useState(savedExpand?.count || 5);
   const [results, setResults] = useState<{ id: string; original: string; prompt: string; r18: boolean }[]>(savedExpand?.results || []);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -1663,7 +1664,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     }
   }, [outputText, taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, onNavigate]);
 
-  const handleMainGenerateVideo = useCallback(async (overridePrompt?: string, overrideImage?: string, cardKey?: string) => {
+  const runMainGenerateVideo = useCallback(async (overridePrompt?: string, overrideImage?: string, cardKey?: string) => {
     const videoText = overridePrompt || outputText;
     if (!videoText.trim()) { onError('请先生成或选择提示词'); return; }
     if (!digitalHumanMode) { onError('请先开启数字人锚定，才能生成视频'); return; }
@@ -1749,6 +1750,14 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       onError(msg);
     }
   }, [outputText, selectedOutputIdx, results, genState, digitalHumanMode, selectedGirlfriend, videoClarity, videoSegments, videoShotCount, videoRoutes, onError, onSuccess]);
+
+  // 后端 H3 runtime 不能同时跑多个视频任务，否则多个任务共用一个 WS/分段状态，
+  // 会出现“视频已生成但任务一直 PROCESSING”。所有入口统一串行排队。
+  const handleMainGenerateVideo = useCallback((overridePrompt?: string, overrideImage?: string, cardKey?: string) => {
+    const next = videoQueueRef.current.then(() => runMainGenerateVideo(overridePrompt, overrideImage, cardKey));
+    videoQueueRef.current = next.catch(() => {});
+    return next;
+  }, [runMainGenerateVideo]);
 
   const handleExpandGenerateImage = useCallback(async (result: { id: string; prompt: string }) => {
     if (taskManager.isFull) {
