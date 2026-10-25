@@ -453,21 +453,25 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   core = core.replace(/\b(?:blonde|brunette|redhead|black hair|brown hair|long hair|short hair|straight hair|curly hair|fair skin|pale skin|tan skin|voluptuous|curvy|slim|petite|East Asian|mid-20s|large breasts|big breasts|huge breasts)\b[^,.;]*/gi, '').replace(/\s{2,}/g, ' ').trim().slice(0, 900);
   if (!core) core = 'the exact act and pose shown in Picture 1';
   const place = sentences.find((x) => /(room|salon|street|garden|forest|bed|arches|pool|beach|car|office|bathroom|kitchen|alley|studio)/i.test(x)) || '';
-  const placeLine = place ? `Same location: ${place.slice(0, 240)}` : 'Same location and lighting as Picture 1';
-  const womanCount = (scene.match(/\bwoman\b/gi) || []).length + (scene.match(/\bgirl\b/gi) || []).length;
-  const twoWomen = /(two women|two girls|lesbian|female partner|another woman|second woman|strap-on|女女|百合|双女|两个女人|两名女性)/i.test(scene) || womanCount >= 2;
-  const hasMan = !twoWomen && /\b(man|male|boyfriend|guy|his |he )\b|男人|男性|男主|男友|男子/i.test(scene);
-  const isCycling = /(bicycle|bike|cycling|pedal|骑行|自行车|骑车)/i.test(scene);
+  const themeText = `${scene} ${userHint}`;
+  const explicitTwoWomen = /(two women|two girls|lesbian|female partner|another woman|second woman|strap-on|女女|百合|双女|两个女人|两名女性)/i.test(themeText);
+  const twoWomen = explicitTwoWomen || (/(^|\s)women(\s|$)/i.test(scene) && !/(男子|男人|男性|\bman\b)/i.test(themeText));
+  const userHasMan = /(男子|男人|男性|男友|男主|一个强壮|跟踪|尾随|\bman\b|\bmale\b)/i.test(userHint);
+  const hasMan = !twoWomen && (userHasMan || /\b(man|male|boyfriend|guy|his |he )\b|男人|男性|男主|男友|男子/i.test(scene));
+  const isCycling = /(bicycle|bike|cycling|pedal|骑行|自行车|骑车)/i.test(themeText);
   const solo = !twoWomen && !hasMan;
+  const coercive = hasMan && /(尾随|跟踪|胁迫|强迫|不情愿|强奸|强暴|抓住|按在|扒光|追上|野外|跟着|rape|force|stalk|follow|catch)/i.test(themeText);
+  const forcePrelude = hasMan && /(尾随|跟踪|胁迫|强迫|不情愿|强奸|强暴|抓住|按在|扒光|追上|跟着|跟踪|尾随)/i.test(userHint);
+  const placeLine = forcePrelude ? `Same location: ${(userHint || place || 'the opening scene').slice(0, 240)}` : place ? `Same location: ${place.slice(0, 240)}` : 'Same location and lighting as Picture 1';
   const explicitAct = /(penetrat|thrust|insert|cunnilingus|blowjob|fellatio|fuck|sex scene|inside her|riding him|takes? .{0,40}(?:cock|shaft) .{0,30}(?:mouth|throat))/i.test(scene);
-  const coercive = hasMan && /(尾随|跟踪|胁迫|强迫|不情愿|强奸|强暴|抓住|按在|扒光|追上|野外|跟着|rape|force|stalk|follow|catch)/i.test(scene);
   const atFacesit = /(sits? astride|sitting on (?:his|the) face|facesit|face-sit|riding (?:his|her) face|mouth beneath|oral sex beneath|cunnilingus|骑脸|坐脸|坐在脸上)/i.test(scene);
   const atSex = /(penetrat|thrust|insert|cowgirl|doggy|missionary|riding him|inside her|fuck)/i.test(scene);
   const atOral = /(blowjob|deepthroat|fellatio|sucking|takes? .{0,50}(?:cock|shaft|penis) .{0,40}(?:mouth|throat)|deep into her throat|lips .{0,30}(?:shaft|cock)|mouth around)/i.test(scene);
   const wantsAss = /(anal|anus|ass|doggy|behind|plug|glute)/i.test(scene);
   const wantsOral = /(oral|blowjob|mouth|deepthroat|suck)/i.test(scene);
   const cumEnding = hasMan ? ['ass', 'oral', 'internal'][variant % 3] : wantsOral ? 'oral' : wantsAss ? 'ass' : 'internal';
-  const first = `The video opens directly in the live-action scene, already in motion: ${core.slice(0, 260)}. Picture 1 is an identity and scene reference, NOT a static first frame: do not start on a portrait, reference-sheet pose, photo face shot, or frozen replica of Picture 1. The woman's identity comes from Picture 1, but the opening frame is a real cinematic action frame with the body, clothing and environment already moving.`;
+  const openingScene = (userHint || core).slice(0, 260);
+  const first = `The video opens directly in the live-action scene, already in motion: ${openingScene}. Picture 1 is an identity and scene reference, NOT a static first frame: do not start on a portrait, reference-sheet pose, photo face shot, or frozen replica of Picture 1. The woman's identity comes from Picture 1, but the opening frame is a real cinematic action frame with the body, clothing and environment already moving.`;
   const same = `${placeLine}. Same people. Cut smoothly between positions; the next shot starts from the previous body configuration and changes only the minimum needed. No reset, no scene change, no character change.`;
   const poseSeq = pickPoseSequence(scene);
   const penPoses = poseSeq.map((p) => p.name);
@@ -515,7 +519,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
       `Squirting climax: clear fluid gushes out around her own fingers/toy, splashing her thighs and the surface, body locking hard. ${soloGuard}`,
       `Afterglow: wet thighs and slick surface in frame, chest heaving, toy still resting against her, skin flushed, eyes dazed. ${soloGuard}`,
     ];
-  } else if (atFacesit) {
+  } else if (atFacesit && !forcePrelude) {
     shots = [
       first,
       `She settles her weight onto his mouth, hips rolling slowly, one hand braced on his chest, the other in his hair; no penetration yet. ${same}`,
@@ -529,7 +533,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
       `${poseTrans[2]} Transition into ${penPoses[2] || 'Doggy Classic'}: he grips her hips and drives deep, her back arching, hair swinging, sweat dripping. ${same}`,
       final,
     ];
-  } else if (atOral) {
+  } else if (atOral && !forcePrelude) {
     shots = [
       first,
       `She continues the exact oral action: lips sealed around the shaft, tongue dragging, cheeks hollowing, saliva shining. ${same}`,
@@ -543,7 +547,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
       'Extreme close on the join: shaft sliding in and out, labia clinging, fluid stringing, thighs trembling; cut back to her face.',
       final,
     ];
-  } else if (atSex) {
+  } else if (atSex && !forcePrelude) {
     shots = [
       first,
       `Continue the exact penetration from Picture 1: first visible thrust, hips meeting, her body jolting, mouth open, hands gripping. ${same}`,
@@ -557,7 +561,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
       `${poseTrans[2]} Transition into ${penPoses[2] || 'Missionary Legs Up'}: faces close, legs around him, deep slow thrusts, breasts pressed to his chest. ${same}`,
       final,
     ];
-  } else if (hasMan && !explicitAct) {
+  } else if (hasMan && (!explicitAct || forcePrelude)) {
     const chaseVariants = [
       [
         `He catches up ON HIS BICYCLE, pedaling hard, and grabs her waist, pulling her to a stop on the wild path; she gasps, her bike wobbling. ${placeLine}.`,
@@ -859,7 +863,7 @@ summary:
 retention_analysis:
 <Subject 1> <Picture 1>: fully_preserved — identity, face, hair and body come from the reference image; starting clothing is used only for Shot 1, then the shot sequence controls nudity.
 <Picture 1> identity reference: fully_preserved for face, hair and body; Picture 1 is not used as a static first frame.
-${malePicture ? '<Picture 2> identity: fully_preserved — the male lead face, hair and body come only from Picture 2.' : ''}
+${malePicture && hasMan ? '<Picture 2> identity: fully_preserved — the male lead face, hair and body come only from Picture 2.' : ''}
 Scene and action: fully_preserved from the source image prompt; only positions progress, location never changes.
 
 detailed_description:
