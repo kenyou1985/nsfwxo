@@ -1351,8 +1351,15 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     if (!videoText.trim()) { onError('请先生成或选择提示词'); return; }
     if (!digitalHumanMode || !selectedGirlfriend) { onError('请先开启数字人锚定，才能生成视频'); return; }
     const resultId = results[selectedOutputIdx]?.id;
-    const image = overrideImage || (resultId ? genState[resultId]?.images?.[0] : '') || selectedGirlfriend?.portraitUrl || '';
-    if (!image) { onError('请先生成并选择一张图片'); return; }
+    let image = overrideImage || (resultId ? genState[resultId]?.images?.[0] : '') || selectedGirlfriend?.portraitUrl || '';
+    if (!image && digitalHumanMode && selectedGirlfriend) {
+      try {
+        const file = await gfUrlToFile(selectedGirlfriend.portraitUrl, selectedGirlfriend.id);
+        const up = await uploadImage(apiKey, file);
+        image = up.downloadUrl || up.imagePath;
+      } catch {}
+    }
+    if (!image) { onError('请先锚定数字人或生成图片'); return; }
     const key = apiKey;
     if (!key) { onError('请先配置 RunningHub API Key'); return; }
     setMainVideo({ loading: true });
@@ -1874,8 +1881,9 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               }}
               onGenerateImage={() => handleExpandGenerateImage(result)}
               onSendToH3Page={() => {
-                const img = genState[result.id]?.images?.[0];
-                if (!img) { onError('请先生成图片'); return; }
+                if (!digitalHumanMode || !selectedGirlfriend) { onError('请先锚定数字人'); return; }
+                const img = genState[result.id]?.images?.[0] || selectedGirlfriend.portraitUrl;
+                if (!img) { onError('请先选择数字人'); return; }
                 void handleMainGenerateVideo(result.prompt, img);
               }}
               onUseAsOutput={() => {
@@ -2031,21 +2039,10 @@ function ExpandResultCard({ result, r18Mode, isCopied, genState, onCopy, onDelet
             生成中 · 已等 {loadingSeconds} 秒
           </span>
         )}
-        <button onClick={onGenerateImage}
-          disabled={isGenLoading || (digitalHumanMode && !selectedGirlfriend)}
-          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all flex-shrink-0 ml-auto ${
-            isGenLoading || (digitalHumanMode && !selectedGirlfriend)
-              ? 'bg-blue-100 text-blue-400 cursor-not-allowed'
-              : 'bg-blue-500 text-white hover:bg-blue-600'
-          }`}
-        >
-          {isGenLoading ? <Loader2 size={11} className="animate-spin" /> : <Image size={11} />}
-          {digitalHumanMode && selectedGirlfriend ? '图生图' : '生图'}
-        </button>
         <button onClick={onSendToH3Page}
-          disabled={!genState?.images?.length}
-          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium flex-shrink-0 ${!genState?.images?.length ? 'bg-indigo-100 text-indigo-300 cursor-not-allowed' : 'bg-indigo-500 text-white hover:bg-indigo-600'}`}
-          title="把当前图片和 H3 提示词送入导演台 det16"
+          disabled={!digitalHumanMode || !selectedGirlfriend}
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium flex-shrink-0 ml-auto ${!digitalHumanMode || !selectedGirlfriend ? 'bg-indigo-100 text-indigo-300 cursor-not-allowed' : 'bg-indigo-500 text-white hover:bg-indigo-600'}`}
+          title={!digitalHumanMode || !selectedGirlfriend ? '请先锚定数字人' : '用数字人锚定生成视频'}
         >
           <Video size={11} />生视频
         </button>
