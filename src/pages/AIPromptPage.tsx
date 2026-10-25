@@ -1192,11 +1192,12 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               };
               void streamExpandPrompt(input.trim(), 'image', r18Mode, 1, i, undefined, false, undefined, {
                 onStart: () => {
-                  setResults((prev) => prev.map((r, idx) => idx === i ? { ...r, prompt: '生成中…' } : r));
+                  if (type !== 'video') setResults((prev) => prev.map((r, idx) => idx === i ? { ...r, prompt: '生成中…' } : r));
                 },
                 onDelta: ({ text }) => {
                   acc += text;
-                  setResults((prev) => prev.map((r, idx) => idx === i ? { ...r, prompt: acc } : r));
+                  // 视频模式不要把中间图片提示词展示到卡片里，最终只显示 H3
+                  if (type !== 'video') setResults((prev) => prev.map((r, idx) => idx === i ? { ...r, prompt: acc } : r));
                 },
                 onEnd: ({ prompt }) => {
                   const final = (prompt || acc).trim();
@@ -1976,7 +1977,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   return (
     <div className="space-y-4">
       <div className="rounded-2xl bg-white border border-border shadow-card p-4">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
           <div className="flex items-center gap-2">
             <Sparkles size={14} className={r18Mode ? 'text-red-500' : 'text-primary'} />
             <span className="text-sm font-medium text-text-primary">
@@ -1984,17 +1985,17 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               {r18Mode && <span className="ml-2 text-xs text-red-500 font-medium">(R18)</span>}
             </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
             <button onClick={() => setShowHistory(!showHistory)} className={`flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-medium transition-all ${showHistory ? 'bg-primary/10 text-primary border border-primary/20' : 'bg-bg-elevated text-text-tertiary hover:bg-bg-hover'}`}>
               <History size={12} />历史记录
             </button>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {type === 'video' && (
-                <div className="flex items-center gap-1.5 text-[10px] text-text-tertiary">
+                <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-text-tertiary">
                   <label>清晰度</label>
                   <input type="number" min={0.2} max={1} step={0.2} value={videoClarity}
                     onChange={(e) => setVideoClarity(Math.min(1, Math.max(0.2, Number(e.target.value) || 0.2)))}
-                    className="w-12 px-1 py-0.5 rounded border border-border bg-white text-center" />
+                    className="w-10 sm:w-12 px-1 py-0.5 rounded border border-border bg-white text-center" />
                   <label>段数</label>
                   <input type="number" min={2} max={16} step={1} value={videoSegments}
                     onChange={(e) => setVideoSegments(Math.min(16, Math.max(2, Math.round(Number(e.target.value) || 4))))}
@@ -2012,7 +2013,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
                     className="w-12 px-1 py-0.5 rounded border border-border bg-white text-center" />
                 </div>
               )}
-              <div className="flex gap-1">
+              <div className="flex gap-1 flex-shrink-0">
                 {(['image', 'video'] as const).map((t) => (
                   <button key={t} onClick={() => setType(t)} className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${type === t ? 'bg-primary text-white' : 'bg-bg-elevated text-text-tertiary hover:bg-bg-hover'}`}>{t === 'image' ? '生图' : '生视频'}</button>
                 ))}
@@ -2067,7 +2068,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       {results.length > 0 && (
         <div className="space-y-3">
           {/* Batch Generate Header */}
-          <div className="flex items-center justify-between px-1">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-1">
             <span className="text-xs text-text-tertiary font-medium">提示词列表 · {results.length} 个</span>
             <div className="flex items-center gap-2">
             <button
