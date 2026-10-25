@@ -466,7 +466,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false):
   const wantsAss = /(anal|anus|ass|doggy|behind|plug|glute)/i.test(scene);
   const wantsOral = /(oral|blowjob|mouth|deepthroat|suck)/i.test(scene);
   const cumEnding = hasMan ? ['ass', 'oral', 'internal'][variant % 3] : wantsOral ? 'oral' : wantsAss ? 'ass' : 'internal';
-  const first = 'Exactly reproduce Picture 1 as the first frame: identical pose, identical framing, identical clothing state or nudity, identical lighting and background. Hold one beat, then continue the SAME act already happening in the image. Never reset to an earlier stage; clothing may be removed in Shot 2/3, but after that never re-dress, and never switch to a different sex act.';
+  const first = `The video opens directly in the live-action scene, already in motion: ${core.slice(0, 260)}. Picture 1 is an identity and scene reference, NOT a static first frame: do not start on a portrait, reference-sheet pose, photo face shot, or frozen replica of Picture 1. The woman's identity comes from Picture 1, but the opening frame is a real cinematic action frame with the bike, body and environment already moving.`;
   const same = `${placeLine}. Same people. Cut smoothly between positions; the next shot starts from the previous body configuration and changes only the minimum needed. No reset, no scene change, no character change.`;
   const poseSeq = pickPoseSequence(scene);
   const penPoses = poseSeq.map((p) => p.name);
@@ -610,7 +610,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false):
   } else {
     shots = [
       first,
-      `Foreplay continues from the first frame: his hands slide over her body, pulling cloth aside or over bare skin, her head tilting back. ${same}`,
+      `Foreplay continues from the opening action: his hands slide over her body, pulling cloth aside or over bare skin, her head tilting back. ${same}`,
       'Medium close: fingers and tongue on nipples and inner thighs, visible wetness, goosebumps; she arches into the touch.',
       'She sinks down and takes him in her mouth, tongue dragging, cheeks hollowing, saliva shining; his hand on the back of her head.',
       `${poseTrans[0]} Transition into ${penPoses[0] || 'Cowgirl Wild Ride'}: she sinks onto him, body jolting, mouth open, hands on his chest. ${same}`,
@@ -742,11 +742,11 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false):
 ${subject2}
 
 summary:
-[reference generation] A cinematic 60-second ${mode} explicit sequence. Picture 1 is the mandatory first frame and the only identity/scene reference. The video starts on the exact act in Picture 1, then progresses through ${progression}, ending in ${endingText}. ${clothingPolicy} ${coercive ? 'She is coerced and pleading; he threatens and overpowers her.' : ''} No scene change, no character change, no extra person.
+[reference generation] A cinematic 60-second ${mode} explicit sequence. Picture 1 is a full identity/scene reference, NOT a static first frame. The video starts directly in the live-action scene, already in motion, then progresses through ${progression}, ending in ${endingText}. ${clothingPolicy} ${coercive ? 'She is coerced and pleading; he threatens and overpowers her.' : ''} No scene change, no character change, no extra person.
 
 retention_analysis:
 <Subject 1> <Picture 1>: fully_preserved — identity, face, hair and body come from the reference image; starting clothing is used only for Shot 1, then the shot sequence controls nudity.
-<Picture 1> first frame: fully_preserved as the exact 00:00.000 opening frame, not an approximation.
+<Picture 1> identity reference: fully_preserved for face, hair and body; Picture 1 is not used as a static first frame.
 ${malePicture ? '<Picture 2> identity: fully_preserved — the male lead face, hair and body come only from Picture 2.' : ''}
 Scene and action: fully_preserved from the source image prompt; only positions progress, location never changes.
 
@@ -1000,6 +1000,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     return sessionStorage.getItem('sb_latest_history_id');
   });
   const [batchLoading, setBatchLoading] = useState(false);
+  const [batchVideoLoading, setBatchVideoLoading] = useState(false);
   const [outputPrompts, setOutputPrompts] = useState<string[]>(savedExpand?.outputPrompts || []);
   const [selectedOutputIdx, setSelectedOutputIdx] = useState(savedExpand?.selectedOutputIdx || 0);
   const [outputText, setOutputText] = useState(savedExpand?.outputText || '');
@@ -1707,6 +1708,18 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     }
   }, [results, taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, onNavigate]);
 
+  const handleBatchVideo = useCallback(async () => {
+    if (type !== 'video') { onError('当前是生图模式，请切换到视频模式'); return; }
+    if (!results.length || batchVideoLoading) return;
+    setBatchVideoLoading(true);
+    const settled = await Promise.allSettled(
+      results.map((r) => handleMainGenerateVideo(r.prompt, undefined, r.id)),
+    );
+    const ok = settled.filter((x) => x.status === 'fulfilled').length;
+    setBatchVideoLoading(false);
+    onSuccess(`已提交 ${ok} 个视频任务`);
+  }, [type, results, batchVideoLoading, handleMainGenerateVideo, onError, onSuccess]);
+
   // Handles single-panel image generation from StoryboardSection (ExpandMode version).
   // Reuses the same logic as handleGenerateStoryboard but for a single panel.
   const handleExpandModeSinglePanelGenerate = useCallback(async (panelIdx: number, prompt: string, context?: { themeTitle?: string; panelNumber?: number }) => {
@@ -1999,17 +2012,26 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
           {/* Batch Generate Header */}
           <div className="flex items-center justify-between px-1">
             <span className="text-xs text-text-tertiary font-medium">提示词列表 · {results.length} 个</span>
+            <div className="flex items-center gap-2">
+            <button
+              onClick={handleBatchVideo}
+              disabled={type !== 'video' || batchVideoLoading}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${type !== 'video' || batchVideoLoading ? 'bg-bg-elevated text-text-secondary cursor-not-allowed' : 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90'}`}
+            >
+              {batchVideoLoading ? <><Loader2 size={12} className="animate-spin" /> 提交中...</> : <><Video size={12} />一键批量生视频</>}
+            </button>
             <button
               onClick={handleBatchGenerate}
-              disabled={batchLoading || taskManager.isFull || (digitalHumanMode && !selectedGirlfriend)}
+              disabled={type === 'video' || batchLoading || taskManager.isFull || (digitalHumanMode && !selectedGirlfriend)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                batchLoading || taskManager.isFull || (digitalHumanMode && !selectedGirlfriend)
+                type === 'video' || batchLoading || taskManager.isFull || (digitalHumanMode && !selectedGirlfriend)
                   ? 'bg-bg-elevated text-text-secondary cursor-not-allowed'
                   : 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:opacity-90 active:scale-[0.98]'
               }`}
             >
               {batchLoading ? <><Loader2 size={12} className="animate-spin" /> 提交中...</> : <><Zap size={12} />一键批量生图</>}
             </button>
+            </div>
           </div>
           {results.map((result) => (
             <ExpandResultCard
