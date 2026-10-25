@@ -93,6 +93,7 @@ class Job:
 
 JOBS = {}
 JOBS_LOCK = threading.Lock()
+VIDEO_JOB_LOCK = threading.Lock()
 
 # ================= RunningHub 核心（开放 API 通道，改造自 rh_h3_parallel_32并发.py） =================
 HOST = 'www.runninghub.ai'
@@ -5283,3 +5284,9 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+def run_job_serial(job):
+    """串行执行视频 Job：同一时间只让一个 H3 任务占用 WS/分段运行态。"""
+    with VIDEO_JOB_LOCK:
+        return run_job(job)
