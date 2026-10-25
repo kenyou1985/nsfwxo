@@ -448,6 +448,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0): string {
   const twoWomen = /(two women|two girls|lesbian|female partner|another woman|second woman|strap-on|女女|百合|双女|两个女人|两名女性)/i.test(scene) || womanCount >= 2;
   const hasMan = !twoWomen && /\b(man|male|boyfriend|guy|his |he )\b|男人|男性|男主|男友|男子/i.test(scene);
   const solo = !twoWomen && !hasMan;
+  const coercive = hasMan && (!explicitAct || /(尾随|跟踪|胁迫|强迫|不情愿|强奸|强暴|抓住|按在|扒光|追上|野外|rape|force|stalk|follow|catch)/i.test(scene));
   const explicitAct = /(penetrat|thrust|insert|cunnilingus|blowjob|fellatio|fuck|sex scene|inside her|riding him|takes? .{0,40}(?:cock|shaft) .{0,30}(?:mouth|throat))/i.test(scene);
   const atFacesit = /(sits? astride|sitting on (?:his|the) face|facesit|face-sit|riding (?:his|her) face|mouth beneath|oral sex beneath|cunnilingus|骑脸|坐脸|坐在脸上)/i.test(scene);
   const atSex = /(penetrat|thrust|insert|cowgirl|doggy|missionary|riding him|inside her|fuck)/i.test(scene);
@@ -621,6 +622,8 @@ function buildAnchoredH3(imagePrompt: string, variant = 0): string {
   const d = (zh: string, speaker: 'S1' | 'S2' = 'S1') => `(${speaker}): <d>[Chinese] ${zh}</d>`;
   const female = ['好舒服…', '慢一点…', '求求你…', '快一点…', '我快不行了…', '爸爸操我…', '哥哥我想要…'];
   const male = ['不要动。', '夹紧。', '屁股抬高。', '操死你。', '不要出声。', '嘴巴张开。', '舔干净，吞下去。', '射了。'];
+  const femalePlea = ['求求你放过我…', '别插进去…', '不要…', '疼…', '求求你…', '不要射在里面…'];
+  const maleThreat = ['不要动。', '夹紧。', '再跑就操死你。', '不许出声。', '嘴巴张开。', '吞下去。', '射了。'];
   const dialogue: string[] = Array(11).fill('');
   if (twoWomen) {
     dialogue[2] = d(female[0]);
@@ -640,7 +643,24 @@ function buildAnchoredH3(imagePrompt: string, variant = 0): string {
   if (hasMan && !explicitAct) {
     dialogue.fill('');
     const v = variant % 3;
-    if (v === 0) {
+    if (coercive) {
+      if (v === 0) {
+        dialogue[2] = d(femalePlea[0]);
+        dialogue[6] = d(maleThreat[3], 'S2');
+        dialogue[7] = d(femalePlea[2]);
+        dialogue[9] = d(maleThreat[6], 'S2') + ' ' + d(femalePlea[4]);
+      } else if (v === 1) {
+        dialogue[3] = d(femalePlea[1]);
+        dialogue[4] = d(maleThreat[5], 'S2');
+        dialogue[7] = d(maleThreat[2], 'S2');
+        dialogue[9] = d(femalePlea[4]);
+      } else {
+        dialogue[3] = d(maleThreat[0], 'S2');
+        dialogue[5] = d(femalePlea[3]);
+        dialogue[8] = d(maleThreat[1], 'S2');
+        dialogue[9] = d(femalePlea[4]);
+      }
+    } else if (v === 0) {
       dialogue[2] = d(female[0]);
       dialogue[6] = d(male[3], 'S2');
       dialogue[7] = d(female[3]);
@@ -656,6 +676,13 @@ function buildAnchoredH3(imagePrompt: string, variant = 0): string {
       dialogue[8] = d(male[1], 'S2');
       dialogue[9] = d(female[4]);
     }
+  }
+  if (coercive && !(hasMan && !explicitAct)) {
+    dialogue.fill('');
+    dialogue[2] = d(femalePlea[0]);
+    dialogue[5] = d(maleThreat[5], 'S2');
+    dialogue[7] = d(femalePlea[4]);
+    dialogue[9] = d(maleThreat[6], 'S2') + ' ' + d(femalePlea[4]);
   }
   const voiced = shots.map((action, i) => i === 0 || !dialogue[i] ? action : `${action} ${dialogue[i]}`);
   const body = voiced.map((action, i) => `[Shot ${i + 1}] ${times[i]} ${action}`).join('\n');
@@ -703,7 +730,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0): string {
 ${subject2}
 
 summary:
-[reference generation] A cinematic 60-second ${mode} explicit sequence. Picture 1 is the mandatory first frame and the only identity/scene reference. The video starts on the exact act in Picture 1, then progresses through ${progression}, ending in ${endingText}. ${clothingPolicy} No scene change, no character change, no extra person.
+[reference generation] A cinematic 60-second ${mode} explicit sequence. Picture 1 is the mandatory first frame and the only identity/scene reference. The video starts on the exact act in Picture 1, then progresses through ${progression}, ending in ${endingText}. ${clothingPolicy} ${coercive ? 'She is coerced and pleading; he threatens and overpowers her.' : ''} No scene change, no character change, no extra person.
 
 retention_analysis:
 <Subject 1> <Picture 1>: fully_preserved — identity, face, hair and body come from the reference image; starting clothing is used only for Shot 1, then the shot sequence controls nudity.
