@@ -448,8 +448,8 @@ function buildAnchoredH3(imagePrompt: string, variant = 0): string {
   const twoWomen = /(two women|two girls|lesbian|female partner|another woman|second woman|strap-on|女女|百合|双女|两个女人|两名女性)/i.test(scene) || womanCount >= 2;
   const hasMan = !twoWomen && /\b(man|male|boyfriend|guy|his |he )\b|男人|男性|男主|男友|男子/i.test(scene);
   const solo = !twoWomen && !hasMan;
-  const coercive = hasMan && (!explicitAct || /(尾随|跟踪|胁迫|强迫|不情愿|强奸|强暴|抓住|按在|扒光|追上|野外|rape|force|stalk|follow|catch)/i.test(scene));
   const explicitAct = /(penetrat|thrust|insert|cunnilingus|blowjob|fellatio|fuck|sex scene|inside her|riding him|takes? .{0,40}(?:cock|shaft) .{0,30}(?:mouth|throat))/i.test(scene);
+  const coercive = hasMan && (!explicitAct || /(尾随|跟踪|胁迫|强迫|不情愿|强奸|强暴|抓住|按在|扒光|追上|野外|rape|force|stalk|follow|catch)/i.test(scene));
   const atFacesit = /(sits? astride|sitting on (?:his|the) face|facesit|face-sit|riding (?:his|her) face|mouth beneath|oral sex beneath|cunnilingus|骑脸|坐脸|坐在脸上)/i.test(scene);
   const atSex = /(penetrat|thrust|insert|cowgirl|doggy|missionary|riding him|inside her|fuck)/i.test(scene);
   const atOral = /(blowjob|deepthroat|fellatio|sucking|takes? .{0,50}(?:cock|shaft|penis) .{0,40}(?:mouth|throat)|deep into her throat|lips .{0,30}(?:shaft|cock)|mouth around)/i.test(scene);
