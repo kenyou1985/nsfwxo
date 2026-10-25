@@ -457,6 +457,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   const womanCount = (scene.match(/\bwoman\b/gi) || []).length + (scene.match(/\bgirl\b/gi) || []).length;
   const twoWomen = /(two women|two girls|lesbian|female partner|another woman|second woman|strap-on|女女|百合|双女|两个女人|两名女性)/i.test(scene) || womanCount >= 2;
   const hasMan = !twoWomen && /\b(man|male|boyfriend|guy|his |he )\b|男人|男性|男主|男友|男子/i.test(scene);
+  const isCycling = /(bicycle|bike|cycling|pedal|骑行|自行车|骑车)/i.test(scene);
   const solo = !twoWomen && !hasMan;
   const explicitAct = /(penetrat|thrust|insert|cunnilingus|blowjob|fellatio|fuck|sex scene|inside her|riding him|takes? .{0,40}(?:cock|shaft) .{0,30}(?:mouth|throat))/i.test(scene);
   const coercive = hasMan && /(尾随|跟踪|胁迫|强迫|不情愿|强奸|强暴|抓住|按在|扒光|追上|野外|跟着|rape|force|stalk|follow|catch)/i.test(scene);
@@ -466,7 +467,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   const wantsAss = /(anal|anus|ass|doggy|behind|plug|glute)/i.test(scene);
   const wantsOral = /(oral|blowjob|mouth|deepthroat|suck)/i.test(scene);
   const cumEnding = hasMan ? ['ass', 'oral', 'internal'][variant % 3] : wantsOral ? 'oral' : wantsAss ? 'ass' : 'internal';
-  const first = `The video opens directly in the live-action scene, already in motion: ${core.slice(0, 260)}. Picture 1 is an identity and scene reference, NOT a static first frame: do not start on a portrait, reference-sheet pose, photo face shot, or frozen replica of Picture 1. The woman's identity comes from Picture 1, but the opening frame is a real cinematic action frame with the bike, body and environment already moving.`;
+  const first = `The video opens directly in the live-action scene, already in motion: ${core.slice(0, 260)}. Picture 1 is an identity and scene reference, NOT a static first frame: do not start on a portrait, reference-sheet pose, photo face shot, or frozen replica of Picture 1. The woman's identity comes from Picture 1, but the opening frame is a real cinematic action frame with the body, clothing and environment already moving.`;
   const same = `${placeLine}. Same people. Cut smoothly between positions; the next shot starts from the previous body configuration and changes only the minimum needed. No reset, no scene change, no character change.`;
   const poseSeq = pickPoseSequence(scene);
   const penPoses = poseSeq.map((p) => p.name);
@@ -564,7 +565,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
         'Close: the suit is stripped to her waist, breasts spill out, sweat on her skin, her hands trapped behind her back.',
         'He bends her over the bicycle seat, pulls the suit down her thighs, exposes her bare ass, and slaps it.',
         'He drops to his knees behind her, spreads her cheeks and licks her from clit to ass, his tongue wet and demanding.',
-        'He straightens and drives into her from behind, bent over the bike, her body jolting with each thrust.',
+        'He straightens, yanks his cycling shorts down to his thighs, frees his cock, and drives into her from behind, bent over the bike, her body jolting with each thrust.',
         'Medium side: doggy against the bicycle, her hands gripping the handlebars, breasts swinging, the bike rocking.',
         'He lifts her onto the seat, spreads her legs and enters facing her, deep strokes, her back arching.',
         'Rhythm accelerates: hips slamming, sweat flying, her mouth open in a broken moan, the bike creaking under them.',
@@ -575,7 +576,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
         'Close: the suit is peeled to her waist, breasts crushed against his chest, one thigh lifted around his hip.',
         'He pushes her to her knees on the moss and feeds her his cock; she looks up, lips stretched, saliva dripping.',
         'Low-angle close: deep throat against the tree, his hand in her hair, her mascara smeared, gagging softly.',
-        'He lifts her by the thighs into a standing carry against the trunk and drives into her, feet off the ground.',
+        'He shoves his cycling shorts down, lifts her by the thighs into a standing carry against the trunk, and drives into her, feet off the ground.',
         'Side view standing carry: her back scraping bark, legs locked around him, breasts bouncing with each thrust.',
         'He lowers her onto a fallen log and takes her missionary, legs over his shoulders, deep slow strokes.',
         'Rhythm accelerates on the log: hips slamming, leaves in her hair, her mouth open in a broken cry.',
@@ -585,14 +586,61 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
         'He forces her face-down into the undergrowth, knee between her thighs, and rips the cycling suit down her back.',
         'Close: her bare ass is up, suit bunched at her knees, face turned in the leaves, mouth open and gasping.',
         'He spanks her exposed cheeks, then spreads them and spits, the head of his cock pressing against her.',
-        'Prone bone: he lies over her, chest to her back, and drives deep into the dirt, her fingers clawing the soil.',
+        'He yanks his shorts down, then prone-bones her: chest to her back, driving deep into the dirt, her fingers clawing the soil.',
         'He pulls out and flips her onto her back in the ferns, knees pushed to her chest, and enters again.',
         'Missionary in the dirt: faces close, sweat and leaf litter on her skin, her legs wrapped around him.',
         'He sits back and pulls her on top, cowgirl in the forest, her hands on his chest, hips rolling.',
         'She bounces harder, breasts in his face, the ferns shaking around them, both breathing ragged.',
       ],
     ];
-    shots = [first, ...(chaseVariants[variant % 3] || chaseVariants[0]), final];
+    const walkVariants = [
+      [
+        `He closes the distance in the alley and grabs her wrist; she tries to pull away, he tightens his grip and threatens her under his breath. ${placeLine}.`,
+        'He pins her against the alley wall, one hand on her throat, the other pushing her blouse up; she pleads, he tells her to shut up.',
+        'He pulls her bra down, gropes her bare breasts, then drags her behind a parked van and bends her over the rear bumper.',
+        'He pushes her to her knees, unbuckles his belt, pulls his trousers open, and feeds her his cock; she gags, tears in her eyes.',
+        'He hauls her up, flips her skirt over her back, yanks her panties aside, and presses her against the van.',
+        'He shoves his trousers and boxers down to his ankles, spreads her legs, and pushes into her from behind; she cries out.',
+        'He fucks her against the van, one hand over her mouth, the other gripping her hip, her feet barely touching the ground.',
+        'He bends her further over, lifts one leg onto the bumper, and drives deeper; her skirt bunches around her waist.',
+        'He speeds up, balls slapping her ass, the van rocking, her muffled pleas breaking into sobs.',
+      ],
+      [
+        `He follows her into the dim stairwell, clamps a hand over her mouth, and drags her onto the landing; she struggles, he threatens her. ${placeLine}.`,
+        'He pins her to the railing, bends her over it, and pulls her blouse and bra down, exposing her breasts to the cold air.',
+        'He lifts her skirt, rips her panties aside, and shoves two fingers into her while she begs him to stop.',
+        'He forces her to her knees on the concrete, opens his trousers, and pushes his cock into her mouth; she chokes.',
+        'He pulls her up by the hair, bends her over the railing, and yanks his trousers down to his knees.',
+        'He enters her from behind on the landing, one hand in her hair, the other holding her hip; her skirt rides up.',
+        'He presses her face against the wall and fucks her harder, her breasts bouncing against the plaster.',
+        'He pulls out, turns her around, lifts one leg, and pushes back in facing her; her back hits the railing.',
+        'His hips slam faster, the stairwell echoing, her pleas muffled by his hand.',
+      ],
+      [
+        `He corners her at the end of the alley, grabs a fistful of her hair, and threatens her; she freezes, trembling. ${placeLine}.`,
+        'He forces her through a broken door into an abandoned room, throws her onto a dusty mattress, and pins her down.',
+        'He tears her blouse open, pulls her skirt up, and strips her bra and panties off; she tries to cover herself.',
+        'He pushes her head down to his crotch, opens his trousers, and makes her suck him; she gags and drools.',
+        'He bends her over a wooden crate, kicks her legs apart, and pulls his trousers and boxers down to his ankles.',
+        'He spits on his cock and pushes into her from behind; she claws the crate, crying out.',
+        'He fucks her hard over the crate, dust rising, one hand pressing her back down, the other slapping her ass.',
+        'He pulls her upright against his chest, one hand on her throat, and keeps thrusting; her feet leave the floor.',
+        'He throws her onto the mattress, spreads her legs, and drives back in; the old springs creak violently.',
+      ],
+    ];
+    const consensualActions = [
+      `He steps into her space and kisses her slowly, one hand cupping her jaw, the other settling on her waist. ${placeLine}.`,
+      'She kisses back and unbuttons his shirt; he pulls her blouse open, slides it off her shoulders, and unhooks her bra.',
+      'He cups her bare breasts and kisses down her neck; she arches into him and reaches for his belt.',
+      'She sinks to her knees and takes him in her mouth, tongue dragging the shaft, eyes on his face; he groans and holds her hair.',
+      'He lifts her by the waist, carries her to the nearest surface, and lays her down; her skirt is pushed up around her hips.',
+      'He pulls her panties off, spreads her thighs, and goes down on her, tongue circling her clit until she gasps.',
+      'She pulls him up by the shoulders and guides him inside; they moan together as he sinks in slowly.',
+      'He thrusts deep and steady, forehead against hers, her legs wrapped around his waist, both breathing hard.',
+      'She rolls on top without pulling out, sits up, and rides him, hands on his chest, hips rolling faster.',
+    ];
+    const activeVariants = coercive ? (isCycling ? chaseVariants : walkVariants) : [consensualActions, consensualActions, consensualActions];
+    shots = [first, ...(activeVariants[variant % 3] || activeVariants[0]), final];
   } else if (!explicitAct) {
     shots = [
       first,
@@ -715,10 +763,32 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
     'Close on her face: tears, sweat, smeared mascara, mouth open in a broken plea as she takes the last strokes.',
     'He holds her down with his weight, hips stuttering, both bodies tense and covered in forest debris.',
   ];
+  const urbanExtraPool = [
+    'Close on her hands braced against the alley wall, knuckles white, sweat dripping from her chin as he pins her.',
+    'He drags her deeper behind the dumpster, one hand in her hair, the other holding her hip, gravel scraping under her shoes.',
+    'She tries to pull away; he catches her wrist and slams her back against the wall, her head knocking softly.',
+    'He pins both wrists above her head, breathing hard into her face, then kisses and bites her neck.',
+    'Low angle: her legs trembling, one heel slipping off, his body covering hers against the graffiti-covered wall.',
+    'He slows down and grinds deep, making her gasp, then pulls almost all the way out and slams back in.',
+    'Close on the wet join, fluid on her thighs, his cock sliding out and pushing back with a heavy squelch.',
+    'He turns her onto her side against the van, lifts one leg, and enters at a new angle, holding her leg against his chest.',
+    'Side view: both bodies shining with sweat, her breasts swaying, his hand locked around her throat.',
+    'He pulls her up onto her knees on the concrete, presses her back against his chest, and keeps thrusting upward.',
+    'Reach-around close: his fingers circle her clit while he fucks her, her mouth falling open.',
+    'She clenches around him; he groans, slaps her ass once, and tells her to take it.',
+    'He bends her over a stack of pallets, kicks her legs wider, and drives in from behind again.',
+    'Rear view: her ass bouncing against his hips, her skirt bunched at her waist, the pallets scraping the concrete.',
+    'He grabs her hair as a handle and pounds harder, her back arching, eyes rolling.',
+    'She begs him to slow down; he covers her mouth and keeps the same brutal rhythm.',
+    'He pulls out and slaps his cock against her wet ass, then pushes back in without warning.',
+    'Close on her face: tears, sweat, smeared mascara, mouth open in a broken plea as she takes the last strokes.',
+    'He holds her down against the wall, hips stuttering, both bodies tense and slick with sweat.',
+  ];
   const finalAction = shots[shots.length - 1];
   const baseActions = shots.slice(0, -1);
   const wantedExtras = Math.max(0, shotCount - 11);
-  const longActions = [...baseActions, ...extraPool.slice(0, wantedExtras), finalAction];
+  const activeExtraPool = isCycling ? extraPool : urbanExtraPool;
+  const longActions = [...baseActions, ...activeExtraPool.slice(0, wantedExtras), finalAction];
   const duration = targetDuration;
   const times = longActions.map((_, i) => {
     const sec = i === 0 ? 0 : (i * (duration - 5)) / (longActions.length - 1);
@@ -731,8 +801,8 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
     ? '<Subject 2> is @Woman2 — the exact second cisgender adult woman shown in Picture 1, if present. She has a vulva only: no penis, no futanari, no male genitalia. Identity and appearance come only from Picture 1.'
     : hasMan
       ? malePicture
-        ? '<Subject 2> is @Man <Picture 2> — the exact adult man shown in Picture 2, wearing a black cycling jersey and black cycling shorts, standing astride or riding a black bicycle. Preserve his face, hair, body proportions and identity from Picture 2; face kept off extreme close-up.'
-        : '<Subject 2> is @Man — the adult man in the scene; if he appears in Picture 1 preserve his face, otherwise use a fully adult muscular Black man with face kept off close-up, wearing a black cycling jersey and black cycling shorts, standing astride or riding a black bicycle. Appearance comes from Picture 1 when visible.'
+        ? `<Subject 2> is @Man <Picture 2> — the exact adult man shown in Picture 2, wearing ${isCycling ? 'a black cycling jersey and black cycling shorts, standing astride or riding a black bicycle' : 'a dark shirt and dark trousers, no bicycle'}. Preserve his face, hair, body proportions and identity from Picture 2; face kept off extreme close-up.`
+        : `<Subject 2> is @Man — the adult man in the scene; if he appears in Picture 1 preserve his face, otherwise use a fully adult muscular Black man with face kept off close-up, wearing ${isCycling ? 'a black cycling jersey and black cycling shorts, standing astride or riding a black bicycle' : 'a dark shirt and dark trousers, no bicycle'}. Appearance comes from Picture 1 when visible.`
       : '';
   const mode = twoWomen ? 'two-woman' : solo ? 'solo female' : 'heterosexual';
   const endingText = solo
@@ -758,7 +828,9 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
         .replace(/\bfingers\b/gi, 'her own fingers')
     : core;
   const clothingPolicy = (hasMan && !explicitAct)
-    ? 'Shot 1 uses the reference clothing; Shot 2 catches her; Shot 3 strips the suit; Shot 4 onward she is completely nude with bare breasts, ass and vulva, no bra, no panties, no fabric.'
+    ? isCycling
+      ? 'Shot 1 uses the reference clothing; Shot 2 he catches her on his bicycle; Shot 3 strips the cycling suit; Shot 4 onward she is completely nude with bare breasts, ass and vulva, no bra, no panties, no fabric. He keeps his cycling shorts on until Shot 6, then pulls them down to his thighs before penetration.'
+      : 'Shot 1 uses her blouse, bra, mini skirt and panties; Shot 2 he follows and grabs her; Shot 3 he strips her blouse and bra; Shot 4 he pulls her skirt up and panties aside; Shot 5 she is bottomless; Shot 6 he pulls his trousers and boxers down to his ankles before penetration; from Shot 6 onward she is completely nude with bare breasts, ass and vulva.'
     : needsNude
       ? 'Shot 1 uses the reference clothing; Shot 2 strips it off; Shot 3 onward both are completely nude with bare breasts, vulva and ass, no bra, no panties, no fabric.'
       : 'Clothing follows Picture 1.';
@@ -772,7 +844,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
 ${subject2}
 
 summary:
-[reference generation] A cinematic ${targetDuration}-second ${mode} explicit sequence. Picture 1 is a full identity/scene reference, NOT a static first frame. The video starts directly in the live-action scene, already in motion, then progresses through ${progression}, ending in ${endingText}. ${clothingPolicy} ${coercive ? 'She is coerced and pleading; he threatens and overpowers her. The man is riding a bicycle, not running.' : ''} No scene change, no character change, no extra person.
+[reference generation] A cinematic ${targetDuration}-second ${mode} explicit sequence. Picture 1 is a full identity/scene reference, NOT a static first frame. The video starts directly in the live-action scene, already in motion, then progresses through ${progression}, ending in ${endingText}. ${clothingPolicy} ${coercive ? `She is coerced and pleading; he threatens and overpowers her. ${isCycling ? 'The man is riding a bicycle, not running.' : 'He follows and overpowers her on foot; there is no bicycle in this scene.'}` : ''} No scene change, no character change, no extra person.
 
 retention_analysis:
 <Subject 1> <Picture 1>: fully_preserved — identity, face, hair and body come from the reference image; starting clothing is used only for Shot 1, then the shot sequence controls nudity.
