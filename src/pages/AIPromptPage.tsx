@@ -437,10 +437,11 @@ function generateH3Summary(h3Prompt: string): string {
 }
 /** 以当前图片为首帧，生成规范 H3 六段式视频提示词 */
 function applyAnchorNames(prompt: string, anchors: GirlfriendPreset[]): string {
-  return prompt.replace(/<Picture\s+(\d+)>/gi, (m, n) => {
+  // 幂等：已经带 @名字 的不再追加，避免 @河北彩花@河北彩花
+  return prompt.replace(/<Picture\s+(\d+)>(?!@)/gi, (m, n) => {
     const gf = anchors[Number(n) - 1];
     return gf ? `<Picture ${n}>@${gf.nameZh || gf.name}` : m;
-  });
+  }).replace(/(<Picture\s+\d+>@[^@\s—,，;；:：]+)@\2/g, '$1');
 }
 
 function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false): string {
