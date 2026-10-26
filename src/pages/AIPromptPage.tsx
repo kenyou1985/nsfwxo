@@ -1723,7 +1723,8 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     try {
       const body = {
         firstFrameUrl: image,
-        media: [{ type: 'reference_image', url: image }, ...extraAnchorImages.map((u) => ({ type: 'reference_image', url: u }))],
+        // firstFrameUrl 已经是 Picture 1；media 只放额外参考图，避免后端把同一张图重复算成 refs=3
+        media: extraAnchorImages.map((u) => ({ type: 'reference_image', url: u })),
         workflow_id: '2110330160000516098',
         duration: 15,
         resolution: videoClarity,
