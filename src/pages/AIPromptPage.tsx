@@ -2802,6 +2802,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     if (!getYunwuKey()) { onError('请先在设置中配置 OpenLux API Key'); return; }
     setLoading(true);
     setExpandedIdx(null);
+    setVideoStates({});
     autoH3Ref.current = true;
 
     // Seed N placeholder cards so the UI renders an empty shell for every
