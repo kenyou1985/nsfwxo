@@ -765,7 +765,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   const scriptIsSolo = /(only her own|her own hand|no man|no male|solo female)/i.test(scriptJoined);
   const scriptHasGroping = /(grope|fondle|touch(?:es|ing)? her|hand .*?(?:ass|hip|thigh|crotch|pussy)|摸|臀|下体)/i.test(scriptJoined);
   const scriptMismatch = (hasMan && scriptIsSolo) || (isGroping && !scriptHasGroping);
-  const hasScriptShots = normalizedScriptShots.length >= 8 && !scriptMismatch;
+  const hasScriptShots = normalizedScriptShots.length >= 8 && !scriptMismatch && !isGroping;
   if (hasScriptShots) {
     shots = normalizedScriptShots;
   }
@@ -939,7 +939,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
     : hasMan
       ? malePicture
         ? `<Subject 2> is @Man <Picture 2> — the exact adult man shown in Picture 2, wearing ${isCycling ? 'a black cycling jersey and black cycling shorts, standing astride or riding a black bicycle' : 'the clothing shown in Picture 1 or the source scene, no bicycle'}. ${isGroping ? 'He remains FULLY CLOTHED in all 12 shots; no male nudity and no penetration. ' : coercive ? `He remains FULLY CLOTHED in Shots 1-${Math.max(1, maleUndressIdx)}; he must NOT be nude or shirtless before Shot ${Math.max(1, maleUndressIdx + 1)}. ` : ''}Preserve his face, hair, body proportions and identity from Picture 2; face kept off extreme close-up. All S2 lines are clear natural Mandarin Chinese, spoken in a low adult male voice; no gibberish, no English, no mumbling.`
-        : `<Subject 2> is @Man — the adult man in the scene; if he appears in Picture 1 preserve his face, otherwise use a fully adult muscular Black man with face kept off close-up, wearing ${isCycling ? 'a black cycling jersey and black cycling shorts, standing astride or riding a black bicycle' : 'a dark shirt and dark trousers, no bicycle'}. Appearance comes from Picture 1 when visible.`
+        : `<Subject 2> is @Man — the adult man in the scene; if he appears in Picture 1 preserve his face, otherwise use a fully adult man with face kept off close-up; do NOT default to any race or skin tone, wearing ${isCycling ? 'a black cycling jersey and black cycling shorts, standing astride or riding a black bicycle' : 'a dark shirt and dark trousers, no bicycle'}. Appearance comes from Picture 1 when visible.`
       : '';
   const mode = twoWomen ? 'two-woman' : solo ? 'solo female' : 'heterosexual';
   const endingText = isGroping
@@ -984,7 +984,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
     : twoWomen
       ? 'multiple positions and mutual oral'
       : isGroping
-        ? 'a clothed subway groping sequence, hands moving under her clothes, ending in a silent clothed orgasm'
+        ? 'a clothed subway groping sequence, hands moving under her clothes, escalating to a silent clothed orgasm'
         : 'multiple positions and oral';
   const rawPrompt = `subject_definitions:
 <Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1. Picture 1 defines face, hair, hairstyle, skin tone, body proportions and breast size/shape ONLY. IGNORE all clothing from Picture 1: do NOT copy the reference blouse, skirt, colors or outfit. Shot 1 must use the theme outfit${themeOutfit ? `: ${themeOutfit}` : ' described in the theme'}. ${isGroping ? 'She remains fully clothed in Shots 1-12; only the blouse and skirt are displaced; no nudity and no undressing.' : 'From Shot 2 onward follow the detailed_description nude state; no reference clothing returns.'}
@@ -994,7 +994,7 @@ summary:
 [reference generation] Theme outline: ${openingScene}. A cinematic ${targetDuration}-second ${mode} explicit sequence. Picture 1 is a full identity/scene reference, NOT a static first frame. The video starts directly in the live-action scene, already in motion, then progresses through ${progression}, ending in ${endingText}. ${clothingPolicy} ${coercive ? `She is coerced and pleading; he threatens and overpowers her. ${isCycling ? 'The man is riding a bicycle, not running.' : 'He closes in and overpowers her; there is no bicycle in this scene.'}` : ''} No scene change, no character change, no extra person.
 
 retention_analysis:
-<Subject 1> <Picture 1>: fully_preserved — identity, face, hair and body come from the reference image; starting clothing is used only for Shot 1, then the shot sequence controls nudity.
+<Subject 1> <Picture 1>: fully_preserved — identity, face, hair and body come from the reference image. ${isGroping ? 'She remains fully clothed throughout; only the blouse and skirt are displaced by hands; no nudity.' : 'Starting clothing is used only for Shot 1, then the shot sequence controls nudity.'}
 <Picture 1> identity reference: fully_preserved for face, hair and body; Picture 1 is not used as a static first frame.
 ${malePicture && hasMan ? '<Picture 2> identity: fully_preserved — the male lead face, hair and body come only from Picture 2.' : ''}
 Scene and action: fully_preserved from the source image prompt; only positions progress, location never changes.
@@ -1003,7 +1003,7 @@ detailed_description:
 ${body}
 
 
-overall_soundscape: ${solo ? 'Location ambience, her own breathing and soft moans, wet fingers/toy sounds, a clear squirting splash, then trembling after-breaths. No male voice.' : twoWomen ? 'Location ambience, wet kisses, skin-on-skin, both women breathing and moaning, wet squirting splashes, one shared climax cry, then after-breaths. No male voice.' : 'Location ambience under skin-on-skin impact, wet penetration and plug-shifting sounds, fabric friction, heavy breathing, her broken moans and one climax cry, one male groan, then after-breaths.'}
+overall_soundscape: ${isGroping ? 'Crowded subway car rumble, rail clicks, passengers shifting, fabric friction, her held breath and small stifled moans, one shaky exhale at the end; no penetration sounds, no bed sounds, no music.' : solo ? 'Location ambience, her own breathing and soft moans, wet fingers/toy sounds, a clear squirting splash, then trembling after-breaths. No male voice.' : twoWomen ? 'Location ambience, wet kisses, skin-on-skin, both women breathing and moaning, wet squirting splashes, one shared climax cry, then after-breaths. No male voice.' : 'Location ambience under skin-on-skin impact, wet penetration and plug-shifting sounds, fabric friction, heavy breathing, her broken moans and one climax cry, one male groan, then after-breaths.'}
 non_diegetic_music: None
 speaker_mapping: ${speakerMap}`;
   return normalizeDialogueSpeakers(normalizeH3PromptStructure(rawPrompt));
