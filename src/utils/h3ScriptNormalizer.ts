@@ -199,7 +199,9 @@ export function normalizeH3PromptStructure(raw: string): string {
   if (!raw || !/(?:\[Shot\s+\d+\]|SHOT\s+\d+\s*:)/i.test(raw)) return raw;
   const headMatch = raw.match(/^([\s\S]*?)(?=detailed_description\s*:)/i);
   let head = (headMatch ? headMatch[1] : '').trim();
-  head = head.replace(/He remains FULLY CLOTHED in Shots 1-\d+;\s*he must NOT be nude(?: or shirtless)? before Shot \d+\./gi,
+  head = head.replace(/He remains FULLY CLOTHED[^.]*?before Shot \d+\./gi,
+    'He remains FULLY CLOTHED in Shots 1-6; he must NOT be nude or shirtless before Shot 7.');
+  head = head.replace(/he keeps his dark shirt and trousers on[^.]*?before Shot \d+\./gi,
     'He remains FULLY CLOTHED in Shots 1-6; he must NOT be nude or shirtless before Shot 7.');
   head = head.replace(/through\s+(?:woman|man)\s+walks?[^,;]*?\bhome\s+in/gi, 'through the narrow alley in');
   head = head.replace(/through\s+Handheld[^,;]*?\bin/gi, 'through the narrow alley in');
@@ -229,7 +231,7 @@ export function normalizeH3PromptStructure(raw: string): string {
   let shots = [...byNum.entries()].sort((a, b) => a[0] - b[0]).slice(0, 12).map(([, v]) => v);
 
   const anchor = 'He is still fully clothed in a dark shirt and trousers; no male nudity in this shot.';
-  const maleNude = /(?:\b(?:man|he)\b[^.\n]{0,80}\b(?:fully\s+|still\s+)?nude\b|\bboth\s+(?:now\s+|still\s+)?(?:fully\s+)?nude\b|\bhis\s+(?:\w+\s+){0,3}(?:cock|penis)\s+(?:springs|is|comes)\s+free\b|\bhe\s+(?:shoves|kicks|pushes|strips)\s+(?:his|the)\s+(?:jeans|pants|trousers|boxers|clothes)[^.;]*|\bclothing stays off forever\b)/gi;
+  const maleNude = /(?:\b(?:man|he)\b[^.\n]{0,80}\b(?:fully\s+|still\s+)?nude\b|\bboth\s+(?:now\s+|still\s+)?(?:fully\s+)?nude\b|\bhe\s+(?:is\s+)?shirtless\b|\bhis\s+(?:\w+\s+){0,3}(?:cock|penis)\s+(?:springs|is|comes)\s+free\b|\bhis\s+\w+\s+(?:cock|penis)\s+(?:out|free)\b|\bhe\s+(?:yanks?|pulls?|rips?|strips?)\s+(?:his|the)\s+(?:own\s+)?(?:t-shirt|shirt|tee|top|clothes)[^.;]*?(?:off|over\s+his\s+head)[^.;]*|\bhe\s+(?:shoves|kicks|pushes|strips)\s+(?:his|the)\s+(?:jeans|pants|trousers|boxers|clothes)[^.;]*|\bclothing stays off forever\b)/gi;
   for (let i = 0; i < Math.min(6, shots.length); i++) {
     shots[i] = shots[i].replace(maleNude, 'he keeps his dark shirt and trousers on');
     if (!/fully clothed|no male nudity|trousers remain on|keeps his dark shirt/i.test(shots[i])) {
