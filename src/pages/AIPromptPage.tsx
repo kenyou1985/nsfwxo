@@ -1699,6 +1699,10 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   }, [outputText, taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, onNavigate]);
 
   const runMainGenerateVideo = useCallback(async (overridePrompt?: string, overrideImage?: string, cardKey?: string) => {
+    if (!overridePrompt?.trim()) {
+      onError('提示词还在生成中，请等 H3 提示词出现后再点生视频');
+      return;
+    }
     const videoText = overridePrompt || outputText;
     if (!videoText.trim()) { onError('请先生成或选择提示词'); return; }
     if (!digitalHumanMode) { onError('请先开启数字人锚定，才能生成视频'); return; }
@@ -1890,6 +1894,10 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   const handleBatchVideo = useCallback(async () => {
     if (type !== 'video') { onError('当前是生图模式，请切换到视频模式'); return; }
     if (!results.length || batchVideoLoading) return;
+    if (results.some((r) => !r.prompt.trim())) {
+      onError('提示词还在生成中，请等 3 条提示词全部出现后再批量生视频');
+      return;
+    }
     setBatchVideoLoading(true);
     const submitted = await Promise.allSettled(
       results.map((r) => handleMainGenerateVideo(r.prompt, undefined, r.id)),
@@ -2201,7 +2209,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
             <div className="flex items-center gap-2">
             <button
               onClick={handleBatchVideo}
-              disabled={type !== 'video' || batchVideoLoading}
+              disabled={type !== 'video' || batchVideoLoading || results.some((r) => !r.prompt.trim())}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${type !== 'video' || batchVideoLoading ? 'bg-bg-elevated text-text-secondary cursor-not-allowed' : 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:opacity-90'}`}
             >
               {batchVideoLoading ? <><Loader2 size={12} className="animate-spin" /> 提交中...</> : <><Video size={12} />一键批量生视频</>}
@@ -2404,9 +2412,9 @@ function ExpandResultCard({ result, r18Mode, isCopied, genState, videoState, onC
           </span>
         )}
         <button onClick={onSendToH3Page}
-          disabled={!digitalHumanMode || !selectedGirlfriend}
-          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium flex-shrink-0 ml-auto ${!digitalHumanMode || !selectedGirlfriend ? 'bg-indigo-100 text-indigo-300 cursor-not-allowed' : 'bg-indigo-500 text-white hover:bg-indigo-600'}`}
-          title={!digitalHumanMode || !selectedGirlfriend ? '请先锚定数字人' : '用数字人锚定生成视频'}
+          disabled={isPromptLoading || !digitalHumanMode || !selectedGirlfriend}
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium flex-shrink-0 ml-auto ${isPromptLoading || !digitalHumanMode || !selectedGirlfriend ? 'bg-indigo-100 text-indigo-300 cursor-not-allowed' : 'bg-indigo-500 text-white hover:bg-indigo-600'}`}
+          title={isPromptLoading ? '提示词还在生成中' : !digitalHumanMode || !selectedGirlfriend ? '请先锚定数字人' : '用数字人锚定生成视频'}
         >
           {videoState?.loading ? <><Loader2 size={11} className="animate-spin" /> 视频生成中...</> : <><Video size={11} />生视频</>}
         </button>
