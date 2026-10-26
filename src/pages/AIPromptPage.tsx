@@ -2241,7 +2241,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               r18Mode={r18Mode}
               isCopied={copiedId === result.id}
               genState={genState[result.id]}
-              videoState={cardVideoStates[result.id] || (outputText === result.prompt ? mainVideo : undefined)}
+              videoState={cardVideoStates[result.id]}
               digitalHumanMode={digitalHumanMode}
               selectedGirlfriend={selectedGirlfriend}
               onCopy={() => handleCopy(result.id, result.prompt)}
