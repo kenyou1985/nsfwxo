@@ -458,7 +458,9 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   const twoWomen = explicitTwoWomen || (/(^|\s)women(\s|$)/i.test(scene) && !/(男子|男人|男性|\bman\b)/i.test(themeText));
   const userHasMan = /(男子|男人|男性|男友|男主|一个强壮|跟踪|尾随|\bman\b|\bmale\b)/i.test(userHint);
   const hasMan = !twoWomen && (userHasMan || /\b(man|male|boyfriend|guy|his |he )\b|男人|男性|男主|男友|男子/i.test(scene));
-  const isCycling = /(bicycle|bike|cycling|pedal|骑行|自行车|骑车)/i.test(themeText);
+  // 只认真正的骑行语义；不能匹配 motorbikes / motorcycle / scooter 里的 bike 子串
+  const isCycling = /(骑行|自行车|骑车)/.test(themeText)
+    || /\b(?:bicycle|bike|cycling|cyclist|pedal(?:ing)?)\b/i.test(themeText);
   const solo = !twoWomen && !hasMan;
   const coercive = hasMan && /(尾随|跟踪|胁迫|强迫|不情愿|强奸|强暴|抓住|按在|扒光|追上|野外|跟着|rape|force|stalk|follow|catch)/i.test(themeText);
   const forcePrelude = hasMan && /(尾随|跟踪|胁迫|强迫|不情愿|强奸|强暴|抓住|按在|扒光|追上|跟着|跟踪|尾随)/i.test(userHint);
@@ -837,7 +839,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
     ? '<Subject 2> is @Woman2 — the exact second cisgender adult woman shown in Picture 1, if present. She has a vulva only: no penis, no futanari, no male genitalia. Identity and appearance come only from Picture 1.'
     : hasMan
       ? malePicture
-        ? `<Subject 2> is @Man <Picture 2> — the exact adult man shown in Picture 2, wearing ${isCycling ? 'a black cycling jersey and black cycling shorts, standing astride or riding a black bicycle' : 'the clothing shown in Picture 1 or the source scene, no bicycle'}. Preserve his face, hair, body proportions and identity from Picture 2; face kept off extreme close-up.`
+        ? `<Subject 2> is @Man <Picture 2> — the exact adult man shown in Picture 2, wearing ${isCycling ? 'a black cycling jersey and black cycling shorts, standing astride or riding a black bicycle' : 'the clothing shown in Picture 1 or the source scene, no bicycle'}. Preserve his face, hair, body proportions and identity from Picture 2; face kept off extreme close-up. All S2 lines are clear natural Mandarin Chinese, spoken in a low adult male voice; no gibberish, no English, no mumbling.`
         : `<Subject 2> is @Man — the adult man in the scene; if he appears in Picture 1 preserve his face, otherwise use a fully adult muscular Black man with face kept off close-up, wearing ${isCycling ? 'a black cycling jersey and black cycling shorts, standing astride or riding a black bicycle' : 'a dark shirt and dark trousers, no bicycle'}. Appearance comes from Picture 1 when visible.`
       : '';
   const mode = twoWomen ? 'two-woman' : solo ? 'solo female' : 'heterosexual';
