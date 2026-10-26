@@ -962,8 +962,6 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
             _wf['9999'] = {'class_type': 'LoadImage', 'inputs': {'image': job.uploaded[_blank]}}
         # H3 AddGuide 的音频引导会让续段反复使用第一段音频，造成男声台词被拖音/火星语；
         # 关闭音频引导，让每段按自己的 <d> 台词重新生成音频，仅保留画面尾帧引导。
-        if '338' in _wf and isinstance(_wf['338'].get('inputs'), dict):
-            _wf['338']['inputs'].pop('audio', None)
             # ===== 2026-10-19 画面错乱修复（导演台 502=true 路径，任务 2112192490453401601 实锤）=====
             # 根因：502=true 时 15/228 视觉被 9999 透明图接管 → LLM 只见“纯黑图片” → 输出虚空描述
             #   （WS 日志实锤 “Since you have provided only a solid black image... The Void / Pure Darkness”）
@@ -1273,9 +1271,6 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
             _wf['440']['inputs']['images'] = ['439', 0]
         if '443' in _wf and isinstance(_wf['443'].get('inputs'), dict):
             _wf['443']['inputs']['images'] = ['442', 0]
-        # 3013 正常链路使用 27.6 帧/秒计算 H3 length；24 会让 12 秒段提前 execution_success
-        if '9' in _wf and isinstance(_wf['9'].get('inputs'), dict):
-            _wf['9']['inputs']['expression'] = 'max(5, round(a * 27.6)) + (5 - (max(5, round(a * 27.6)) % 17)) % 17'
         # ===== 自杀链：不注入，保持画布默认（440/443 filename_prefix=H3_suicide_A/B、438/441 delay=30）=====
         # 用户铁律：自杀式节点（报错失败免扣分）是核心命脉，禁止删除/绕过。画布验证过 SaveImage 报错免扣费。
         # ===== 提交体核对（2026-10-19 假成功诊断用）：直接输出将要 POST 的关键字段形态 =====
