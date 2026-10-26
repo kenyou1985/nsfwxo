@@ -1152,6 +1152,19 @@ function formatTime(seconds: number): string {
   return `${m}m ${s}s`;
 }
 
+function VideoElapsed({ startTime, active }: { startTime?: number; active?: boolean }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (!active || !startTime) return;
+    setNow(Date.now());
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [active, startTime]);
+  if (!active || !startTime) return null;
+  const seconds = Math.max(0, Math.floor((now - startTime) / 1000));
+  return <span className="tabular-nums opacity-80">· {formatTime(seconds)}</span>;
+}
+
 // ─── Expand Mode ─────────────────────────────────────────────────────────────
 
 function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskManager, apiKey, onNavigate, digitalHumanMode, setDigitalHumanMode, selectedGirlfriend, selectedAnchors, setSelectedGirlfriend, img2imgAspectRatio, setImg2imgAspectRatio }: {
@@ -1169,7 +1182,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   const [videoSegments, setVideoSegments] = useState(4);
   const [videoRoutes, setVideoRoutes] = useState(1);
   const [mainVideo, setMainVideo] = useState<{loading:boolean;url?:string;error?:string}>({ loading: false });
-  const [cardVideoStates, setCardVideoStates] = useState<Record<string, { loading: boolean; url?: string; error?: string }>>({});
+  const [cardVideoStates, setCardVideoStates] = useState<Record<string, { loading: boolean; url?: string; error?: string; startTime?: number }>>({});
   const [count, setCount] = useState(savedExpand?.count || 5);
   const [results, setResults] = useState<{ id: string; original: string; prompt: string; r18: boolean }[]>(savedExpand?.results || []);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -1769,7 +1782,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     const maxRefs = /<Picture\s*3>/i.test(videoText) ? 3 : 2;
     extraAnchorImages = extraAnchorImages.slice(0, Math.max(1, maxRefs - 1));
     const vk = cardKey || videoText;
-    setCardVideoStates(prev => ({ ...prev, [vk]: { loading: true } }));
+    setCardVideoStates(prev => ({ ...prev, [vk]: { loading: true, startTime: Date.now() } }));
     setMainVideo({ loading: true });
     try {
       const body = {
@@ -2407,7 +2420,7 @@ function ExpandResultCard({ result, r18Mode, isCopied, genState, videoState, onC
   genState?: { loading: boolean; images: string[]; taskId: string | null };
   onCopy: () => void; onDelete: () => void; onGenerateImage: () => void; onSendToH3Page: () => void; onUseAsOutput: () => void;
   onFavorited?: (url: string) => void;
-  videoState?: { loading: boolean; url?: string; error?: string };
+  videoState?: { loading: boolean; url?: string; error?: string; startTime?: number };
   taskManager: TaskManagerReturn;
   digitalHumanMode?: boolean; selectedGirlfriend?: GirlfriendPreset | null;
 }) {
@@ -2453,7 +2466,7 @@ function ExpandResultCard({ result, r18Mode, isCopied, genState, videoState, onC
           className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium flex-shrink-0 ml-auto ${isPromptLoading || !digitalHumanMode || !selectedGirlfriend ? 'bg-indigo-100 text-indigo-300 cursor-not-allowed' : 'bg-indigo-500 text-white hover:bg-indigo-600'}`}
           title={isPromptLoading ? '提示词还在生成中' : !digitalHumanMode || !selectedGirlfriend ? '请先锚定数字人' : '用数字人锚定生成视频'}
         >
-          {videoState?.loading ? <><Loader2 size={11} className="animate-spin" /> 视频生成中...</> : <><Video size={11} />生视频</>}
+          {videoState?.loading ? <><Loader2 size={11} className="animate-spin" /> 视频生成中... <VideoElapsed startTime={videoState.startTime} active={videoState.loading} /></> : <><Video size={11} />生视频</>}
         </button>
         <button onClick={onUseAsOutput}
           disabled={isPromptLoading}
@@ -2562,7 +2575,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   // Track which indices are currently being processed (for parallel loading indicators)
   const [h3ProcessingIndices, setH3ProcessingIndices] = useState<Set<number>>(new Set());
   const autoH3Ref = useRef(false);
-  const [videoStates, setVideoStates] = useState<Record<number, { loading: boolean; url?: string; error?: string }>>({});
+  const [videoStates, setVideoStates] = useState<Record<number, { loading: boolean; url?: string; error?: string; startTime?: number }>>({});
   const inlineRestoredRef = useRef<Set<string>>(new Set());
   const [videoClarity, setVideoClarity] = useState(0.2);
   const [videoSegments, setVideoSegments] = useState(4);
@@ -2593,7 +2606,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       const idx = results.findIndex((r) => r.prompt === item.promptKey);
       if (idx < 0) continue;
       inlineRestoredRef.current.add(item.taskId);
-      setVideoStates((prev) => ({ ...prev, [idx]: { loading: true } }));
+      setVideoStates((prev) => ({ ...prev, [idx]: { loading: true, startTime: Date.now() } }));
       void (async () => {
         let url: string | undefined;
         try {
@@ -3317,7 +3330,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       || genStatesRef.current[idx]?.images?.[0];
     if (!image) { onError('请先生成图片，再生成视频'); return; }
 
-    setVideoStates(prev => ({ ...prev, [idx]: { loading: true } }));
+    setVideoStates(prev => ({ ...prev, [idx]: { loading: true, startTime: Date.now() } }));
     const rhKey = apiKey;
     let submittedTaskId: string | undefined;
     if (!rhKey) { onError('请先配置 RunningHub API Key'); setVideoStates(prev => ({ ...prev, [idx]: { loading: false, error: '未配置 API Key' } })); return; }
@@ -3692,7 +3705,7 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
   onGenerateVideo: () => void;
   onSendToH3Page: () => void;
   onGenerateH3: () => void;
-  videoState?: { loading: boolean; url?: string; error?: string };
+  videoState?: { loading: boolean; url?: string; error?: string; startTime?: number };
   videoClarity: number; videoSegments: number; videoRoutes: number;
   onVideoClarityChange: (v: number) => void;
   onVideoSegmentsChange: (v: number) => void;
@@ -3888,7 +3901,7 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
                   }`}
                   title="用当前图片走导演台 H3 det16 生成视频"
                 >
-                  {videoState?.loading ? <><Loader2 size={11} className="animate-spin" /> 视频生成中</> : <><Play size={11} />生视频 2.2</>}
+                  {videoState?.loading ? <><Loader2 size={11} className="animate-spin" /> 视频生成中 <VideoElapsed startTime={videoState.startTime} active={videoState.loading} /></> : <><Play size={11} />生视频 2.2</>}
                 </button>
                 <button
                   onClick={onGenerateImage}
@@ -4091,7 +4104,7 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90 transition-all disabled:opacity-50"
                   >
                     {videoState?.loading ? <Loader2 size={12} className="animate-spin" /> : <Video size={12} />}
-                    {videoState?.loading ? '视频生成中' : '生视频 2.2'}
+                    {videoState?.loading ? <>视频生成中 <VideoElapsed startTime={videoState.startTime} active={videoState.loading} /></> : '生视频 2.2'}
                   </button>
                 </div>
               )}
