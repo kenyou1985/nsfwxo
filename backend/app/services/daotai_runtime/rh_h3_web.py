@@ -1015,13 +1015,6 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
             _wf['1269']['inputs']['value'] = _M_det   # 每段分镜数：4 段 × 3 = 12，覆盖 11 个 Shot
         _wf['503']['inputs']['value'] = _N_det    # 总段数（504 = 503-1 = N-1 轮循环 + 首段 = N 段）
         _wf['159']['inputs']['value'] = 15   # 159→9 帧数→93/95 length→127.length
-        # 2026-10-19 时长补偿（仅外部开放API火宝路径，导演台原版提交的 9 表达式保持画布默认）：
-        #   H3 平台对 127.length 帧数实际生成帧 ≈ length 的 80-85%（24fps 下 13s→280帧/段=11.7s、10s→195帧=8.1s），
-        #   导致每段实际时长比设置缩水 10-19%。火宝路径把 9 节点系数 24→27.6（×1.15 补偿），
-        #   保留 17 帧对齐结构，仅影响提交时注入的 workflow JSON，不触碰画布默认。
-        if cfg.get('_from_openapi'):
-            _wf['9']['inputs']['expression'] = \
-                "max(5, round(a * 27.6)) + (5 - (max(5, round(a * 27.6)) % 17)) % 17"
         _wf['25']['inputs']['value'] = cfg.get('resolution', 0.2)      # 像素清晰度
         # ===== 2026-10-22 同步 nsfwxo 节点级优化（环境变量可回退）=====
         try:
