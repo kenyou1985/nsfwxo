@@ -467,7 +467,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   const forcePrelude = hasMan && /(尾随|跟踪|胁迫|强迫|不情愿|强奸|强暴|抓住|按在|扒光|追上|跟着|跟踪|尾随)/i.test(userHint);
   const locationMatch = scene.match(/((?:[A-Za-z-]+\s+){0,4}(?:alley|lane|street|road|sidewalk|room|office|corridor|entrance|path|trail|house|home|beach|park|garage|club|bar|hotel|classroom|warehouse|stairwell|landing))/i);
   let locationLabel = (locationMatch?.[0] || 'the opening location').replace(/[.,;]+$/g, '').replace(/\s+/g, ' ').trim();
-  locationLabel = locationLabel.replace(/^(?:after work\s+)?(?:she\s+)?(?:walks?|walking|through|toward|down|into|the)\s+/gi, '').trim() || 'urban village alley';
+  locationLabel = locationLabel.replace(/^(?:after work\s+)?(?:she\s+)?(?:\w+ly\s+)?(?:walks?|walking|through|toward|down|into|the|wearily|warily|slowly)\s+/gi, '').trim() || 'urban village alley';
   if (/storage room|dark room|room$/i.test(locationLabel) && /城中村|小巷|巷子|alley/i.test(themeText)) locationLabel = 'urban village alley';
   const placeLine = `Same location: ${locationLabel}, same lighting`;
   const explicitAct = /(penetrat|thrust|insert|cunnilingus|blowjob|fellatio|fuck|sex scene|inside her|riding him|takes? .{0,40}(?:cock|shaft) .{0,30}(?:mouth|throat))/i.test(scene);
