@@ -232,20 +232,7 @@ export function normalizeH3PromptStructure(raw: string, opts: H3StructureOptions
   // 前 6 镜已强制穿衣；若第 7 镜没有明确脱裤，补一次，保证男性裸体从 Shot 7 开始而不是更早/更晚。
 
   // 纯对白镜头补可见画面，避免 H3 只生成音频/空镜。
-  const visualFallback = false ? [
-    'Camera medium tracking shot; same location; she walks ahead, he follows behind.',
-    'Camera handheld two-shot; he closes the distance, grabs her waist, and locks a forearm around her throat.',
-    'Camera low angle following the drag; he pulls her through the dark doorway into the room.',
-    'Camera tight two-shot against the wall; he pins her, tears the blouse open, and gropes her bare breasts.',
-    'Camera close-up on hands and bodies; he strips the remaining clothes and fingers her.',
-    'Camera low angle; he pushes her to her knees and feeds her his cock.',
-    'Camera side profile; he lifts her and thrusts into her against the wall.',
-    'Camera handheld close-up; he chokes her and fucks her harder.',
-    'Camera rear three-quarter; he bends her over the surface and drives in from behind.',
-    'Camera overhead; he folds her legs back and pounds her on the mattress.',
-    'Camera extreme close-up on the join; he finishes deep inside her, then pulls back.',
-    'Camera slow pull-back; afterglow, both bodies still, sweat cooling, no reset.',
-  ] : [
+  const visualFallback = [
     'Camera medium two-shot, same location; she holds her pose, he stays in frame.',
     'Camera handheld close-up; they move together, hands and faces visible.',
     'Camera medium tracking shot; the action continues without a scene change.',
