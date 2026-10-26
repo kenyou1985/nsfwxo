@@ -1774,7 +1774,13 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       for (let i = 0; i < 480; i++) {
         await new Promise(r => setTimeout(r, 5000));
         const data = await pollDaotaiTask(key, submit.taskId);
-        if (data.status === 'SUCCESS') { url = data.video_url || data.output?.video_url || data.url || data.images?.[0]; break; }
+        if (data.status === 'SUCCESS') {
+          // SUCCESS 但没有任何视频地址 = 假成功，不能弹“视频已生成”
+          const candidate = data.video_url || data.output?.video_url || data.url;
+          if (!candidate) throw new Error('任务返回 SUCCESS，但没有视频地址（假成功）');
+          url = candidate;
+          break;
+        }
         if (data.status === 'FAILED') throw new Error(data.message || '视频生成失败');
       }
       if (!url) throw new Error('视频生成超时');
