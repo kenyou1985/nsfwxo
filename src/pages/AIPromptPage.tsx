@@ -998,7 +998,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
     : twoWomen
       ? 'multiple positions and mutual oral'
       : isGroping
-        ? 'a clothed subway groping sequence, hands moving under her clothes, escalating to a silent clothed orgasm'
+        ? 'a clothed subway groping sequence, hands moving under her clothes'
         : 'multiple positions and oral';
   const rawPrompt = `subject_definitions:
 <Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1. Picture 1 defines face, hair, hairstyle, skin tone, body proportions and breast size/shape ONLY. IGNORE all clothing from Picture 1: do NOT copy the reference blouse, skirt, colors or outfit. Shot 1 must use the theme outfit${themeOutfit ? `: ${themeOutfit}` : ' described in the theme'}. ${isGroping ? 'She remains fully clothed in Shots 1-12; only the blouse and skirt are displaced; no nudity and no undressing.' : 'From Shot 2 onward follow the detailed_description nude state; no reference clothing returns.'}
