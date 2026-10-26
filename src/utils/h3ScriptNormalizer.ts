@@ -18,13 +18,17 @@ export interface NormalizeOptions {
 }
 
 const CLOTHING_NOUNS = 'top|bra|shirt|blouse|skirt|jeans|panties|thong|underwear|lower garment|dress|clothes|fabric';
-const NUDE_RE = /completely nude|fully nude|already nude|no clothing remains|now fully nude|stays? nude/i;
+const NUDE_RE = /(?:she is|she's|now|remains?|body|clothing state:?)\s*(?:completely|fully) nude|completely nude from|no clothing remains|stays? nude/i;
 
 function cleanBeat(raw: string): string {
   return raw
     .replace(/^\s*(?:\[\s*)?(?:\*\*)?(?:SHOT|Shot)\s+\d+\b\s*\]?[^\n]*\n?/i, '')
     .replace(/^\s*\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}[^\n]*\n?/i, '')
     .replace(/^\s*Time range[^\n]*\n?/gmi, '')
+    .replace(/^\s*(?:TITLE|SETTING|Clothing tracked)\s*[:：][^\n]*\n?/gmi, '')
+    .replace(/^\s*\d+\.\s*(?:\(?\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}\)?)?\s*/i, '')
+    .replace(/^\s*\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}\s*\|?\s*/i, '')
+    .replace(/\s*\((?:her|his) voice:[^)]*\)/gi, '')
     .replace(/^\s*FADE OUT\b[^\n]*\n?/gmi, '')
     .replace(/^\s*AFTERGLOW\b[^\n]*\n?/gmi, '')
     .replace(/\bFADE OUT\b\.?/gi, '')
@@ -92,7 +96,9 @@ export function normalizeH3Script(raw: string, opts: NormalizeOptions): string[]
     sourceBeats = raw
       .split(/\n{2,}/)
       .map(cleanBeat)
-      .filter((x) => x.length > 30);
+      .filter((x) => x.length > 30)
+      // 纯中文对白段不是镜头，不能当成 Shot；没有画面/动作锚点的段落丢弃。
+      .filter((x) => /(?:Camera|Location|Body|Clothing|Action|Emotional|she |her |he |his |woman|man)/i.test(x));
   }
   let beats = sourceBeats.map((x) => stripForbiddenProps(x, opts.theme));
   if (!beats.length) return [];
