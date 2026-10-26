@@ -2551,7 +2551,10 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   // persisted (see RandomSession interface), so it starts as {}. Images are recovered
   // from taskManager.tasks via the relatedTasks fallback in PromptResultCard — this
   // is more reliable than trying to persist megabytes of base64 image data.
-  const [h3Prompts, setH3Prompts] = useState<Record<number, string>>(() => savedRandom?.h3Prompts || {});
+  const [h3Prompts, setH3Prompts] = useState<Record<number, string>>(() => {
+    const saved = savedRandom?.h3Prompts || {};
+    return Object.fromEntries(Object.entries(saved).map(([k, v]) => [k, normalizeCardPrompt(String(v))]));
+  });
   const [genStates, setGenStates] = useState<Record<number, { loading: boolean; images: string[]; taskId?: string }>>(savedRandom?.genStates || {});
   const [batchLoading, setBatchLoading] = useState(false);
   const [h3Loading, setH3Loading] = useState(false);
@@ -2952,7 +2955,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       prompt: r.prompt,
     })));
     // 加载历史记录中的视频提示词
-    const loadedH3Prompts: Record<number, string> = {};
+    let loadedH3Prompts: Record<number, string> = {};
     const loadedGenStates: Record<number, { loading: boolean; images: string[] }> = {};
     item.results.forEach((r, idx) => {
       if (r.h3Prompt) {
@@ -2963,6 +2966,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       }
     });
     // 立即更新 ref，确保点击"生视频"时能获取到最新的 H3 提示词
+    loadedH3Prompts = Object.fromEntries(Object.entries(loadedH3Prompts).map(([k, v]) => [k, normalizeCardPrompt(String(v))]));
     h3PromptsRef.current = loadedH3Prompts;
     genStatesRef.current = loadedGenStates;
     setH3Prompts(loadedH3Prompts);

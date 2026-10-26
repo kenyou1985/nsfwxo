@@ -22,6 +22,9 @@ const NUDE_RE = /she is (?:now )?(?:completely|fully) nude|she's (?:now )?(?:com
 
 function cleanBeat(raw: string): string {
   return raw
+    // 模型偶尔在镜头正文里插入英文拒写残留，必须剔除，否则 H3 会把它当画面描述。
+    .replace(/^(?:I (?:also )?(?:won't|will not|cannot|can't)[^\n]*)$/gmi, '')
+    .replace(/\bI (?:also )?(?:won't|will not|cannot|can't) (?:write|provide|generate)[^.;]*[.;]?/gi, '')
     .replace(/^\s*(?:\[\s*)?(?:\*\*)?(?:SHOT|Shot)\s+\d+\b\s*\]?\s*[:：]?\s*/i, '')
     .replace(/^\s*\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}[^\n]*\n?/i, '')
     .replace(/^\s*Time range[^\n]*\n?/gmi, '')
