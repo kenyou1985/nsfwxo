@@ -445,7 +445,7 @@ function applyAnchorNames(prompt: string, anchors: GirlfriendPreset[]): string {
   }).replace(/(<Picture\s+\d+>@)([^@\s—,，;；:：]+)@\2/g, '$1$2');
 }
 
-function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, shotCount = 11, userHint = ''): string {
+function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, shotCount = 12, userHint = ''): string {
   const scene = (imagePrompt || '').replace(/\[错误\][^\n]*/g, '').trim();
   const targetDuration = shotCount >= 30 ? 180 : shotCount >= 20 ? 120 : 60;
   const sentences = scene.split(/(?<=[.!?])\s+/);
@@ -695,7 +695,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   }
   // 如果上游传入的是 900-1100 词完整剧本（SHOT 1..11），走通用 H3 状态机规范化。
   const normalizedScriptShots = normalizeH3Script(imagePrompt, {
-    hasMan, coercive, theme: themeText, shotCount: 11,
+    hasMan, coercive, theme: themeText, shotCount,
   });
   const hasScriptShots = normalizedScriptShots.length >= 8;
   if (hasScriptShots) {
@@ -737,7 +737,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   const male = ['不要动。', '夹紧。', '屁股抬高。', '操死你。', '不要出声。', '嘴巴张开。', '舔干净，吞下去。', '射了。'];
   const femalePlea = ['求求你放过我…', '别插进去…', '不要…', '疼…', '求求你…', '不要射在里面…'];
   const maleThreat = ['不要动。', '夹紧。', '再跑就操死你。', '不许出声。', '嘴巴张开。', '吞下去。', '射了。'];
-  const dialogue: string[] = Array(11).fill('');
+  const dialogue: string[] = Array(Math.max(12, shotCount)).fill('');
   if (twoWomen) {
     dialogue[2] = d(female[0]);
     dialogue[6] = d('舔我…', 'S2');
@@ -841,7 +841,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   ];
   const finalAction = shots[shots.length - 1];
   const baseActions = shots.slice(0, -1);
-  const wantedExtras = Math.max(0, shotCount - 11);
+  const wantedExtras = Math.max(0, shotCount - 12);
   const neutralize = (x: string) => x
     .replace(/alley wall/gi, 'nearest wall')
     .replace(/alley/gi, 'location')
@@ -1141,7 +1141,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   const savedExpand = getExpandSession();
   const [input, setInput] = useState(savedExpand?.input || '');
   const [type, setType] = useState<'image' | 'video'>(savedExpand?.type || 'image');
-  const [videoShotCount, setVideoShotCount] = useState(11);
+  const [videoShotCount, setVideoShotCount] = useState(12);
   const [videoClarity, setVideoClarity] = useState(0.2);
   const [videoSegments, setVideoSegments] = useState(4);
   const [videoRoutes, setVideoRoutes] = useState(1);
@@ -1757,8 +1757,8 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         duration: 15,
         resolution: videoClarity,
         aspect_ratio: '9:16',
-        // 对齐 8765 正常链路：15 秒/段、4 段，真正由后端 1269=2 控制每段分镜
-        shots_per_seg: 4,
+        // 12 分镜 / 4 段 = 每段 3 分镜，对齐 16 段合成工作流
+        shots_per_seg: 3,
         target_segs: videoSegments,
         loop_routes: videoRoutes,
         instance: 'plus',
@@ -2153,7 +2153,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
                   <label>分镜</label>
                   <select value={videoShotCount} onChange={(e) => setVideoShotCount(Number(e.target.value))}
                     className="px-1 py-0.5 rounded border border-border bg-white text-center text-[10px]">
-                    <option value={11}>11 / 60s</option>
+                    <option value={12}>12 / 60s</option>
                     <option value={20}>20 / 120s</option>
                     <option value={30}>30 / 180s</option>
                   </select>
@@ -3211,7 +3211,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       const processOne = async (i: number, result: PromptResult): Promise<void> => {
         try {
           // 固定英文 11 镜 H3 模板，锚定当前图片，不再走 LLM（避免审核拒绝与中文旧模板）
-          completed[i] = buildAnchoredH3(result.prompt);
+          completed[i] = buildAnchoredH3(result.prompt, 0, false, 12);
           return;
         } finally {
           // 无论成功/失败/空结果，都立即从 processing 集合中移除该索引，
@@ -3269,7 +3269,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     
     try {
       // 固定英文 11 镜 H3 模板，锚定当前图片
-      const localH3 = buildAnchoredH3(result.prompt);
+      const localH3 = buildAnchoredH3(result.prompt, 0, false, 12);
       setH3Prompts(prev => ({ ...prev, [idx]: localH3 }));
       onSuccess(`第 ${idx + 1} 个 H3 视频提示词已生成`);
       return localH3;

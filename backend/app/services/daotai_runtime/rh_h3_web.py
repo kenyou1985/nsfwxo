@@ -1000,8 +1000,8 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
                 # 单路：500 = 完整全局提示词原样（画布内确定性切分）
                 _emit('  [路%d] P. #500.text 注入完整全局提示词（%d 字，503=%d 段，画布内确定性切分；音频净化: 无）: %s…'
                       % (rng[0], len(_gp), _N_det, _gp[:80].replace('\n', ' ')))
-        # 8765 可用基线固定每段 2 分镜；M=3 时 H3 只 execution_success 不出视频
-        _M_det = 2
+        # 12 分镜 / 4 段 = 每段 3 分镜；16 段工作流支持该密度
+        _M_det = 3
         _wf['501']['inputs']['value'] = True      # 全局模式（501=true → 505.tt=504=15 轮循环）
         # 2026-10-19 修复（第3轮，符合用户铁律"导演台原有逻辑禁止修改"）：
         #   502 取值完全恢复 wfc 默认（wfc.llm_value，6098=True → 导演台 /api/start 原有 502=true 逻辑逐字不变，
