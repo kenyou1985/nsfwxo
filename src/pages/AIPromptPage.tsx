@@ -34,6 +34,11 @@ import { submitDaotaiVideo, pollDaotaiTask } from '../services/daotai';
 import { publishExternalVideoTask } from '../services/videoTaskBridge';
 import { VIDEO_POSE_PRESETS } from '../data/presetPoses';
 
+function normalizeCardPrompt(prompt: string): string {
+  if (!prompt || !/^\s*subject_definitions\s*:/i.test(prompt)) return prompt;
+  return normalizeDialogueSpeakers(normalizeH3PromptStructure(prompt));
+}
+
 const KREA2_N_STRONG_WORKFLOW = '2101119999196127233';
 const DEFAULT_FEMALE_ANCHOR = getDefaultAnchor('female');
 const DEFAULT_MALE_ANCHOR = getDefaultAnchor('male');
@@ -2536,7 +2541,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   const [type, setType] = useState<'image' | 'video'>(savedRandom?.type || 'image');
   const [count, setCount] = useState(savedRandom?.count || 5);
   const [theme, setTheme] = useState(savedRandom?.theme || '');
-  const [results, setResults] = useState<PromptResult[]>(savedRandom?.results || []);
+  const [results, setResults] = useState<PromptResult[]>(() => (savedRandom?.results || []).map((r) => ({ ...r, prompt: normalizeCardPrompt(r.prompt) })));
   const [expandedIdx, setExpandedIdx] = useState<number | null>(savedRandom?.expandedIdx ?? null);
   const [tagsVisible, setTagsVisible] = useState(false);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
