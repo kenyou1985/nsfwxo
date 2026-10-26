@@ -134,7 +134,7 @@ export function normalizeH3Script(raw: string, opts: NormalizeOptions): string[]
  */
 export function normalizeDialogueSpeakers(raw: string): string {
   if (!raw) return raw;
-  const maleLines = /(别叫|跟我走|闭嘴|硬了|腿张开|我要进去|夹这么紧|叫出来|看着我|谁在操|嘴也|射了|还好吗|夹紧|吞下去|含住|不许|骚货|操死|不要动|不要出声|张开|舔干净|爸爸|哥哥)/;
+  const maleLines = /(别叫|跟我走|闭嘴|硬了|腿张开|我要进去|夹这么紧|夹死|接着夹|叫出来|看着我|谁在操|嘴也|射了|还好吗|夹紧|吞下去|含住|不许|骚货|骚穴|操死|鸡巴套子|不要动|不要出声|张开|舔干净|爸爸|哥哥|跪好|趴好)/;
   const femaleLines = /(放开|求你|不要|你……|太大|太深|好满|去了|嗯|啊|慢|好舒服|我快|别摸|停下|还要|会坏|安全词|抱一会|没有|疼|别插|轻点)/;
   const cleanInner = (inner: string): { text: string; speaker?: 'S1' | 'S2' } => {
     let text = inner.trim();
@@ -149,7 +149,7 @@ export function normalizeDialogueSpeakers(raw: string): string {
     text = text.replace(/^\[(?:Chinese|中文|普通话)\]\s*/i, '').trim();
     return { text, speaker };
   };
-  return raw.replace(/(?:\(S[12]\)\s*[:：]\s*)?<d>([\s\S]*?)<\/d>/g, (whole, inner) => {
+  const out = raw.replace(/(?:\(S[12]\)\s*[:：]\s*)?<d>([\s\S]*?)<\/d>/g, (whole, inner) => {
     const { text, speaker: labeled } = cleanInner(String(inner));
     if (!text) return whole;
     let speaker = labeled;
@@ -160,4 +160,9 @@ export function normalizeDialogueSpeakers(raw: string): string {
     }
     return `(S${speaker === 'S2' ? 2 : 1}): <d>[Chinese] ${text}</d>`;
   });
+  // 没有 speaker_mapping 时补上，避免 H3 用默认声线串台。
+  if (!/speaker_mapping\s*:/i.test(out)) {
+    return out.trimEnd() + '\nspeaker_mapping: {"S1":"Chinese (Mandarin)_Adult_Female_Soft","S2":"Chinese (Mandarin)_Adult_Male_Low"}';
+  }
+  return out;
 }
