@@ -172,26 +172,40 @@ export function normalizeDialogueSpeakers(raw: string): string {
  * 严格 12 镜 / 4 段结构。幂等，可对任何完整 H3 文本调用。
  */
 export function normalizeH3PromptStructure(raw: string): string {
-  if (!raw || !/\[Shot\s+\d+\]/i.test(raw)) return raw;
+  if (!raw || !/(?:\[Shot\s+\d+\]|SHOT\s+\d+\s*:)/i.test(raw)) return raw;
   const headMatch = raw.match(/^([\s\S]*?)(?=detailed_description\s*:)/i);
   let head = (headMatch ? headMatch[1] : '').trim();
-  // 模型偶发把服装锚点算成 1-1 / 1-3；12 镜统一为 1-6，Shot 7 才允许男性脱衣。
-  head = head.replace(/He remains FULLY CLOTHED in Shots 1-\d+;\s*he must NOT be nude or shirtless before Shot \d+\./gi,
+  head = head.replace(/He remains FULLY CLOTHED in Shots 1-\d+;\s*he must NOT be nude(?: or shirtless)? before Shot \d+\./gi,
     'He remains FULLY CLOTHED in Shots 1-6; he must NOT be nude or shirtless before Shot 7.');
-  // 清掉模型把“walked wearily home”误拼进 locationLabel 的残句。
   head = head.replace(/through\s+(?:woman|man)\s+walks?[^,;]*?\bhome\s+in/gi, 'through the narrow alley in');
   head = head.replace(/through\s+Handheld[^,;]*?\bin/gi, 'through the narrow alley in');
-  const shotRe = /\[Shot\s+(\d+)\][\s\S]*?(?=\n\s*\[Shot\s+\d+\]|\n\s*overall_soundscape\s*:|\n\s*speaker_mapping\s*:|$)/gi;
-  let shots = Array.from(raw.matchAll(shotRe)).map((m) => m[0]
-    .replace(/^\[Shot\s+\d+\]\s*/i, '')
-    .replace(/^\s*speaker_mapping\s*:[\s\S]*$/i, '')
-    .replace(/^\s*S[12]\s*:\s*.*$/gim, '')
-    .trim());
-  if (!shots.length) return raw;
+  head = head.replace(/through\s+shot\s*-\s*Quiet narrow path/gi, 'through the narrow alley');
+
+  // 同时识别 `[Shot N]` 和模型偶发的 `SHOT N:`；否则 raw SHOT 2..12 会被塞进 Shot 1。
+  const marks = raw.split(/(?=(?:\[Shot\s*\d+\]|\bSHOT\s*\d+\s*:))/i);
+  const byNum = new Map<number, string>();
+  for (const part of marks) {
+    const m = part.match(/^(?:\[Shot\s*(\d+)\]|\bSHOT\s*(\d+)\s*:)/i);
+    if (!m) continue;
+    const num = Number(m[1] || m[2]);
+    if (!num) continue;
+    const content = part.slice(m[0].length)
+      .replace(/^\s*speaker_mapping\s*:[\s\S]*$/i, '')
+      .replace(/\n\s*overall_soundscape\s*:[\s\S]*$/i, '')
+      .replace(/^\s*speaker_mapping\s*:.*$/gim, '')
+      .replace(/^\s*S[12]\s*:\s*.*$/gim, '')
+      .trim();
+    if (!content) continue;
+    if (!byNum.has(num)) byNum.set(num, content);
+  }
+  const firstReal = [...byNum.entries()].filter(([n, v]) => n === 1 && /walk|her |she |camera|shot/i.test(v));
+  if (!firstReal.length && byNum.has(2)) {
+    byNum.set(1, 'She walks ahead through the location, unaware; he follows several steps behind, both fully clothed, no contact yet.');
+  }
+  let shots = [...byNum.entries()].sort((a, b) => a[0] - b[0]).slice(0, 12).map(([, v]) => v);
 
   const anchor = 'He is still fully clothed in a dark shirt and trousers; no male nudity in this shot.';
-  // 12 镜：前 6 镜男性强制穿衣，第 7 镜才允许脱裤。
-  const maleNude = /(?:\b(?:man|he)\b[^.\n]{0,60}\b(?:fully\s+|still\s+)?nude\b|\bboth\s+(?:now\s+|still\s+)?(?:fully\s+)?nude\b|\bhis\s+(?:\w+\s+){0,2}(?:cock|penis)\s+(?:springs|is|comes)\s+free\b|\bhe\s+(?:shoves|kicks|pushes)\s+(?:his|the)\s+(?:jeans|pants|trousers|boxers)[^.;]*|\bclothing stays off forever\b)/gi;
+  const maleNude = /(?:\b(?:man|he)\b[^.\n]{0,80}\b(?:fully\s+|still\s+)?nude\b|\bboth\s+(?:now\s+|still\s+)?(?:fully\s+)?nude\b|\bhis\s+(?:\w+\s+){0,3}(?:cock|penis)\s+(?:springs|is|comes)\s+free\b|\bhe\s+(?:shoves|kicks|pushes|strips)\s+(?:his|the)\s+(?:jeans|pants|trousers|boxers|clothes)[^.;]*|\bclothing stays off forever\b)/gi;
   for (let i = 0; i < Math.min(6, shots.length); i++) {
     shots[i] = shots[i].replace(maleNude, 'he keeps his dark shirt and trousers on');
     if (!/fully clothed|no male nudity|trousers remain on|keeps his dark shirt/i.test(shots[i])) {
@@ -216,9 +230,8 @@ export function normalizeH3PromptStructure(raw: string): string {
     }
   }
 
-  while (shots.length < 12) {
-    shots.push('Afterglow in the exact same location and position: both bodies still, breathing slowing, sweat cooling on skin; no new act, no reset.');
-  }
+  shots = shots.filter(Boolean);
+  while (shots.length < 12) shots.push('Afterglow in the exact same location and position: both bodies still, breathing slowing, sweat cooling on skin; no new act, no reset.');
   shots = shots.slice(0, 12);
 
   const overallMatch = raw.match(/overall_soundscape\s*:\s*([\s\S]*?)(?=\n\s*non_diegetic_music\s*:|\n\s*speaker_mapping\s*:|$)/i);
