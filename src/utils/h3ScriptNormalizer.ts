@@ -191,7 +191,7 @@ export function normalizeH3PromptStructure(raw: string): string {
 
   const anchor = 'He is still fully clothed in a dark shirt and trousers; no male nudity in this shot.';
   // 12 镜：前 6 镜男性强制穿衣，第 7 镜才允许脱裤。
-  const maleNude = /(?:\b(?:man|he)\b[^.\n]{0,40}\b(?:fully\s+)?nude\b|\bboth\s+(?:now\s+|still\s+)?(?:fully\s+)?nude\b|\bhis\s+(?:cock|penis)\s+(?:springs|is)\s+free\b|\bhe\s+(?:shoves|kicks|pushes)\s+(?:his|the)\s+(?:jeans|pants|trousers|boxers)[^.;]*)/gi;
+  const maleNude = /(?:\b(?:man|he)\b[^.\n]{0,60}\b(?:fully\s+|still\s+)?nude\b|\bboth\s+(?:now\s+|still\s+)?(?:fully\s+)?nude\b|\bhis\s+(?:\w+\s+){0,2}(?:cock|penis)\s+(?:springs|is|comes)\s+free\b|\bhe\s+(?:shoves|kicks|pushes)\s+(?:his|the)\s+(?:jeans|pants|trousers|boxers)[^.;]*|\bclothing stays off forever\b)/gi;
   for (let i = 0; i < Math.min(6, shots.length); i++) {
     shots[i] = shots[i].replace(maleNude, 'he keeps his dark shirt and trousers on');
     if (!/fully clothed|no male nudity|trousers remain on|keeps his dark shirt/i.test(shots[i])) {
