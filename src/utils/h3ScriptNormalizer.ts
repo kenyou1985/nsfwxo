@@ -37,6 +37,10 @@ function cleanBeat(raw: string): string {
     .replace(/(?:^|\n)\s*(?:Woman|Man|Male|Female|LIN|MARCUS|[A-Z][A-Z ]{1,20}|女人|男人|男|女)\s*[（(][^\n]*[)）]\s*[:：]?[^\n]*(?:\n(?!\s*(?:\[\s*)?(?:\*\*)?(?:SHOT|Shot)\s+\d+)[^\n]*)*/gi, '')
     // 没有 <d> 标签的中文对白行一律删除；H3 只朗读 <d> 内文本。
     .replace(/^\s*[\u4e00-\u9fff][^\n]*$/gm, '')
+    // 带引号的中文对白、Voice 行、以及任何非 <d> 的含中文行，都不能进 H3。
+    .replace(/[“"][^”"\n]*[\u4e00-\u9fff][^”"\n]*[”"]/g, '')
+    .replace(/^(?!.*<d>).*[\u4e00-\u9fff].*$/gm, '')
+    .replace(/^\s*Voice\s*[:：][^\n]*$/gmi, '')
     .replace(/([:：])\s*[\u4e00-\u9fff][^\n]*/g, '$1')
     .trim();
 }

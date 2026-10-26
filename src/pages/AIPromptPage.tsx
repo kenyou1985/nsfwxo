@@ -459,9 +459,11 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   const twoWomen = explicitTwoWomen || (/(^|\s)women(\s|$)/i.test(scene) && !/(男子|男人|男性|\bman\b)/i.test(themeText));
   const userHasMan = /(男子|男人|男性|男友|男主|一个强壮|跟踪|尾随|\bman\b|\bmale\b)/i.test(userHint);
   const hasMan = !twoWomen && (userHasMan || /\b(man|male|boyfriend|guy|his |he )\b|男人|男性|男主|男友|男子/i.test(scene));
-  // 只认真正的骑行语义；不能匹配 motorbikes / motorcycle / scooter 里的 bike 子串
-  const isCycling = /(骑行|自行车|骑车)/.test(themeText)
-    || /\b(?:bicycle|bike|cycling|cyclist|pedal(?:ing)?)\b/i.test(themeText);
+  // 骑行语义只从用户原始输入判断，不能从 LLM 扩写剧本里反推：
+  // 模型偶尔会幻觉出 bicycle，导致普通巷子主题被改成骑行服/自行车。
+  const cyclingIntent = userHint || '';
+  const isCycling = /(骑行|自行车|骑车)/.test(cyclingIntent)
+    || /\b(?:bicycle|bike|cycling|cyclist|pedal(?:ing)?)\b/i.test(cyclingIntent);
   const solo = !twoWomen && !hasMan;
   const coercive = hasMan && /(尾随|跟踪|胁迫|强迫|不情愿|强奸|强暴|抓住|按在|扒光|追上|野外|跟着|rape|force|stalk|follow|catch)/i.test(themeText);
   const forcePrelude = hasMan && /(尾随|跟踪|胁迫|强迫|不情愿|强奸|强暴|抓住|按在|扒光|追上|跟着|跟踪|尾随)/i.test(userHint);
