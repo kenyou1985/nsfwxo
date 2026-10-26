@@ -764,8 +764,9 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   const scriptJoined = normalizedScriptShots.join(' ');
   const scriptIsSolo = /(only her own|her own hand|no man|no male|solo female)/i.test(scriptJoined);
   const scriptHasGroping = /(grope|fondle|touch(?:es|ing)? her|hand .*?(?:ass|hip|thigh|crotch|pussy)|摸|臀|下体)/i.test(scriptJoined);
-  const scriptMismatch = (hasMan && scriptIsSolo) || (isGroping && !scriptHasGroping);
-  const hasScriptShots = normalizedScriptShots.length >= 8 && !scriptMismatch && !isGroping;
+  const scriptHasOldSex = /(penetrat|thrust|blowjob|deepthroat|cowgirl|doggy|missionary|creampie|cumshot|shoves? his trousers|fully nude now|He enters her)/i.test(scriptJoined);
+  const scriptMismatch = (hasMan && scriptIsSolo) || (isGroping && (!scriptHasGroping || scriptHasOldSex));
+  const hasScriptShots = normalizedScriptShots.length >= 8 && !scriptMismatch;
   if (hasScriptShots) {
     shots = normalizedScriptShots;
   }
@@ -3318,6 +3319,9 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     const validResults = results.filter((r) => r.prompt && !r.prompt.startsWith('[错误]') && !isRefusal(r.prompt));
     if (validResults.length === 0) { onError('提示词均为审核拒绝内容，请重新抽卡'); return; }
 
+    // 新一轮批量 H3 是全新稿：清掉旧索引，避免旧 H3 文本继续被复制/提交。
+    setH3Prompts({});
+    h3PromptsRef.current = {};
     // Mark all valid indices as processing
     const validIndices = results.map((r, i) => r.prompt ? i : -1).filter(i => i >= 0);
     setH3ProcessingIndices(new Set(validIndices));

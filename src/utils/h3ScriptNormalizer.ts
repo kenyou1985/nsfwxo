@@ -90,60 +90,20 @@ function normalizeClothing(beats: string[]): string[] {
   });
 }
 
-function dedupeFirstContact(beats: string[], opts: NormalizeOptions): string[] {
-  if (!opts.hasMan || !opts.coercive || beats.length < 3) return beats;
-  const firstHasContact = /(choke|throat|forearm|clamp(?:s|ed)? (?:a )?hand|drags? her|lifts? her)/i.test(beats[0]);
-  if (!firstHasContact) {
-    beats[0] += ' In the same continuous shot, he closes the distance behind her, loops his forearm around her throat, pulls her back against his chest, and drags her toward the dark doorway; she gasps and claws at his arm.';
-  }
-  const dialogue = (text: string) => (text.match(/\(S\d\):\s*<d>[\s\S]*?<\/d>/g) || []).join(' ');
-  if ((opts.shotCount || 11) >= 12) {
-    // 12 镜版本：第 1 镜只走路/尾随，第 2 镜锁喉，第 3 镜拖入暗门。
-    // 这样每一段 3 个分镜都有清晰动作递进，H3 不会把锁喉和脱衣压进第一段。
-    beats[0] = beats[0]
-      .replace(/(?:In the same continuous shot,\s*)?he closes[^.;]*?(?:throat|choke)[^.;]*[.;]?/gi, '')
-      .replace(/(?:choke|throat|forearm)[^.;]*[.;]?/gi, '');
-    beats[1] = `He closes the distance behind her, grabs her waist, locks a forearm around her throat, and pulls her back against his chest; both are still fully clothed. She gasps and claws at his arm. ${dialogue(beats[1])}`.trim();
-    beats[2] = `He drags her through the dark doorway in one continuous pull; both are still fully clothed, no nudity yet. ${dialogue(beats[2])}`.trim();
-  } else {
-    // 11 镜旧版：首镜完成接近/控制，后续两镜室内延续。
-    beats[1] = `Inside the dark room, he keeps his forearm across her throat and pushes her deeper; she gasps and claws at his arm. ${dialogue(beats[1])}`.trim();
-    beats[2] = `Inside the dark room, he pins her against the wall and starts tearing her blouse open; she pleads. ${dialogue(beats[2])}`.trim();
-  }
-  return beats;
-}
-
 export function normalizeH3Script(raw: string, opts: NormalizeOptions): string[] {
   let sourceBeats = splitScript(raw);
-  // 不足 8 个真实镜头时不能补 afterglow 后当剧本用；返回空让上层走完整模板/重试。
   const realShotCount = sourceBeats.length;
   if (realShotCount < 8 && raw.trim().length > 500) {
-    // 模型偶尔不写 SHOT 标题，只写多段剧本；不能静默回退旧模板，按段落切成镜头。
     sourceBeats = raw
       .split(/\n{2,}/)
       .map(cleanBeat)
       .filter((x) => x.length > 30)
-      // 纯中文对白段不是镜头，不能当成 Shot；没有画面/动作锚点的段落丢弃。
       .filter((x) => /(?:Camera|Location|Body|Clothing|Action|Emotional|she |her |he |his |woman|man)/i.test(x));
   }
   if (realShotCount < 8) return [];
   let beats = sourceBeats.map((x) => stripForbiddenProps(x, opts.theme));
   if (!beats.length) return [];
-  // 模型偶发只给对白不给画面；H3 的分镜必须有可视动作，否则这一段会变成纯旁白/空镜。
-  const visualFallback = opts.coercive ? [
-    'Camera medium tracking shot; same location; she walks ahead, he follows behind.',
-    'Camera handheld two-shot; he closes the distance, grabs her waist, and locks a forearm around her throat.',
-    'Camera low angle following the drag; he pulls her through the dark doorway into the room.',
-    'Camera tight two-shot against the wall; he pins her, tears the blouse open, and gropes her bare breasts.',
-    'Camera close-up on hands and bodies; he strips the remaining clothes and fingers her.',
-    'Camera low angle; he pushes her to her knees and feeds her his cock.',
-    'Camera side profile; he lifts her and thrusts into her against the wall.',
-    'Camera handheld close-up; he chokes her and fucks her harder.',
-    'Camera rear three-quarter; he bends her over the surface and drives in from behind.',
-    'Camera overhead; he folds her legs back and pounds her on the mattress.',
-    'Camera extreme close-up on the join; he finishes deep inside her, then pulls back.',
-    'Camera slow pull-back; afterglow, both bodies still, sweat cooling, no reset.',
-  ] : [
+  const visualFallback = [
     'Camera medium two-shot, same location; she holds her pose, he stays in frame.',
     'Camera handheld close-up; they move together, hands and faces visible.',
     'Camera medium tracking shot; the action continues without a scene change.',
@@ -162,13 +122,8 @@ export function normalizeH3Script(raw: string, opts: NormalizeOptions): string[]
     const hasVisual = /(camera|location|body positions?|clothing state|physical action|\bshe\b|\bher\b|\bhe\b|\bhis\b)/i.test(visualText);
     return hasVisual && visualText.length >= 70 ? beat : `${visualFallback[Math.min(i, visualFallback.length - 1)]} ${beat}`.trim();
   });
-  beats = dedupeFirstContact(beats, opts);
   beats = normalizeClothing(beats);
-  const count = opts.shotCount || 12;
-  while (beats.length < count) {
-    beats.push('Afterglow in the exact same location and position: both bodies still, breathing slowing, sweat cooling on skin, the final physical evidence of the act still visible; no new act, no reset.');
-  }
-  return beats.slice(0, count);
+  return beats.slice(0, opts.shotCount || 12);
 }
 
 /**
@@ -275,12 +230,9 @@ export function normalizeH3PromptStructure(raw: string, opts: H3StructureOptions
   }
 
   // 前 6 镜已强制穿衣；若第 7 镜没有明确脱裤，补一次，保证男性裸体从 Shot 7 开始而不是更早/更晚。
-  if (coercive && shots.length >= 7 && !/(?:drops?|shoves?|pulls?|kicks?)\s+(?:his|the)\s+(?:jeans|pants|trousers|boxers)|fully nude now|he is fully nude/i.test(shots[6])) {
-    shots[6] = `He shoves his trousers and boxers down and is fully nude now. ${shots[6]}`;
-  }
 
   // 纯对白镜头补可见画面，避免 H3 只生成音频/空镜。
-  const visualFallback = coercive ? [
+  const visualFallback = false ? [
     'Camera medium tracking shot; same location; she walks ahead, he follows behind.',
     'Camera handheld two-shot; he closes the distance, grabs her waist, and locks a forearm around her throat.',
     'Camera low angle following the drag; he pulls her through the dark doorway into the room.',
@@ -313,48 +265,6 @@ export function normalizeH3PromptStructure(raw: string, opts: H3StructureOptions
       ? s0 : `${visualFallback[Math.min(i, visualFallback.length - 1)]} ${s0}`.trim();
   });
 
-  // 12 镜开场：只有胁迫/尾随主题才强制“走路→锁喉→拖入”；猥亵主题禁止这套。
-  if (coercive && !groping && shots.length <= 12) {
-    // Shot 1 只保留走路/尾随；模型经常把“锁喉+拖入”追加在末尾，整段截断，避免 H3 把第一段压缩成控制动作。
-    const firstCut = shots[0].search(/(?:In this one continuous shot|In the same continuous shot|she gasps and claws|He is still fully clothed|he closes the distance behind her)/i);
-    shots[0] = (firstCut > 0 ? shots[0].slice(0, firstCut) : shots[0])
-      .replace(/(?:In the same continuous shot,\s*)?he closes[^.;]*(?:throat|choke|chest)[^.;]*[.;]?/gi, '')
-      .replace(/\b(?:forearm|choke|throat)\b[^.;]*[.;]?/gi, '')
-      .trim();
-    if (!/walks?|walking|follows?|following/i.test(shots[0])) {
-      shots[0] = `She walks ahead through the location, unaware; he follows several steps behind. ${shots[0]}`;
-    }
-    if (!/(choke|throat|forearm)/i.test(shots[1] || '')) {
-      shots[1] = `He closes the distance, grabs her waist, locks a forearm around her throat, and pulls her back against his chest; both still fully clothed. ${shots[1] || ''}`;
-    }
-    if (!/(drags? her|drag her|through the (?:dark )?doorway)/i.test(shots[2] || '')) {
-      shots[2] = `He drags her through the dark doorway in one continuous pull; both still fully clothed, no nudity yet. ${shots[2] || ''}`;
-    }
-  }
-
-  if (groping) {
-    shots = shots.map((x) => x
-      .replace(/She walks ahead through the location[^.]*\./gi, '')
-      .replace(/He closes the distance, grabs her waist[^.]*\./gi, '')
-      .replace(/He drags her through the dark doorway[^.]*\./gi, '')
-      .replace(/He shoves his trousers and boxers down[^.]*\./gi, '')
-      .replace(/Continue the exact penetration[^.]*\./gi, '')
-      .replace(/Transition into [^.]*\./gi, '')
-      .replace(/\(\s*S2\s*\):\s*<d>\[Chinese\][^<]*(?:吞|操|射|夹紧)[^<]*<\/d>/gi, '(S2): <d>[Chinese] 别动。</d>')
-      .replace(/\(\s*S1\s*\):\s*<d>\[Chinese\][^<]*(?:别插|插进去|好深)[^<]*<\/d>/gi, '(S1): <d>[Chinese] 不要…</d>')
-      .replace(/\n{3,}/g, '\n\n').trim());
-  }
-  if (coercive && shots.length >= 3) {
-    // Shot 2 只做接近/控制，不能提前把“拖入门”演完；否则 Shot 3 会重复拖拽。
-    if (!/through the (?:dark )?doorway/i.test(shots[1] || '')) {
-      shots[1] = shots[1].replace(/drags? her[^.;]*[.;]?/gi, 'corners her; no penetration yet. ');
-    }
-    // 相邻镜头同一脱衣动作只留一次（Shot 6 已拽裤，Shot 7 又拽裤会造成重复）。
-    if (/(?:yanks?|pulls?|shoves?)\s+(?:his|the)\s+(?:trousers|jeans|boxers)/i.test(shots[5] || '') &&
-        /(?:yanks?|pulls?|shoves?)\s+(?:his|the)\s+(?:trousers|jeans|boxers)/i.test(shots[6] || '')) {
-      shots[5] = shots[5].replace(/(?:yanks?|pulls?|shoves?)\s+(?:his|the)\s+(?:trousers|jeans|boxers)[^.;]*[.;]?/gi, '');
-    }
-  }
   // 统一衔接语义：每镜从上一镜的结束姿态继续，不重启、不重复上一动作。
   // 归一器会被生成/提交/显示多次调用，必须幂等，不能叠加三遍 Continuity。
   const continuity = "Continuity: begin exactly from the previous shot's end pose; same location and clothing state; do not repeat the previous action.";
