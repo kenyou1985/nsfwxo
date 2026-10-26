@@ -466,7 +466,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   const forcePrelude = hasMan && /(尾随|跟踪|胁迫|强迫|不情愿|强奸|强暴|抓住|按在|扒光|追上|跟着|跟踪|尾随)/i.test(userHint);
   const locationMatch = scene.match(/((?:[A-Za-z-]+\s+){0,4}(?:alley|lane|street|road|sidewalk|room|office|corridor|entrance|path|trail|house|home|beach|park|garage|club|bar|hotel|classroom|warehouse|stairwell|landing))/i);
   const locationLabel = (locationMatch?.[0] || 'the opening location').replace(/[.,;]+$/g, '').replace(/\s+/g, ' ').trim();
-  const placeLine = `Same location: ${locationLabel}, same lighting.`;
+  const placeLine = `Same location: ${locationLabel}, same lighting`;
   const explicitAct = /(penetrat|thrust|insert|cunnilingus|blowjob|fellatio|fuck|sex scene|inside her|riding him|takes? .{0,40}(?:cock|shaft) .{0,30}(?:mouth|throat))/i.test(scene);
   const atFacesit = /(sits? astride|sitting on (?:his|the) face|facesit|face-sit|riding (?:his|her) face|mouth beneath|oral sex beneath|cunnilingus|骑脸|坐脸|坐在脸上)/i.test(scene);
   const atSex = /(penetrat|thrust|insert|cowgirl|doggy|missionary|riding him|inside her|fuck)/i.test(scene);
@@ -688,11 +688,24 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
       final,
     ];
   }
+  // 如果上游传入的是 900-1100 词完整剧本（SHOT 1..11），优先用剧本分镜替换模板分镜。
+  const scriptShotBlocks = imagePrompt
+    .split(/(?=^\s*(?:\*\*)?(?:SHOT|Shot)\s+\d+\b)/mi)
+    .slice(1)
+    .map((block) => block
+      .replace(/^\s*(?:\*\*)?(?:SHOT|Shot)\s+\d+\b[^\n]*\n?/i, '')
+      .replace(/^\s*\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}[^\n]*\n?/i, '')
+      .trim())
+    .filter((block) => block.length > 30);
+  const hasScriptShots = scriptShotBlocks.length >= 8;
+  if (hasScriptShots) {
+    shots = scriptShotBlocks.slice(0, 11);
+  }
   const nudeLine = 'She strips off the remaining clothing; from this shot onward she is completely nude, and no clothing returns.';
   const needsNude = /(nude|naked|topless|bare breasts|exposed breasts|pulled aside|tugged aside|bunched around|off her shoulders|skirt up|undress|strips?|lingerie|bikini)/i.test(scene);
   if (needsNude && twoWomen) {
     shots = shots.map((s, i) => i === 0 ? s : i === 1 ? `${s} Both women strip off the remaining clothing; from this shot onward both are completely nude and no clothing returns.` : `${s} Both women are completely nude: bare breasts, bare vulva, bare ass; no bra, no panties, no fabric.`);
-  } else if (needsNude && !(hasMan && !explicitAct)) {
+  } else if (!hasScriptShots && needsNude && !(hasMan && (coercive || !explicitAct))) {
     shots = shots.map((s, i) => i === 0 ? s : i === 1 ? `${s} ${nudeLine}` : `${s} She is completely nude: bare breasts, bare vulva, bare ass; no bra, no panties, no fabric.`);
   }
   // DNA 式状态锚定：一旦某镜宣布完全裸体，后续镜头禁止再次出现女性脱衣动作。
@@ -873,7 +886,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
         .replace(/\b(?:a|one) finger\b/gi, 'her own finger')
         .replace(/\bfingers\b/gi, 'her own fingers')
     : core;
-  const clothingPolicy = (hasMan && !explicitAct)
+  const clothingPolicy = (hasMan && (coercive || !explicitAct))
     ? isCycling
       ? 'Shot 1 uses the reference clothing; Shot 2 he catches her on his bicycle; Shot 3 rips the cycling suit completely off; she is completely nude by the end of Shot 3, no bra, no panties, no fabric. He keeps his cycling shorts on until Shot 6, then pulls them down to his thighs before penetration.'
       : 'Shot 1 uses the clothing shown in Picture 1 or the source scene; Shot 2 he closes in and grabs her; Shot 3 he rips her top, bra, lower garment and panties off and she is completely nude by the end of Shot 3; no clothing returns after Shot 3; Shot 6 he pulls his trousers and boxers down to his ankles before penetration; from Shot 3 onward she is completely nude with bare breasts, ass and vulva.'
