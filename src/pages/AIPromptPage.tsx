@@ -685,6 +685,24 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   } else if (needsNude && !(hasMan && !explicitAct)) {
     shots = shots.map((s, i) => i === 0 ? s : i === 1 ? `${s} ${nudeLine}` : `${s} She is completely nude: bare breasts, bare vulva, bare ass; no bra, no panties, no fabric.`);
   }
+  // DNA 式状态锚定：一旦某镜宣布完全裸体，后续镜头禁止再次出现女性脱衣动作。
+  // 只清理“对她”的脱衣动词，保留男性脱裤等动作；每镜补一句裸体状态，避免 H3 在分段边界重置。
+  let nudeState = false;
+  shots = shots.map((line) => {
+    let next = line;
+    if (nudeState) {
+      next = next.replace(
+        /(?:He|She)\s+(?:rips?|tears?|strips?|yanks?|pulls?|peels?|shoves?)\s+(?:her|the)\s+(?:top|bra|shirt|blouse|skirt|jeans|panties|thong|underwear|lower garment|dress)[^.;]*[.;]?/gi,
+        'She is completely nude; ',
+      );
+      next = next.replace(/her clothes bunch[^.;]*/gi, 'her nude body arches');
+      if (!/completely nude|fully nude|nude body|bare breasts/i.test(next)) {
+        next = `She is completely nude; no clothing remains. ${next}`;
+      }
+    }
+    if (/completely nude|fully nude|already nude|nude body/i.test(next)) nudeState = true;
+    return next;
+  });
   const d = (zh: string, speaker: 'S1' | 'S2' = 'S1') => `(${speaker}): <d>[Chinese] ${zh}</d>`;
   const female = ['好舒服…', '慢一点…', '求求你…', '快一点…', '我快不行了…', '爸爸操我…', '哥哥我想要…'];
   const male = ['不要动。', '夹紧。', '屁股抬高。', '操死你。', '不要出声。', '嘴巴张开。', '舔干净，吞下去。', '射了。'];
