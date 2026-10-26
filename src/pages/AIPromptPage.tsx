@@ -736,11 +736,6 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
     if (/completely nude|fully nude|already nude|nude body/i.test(next)) nudeState = true;
     return next;
   });
-  // 最终不变式：强制/尾随主题的首镜必须包含一次接近与控制动作。
-  // 不管剧本解析、模板回退还是归一化器是否命中，这里都兜底，避免再次出现“第一帧就是勒颈”。
-  if (hasMan && coercive && shotCount < 12 && !/(choke|throat|forearm|clamp(?:s|ed)? (?:a )?hand|drags? her|grabs? her)/i.test(shots[0])) {
-    shots[0] += ' In the same continuous shot, he closes the distance behind her, loops his forearm around her throat, pulls her back against his chest, and drags her toward the dark doorway; she gasps and claws at his arm.';
-  }
   const d = (zh: string, speaker: 'S1' | 'S2' = 'S1') => `(${speaker}): <d>[Chinese] ${zh}</d>`;
   const female = ['好舒服…', '慢一点…', '求求你…', '快一点…', '我快不行了…', '爸爸操我…', '哥哥我想要…'];
   const male = ['不要动。', '夹紧。', '屁股抬高。', '操死你。', '不要出声。', '嘴巴张开。', '舔干净，吞下去。', '射了。'];

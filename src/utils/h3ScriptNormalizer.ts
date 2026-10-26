@@ -231,13 +231,39 @@ export function normalizeH3PromptStructure(raw: string): string {
   let shots = [...byNum.entries()].sort((a, b) => a[0] - b[0]).slice(0, 12).map(([, v]) => v);
 
   const anchor = 'He is still fully clothed in a dark shirt and trousers; no male nudity in this shot.';
-  const maleNude = /(?:\b(?:man|he)\b[^.\n]{0,80}\b(?:fully\s+|still\s+)?nude\b|\bboth\s+(?:now\s+|still\s+)?(?:fully\s+)?nude\b|\bhe\s+(?:is\s+)?shirtless\b|\bhis\s+(?:\w+\s+){0,3}(?:cock|penis)\s+(?:springs|is|comes)\s+free\b|\bhis\s+\w+\s+(?:cock|penis)\s+(?:out|free)\b|\bhe\s+(?:yanks?|pulls?|rips?|strips?)\s+(?:his|the)\s+(?:own\s+)?(?:t-shirt|shirt|tee|top|clothes)[^.;]*?(?:off|over\s+his\s+head)[^.;]*|\bhe\s+(?:shoves|kicks|pushes|strips)\s+(?:his|the)\s+(?:jeans|pants|trousers|boxers|clothes)[^.;]*|\bclothing stays off forever\b)/gi;
+  const maleNude = /(?:\b(?:man|he)\b[^.\n]{0,100}\b(?:fully\s+|still\s+)?nude\b|\bboth\s+(?:now\s+|still\s+)?(?:fully\s+)?nude\b|\bhe\s+(?:is\s+|now\s+)?shirtless\b|\b(?:his\s+)?(?:torso|chest)\s+(?:is\s+)?bare\b|\brevealing\s+(?:a\s+)?(?:massive\s+)?(?:tattooed\s+)?chest\b|\bhis\s+(?:\w+\s+){0,4}(?:cock|penis)\s+(?:springs|is|comes)\s+free\b|\bhis\s+\w+\s+(?:cock|penis)\s+(?:out|free)\b|\bhe\s+(?:yanks?|pulls?|rips?|strips?|shoves?)\s+(?:his|the)\s+(?:own\s+)?(?:hoodie|t-shirt|shirt|tee|top|clothes)[^.;]*|\bhe\s+(?:remains?|stays?)\s+in\s+(?:jeans|pants|trousers)\s+only\b|\bhe\s+(?:shoves|kicks|pushes|strips)\s+(?:his|the)\s+(?:jeans|pants|trousers|boxers|clothes)[^.;]*|\bclothing stays off forever\b)/gi;
   for (let i = 0; i < Math.min(6, shots.length); i++) {
     shots[i] = shots[i].replace(maleNude, 'he keeps his dark shirt and trousers on');
     if (!/fully clothed|no male nudity|trousers remain on|keeps his dark shirt/i.test(shots[i])) {
       shots[i] = `${shots[i]} ${anchor}`.trim();
     }
   }
+
+  // 前 6 镜已强制穿衣；若第 7 镜没有明确脱裤，补一次，保证男性裸体从 Shot 7 开始而不是更早/更晚。
+  if (shots.length >= 7 && !/(?:drops?|shoves?|pulls?|kicks?)\s+(?:his|the)\s+(?:jeans|pants|trousers|boxers)|fully nude now|he is fully nude/i.test(shots[6])) {
+    shots[6] = `He shoves his trousers and boxers down and is fully nude now. ${shots[6]}`;
+  }
+
+  // 纯对白镜头补可见画面，避免 H3 只生成音频/空镜。
+  const visualFallback = [
+    'Camera medium tracking shot; same location; she walks ahead, he follows behind.',
+    'Camera handheld two-shot; he closes the distance, grabs her waist, and locks a forearm around her throat.',
+    'Camera low angle following the drag; he pulls her through the dark doorway into the room.',
+    'Camera tight two-shot against the wall; he pins her, tears the blouse open, and gropes her bare breasts.',
+    'Camera close-up on hands and bodies; he strips the remaining clothes and fingers her.',
+    'Camera low angle; he pushes her to her knees and feeds her his cock.',
+    'Camera side profile; he lifts her and thrusts into her against the wall.',
+    'Camera handheld close-up; he chokes her and fucks her harder.',
+    'Camera rear three-quarter; he bends her over the surface and drives in from behind.',
+    'Camera overhead; he folds her legs back and pounds her on the mattress.',
+    'Camera extreme close-up on the join; he finishes deep inside her, then pulls back.',
+    'Camera slow pull-back; afterglow, both bodies still, sweat cooling, no reset.',
+  ];
+  shots = shots.map((s0, i) => {
+    const visual = s0.replace(/\(S\d\):\s*<d>[\s\S]*?<\/d>/g, '').trim();
+    return /(camera|location|body positions?|clothing state|physical action|\bshe\b|\bher\b|\bhe\b|\bhis\b)/i.test(visual) && visual.length >= 60
+      ? s0 : `${visualFallback[Math.min(i, visualFallback.length - 1)]} ${s0}`.trim();
+  });
 
   // 12 镜开场：1 走路/尾随，2 锁喉，3 拖入暗门。
   if (shots.length <= 12) {
