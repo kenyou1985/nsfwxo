@@ -330,6 +330,20 @@ export function normalizeH3PromptStructure(raw: string, opts: H3StructureOptions
     }
   }
 
+  if (coercive && shots.length >= 3) {
+    // Shot 2 只做接近/控制，不能提前把“拖入门”演完；否则 Shot 3 会重复拖拽。
+    if (!/through the (?:dark )?doorway/i.test(shots[1] || '')) {
+      shots[1] = shots[1].replace(/drags? her[^.;]*[.;]?/gi, 'corners her; no penetration yet. ');
+    }
+    // 相邻镜头同一脱衣动作只留一次（Shot 6 已拽裤，Shot 7 又拽裤会造成重复）。
+    if (/(?:yanks?|pulls?|shoves?)\s+(?:his|the)\s+(?:trousers|jeans|boxers)/i.test(shots[5] || '') &&
+        /(?:yanks?|pulls?|shoves?)\s+(?:his|the)\s+(?:trousers|jeans|boxers)/i.test(shots[6] || '')) {
+      shots[5] = shots[5].replace(/(?:yanks?|pulls?|shoves?)\s+(?:his|the)\s+(?:trousers|jeans|boxers)[^.;]*[.;]?/gi, '');
+    }
+  }
+  // 统一衔接语义：每镜从上一镜的结束姿态继续，不重启、不重复上一动作。
+  shots = shots.map((s0, i) => i === 0 ? s0 : `Continuity: begin exactly from the previous shot's end pose; same location and clothing state; do not repeat the previous action. ${s0}`);
+
   shots = shots.filter(Boolean);
   while (shots.length < 12) shots.push('Afterglow in the exact same location and position: both bodies still, breathing slowing, sweat cooling on skin; no new act, no reset.');
   shots = shots.slice(0, 12);

@@ -1700,8 +1700,12 @@ def submit(job, node_info_list):
     # 背景：nodeInfoList 只能改已有节点字段，无法新增/断开张量型连接（null 忽略、字符串类型炸、[] 平台拒绝）。
     # workflow 参数可提交完整 JSON → 可新增节点 9999=LoadImage(1×1透明) 接管 276/282 组合图 → LLM 15/228 视觉空。
     if isinstance(node_info_list, tuple) and len(node_info_list) == 2 and node_info_list[0] == 'WF_JSON':
+        _wf_final = node_info_list[1]
+        # 提交前最后一道音频防线：338 的上一段音频引导会让男声拖音/火星语，全部移除。
+        if '338' in _wf_final and isinstance(_wf_final['338'].get('inputs'), dict):
+            _wf_final['338']['inputs'].pop('audio', None)
         payload = json.dumps({'apiKey': cfg['api_key'], 'workflowId': cfg['workflow_id'],
-                              'workflow': json.dumps(node_info_list[1]),
+                              'workflow': json.dumps(_wf_final),
                               'instanceType': cfg.get('instance', 'plus')})
     else:
         payload = json.dumps({'apiKey': cfg['api_key'], 'workflowId': cfg['workflow_id'],
