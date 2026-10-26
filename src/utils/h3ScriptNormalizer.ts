@@ -127,3 +127,37 @@ export function normalizeH3Script(raw: string, opts: NormalizeOptions): string[]
   }
   return beats.slice(0, count);
 }
+
+/**
+ * H3 只认 `<d>...</d>` 内文本，但说话人必须由紧邻的 `(S1):` / `(S2):` 锚定。
+ * 这里统一清理中文说话人标签，并给每一句补上 speaker 锚点。
+ */
+export function normalizeDialogueSpeakers(raw: string): string {
+  if (!raw) return raw;
+  const maleLines = /(别叫|跟我走|闭嘴|硬了|腿张开|我要进去|夹这么紧|叫出来|看着我|谁在操|嘴也|射了|还好吗|夹紧|吞下去|含住|不许|骚货|操死|不要动|不要出声|张开|舔干净|爸爸|哥哥)/;
+  const femaleLines = /(放开|求你|不要|你……|太大|太深|好满|去了|嗯|啊|慢|好舒服|我快|别摸|停下|还要|会坏|安全词|抱一会|没有|疼|别插|轻点)/;
+  const cleanInner = (inner: string): { text: string; speaker?: 'S1' | 'S2' } => {
+    let text = inner.trim();
+    let speaker: 'S1' | 'S2' | undefined;
+    // <d>[他，低沉] 别叫。</d> / <d>（她，喘着）...</d>
+    const label = text.match(/^[\[（(]\s*(他|她|男|女|马库斯|河北|MARCUS|LIN)\s*[，,、\s][^\]]*[\]）)]\s*/i)
+      || text.match(/^[\[（(]\s*(他|她|男|女|马库斯|河北|MARCUS|LIN)\s*[\]）)]\s*/i);
+    if (label) {
+      speaker = /^(?:他|男|马库斯|MARCUS)$/i.test(label[1]) ? 'S2' : 'S1';
+      text = text.slice(label[0].length);
+    }
+    text = text.replace(/^\[(?:Chinese|中文|普通话)\]\s*/i, '').trim();
+    return { text, speaker };
+  };
+  return raw.replace(/(?:\(S[12]\)\s*[:：]\s*)?<d>([\s\S]*?)<\/d>/g, (whole, inner) => {
+    const { text, speaker: labeled } = cleanInner(String(inner));
+    if (!text) return whole;
+    let speaker = labeled;
+    if (!speaker) {
+      if (maleLines.test(text) && !femaleLines.test(text)) speaker = 'S2';
+      else if (femaleLines.test(text)) speaker = 'S1';
+      else speaker = /(他|男|马库斯|MARCUS)/i.test(String(inner)) ? 'S2' : 'S1';
+    }
+    return `(S${speaker === 'S2' ? 2 : 1}): <d>[Chinese] ${text}</d>`;
+  });
+}

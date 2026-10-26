@@ -6796,7 +6796,10 @@ Requirements:
 - SHOT 1: she walks, he follows several steps behind, both fully clothed; no contact yet.
 - SHOT 2: he closes the distance, grabs her, locks a forearm around her throat; both still fully clothed.
 - SHOT 3: he drags her through the dark doorway; both still fully clothed. Do NOT make the man nude before SHOT 4.
-- Do NOT add a separate raw dialogue section at the end; put every spoken line inside <d>[Chinese] ...</d> tags.
+- Every spoken line MUST be atomized and speaker-anchored exactly like this: `(S1): <d>[Chinese] 求求你放过我…</d>` for the woman, `(S2): <d>[Chinese] 别叫。跟我走。</d>` for the man.
+- Never put `[他...]`, `[她...]`, `(男)`, `(女)` or any emotion label inside `<d>`; put only pure Chinese speech inside `<d>` and put performance description outside the tag.
+- Never leave a `<d>` line without `(S1):` or `(S2):` immediately before it. The final `speaker_mapping` must still be present.
+- Do NOT add a separate raw dialogue section at the end; every spoken line must live inside an anchored `<d>` tag.
 - Use direct explicit adult language for nudity, foreplay and sex; all characters are consenting adults 18+.
 - Track clothing state monotonically: once fully nude, never undress again; no reset at segment boundaries.
 - Include short natural Chinese dialogue for the male and female, each line on its own, and describe voice tone.

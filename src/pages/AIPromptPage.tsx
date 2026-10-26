@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { extractVideoPromptFromImagePrompt } from '../utils/videoPromptExtractor';
 import { normalizeKrea2Prompt } from '../utils/krea2Prompt';
-import { normalizeH3Script } from '../utils/h3ScriptNormalizer';
+import { normalizeH3Script, normalizeDialogueSpeakers } from '../utils/h3ScriptNormalizer';
 import { makeThumbnailForStorage, makePreviewForStorage } from '../utils/imageThumbnail';
 import { AspectAwareImage } from '../components/AspectAwareImage';
 import { OneClickProduce } from '../components/OneClickProduce';
@@ -702,7 +702,9 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
     shots = normalizedScriptShots;
   }
   // 男性服装状态锚点：H3 很容易把 Subject 2 直接画成全裸；在男性第一次脱衣之前逐镜强调衣着。
-  const maleUndressIdx = hasMan ? shots.findIndex((s) => /(?:drops? (?:his )?(?:jeans|pants|trousers|boxers)|shoves? (?:his )?(?:jeans|pants|trousers|boxers) (?:down|off)|strips? (?:off )?his|he is (?:now )?(?:fully )?nude|his (?:pants|jeans|trousers) (?:down|off))/i.test(s)) : -1;
+  let maleUndressIdx = hasMan ? shots.findIndex((s) => /(?:drops? (?:his )?(?:jeans|pants|trousers|boxers)|shoves? (?:his )?(?:jeans|pants|trousers|boxers) (?:down|off)|strips? (?:off )?his|he is (?:now )?(?:fully )?nude|his (?:pants|jeans|trousers) (?:down|off)|kicks? off (?:his |the )?(?:remaining )?clothes)/i.test(s)) : -1;
+  // 剧本没有明确写男性脱衣时，强制把脱衣点放到第 7 镜之前，避免 Subject 2 一出场就全裸。
+  if (hasMan && coercive && maleUndressIdx < 0) maleUndressIdx = shots.length >= 7 ? 6 : Math.max(3, shots.length - 2);
   if (hasMan && maleUndressIdx > 0) {
     shots = shots.map((s, i) => i < maleUndressIdx
       ? `${s} He is still fully clothed in a dark shirt and trousers; no male nudity in this shot.`
@@ -1772,7 +1774,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       };
       // 智能扩写卡片里已经是完整 H3；不能再拿 H3 当图片提示词二次 build，否则会把上一版女女/男模板混进来
       const isH3Prompt = /^\s*subject_definitions\s*:/i.test(videoText);
-      const anchoredPrompt = applyAnchorNames(isH3Prompt ? videoText : buildAnchoredH3(videoText, 0, !!maleImage, videoShotCount, input), anchorList);
+      const anchoredPrompt = normalizeDialogueSpeakers(applyAnchorNames(isH3Prompt ? videoText : buildAnchoredH3(videoText, 0, !!maleImage, videoShotCount, input), anchorList));
       const submit = await submitDaotaiVideo(key, anchoredPrompt, { ...body, prompt: anchoredPrompt });
       saveMainPending({ taskId: submit.taskId, promptKey: videoText, startTime: Date.now() });
       const localId = `expand-video-${Date.now()}`;
@@ -3320,7 +3322,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         loop_routes: videoRoutes,
         instance: 'plus',
       };
-      const anchoredPrompt = anchorH3Prompt(h3);
+      const anchoredPrompt = normalizeDialogueSpeakers(anchorH3Prompt(h3));
       const submit = await submitDaotaiVideo(rhKey, anchoredPrompt, { ...body, prompt: anchoredPrompt });
       submittedTaskId = submit.taskId;
       publishExternalVideoTask({
