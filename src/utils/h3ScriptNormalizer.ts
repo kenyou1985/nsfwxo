@@ -26,9 +26,11 @@ function cleanBeat(raw: string): string {
     .replace(/^\s*\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}[^\n]*\n?/i, '')
     .replace(/^\s*Time range[^\n]*\n?/gmi, '')
     .replace(/^\s*FADE OUT\b[^\n]*\n?/gmi, '')
+    .replace(/^\s*AFTERGLOW\b[^\n]*\n?/gmi, '')
+    .replace(/\bFADE OUT\b\.?/gi, '')
     .split(/CHINESE\s+DIALOGUE/i)[0]
     // 剧本文本里裸露的说话人标签，不是 <d> 台词，全部清掉
-    .replace(/(?:^|\n)\s*(?:Woman|Man|Male|Female|女人|男人)\s*[（(][^\n]*[)）]\s*[:：]?[^\n]*(?:\n(?!\s*(?:\[\s*)?(?:\*\*)?(?:SHOT|Shot)\s+\d+)[^\n]*)*/gi, '')
+    .replace(/(?:^|\n)\s*(?:Woman|Man|Male|Female|女人|男人|男|女)\s*[（(][^\n]*[)）]\s*[:：]?[^\n]*(?:\n(?!\s*(?:\[\s*)?(?:\*\*)?(?:SHOT|Shot)\s+\d+)[^\n]*)*/gi, '')
     .trim();
 }
 
@@ -84,7 +86,15 @@ function dedupeFirstContact(beats: string[], opts: NormalizeOptions): string[] {
 }
 
 export function normalizeH3Script(raw: string, opts: NormalizeOptions): string[] {
-  let beats = splitScript(raw).map((x) => stripForbiddenProps(x, opts.theme));
+  let sourceBeats = splitScript(raw);
+  if (sourceBeats.length < 8 && raw.trim().length > 500) {
+    // 模型偶尔不写 SHOT 标题，只写多段剧本；不能静默回退旧模板，按段落切成镜头。
+    sourceBeats = raw
+      .split(/\n{2,}/)
+      .map(cleanBeat)
+      .filter((x) => x.length > 30);
+  }
+  let beats = sourceBeats.map((x) => stripForbiddenProps(x, opts.theme));
   if (!beats.length) return [];
   beats = dedupeFirstContact(beats, opts);
   beats = normalizeClothing(beats);
