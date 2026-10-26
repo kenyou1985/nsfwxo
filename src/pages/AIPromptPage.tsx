@@ -521,7 +521,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   // 强制首镜从“走路 + 尾随”开始，禁止把掐脖子/抓人当成第一帧
   const openingScene = (coercive && hasMan ? walkOpening : (openingCandidates[0] || englishScene || walkOpening)).replace(/\.+$/, '').slice(0, 260);
   const firstAction = isGroping
-    ? 'She stands among standing passengers, one hand on the overhead strap; he is already close behind her, body angled into her space, not yet touching.'
+    ? ''
     : hasMan && coercive
     ? 'In this one continuous shot, he closes the distance behind her, loops his forearm around her throat, pulls her back against his chest, and drags her toward the dark doorway; she gasps and claws at his arm.'
     : `${hasMan ? 'The man is already following her a few steps behind. ' : ''}The opening frame shows her walking before any contact.`;
@@ -577,12 +577,12 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
     const guard = 'Both remain fully clothed; no nudity, no undressing, no penis, no penetration; only hands and bodies through fabric.';
     shots = [
       first,
-      `He closes the last few centimetres behind her as the car sways, his chest almost against her back; one hand settles on her hip, proprietary and slow. ${placeLine}. ${guard}`,
+      `He closes the last few centimetres behind her as the car sways, his chest almost against her back; one hand settles on her hip, proprietary and slow. ${placeLine}. ${guard} (S2): <d>[Chinese] 别动。</d>`,
       `His hand slides down over the red skirt and squeezes her ass through the fabric; she stiffens, fingers tightening on the strap, eyes forward. ${placeLine}. ${guard}`,
-      `He presses his hips into her from behind, pinning her against the door frame, and works his palm under the hem of her skirt. ${placeLine}. ${guard}`,
+      `He presses his hips into her from behind, pinning her against the door frame, and works his palm under the hem of her skirt. ${placeLine}. ${guard} (S2): <d>[Chinese] 别出声。</d>`,
       `Under the skirt, his fingers find the edge of her panties and pull them aside; she bites her lip, a shocked breath caught in her throat. ${placeLine}. ${guard}`,
       `His fingers rub her bare pussy in slow circles; she jolts, tries to shift away, but the crowd traps her in place. ${placeLine}. ${guard}`,
-      `He pushes two fingers inside her while his thumb circles her clit, his mouth at her ear, whispering something she cannot escape. ${placeLine}. ${guard}`,
+      `He pushes two fingers inside her while his thumb circles her clit, his mouth at her ear, whispering something she cannot escape. ${placeLine}. ${guard} (S2): <d>[Chinese] 不许出声。</d>`,
       `Her knees buckle; she grabs his wrist with one hand but does not pull it away, head falling back against his shoulder. ${placeLine}. ${guard}`,
       `He opens her blouse with his free hand and palms her breast over the bra, pinching the nipple through lace; she gasps, hips rolling despite herself. ${placeLine}. ${guard}`,
       `The train jolts; he catches her weight and drives his fingers deeper, palm grinding her clit, her mouth open in a silent moan. ${placeLine}. ${guard}`,
@@ -955,7 +955,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
         ? `<Subject 2> is @Man <Picture 2> — the exact adult man shown in Picture 2, wearing ${isCycling ? 'a black cycling jersey and black cycling shorts, standing astride or riding a black bicycle' : 'the clothing shown in Picture 1 or the source scene, no bicycle'}. ${isGroping ? 'He remains FULLY CLOTHED in all 12 shots; no male nudity and no penetration. ' : coercive ? `He remains FULLY CLOTHED in Shots 1-${Math.max(1, maleUndressIdx)}; he must NOT be nude or shirtless before Shot ${Math.max(1, maleUndressIdx + 1)}. ` : ''}Preserve his face, hair, body proportions and identity from Picture 2; face kept off extreme close-up. All S2 lines are clear natural Mandarin Chinese, spoken in a low adult male voice; no gibberish, no English, no mumbling.`
         : `<Subject 2> is @Man — the adult man in the scene; if he appears in Picture 1 preserve his face, otherwise use a fully adult man with face kept off close-up; do NOT default to any race or skin tone, wearing ${isCycling ? 'a black cycling jersey and black cycling shorts, standing astride or riding a black bicycle' : 'a dark shirt and dark trousers, no bicycle'}. Appearance comes from Picture 1 when visible.`
       : '';
-  const mode = twoWomen ? 'two-woman' : solo ? 'solo female' : 'heterosexual';
+  const mode = twoWomen ? 'two-woman' : solo ? 'solo female' : isGroping ? 'heterosexual clothed-harassment' : 'heterosexual';
   const endingText = isGroping
     ? 'a silent clothed orgasm with both still dressed, no nudity and no penetration'
     : solo
@@ -1005,7 +1005,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
 ${subject2}
 
 summary:
-[reference generation] Theme outline: ${openingScene}. A cinematic ${targetDuration}-second ${mode} explicit sequence. Picture 1 is a full identity/scene reference, NOT a static first frame. The video starts directly in the live-action scene, already in motion, then progresses through ${progression}, ending in ${endingText}. ${clothingPolicy} ${coercive ? `She is coerced and pleading; he threatens and overpowers her. ${isCycling ? 'The man is riding a bicycle, not running.' : 'He closes in and overpowers her; there is no bicycle in this scene.'}` : ''} No scene change, no character change, no extra person.
+[reference generation] Theme outline: ${openingScene}. A cinematic ${targetDuration}-second ${mode} sequence. Picture 1 is a full identity/scene reference, NOT a static first frame. The video starts directly in the live-action scene, already in motion, then progresses through ${progression}, ending in ${endingText}. ${clothingPolicy} ${coercive ? `She is coerced and pleading; he threatens and overpowers her. ${isCycling ? 'The man is riding a bicycle, not running.' : 'He closes in and overpowers her; there is no bicycle in this scene.'}` : ''} No scene change, no character change, no extra person.
 
 retention_analysis:
 <Subject 1> <Picture 1>: fully_preserved — identity, face, hair and body come from the reference image. ${isGroping ? 'She remains fully clothed throughout; only the blouse and skirt are displaced by hands; no nudity.' : 'Starting clothing is used only for Shot 1, then the shot sequence controls nudity.'}
