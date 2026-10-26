@@ -89,10 +89,20 @@ function dedupeFirstContact(beats: string[], opts: NormalizeOptions): string[] {
   if (!firstHasContact) {
     beats[0] += ' In the same continuous shot, he closes the distance behind her, loops his forearm around her throat, pulls her back against his chest, and drags her toward the dark doorway; she gasps and claws at his arm.';
   }
-  // 首镜已经完成接近/控制，后续两镜改成室内延续，避免三次重复勒颈。
   const dialogue = (text: string) => (text.match(/\(S\d\):\s*<d>[\s\S]*?<\/d>/g) || []).join(' ');
-  beats[1] = `Inside the dark room, he keeps his forearm across her throat and pushes her deeper; she gasps and claws at his arm. ${dialogue(beats[1])}`.trim();
-  beats[2] = `Inside the dark room, he pins her against the wall and starts tearing her blouse open; she pleads. ${dialogue(beats[2])}`.trim();
+  if ((opts.shotCount || 11) >= 12) {
+    // 12 镜版本：第 1 镜只走路/尾随，第 2 镜锁喉，第 3 镜拖入暗门。
+    // 这样每一段 3 个分镜都有清晰动作递进，H3 不会把锁喉和脱衣压进第一段。
+    beats[0] = beats[0]
+      .replace(/(?:In the same continuous shot,\s*)?he closes[^.;]*?(?:throat|choke)[^.;]*[.;]?/gi, '')
+      .replace(/(?:choke|throat|forearm)[^.;]*[.;]?/gi, '');
+    beats[1] = `He closes the distance behind her, grabs her waist, locks a forearm around her throat, and pulls her back against his chest; both are still fully clothed. She gasps and claws at his arm. ${dialogue(beats[1])}`.trim();
+    beats[2] = `He drags her through the dark doorway in one continuous pull; both are still fully clothed, no nudity yet. ${dialogue(beats[2])}`.trim();
+  } else {
+    // 11 镜旧版：首镜完成接近/控制，后续两镜室内延续。
+    beats[1] = `Inside the dark room, he keeps his forearm across her throat and pushes her deeper; she gasps and claws at his arm. ${dialogue(beats[1])}`.trim();
+    beats[2] = `Inside the dark room, he pins her against the wall and starts tearing her blouse open; she pleads. ${dialogue(beats[2])}`.trim();
+  }
   return beats;
 }
 
@@ -111,7 +121,7 @@ export function normalizeH3Script(raw: string, opts: NormalizeOptions): string[]
   if (!beats.length) return [];
   beats = dedupeFirstContact(beats, opts);
   beats = normalizeClothing(beats);
-  const count = opts.shotCount || 11;
+  const count = opts.shotCount || 12;
   while (beats.length < count) {
     beats.push('Afterglow in the exact same location and position: both bodies still, breathing slowing, sweat cooling on skin, the final physical evidence of the act still visible; no new act, no reset.');
   }

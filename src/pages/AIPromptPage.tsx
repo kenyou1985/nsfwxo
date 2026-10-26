@@ -701,6 +701,13 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   if (hasScriptShots) {
     shots = normalizedScriptShots;
   }
+  // 男性服装状态锚点：H3 很容易把 Subject 2 直接画成全裸；在男性第一次脱衣之前逐镜强调衣着。
+  const maleUndressIdx = hasMan ? shots.findIndex((s) => /(?:drops? (?:his )?(?:jeans|pants|trousers|boxers)|shoves? (?:his )?(?:jeans|pants|trousers|boxers) (?:down|off)|strips? (?:off )?his|he is (?:now )?(?:fully )?nude|his (?:pants|jeans|trousers) (?:down|off))/i.test(s)) : -1;
+  if (hasMan && maleUndressIdx > 0) {
+    shots = shots.map((s, i) => i < maleUndressIdx
+      ? `${s} He is still fully clothed in a dark shirt and trousers; no male nudity in this shot.`
+      : s);
+  }
   const nudeLine = 'She strips off the remaining clothing; from this shot onward she is completely nude, and no clothing returns.';
   const needsNude = /(nude|naked|topless|bare breasts|exposed breasts|pulled aside|tugged aside|bunched around|off her shoulders|skirt up|undress|strips?|lingerie|bikini)/i.test(scene);
   if (needsNude && twoWomen) {
@@ -866,7 +873,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
     ? '<Subject 2> is @Woman2 — the exact second cisgender adult woman shown in Picture 1, if present. She has a vulva only: no penis, no futanari, no male genitalia. Identity and appearance come only from Picture 1.'
     : hasMan
       ? malePicture
-        ? `<Subject 2> is @Man <Picture 2> — the exact adult man shown in Picture 2, wearing ${isCycling ? 'a black cycling jersey and black cycling shorts, standing astride or riding a black bicycle' : 'the clothing shown in Picture 1 or the source scene, no bicycle'}. Preserve his face, hair, body proportions and identity from Picture 2; face kept off extreme close-up. All S2 lines are clear natural Mandarin Chinese, spoken in a low adult male voice; no gibberish, no English, no mumbling.`
+        ? `<Subject 2> is @Man <Picture 2> — the exact adult man shown in Picture 2, wearing ${isCycling ? 'a black cycling jersey and black cycling shorts, standing astride or riding a black bicycle' : 'a dark shirt and dark trousers, no bicycle'}. He remains FULLY CLOTHED in Shots 1-${Math.max(1, maleUndressIdx)}; he must NOT be nude or shirtless before Shot ${Math.max(1, maleUndressIdx + 1)}. Preserve his face, hair, body proportions and identity from Picture 2; face kept off extreme close-up. All S2 lines are clear natural Mandarin Chinese, spoken in a low adult male voice; no gibberish, no English, no mumbling.`
         : `<Subject 2> is @Man — the adult man in the scene; if he appears in Picture 1 preserve his face, otherwise use a fully adult muscular Black man with face kept off close-up, wearing ${isCycling ? 'a black cycling jersey and black cycling shorts, standing astride or riding a black bicycle' : 'a dark shirt and dark trousers, no bicycle'}. Appearance comes from Picture 1 when visible.`
       : '';
   const mode = twoWomen ? 'two-woman' : solo ? 'solo female' : 'heterosexual';
