@@ -913,6 +913,26 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
         .replace(/\b(?:a|one) finger\b/gi, 'her own finger')
         .replace(/\bfingers\b/gi, 'her own fingers')
     : core;
+  const themeOutfit = (() => {
+    const colors: Record<string, string> = { 黄色: 'yellow', 红色: 'red', 白色: 'white', 黑色: 'black', 蓝色: 'blue', 灰色: 'grey', 粉色: 'pink', 紫色: 'purple', 绿色: 'green' };
+    const garments: Array<[RegExp, string]> = [
+      [/衬衫|上衣|blouse|shirt/i, 'low-cut blouse'],
+      [/超短裙|短裙|miniskirt/i, 'ultra-mini skirt'],
+      [/长裙|裙|skirt/i, 'skirt'],
+      [/牛仔裤|jeans/i, 'jeans'],
+      [/内衣|胸罩|bra/i, 'bra'],
+      [/内裤|panties|thong/i, 'panties'],
+    ];
+    const found: string[] = [];
+    for (const m of themeText.matchAll(/(黄色|红色|白色|黑色|蓝色|灰色|粉色|紫色|绿色)\s*([\u4e00-\u9fff]{0,8}?)\s*(衬衫|上衣|裙|bra|内衣|内裤|panties|thong|blouse|shirt|skirt|jeans)/gi)) {
+      const color = colors[m[1]] || m[1];
+      const g = garments.find(([re]) => re.test(m[3] || m[2] || ''))?.[1] || m[3];
+      const phrase = `${color} ${g}`.trim();
+      if (!found.includes(phrase)) found.push(phrase);
+    }
+    return found.length ? found.join(', ') : '';
+  })();
+
   const clothingPolicy = hasScriptShots
     ? 'Clothing continuity follows the detailed_description exactly; once the script reaches fully nude, no clothing returns and no character resets to the opening outfit.'
     : hasMan && coercive
@@ -930,7 +950,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
       ? 'multiple positions and mutual oral'
       : 'multiple positions and oral';
   const rawPrompt = `subject_definitions:
-<Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1. Face, hair color, hairstyle, skin tone, body proportions and breast size/shape come ONLY from Picture 1. Clothing applies only to Shot 1: from Shot 2 onward follow the detailed_description nude state, not the reference image.
+<Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1. Picture 1 defines face, hair, hairstyle, skin tone, body proportions and breast size/shape ONLY. IGNORE all clothing from Picture 1: do NOT copy the reference blouse, skirt, colors or outfit. Shot 1 must use the theme outfit${themeOutfit ? `: ${themeOutfit}` : ' described in the theme'}. From Shot 2 onward follow the detailed_description nude state; no reference clothing returns.
 ${subject2}
 
 summary:

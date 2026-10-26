@@ -1266,6 +1266,9 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
             _wf['443']['inputs']['images'] = ['442', 0]
         # ===== 自杀链：不注入，保持画布默认（440/443 filename_prefix=H3_suicide_A/B、438/441 delay=30）=====
         # 用户铁律：自杀式节点（报错失败免扣分）是核心命脉，禁止删除/绕过。画布验证过 SaveImage 报错免扣费。
+        # 音频引导会把上一段音频拖进下一段，造成男声台词拖音/火星语；续段必须各自按 <d> 重新生成。
+        if '338' in _wf and isinstance(_wf['338'].get('inputs'), dict):
+            _wf['338']['inputs'].pop('audio', None)
         # ===== 提交体核对（2026-10-19 假成功诊断用）：直接输出将要 POST 的关键字段形态 =====
         try:
             _emit('  [路%d] 提交体核对: 503=%s 504=%s 159=%s | 1313_len=%d 2022=%s 516.tt=%s 516.ff=%s | 9999=%s 自杀链440/443=%s'
