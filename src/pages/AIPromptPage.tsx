@@ -1393,18 +1393,26 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
 
             // Step 2: 剧本已经是完整 900-1100 词剧本，直接作为 H3 的 scene/source，
             // 不再经过会压缩内容的 image→video 二次调用。
-            const scriptText = expandedImgPrompt.trim();
+            let scriptText = expandedImgPrompt.trim();
+            // 模型偶尔只返回一两百字（审核截断/提前 stop）。不能把整张卡直接报错，
+            // 用用户主题补足后交给 H3 状态机生成 12 镜兜底，避免“第 N 个剧本过短”。
             if (scriptText.length < 500) {
-              throw new Error(`第 ${i + 1} 个剧本过短（${scriptText.length} 字），未达到 1 分钟剧本要求`);
+              console.warn(`[expand] script too short (${scriptText.length}), fallback to theme: ${input.slice(0, 80)}`);
+              scriptText = `${input.trim()}\n\n${scriptText}`.trim();
             }
 
-            // Step 3: 统一走英文 11 镜 H3 模板，锚定参考图，禁止中文旧模板
+            // Step 3: 统一走英文 12 镜 H3 模板，锚定参考图，禁止中文旧模板
             const hasMaleRole = /(\bman\b|\bmale\b|男子|男人|男性|男友|男主)/i.test(`${scriptText} ${input}`);
             const h3Anchors = selectedAnchors.length ? selectedAnchors : ([getDefaultAnchor('female'), getDefaultAnchor('male')].filter(Boolean) as GirlfriendPreset[]);
             const h3 = normalizeDialogueSpeakers(normalizeH3PromptStructure(applyAnchorNames(buildAnchoredH3(scriptText, i, hasMaleRole, videoShotCount, input), h3Anchors)));
 
             return { index: i, id: ids[i], prompt: h3, error: null };
           } catch (err) {
+            setCardVideoStates(prev => {
+              const copy = { ...prev };
+              delete copy[ids[i]];
+              return copy;
+            });
             return {
               index: i,
               id: ids[i],
