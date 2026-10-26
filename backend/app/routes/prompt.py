@@ -7050,7 +7050,12 @@ async def _stream_single_expand(
         for attempt in range(MAX_RETRIES):
             collected: list[str] = []
             try:
-                async for piece in stream_grok(api_key, system_for_local, user_prompt, max_tokens=_max_tokens):
+                _stream = stream_grok(api_key, system_for_local, user_prompt, max_tokens=_max_tokens).__aiter__()
+                while True:
+                    try:
+                        piece = await asyncio.wait_for(_stream.__anext__(), timeout=120)
+                    except StopAsyncIteration:
+                        break
                     collected.append(piece)
                     yield _ndjson_event({"event": "delta", "index": index, "text": piece})
                 result_clean = "".join(collected).strip()
