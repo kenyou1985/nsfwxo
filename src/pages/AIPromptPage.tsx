@@ -1285,6 +1285,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   const [cardVideoStates, setCardVideoStates] = useState<Record<string, { loading: boolean; url?: string; error?: string; startTime?: number }>>({});
   const [count, setCount] = useState(savedExpand?.count || 5);
   const [results, setResults] = useState<{ id: string; original: string; prompt: string; r18: boolean }[]>(savedExpand?.results || []);
+  const expandRunIdRef = useRef(0);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<ExpandHistoryItem[]>(() => getExpandHistory());
@@ -1432,6 +1433,9 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     //   Step 3: generateH3Prompt → 格式化成 H3 Ref2VA 六段式
     if (type === 'video') {
       setLoading(true);
+      const runId = ++expandRunIdRef.current;
+      // 新一轮主题就是全新任务：清掉旧会话，旧请求的回调全部作废。
+      clearExpandSession();
       // 新一轮提示词生成必须清空上一轮的视频 pending/loading，
       // 否则旧任务的“视频生成中”会挂到新卡片上，即使没有点击生视频。
       clearMainPending();
@@ -1472,14 +1476,17 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               };
               void streamExpandPrompt(input.trim(), 'script', r18Mode, 1, i, undefined, false, undefined, {
                 onStart: () => {
+                  if (runId !== expandRunIdRef.current) return;
                   if (type !== 'video') setResults((prev) => prev.map((r, idx) => idx === i ? { ...r, prompt: '生成中…' } : r));
                 },
                 onDelta: ({ text }) => {
+                  if (runId !== expandRunIdRef.current) return;
                   acc += text;
                   // 视频模式不要把中间图片提示词展示到卡片里，最终只显示 H3
                   if (type !== 'video') setResults((prev) => prev.map((r, idx) => idx === i ? { ...r, prompt: acc } : r));
                 },
                 onEnd: ({ prompt }) => {
+                  if (runId !== expandRunIdRef.current) return;
                   const final = (prompt || acc).trim();
                   finish(final);
                 },
@@ -1526,6 +1533,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         const settled: { index: number; id: string; prompt: string; error: string | null }[] = [];
         for (const task of tasks) {
           const item = await task;
+          if (runId !== expandRunIdRef.current) continue;
           settled.push(item);
           setResults((prev) => prev.map((r) => r.id === item.id ? { ...r, prompt: item.prompt } : r));
           setOutputPrompts((prev) => { const next = [...prev]; next[item.index] = item.prompt; return next; });
@@ -2903,6 +2911,9 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     if (!getYunwuKey()) { onError('请先在设置中配置 OpenLux API Key'); return; }
     setLoading(true);
     setExpandedIdx(null);
+    // 新主题 = 全新抽卡：旧 H3、旧视频状态全部丢弃。
+    setH3Prompts({});
+    h3PromptsRef.current = {};
     setVideoStates({});
     autoH3Ref.current = true;
 
