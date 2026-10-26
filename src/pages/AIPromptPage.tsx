@@ -697,6 +697,8 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
     .map((block) => block
       .replace(/^\s*(?:\*\*)?(?:SHOT|Shot)\s+\d+\b[^\n]*\n?/i, '')
       .replace(/^\s*\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}[^\n]*\n?/i, '')
+      .replace(/^\s*Time range[^\n]*\n?/gmi, '')
+      .replace(/^\s*FADE OUT\b[^\n]*\n?/gmi, '')
       .split(/CHINESE\s+DIALOGUE/i)[0]
       // 剧本里裸露的 Woman/Man/女人/男人 台词块不能直接进 H3，否则会被当旁白朗读；
       // 只保留已经带 <d> 标签的台词。
@@ -707,8 +709,16 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   if (hasScriptShots) {
     shots = scriptShotBlocks.slice(0, 11);
     // 剧本常把“尾随”和“勒颈”拆成 SHOT 1/2；首镜必须包含完整接近动作。
+    let appendedFirstAction = false;
     if (hasMan && coercive && !/(choke|throat|forearm|drags? her)/i.test(shots[0])) {
       shots[0] += ' In the same continuous shot, he closes the distance behind her, loops his forearm around her throat, pulls her back against his chest, and drags her toward the dark doorway; she gasps and claws at his arm.';
+      appendedFirstAction = true;
+    }
+    if (appendedFirstAction && shots.length > 2) {
+      // 首镜已经完成勒颈拖入，后续两镜不能再次重复同一动作；保留原有 <d> 台词。
+      const _dlg = (txt: string) => (txt.match(/\(S\d\):\s*<d>[\s\S]*?<\/d>/g) || []).join(' ');
+      shots[1] = 'Inside the dark room, he keeps his forearm across her throat and pushes her deeper; she gasps and claws at his arm.';
+      shots[2] = 'Inside the dark room, he pins her against the wall and starts tearing her blouse open; she pleads. ' + _dlg(shots[2]);
     }
     while (shots.length < 11) {
       shots.push('Afterglow in the exact same location and position: both bodies still, breathing slowing, sweat cooling on skin, the final physical evidence of the act still visible; no new act, no reset.');
@@ -732,6 +742,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
         'She is completely nude; ',
       );
       next = next.replace(/her clothes bunch[^.;]*/gi, 'her nude body arches');
+      next = next.replace(/\b(?:skirt|panties|blouse|bra|clothes|fabric)\b[^.;]*?(?:bunched|pulled|hanging|aside|around|at waist|on|off)[^.;]*[.;]?/gi, 'no clothing remains. ');
       if (!/completely nude|fully nude|nude body|bare breasts/i.test(next)) {
         next = `She is completely nude; no clothing remains. ${next}`;
       }
