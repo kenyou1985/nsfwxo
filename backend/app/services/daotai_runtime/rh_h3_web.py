@@ -1002,19 +1002,21 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
                 # 单路：500 = 完整全局提示词原样（画布内确定性切分）
                 _emit('  [路%d] P. #500.text 注入完整全局提示词（%d 字，503=%d 段，画布内确定性切分；音频净化: 无）: %s…'
                       % (rng[0], len(_gp), _N_det, _gp[:80].replace('\n', ' ')))
-        _M_det = max(2, -(-int(count_shots(_gp) or 1) // max(2, _N_det)))
+        # 8765 可用基线固定每段 2 分镜；M=3 时 H3 只 execution_success 不出视频
+        _M_det = 2
         _wf['501']['inputs']['value'] = True      # 全局模式（501=true → 505.tt=504=15 轮循环）
         # 2026-10-19 修复（第3轮，符合用户铁律"导演台原有逻辑禁止修改"）：
         #   502 取值完全恢复 wfc 默认（wfc.llm_value，6098=True → 导演台 /api/start 原有 502=true 逻辑逐字不变，
         #   不读 cfg['llm']，导演台前端 LLM 开关行为与历史一致）。
         #   仅外部开放API（火宝 /openapi/v2/*，cfg 带 _from_openapi 标记 + llm=False）走 502=false 干净版(516000)：
         #   127.prompt=516→514（不吃 228）、228.custom_prompt 置空 → 火宝 4151 字大提示词永不爆窗（24713>16384 已修复）。
-        _llm_val = False if cfg.get('_from_openapi') else bool(wfc.get('llm_value', True))
+        # 对齐 8765 正常链路：外部提交也走 502=true / 175→228 / 516→228
+        _llm_val = True
         _wf['502']['inputs']['value'] = _llm_val
         if '1269' in _wf:
             _wf['1269']['inputs']['value'] = _M_det   # 每段分镜数：4 段 × 3 = 12，覆盖 11 个 Shot
         _wf['503']['inputs']['value'] = _N_det    # 总段数（504 = 503-1 = N-1 轮循环 + 首段 = N 段）
-        _wf['159']['inputs']['value'] = int(cfg.get('duration', 15))   # 159→9 帧数→93/95 length→127.length
+        _wf['159']['inputs']['value'] = 15   # 159→9 帧数→93/95 length→127.length
         # 2026-10-19 时长补偿（仅外部开放API火宝路径，导演台原版提交的 9 表达式保持画布默认）：
         #   H3 平台对 127.length 帧数实际生成帧 ≈ length 的 80-85%（24fps 下 13s→280帧/段=11.7s、10s→195帧=8.1s），
         #   导致每段实际时长比设置缩水 10-19%。火宝路径把 9 节点系数 24→27.6（×1.15 补偿），
@@ -1087,8 +1089,10 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
             _emit('  [路%d] 干净版(516000)形态：#175 连 15（LLM 置空防爆窗）、#330 连 228（陪跑预览）、#516 连 514、15/228.custom_prompt 均置空'
                   % rng[0])
         else:
-            # 502=true（对齐画布）：228 正常跑 → cinematic 描述驱动 H3 音频（无音乐/无旁白）
+            # 502=true（对齐 8765 正常链路）：228 吃 202 的完整切分提示词，175/516 原生连 228；
             # 15 无视频链消费者（仅 196 预览），强制 custom_prompt 置空防平台仍执行时吃 1307 合并文本爆窗
+            if '228' in _wf and 'custom_prompt' in _wf['228'].get('inputs', {}):
+                _wf['228']['inputs']['custom_prompt'] = ['202', 0]
             if '15' in _wf and 'custom_prompt' in _wf['15'].get('inputs', {}):
                 _wf['15']['inputs']['custom_prompt'] = ''
             _emit('  [路%d] 228 旁路禁用（502=true，对齐画布）：228 正常跑 → cinematic 描述驱动 H3 音频（无音乐/无旁白）；15 已置空防爆窗'

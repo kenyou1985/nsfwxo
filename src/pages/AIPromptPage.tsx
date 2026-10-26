@@ -1754,14 +1754,12 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         // firstFrameUrl 已经是 Picture 1；media 只放额外参考图，避免后端把同一张图重复算成 refs=3
         media: extraAnchorImages.map((u) => ({ type: 'reference_image', url: u })),
         workflow_id: '2110330160000516098',
-        // 3013 火宝正常链路使用 12 秒/段；15 秒会让 H3 分支提前 execution_success 但不触发自杀链
-        duration: 12,
+        duration: 15,
         resolution: videoClarity,
         aspect_ratio: '9:16',
-        // 当前 H3 det16 工作流稳定基线是 12 秒 × 2 段（3013 已验证能触发自杀链）。
-        // 4 段循环会提前 execution_success，只出音频不出视频，所以智能扩写固定 2 段。
-        shots_per_seg: 2,
-        target_segs: 2,
+        // 对齐 8765 正常链路：15 秒/段、4 段，真正由后端 1269=2 控制每段分镜
+        shots_per_seg: 4,
+        target_segs: videoSegments,
         loop_routes: videoRoutes,
         instance: 'plus',
       };
