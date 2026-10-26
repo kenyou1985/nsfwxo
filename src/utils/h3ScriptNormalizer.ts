@@ -250,9 +250,8 @@ export function normalizeH3PromptStructure(raw: string, opts: H3StructureOptions
     if (!content) continue;
     if (!byNum.has(num)) byNum.set(num, content);
   }
-  const firstReal = [...byNum.entries()].filter(([n, v]) => n === 1 && /walk|her |she |camera|shot/i.test(v));
-  if (!firstReal.length && byNum.has(2)) {
-    byNum.set(1, 'She walks ahead through the location, unaware; he follows several steps behind, both fully clothed, no contact yet.');
+  if (!byNum.has(1) && byNum.has(2)) {
+    byNum.set(1, 'The opening frame establishes the same location, the same two people, and the first visible action of the theme.');
   }
   let shots = [...byNum.entries()].sort((a, b) => a[0] - b[0]).slice(0, 12).map(([, v]) => v);
 
