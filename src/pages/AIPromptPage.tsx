@@ -1758,8 +1758,10 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         duration: 12,
         resolution: videoClarity,
         aspect_ratio: '9:16',
-        shots_per_seg: videoShotCount >= 30 ? 3 : videoShotCount >= 20 ? 3 : videoSegments,
-        target_segs: videoShotCount >= 30 ? 12 : videoShotCount >= 20 ? 8 : videoSegments,
+        // 当前 H3 det16 工作流稳定基线是 12 秒 × 2 段（3013 已验证能触发自杀链）。
+        // 4 段循环会提前 execution_success，只出音频不出视频，所以智能扩写固定 2 段。
+        shots_per_seg: 2,
+        target_segs: 2,
         loop_routes: videoRoutes,
         instance: 'plus',
       };
