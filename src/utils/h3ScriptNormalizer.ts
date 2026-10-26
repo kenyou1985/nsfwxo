@@ -166,3 +166,64 @@ export function normalizeDialogueSpeakers(raw: string): string {
   }
   return out;
 }
+
+/**
+ * H3 结构化归一：把模型偶发的 11 镜、错位 Shot 12、裸男矛盾、散落 speaker_mapping 修正成
+ * 严格 12 镜 / 4 段结构。幂等，可对任何完整 H3 文本调用。
+ */
+export function normalizeH3PromptStructure(raw: string): string {
+  if (!raw || !/\[Shot\s+\d+\]/i.test(raw)) return raw;
+  const headMatch = raw.match(/^([\s\S]*?)(?=detailed_description\s*:)/i);
+  let head = (headMatch ? headMatch[1] : '').trim();
+  // 模型偶发把服装锚点算成 1-1 / 1-3；12 镜统一为 1-6，Shot 7 才允许男性脱衣。
+  head = head.replace(/He remains FULLY CLOTHED in Shots 1-\d+;\s*he must NOT be nude or shirtless before Shot \d+\./gi,
+    'He remains FULLY CLOTHED in Shots 1-6; he must NOT be nude or shirtless before Shot 7.');
+  // 清掉模型把“walked wearily home”误拼进 locationLabel 的残句。
+  head = head.replace(/through\s+(?:woman|man)\s+walks?[^,;]*?\bhome\s+in/gi, 'through the narrow alley in');
+  head = head.replace(/through\s+Handheld[^,;]*?\bin/gi, 'through the narrow alley in');
+  const shotRe = /\[Shot\s+(\d+)\][\s\S]*?(?=\n\s*\[Shot\s+\d+\]|\n\s*overall_soundscape\s*:|\n\s*speaker_mapping\s*:|$)/gi;
+  let shots = Array.from(raw.matchAll(shotRe)).map((m) => m[0]
+    .replace(/^\[Shot\s+\d+\]\s*/i, '')
+    .replace(/^\s*speaker_mapping\s*:[\s\S]*$/i, '')
+    .replace(/^\s*S[12]\s*:\s*.*$/gim, '')
+    .trim());
+  if (!shots.length) return raw;
+
+  const anchor = 'He is still fully clothed in a dark shirt and trousers; no male nudity in this shot.';
+  // 12 镜：前 6 镜男性强制穿衣，第 7 镜才允许脱裤。
+  const maleNude = /(?:\b(?:man|he)\b[^.\n]{0,40}\b(?:fully\s+)?nude\b|\bboth\s+(?:now\s+|still\s+)?(?:fully\s+)?nude\b|\bhis\s+(?:cock|penis)\s+(?:springs|is)\s+free\b|\bhe\s+(?:shoves|kicks|pushes)\s+(?:his|the)\s+(?:jeans|pants|trousers|boxers)[^.;]*)/gi;
+  for (let i = 0; i < Math.min(6, shots.length); i++) {
+    shots[i] = shots[i].replace(maleNude, 'he keeps his dark shirt and trousers on');
+    if (!/fully clothed|no male nudity|trousers remain on|keeps his dark shirt/i.test(shots[i])) {
+      shots[i] = `${shots[i]} ${anchor}`.trim();
+    }
+  }
+
+  // 12 镜开场：1 走路/尾随，2 锁喉，3 拖入暗门。
+  if (shots.length <= 12) {
+    shots[0] = shots[0]
+      .replace(/(?:In the same continuous shot,\s*)?he closes[^.;]*(?:throat|choke|chest)[^.;]*[.;]?/gi, '')
+      .replace(/\b(?:forearm|choke|throat)\b[^.;]*[.;]?/gi, '')
+      .trim();
+    if (!/walks?|walking|follows?|following/i.test(shots[0])) {
+      shots[0] = `She walks ahead through the location, unaware; he follows several steps behind. ${shots[0]}`;
+    }
+    if (!/(choke|throat|forearm)/i.test(shots[1] || '')) {
+      shots[1] = `He closes the distance, grabs her waist, locks a forearm around her throat, and pulls her back against his chest; both still fully clothed. ${shots[1] || ''}`;
+    }
+    if (!/(drags? her|drag her|through the (?:dark )?doorway)/i.test(shots[2] || '')) {
+      shots[2] = `He drags her through the dark doorway in one continuous pull; both still fully clothed, no nudity yet. ${shots[2] || ''}`;
+    }
+  }
+
+  while (shots.length < 12) {
+    shots.push('Afterglow in the exact same location and position: both bodies still, breathing slowing, sweat cooling on skin; no new act, no reset.');
+  }
+  shots = shots.slice(0, 12);
+
+  const overallMatch = raw.match(/overall_soundscape\s*:\s*([\s\S]*?)(?=\n\s*non_diegetic_music\s*:|\n\s*speaker_mapping\s*:|$)/i);
+  const overall = (overallMatch ? overallMatch[1] : 'Location ambience, wet skin contact, breathing, one climax cry, then after-breaths.').trim();
+  const speaker = 'speaker_mapping: {"S1":"Chinese (Mandarin)_Adult_Female_Soft","S2":"Chinese (Mandarin)_Adult_Male_Low"}';
+  const body = shots.map((s, i) => `[Shot ${i + 1}] ${s}`).join('\n');
+  return `${head}\n\ndetailed_description:\n${body}\n\noverall_soundscape: ${overall}\nnon_diegetic_music: None\n${speaker}`;
+}

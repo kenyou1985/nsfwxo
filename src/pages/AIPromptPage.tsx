@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { extractVideoPromptFromImagePrompt } from '../utils/videoPromptExtractor';
 import { normalizeKrea2Prompt } from '../utils/krea2Prompt';
-import { normalizeH3Script, normalizeDialogueSpeakers } from '../utils/h3ScriptNormalizer';
+import { normalizeH3Script, normalizeDialogueSpeakers, normalizeH3PromptStructure } from '../utils/h3ScriptNormalizer';
 import { makeThumbnailForStorage, makePreviewForStorage } from '../utils/imageThumbnail';
 import { AspectAwareImage } from '../components/AspectAwareImage';
 import { OneClickProduce } from '../components/OneClickProduce';
@@ -1774,7 +1774,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       };
       // 智能扩写卡片里已经是完整 H3；不能再拿 H3 当图片提示词二次 build，否则会把上一版女女/男模板混进来
       const isH3Prompt = /^\s*subject_definitions\s*:/i.test(videoText);
-      const anchoredPrompt = normalizeDialogueSpeakers(applyAnchorNames(isH3Prompt ? videoText : buildAnchoredH3(videoText, 0, !!maleImage, videoShotCount, input), anchorList));
+      const anchoredPrompt = normalizeDialogueSpeakers(normalizeH3PromptStructure(applyAnchorNames(isH3Prompt ? videoText : buildAnchoredH3(videoText, 0, !!maleImage, videoShotCount, input), anchorList)));
       const submit = await submitDaotaiVideo(key, anchoredPrompt, { ...body, prompt: anchoredPrompt });
       saveMainPending({ taskId: submit.taskId, promptKey: videoText, startTime: Date.now() });
       const localId = `expand-video-${Date.now()}`;
@@ -3322,7 +3322,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         loop_routes: videoRoutes,
         instance: 'plus',
       };
-      const anchoredPrompt = normalizeDialogueSpeakers(anchorH3Prompt(h3));
+      const anchoredPrompt = normalizeDialogueSpeakers(normalizeH3PromptStructure(anchorH3Prompt(h3)));
       const submit = await submitDaotaiVideo(rhKey, anchoredPrompt, { ...body, prompt: anchoredPrompt });
       submittedTaskId = submit.taskId;
       publishExternalVideoTask({
