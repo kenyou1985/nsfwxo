@@ -960,6 +960,10 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
                 else:
                     _emit('  [路%d] 复用 1×1 透明占位图 -> %s（已上传）' % (rng[0], job.uploaded[_blank]))
             _wf['9999'] = {'class_type': 'LoadImage', 'inputs': {'image': job.uploaded[_blank]}}
+        # H3 AddGuide 的音频引导会让续段反复使用第一段音频，造成男声台词被拖音/火星语；
+        # 关闭音频引导，让每段按自己的 <d> 台词重新生成音频，仅保留画面尾帧引导。
+        if '338' in _wf and isinstance(_wf['338'].get('inputs'), dict):
+            _wf['338']['inputs'].pop('audio', None)
             # ===== 2026-10-19 画面错乱修复（导演台 502=true 路径，任务 2112192490453401601 实锤）=====
             # 根因：502=true 时 15/228 视觉被 9999 透明图接管 → LLM 只见“纯黑图片” → 输出虚空描述
             #   （WS 日志实锤 “Since you have provided only a solid black image... The Void / Pure Darkness”）
