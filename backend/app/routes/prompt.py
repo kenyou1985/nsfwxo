@@ -6821,7 +6821,7 @@ def _strip_script_refusal(text: str) -> str:
 
 
 def _is_coercive_theme(text: str) -> bool:
-    return bool(__import__('re').search(r'(尾随|跟踪|胁迫|强迫|不情愿|强奸|强暴|抓住|按在|扒光|锁喉|拖进|rape|coerc|stalk|choke|throat|drag)', text or '', __import__('re').I))
+    return bool(__import__('re').search(r'(尾随|跟踪|胁迫|强迫|不情愿|强奸|强暴|抓住|按在|扒光|锁喉|拖进|\b(?:rape|coerc\w*|stalk\w*|choke|throat|drag)\b)', text or '', __import__('re').I))
 
 
 def _script_system_for_theme(text: str, r18: bool) -> str:

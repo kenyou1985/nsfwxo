@@ -663,7 +663,18 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
       'He thrusts deep and steady, forehead against hers, her legs wrapped around his waist, both breathing hard.',
       'She rolls on top without pulling out, sits up, and rides him, hands on his chest, hips rolling faster.',
     ];
-    const activeVariants = coercive ? (isCycling ? chaseVariants : sceneCoercionVariants) : [consensualActions, consensualActions, consensualActions];
+    const nonSexualActions = [
+      `He steps close and cups her jaw, thumb brushing her cheek; she holds his gaze, breathing shallow. ${placeLine}.`,
+      'She leans in first and kisses him; his hand slides to the small of her back, pulling her closer.',
+      'They break the kiss just enough to breathe, foreheads touching, fingers laced.',
+      'He turns her gently and presses her back to the wall, kissing down her neck; she tilts her head and sighs.',
+      'She hooks a leg around his and pulls him closer, their bodies fitting together.',
+      'He lifts her by the waist; she wraps her arms around his shoulders and laughs softly.',
+      'They move to the nearest surface and sit close, hands roaming over clothed bodies, no rush.',
+      'She straddles his lap and kisses him deeply; he holds her hips, letting her set the pace.',
+      'The kiss slows, becomes tender; they stay close, breathing together, the moment held.',
+    ];
+    const activeVariants = coercive ? (isCycling ? chaseVariants : sceneCoercionVariants) : explicitAct ? [consensualActions, consensualActions, consensualActions] : [nonSexualActions, nonSexualActions, nonSexualActions];
     shots = [first, ...(activeVariants[variant % 3] || activeVariants[0]), final];
   } else if (!explicitAct) {
     shots = [
@@ -899,10 +910,12 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
     : core;
   const clothingPolicy = hasScriptShots
     ? 'Clothing continuity follows the detailed_description exactly; once the script reaches fully nude, no clothing returns and no character resets to the opening outfit.'
-    : (hasMan && (coercive || !explicitAct))
+    : hasMan && coercive
     ? isCycling
       ? 'Shot 1 uses the reference clothing; Shot 2 he catches her on his bicycle; Shot 3 rips the cycling suit completely off; she is completely nude by the end of Shot 3, no bra, no panties, no fabric. He keeps his cycling shorts on until Shot 6, then pulls them down to his thighs before penetration.'
       : 'Shot 1 uses the clothing shown in Picture 1 or the source scene; Shot 2 he closes in and grabs her; Shot 3 he rips her top, bra, lower garment and panties off and she is completely nude by the end of Shot 3; no clothing returns after Shot 3; Shot 6 he pulls his trousers and boxers down to his ankles before penetration; from Shot 3 onward she is completely nude with bare breasts, ass and vulva.'
+    : hasMan && !explicitAct
+    ? 'Clothing follows the source scene and stays intact unless the user theme explicitly asks for undressing; no forced nudity and no stalking behavior.'
     : needsNude
       ? 'Shot 1 uses the reference clothing; Shot 2 strips it off; Shot 3 onward both are completely nude with bare breasts, vulva and ass, no bra, no panties, no fabric.'
       : 'Clothing follows Picture 1.';
