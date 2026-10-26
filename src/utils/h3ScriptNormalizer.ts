@@ -49,7 +49,9 @@ function splitScript(raw: string): string[] {
   // 不能只匹配行首：模型经常输出 `[Shot 1] SHOT 2: ...` 或 `SHOT 2: ... SHOT 3: ...`
   // 同一行内混排；只按行首切会把 SHOT 2..12 全部塞进 Shot 1。
   return raw
-    .split(/(?=(?:\[\s*(?:\*\*)?(?:SHOT|Shot)\s+\d+\s*\]?|\bSHOT\s+\d+\s*:))/i)
+    // `SHOT N:` 只允许行首或紧跟在 `[Shot N]` 后面，避免把
+    // "Clothing applies only to Shot 1: from Shot 2 onward..." 当成镜头标题。
+    .split(/(?=(?:\[\s*(?:\*\*)?(?:SHOT|Shot)\s+\d+\s*\]?|(?:^|\n|\])\s*SHOT\s+\d+\s*:))/im)
     .slice(1)
     .map(cleanBeat)
     .filter((x) => x.length > 30);
@@ -204,7 +206,7 @@ export function normalizeH3PromptStructure(raw: string): string {
   head = head.replace(/through\s+shot\s*-\s*Quiet narrow path/gi, 'through the narrow alley');
 
   // 同时识别 `[Shot N]` 和模型偶发的 `SHOT N:`；否则 raw SHOT 2..12 会被塞进 Shot 1。
-  const marks = raw.split(/(?=(?:\[Shot\s*\d+\]|\bSHOT\s*\d+\s*:))/i);
+  const marks = raw.split(/(?=(?:\[Shot\s*\d+\]|(?:^|\n|\])\s*SHOT\s*\d+\s*:))/im);
   const byNum = new Map<number, string>();
   for (const part of marks) {
     const m = part.match(/^(?:\[Shot\s*(\d+)\]|\bSHOT\s*(\d+)\s*:)/i);
