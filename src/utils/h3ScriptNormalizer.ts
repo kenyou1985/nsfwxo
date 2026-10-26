@@ -18,7 +18,7 @@ export interface NormalizeOptions {
 }
 
 const CLOTHING_NOUNS = 'top|bra|shirt|blouse|skirt|jeans|panties|thong|underwear|lower garment|dress|clothes|fabric';
-const NUDE_RE = /(?:she is|she's|now|remains?|body|clothing state:?)\s*(?:completely|fully) nude|completely nude from|no clothing remains|stays? nude/i;
+const NUDE_RE = /she is (?:now )?(?:completely|fully) nude|she's (?:now )?(?:completely|fully) nude|no clothing remains|stays? nude/i;
 
 function cleanBeat(raw: string): string {
   return raw
@@ -34,7 +34,10 @@ function cleanBeat(raw: string): string {
     .replace(/\bFADE OUT\b\.?/gi, '')
     .split(/CHINESE\s+DIALOGUE/i)[0]
     // 剧本文本里裸露的说话人标签，不是 <d> 台词，全部清掉
-    .replace(/(?:^|\n)\s*(?:Woman|Man|Male|Female|女人|男人|男|女)\s*[（(][^\n]*[)）]\s*[:：]?[^\n]*(?:\n(?!\s*(?:\[\s*)?(?:\*\*)?(?:SHOT|Shot)\s+\d+)[^\n]*)*/gi, '')
+    .replace(/(?:^|\n)\s*(?:Woman|Man|Male|Female|LIN|MARCUS|[A-Z][A-Z ]{1,20}|女人|男人|男|女)\s*[（(][^\n]*[)）]\s*[:：]?[^\n]*(?:\n(?!\s*(?:\[\s*)?(?:\*\*)?(?:SHOT|Shot)\s+\d+)[^\n]*)*/gi, '')
+    // 没有 <d> 标签的中文对白行一律删除；H3 只朗读 <d> 内文本。
+    .replace(/^\s*[\u4e00-\u9fff][^\n]*$/gm, '')
+    .replace(/([:：])\s*[\u4e00-\u9fff][^\n]*/g, '$1')
     .trim();
 }
 
