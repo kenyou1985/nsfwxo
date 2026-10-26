@@ -462,8 +462,8 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   const themeText = `${scene} ${userHint}`;
   const explicitTwoWomen = /(two women|two girls|lesbian|female partner|another woman|second woman|strap-on|女女|百合|双女|两个女人|两名女性)/i.test(themeText);
   const twoWomen = explicitTwoWomen || (/(^|\s)women(\s|$)/i.test(scene) && !/(男子|男人|男性|\bman\b)/i.test(themeText));
-  const userHasMan = /(男子|男人|男性|男友|男主|一个强壮|跟踪|尾随|\bman\b|\bmale\b)/i.test(userHint);
-  const hasMan = !twoWomen && (userHasMan || /\b(man|male|boyfriend|guy|his |he )\b|男人|男性|男主|男友|男子/i.test(scene));
+  const userHasMan = /(男子|男人|男性|男友|男主|一个强壮|跟踪|尾随|大叔|痴汉|猥琐|色狼|老汉|老头|叔叔|乘客|\bman\b|\bmale\b)/i.test(userHint);
+  const hasMan = !twoWomen && (userHasMan || /\b(man|male|boyfriend|guy|his |he )\b|男人|男性|男主|男友|男子|大叔|痴汉|猥琐|色狼|老汉|老头|叔叔/i.test(scene));
   // 骑行语义只从用户原始输入判断，不能从 LLM 扩写剧本里反推：
   // 模型偶尔会幻觉出 bicycle，导致普通巷子主题被改成骑行服/自行车。
   const cyclingIntent = userHint || '';
@@ -471,12 +471,15 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
     || /\b(?:bicycle|bike|cycling|cyclist|pedal(?:ing)?)\b/i.test(cyclingIntent);
   const solo = !twoWomen && !hasMan;
   // 只有明确的尾随/胁迫/CNC 主题才进入强制控制链；普通约会、地铁、办公室、泳池等主题不能被误判。
-  const coercive = hasMan && /(尾随|跟踪|胁迫|强迫|不情愿|强奸|强暴|锁喉|掐住|拖进|抓住|按在|扒光|rape|coerc|stalk|choke|throat|drag)/i.test(themeText);
+  const coercive = hasMan && /(尾随|跟踪|胁迫|强迫|不情愿|强奸|强暴|锁喉|掐住|拖进|抓住|按在|扒光|摸|猥亵|骚扰|蹭|偷摸|痴汉|非礼|rape|coerc|stalk|choke|throat|drag|grope)/i.test(themeText);
+  const isGroping = hasMan && /(摸|猥亵|骚扰|蹭|偷摸|痴汉|非礼|grope|fondle)/i.test(themeText);
+  const isSubway = /(地铁|车厢|subway|metro|train)/i.test(themeText);
   const forcePrelude = hasMan && /(尾随|跟踪|胁迫|强迫|不情愿|强奸|强暴|抓住|按在|扒光|追上|跟着|跟踪|尾随)/i.test(userHint);
   const locationMatch = scene.match(/((?:[A-Za-z-]+\s+){0,4}(?:alley|lane|street|road|sidewalk|room|office|corridor|entrance|path|trail|house|home|beach|park|garage|club|bar|hotel|classroom|warehouse|stairwell|landing))/i);
   let locationLabel = (locationMatch?.[0] || 'the opening location').replace(/[.,;]+$/g, '').replace(/\s+/g, ' ').trim();
   locationLabel = locationLabel.replace(/^(?:after work\s+)?(?:she\s+)?(?:\w+ly\s+)?(?:walks?|walking|through|toward|down|into|the|wearily|warily|slowly)\s+/gi, '').trim() || 'urban village alley';
   if (/storage room|dark room|room$/i.test(locationLabel) && /城中村|小巷|巷子|alley/i.test(themeText)) locationLabel = 'urban village alley';
+  if (isSubway) locationLabel = 'crowded subway car';
   const placeLine = `Same location: ${locationLabel}, same lighting`;
   const explicitAct = /(penetrat|thrust|insert|cunnilingus|blowjob|fellatio|fuck|sex scene|inside her|riding him|takes? .{0,40}(?:cock|shaft) .{0,30}(?:mouth|throat))/i.test(scene);
   const atFacesit = /(sits? astride|sitting on (?:his|the) face|facesit|face-sit|riding (?:his|her) face|mouth beneath|oral sex beneath|cunnilingus|骑脸|坐脸|坐在脸上)/i.test(scene);
@@ -490,10 +493,36 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
       && !/(nude|naked|penetrat|thrust|cock|pussy|sex|bound|rope|climax|choke|throat|grab|pins|strips|undress|drags?)/i.test(x))
     .sort((a, b) => Number(/(walk|walking)/i.test(b)) - Number(/(walk|walking)/i.test(a)));
   const englishScene = /[\u4e00-\u9fff]/.test(scene) ? '' : scene;
-  const walkOpening = `After work she walks toward the camera through ${locationLabel} in her blouse and ultra-short skirt, unaware; the man follows several steps behind and slowly closes the distance`;
+
+  const themeOutfit = (() => {
+    const colors: Record<string, string> = { 黄色: 'yellow', 红色: 'red', 白色: 'white', 黑色: 'black', 蓝色: 'blue', 灰色: 'grey', 粉色: 'pink', 紫色: 'purple', 绿色: 'green' };
+    const garments: Array<[RegExp, string]> = [
+      [/衬衫|上衣|blouse|shirt/i, 'low-cut blouse'],
+      [/超短裙|短裙|miniskirt/i, 'ultra-mini skirt'],
+      [/长裙|裙|skirt/i, 'skirt'],
+      [/牛仔裤|jeans/i, 'jeans'],
+      [/内衣|胸罩|bra/i, 'bra'],
+      [/内裤|panties|thong/i, 'panties'],
+    ];
+    const found: string[] = [];
+    for (const m of themeText.matchAll(/(黄色|红色|白色|黑色|蓝色|灰色|粉色|紫色|绿色)\s*([\u4e00-\u9fff]{0,8}?)\s*(衬衫|上衣|裙|bra|内衣|内裤|panties|thong|blouse|shirt|skirt|jeans)/gi)) {
+      const color = colors[m[1]] || m[1];
+      const g = garments.find(([re]) => re.test(m[3] || m[2] || ''))?.[1] || m[3];
+      const phrase = `${color} ${g}`.trim();
+      if (!found.includes(phrase)) found.push(phrase);
+    }
+    return found.length ? found.join(', ') : '';
+  })();
+
+
+  const walkOpening = isSubway
+    ? `In a crowded subway car, she stands near the door in ${themeOutfit || 'a yellow low-cut blouse and red ultra-mini skirt'}, one hand on the strap, unaware; the man presses closer behind her through the crowd`
+    : `After work she walks toward the camera through ${locationLabel} in ${themeOutfit || 'her blouse and ultra-short skirt'}, unaware; the man follows several steps behind and slowly closes the distance`;
   // 强制首镜从“走路 + 尾随”开始，禁止把掐脖子/抓人当成第一帧
   const openingScene = (coercive && hasMan ? walkOpening : (openingCandidates[0] || englishScene || walkOpening)).replace(/\.+$/, '').slice(0, 260);
-  const firstAction = hasMan && coercive
+  const firstAction = isGroping
+    ? 'She stands among standing passengers, one hand on the overhead strap; he is already close behind her, body angled into her space, not yet touching.'
+    : hasMan && coercive
     ? 'In this one continuous shot, he closes the distance behind her, loops his forearm around her throat, pulls her back against his chest, and drags her toward the dark doorway; she gasps and claws at his arm.'
     : `${hasMan ? 'The man is already following her a few steps behind. ' : ''}The opening frame shows her walking before any contact.`;
   const first = `The video opens directly in the live-action scene, already in motion: ${openingScene}. ${firstAction} Picture 1 is an identity and scene reference, NOT a static first frame: do not start on a portrait, reference-sheet pose, photo face shot, or frozen replica of Picture 1. The woman's identity comes from Picture 1, but the opening frame is a real cinematic action frame with the body, clothing and environment already moving.`;
@@ -543,6 +572,22 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
       `Standing on one leg with the other foot raised, she works the same ${soloToy} over her clit, hips bucking, breath breaking. ${placeLine}. ${soloGuard}`,
       `Squirting climax: clear fluid gushes out around her own fingers/toy, splashing her thighs and the surface, body locking hard. ${soloGuard}`,
       `Afterglow: wet thighs and slick surface in frame, chest heaving, toy still resting against her, skin flushed, eyes dazed. ${soloGuard}`,
+    ];
+  } else if (isGroping && !explicitAct) {
+    const guard = 'Both remain fully clothed; no nudity, no undressing, no penis, no penetration; only hands and bodies through fabric.';
+    shots = [
+      first,
+      `He closes the last few centimetres behind her as the car sways, his chest almost against her back; one hand settles on her hip, proprietary and slow. ${placeLine}. ${guard}`,
+      `His hand slides down over the red skirt and squeezes her ass through the fabric; she stiffens, fingers tightening on the strap, eyes forward. ${placeLine}. ${guard}`,
+      `He presses his hips into her from behind, pinning her against the door frame, and works his palm under the hem of her skirt. ${placeLine}. ${guard}`,
+      `Under the skirt, his fingers find the edge of her panties and pull them aside; she bites her lip, a shocked breath caught in her throat. ${placeLine}. ${guard}`,
+      `His fingers rub her bare pussy in slow circles; she jolts, tries to shift away, but the crowd traps her in place. ${placeLine}. ${guard}`,
+      `He pushes two fingers inside her while his thumb circles her clit, his mouth at her ear, whispering something she cannot escape. ${placeLine}. ${guard}`,
+      `Her knees buckle; she grabs his wrist with one hand but does not pull it away, head falling back against his shoulder. ${placeLine}. ${guard}`,
+      `He opens her blouse with his free hand and palms her breast over the bra, pinching the nipple through lace; she gasps, hips rolling despite herself. ${placeLine}. ${guard}`,
+      `The train jolts; he catches her weight and drives his fingers deeper, palm grinding her clit, her mouth open in a silent moan. ${placeLine}. ${guard}`,
+      `She shudders through a clothed, silent orgasm, thighs clamping around his hand, nails digging into his sleeve; he keeps moving until she stops shaking. ${placeLine}. ${guard}`,
+      `Afterglow: he withdraws his hand, straightens her skirt, and steps back into the crowd; she stands flushed and trembling, holding the strap, saying nothing. ${placeLine}. ${guard}`,
     ];
   } else if (atFacesit && !forcePrelude) {
     shots = [
@@ -714,7 +759,13 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   const normalizedScriptShots = normalizeH3Script(imagePrompt, {
     hasMan, coercive, theme: themeText, shotCount,
   });
-  const hasScriptShots = normalizedScriptShots.length >= 8;
+  // 剧本必须和主题角色/行为一致；模型偶尔会把“地铁猥亵”扩写成单人自慰，
+  // 这种剧本即使有 12 镜也必须丢弃，回到主题分支，不能覆盖正确主题。
+  const scriptJoined = normalizedScriptShots.join(' ');
+  const scriptIsSolo = /(only her own|her own hand|no man|no male|solo female)/i.test(scriptJoined);
+  const scriptHasGroping = /(grope|fondle|touch(?:es|ing)? her|hand .*?(?:ass|hip|thigh|crotch|pussy)|摸|臀|下体)/i.test(scriptJoined);
+  const scriptMismatch = (hasMan && scriptIsSolo) || (isGroping && !scriptHasGroping);
+  const hasScriptShots = normalizedScriptShots.length >= 8 && !scriptMismatch;
   if (hasScriptShots) {
     shots = normalizedScriptShots;
   }
@@ -887,11 +938,13 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
     ? '<Subject 2> is @Woman2 — the exact second cisgender adult woman shown in Picture 1, if present. She has a vulva only: no penis, no futanari, no male genitalia. Identity and appearance come only from Picture 1.'
     : hasMan
       ? malePicture
-        ? `<Subject 2> is @Man <Picture 2> — the exact adult man shown in Picture 2, wearing ${isCycling ? 'a black cycling jersey and black cycling shorts, standing astride or riding a black bicycle' : 'the clothing shown in Picture 1 or the source scene, no bicycle'}. ${coercive ? `He remains FULLY CLOTHED in Shots 1-${Math.max(1, maleUndressIdx)}; he must NOT be nude or shirtless before Shot ${Math.max(1, maleUndressIdx + 1)}. ` : ''}Preserve his face, hair, body proportions and identity from Picture 2; face kept off extreme close-up. All S2 lines are clear natural Mandarin Chinese, spoken in a low adult male voice; no gibberish, no English, no mumbling.`
+        ? `<Subject 2> is @Man <Picture 2> — the exact adult man shown in Picture 2, wearing ${isCycling ? 'a black cycling jersey and black cycling shorts, standing astride or riding a black bicycle' : 'the clothing shown in Picture 1 or the source scene, no bicycle'}. ${isGroping ? 'He remains FULLY CLOTHED in all 12 shots; no male nudity and no penetration. ' : coercive ? `He remains FULLY CLOTHED in Shots 1-${Math.max(1, maleUndressIdx)}; he must NOT be nude or shirtless before Shot ${Math.max(1, maleUndressIdx + 1)}. ` : ''}Preserve his face, hair, body proportions and identity from Picture 2; face kept off extreme close-up. All S2 lines are clear natural Mandarin Chinese, spoken in a low adult male voice; no gibberish, no English, no mumbling.`
         : `<Subject 2> is @Man — the adult man in the scene; if he appears in Picture 1 preserve his face, otherwise use a fully adult muscular Black man with face kept off close-up, wearing ${isCycling ? 'a black cycling jersey and black cycling shorts, standing astride or riding a black bicycle' : 'a dark shirt and dark trousers, no bicycle'}. Appearance comes from Picture 1 when visible.`
       : '';
   const mode = twoWomen ? 'two-woman' : solo ? 'solo female' : 'heterosexual';
-  const endingText = solo
+  const endingText = isGroping
+    ? 'a silent clothed orgasm with both still dressed, no nudity and no penetration'
+    : solo
     ? 'a squirting climax with no male participant, no penis and no cumshot'
     : twoWomen
       ? 'a shared squirting climax with no male participant, no penis and no futanari'
@@ -913,28 +966,10 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
         .replace(/\b(?:a|one) finger\b/gi, 'her own finger')
         .replace(/\bfingers\b/gi, 'her own fingers')
     : core;
-  const themeOutfit = (() => {
-    const colors: Record<string, string> = { 黄色: 'yellow', 红色: 'red', 白色: 'white', 黑色: 'black', 蓝色: 'blue', 灰色: 'grey', 粉色: 'pink', 紫色: 'purple', 绿色: 'green' };
-    const garments: Array<[RegExp, string]> = [
-      [/衬衫|上衣|blouse|shirt/i, 'low-cut blouse'],
-      [/超短裙|短裙|miniskirt/i, 'ultra-mini skirt'],
-      [/长裙|裙|skirt/i, 'skirt'],
-      [/牛仔裤|jeans/i, 'jeans'],
-      [/内衣|胸罩|bra/i, 'bra'],
-      [/内裤|panties|thong/i, 'panties'],
-    ];
-    const found: string[] = [];
-    for (const m of themeText.matchAll(/(黄色|红色|白色|黑色|蓝色|灰色|粉色|紫色|绿色)\s*([\u4e00-\u9fff]{0,8}?)\s*(衬衫|上衣|裙|bra|内衣|内裤|panties|thong|blouse|shirt|skirt|jeans)/gi)) {
-      const color = colors[m[1]] || m[1];
-      const g = garments.find(([re]) => re.test(m[3] || m[2] || ''))?.[1] || m[3];
-      const phrase = `${color} ${g}`.trim();
-      if (!found.includes(phrase)) found.push(phrase);
-    }
-    return found.length ? found.join(', ') : '';
-  })();
-
   const clothingPolicy = hasScriptShots
     ? 'Clothing continuity follows the detailed_description exactly; once the script reaches fully nude, no clothing returns and no character resets to the opening outfit.'
+    : isGroping
+    ? 'Both remain fully clothed in Shots 1-12; only the blouse and skirt are displaced by hands; no nudity, no undressing and no penetration.'
     : hasMan && coercive
     ? isCycling
       ? 'Shot 1 uses the reference clothing; Shot 2 he catches her on his bicycle; Shot 3 rips the cycling suit completely off; she is completely nude by the end of Shot 3, no bra, no panties, no fabric. He keeps his cycling shorts on until Shot 6, then pulls them down to his thighs before penetration.'
@@ -948,9 +983,11 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
     ? 'multiple solo positions with her own fingers and toys'
     : twoWomen
       ? 'multiple positions and mutual oral'
-      : 'multiple positions and oral';
+      : isGroping
+        ? 'a clothed subway groping sequence, hands moving under her clothes, ending in a silent clothed orgasm'
+        : 'multiple positions and oral';
   const rawPrompt = `subject_definitions:
-<Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1. Picture 1 defines face, hair, hairstyle, skin tone, body proportions and breast size/shape ONLY. IGNORE all clothing from Picture 1: do NOT copy the reference blouse, skirt, colors or outfit. Shot 1 must use the theme outfit${themeOutfit ? `: ${themeOutfit}` : ' described in the theme'}. From Shot 2 onward follow the detailed_description nude state; no reference clothing returns.
+<Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1. Picture 1 defines face, hair, hairstyle, skin tone, body proportions and breast size/shape ONLY. IGNORE all clothing from Picture 1: do NOT copy the reference blouse, skirt, colors or outfit. Shot 1 must use the theme outfit${themeOutfit ? `: ${themeOutfit}` : ' described in the theme'}. ${isGroping ? 'She remains fully clothed in Shots 1-12; only the blouse and skirt are displaced; no nudity and no undressing.' : 'From Shot 2 onward follow the detailed_description nude state; no reference clothing returns.'}
 ${subject2}
 
 summary:

@@ -342,7 +342,13 @@ export function normalizeH3PromptStructure(raw: string, opts: H3StructureOptions
     }
   }
   // 统一衔接语义：每镜从上一镜的结束姿态继续，不重启、不重复上一动作。
-  shots = shots.map((s0, i) => i === 0 ? s0 : `Continuity: begin exactly from the previous shot's end pose; same location and clothing state; do not repeat the previous action. ${s0}`);
+  // 归一器会被生成/提交/显示多次调用，必须幂等，不能叠加三遍 Continuity。
+  const continuity = "Continuity: begin exactly from the previous shot's end pose; same location and clothing state; do not repeat the previous action.";
+  const continuityRe = /^(?:Continuity: begin exactly from the previous shot's end pose; same location and clothing state; do not repeat the previous action\.?\s*)+/i;
+  shots = shots.map((s0, i) => {
+    const body = String(s0 || '').replace(continuityRe, '').trim();
+    return i === 0 ? body : `${continuity} ${body}`;
+  });
 
   shots = shots.filter(Boolean);
   while (shots.length < 12) shots.push('Afterglow in the exact same location and position: both bodies still, breathing slowing, sweat cooling on skin; no new act, no reset.');
