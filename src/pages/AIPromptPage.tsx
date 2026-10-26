@@ -465,7 +465,9 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   const coercive = hasMan && /(尾随|跟踪|胁迫|强迫|不情愿|强奸|强暴|抓住|按在|扒光|追上|野外|跟着|rape|force|stalk|follow|catch)/i.test(themeText);
   const forcePrelude = hasMan && /(尾随|跟踪|胁迫|强迫|不情愿|强奸|强暴|抓住|按在|扒光|追上|跟着|跟踪|尾随)/i.test(userHint);
   const locationMatch = scene.match(/((?:[A-Za-z-]+\s+){0,4}(?:alley|lane|street|road|sidewalk|room|office|corridor|entrance|path|trail|house|home|beach|park|garage|club|bar|hotel|classroom|warehouse|stairwell|landing))/i);
-  const locationLabel = (locationMatch?.[0] || 'the opening location').replace(/[.,;]+$/g, '').replace(/\s+/g, ' ').trim();
+  let locationLabel = (locationMatch?.[0] || 'the opening location').replace(/[.,;]+$/g, '').replace(/\s+/g, ' ').trim();
+  locationLabel = locationLabel.replace(/^(?:after work\s+)?(?:she\s+)?(?:walks?|walking|through|toward|down|into|the)\s+/gi, '').trim() || 'urban village alley';
+  if (/storage room|dark room|room$/i.test(locationLabel) && /城中村|小巷|巷子|alley/i.test(themeText)) locationLabel = 'urban village alley';
   const placeLine = `Same location: ${locationLabel}, same lighting`;
   const explicitAct = /(penetrat|thrust|insert|cunnilingus|blowjob|fellatio|fuck|sex scene|inside her|riding him|takes? .{0,40}(?:cock|shaft) .{0,30}(?:mouth|throat))/i.test(scene);
   const atFacesit = /(sits? astride|sitting on (?:his|the) face|facesit|face-sit|riding (?:his|her) face|mouth beneath|oral sex beneath|cunnilingus|骑脸|坐脸|坐在脸上)/i.test(scene);
@@ -695,10 +697,10 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
     .map((block) => block
       .replace(/^\s*(?:\*\*)?(?:SHOT|Shot)\s+\d+\b[^\n]*\n?/i, '')
       .replace(/^\s*\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}[^\n]*\n?/i, '')
-      .split(/CHINESE DIALOGUE SECTION/i)[0]
+      .split(/CHINESE\s+DIALOGUE/i)[0]
       // 剧本里裸露的 Woman/Man/女人/男人 台词块不能直接进 H3，否则会被当旁白朗读；
       // 只保留已经带 <d> 标签的台词。
-      .replace(/(?:^|\n)\s*(?:Woman|Man|女人|男人)\s*[（(][^\n]*[)）]\s*[:：]?[^\n]*(?:\n(?!\s*(?:\*\*)?(?:SHOT|Shot)\s+\d+)[^\n]*)*/gi, '')
+      .replace(/(?:^|\n)\s*(?:Woman|Man|Male|Female|女人|男人)\s*[（(][^\n]*[)）]\s*[:：]?[^\n]*(?:\n(?!\s*(?:\*\*)?(?:SHOT|Shot)\s+\d+)[^\n]*)*/gi, '')
       .trim())
     .filter((block) => block.length > 30);
   const hasScriptShots = scriptShotBlocks.length >= 8;
@@ -707,6 +709,9 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
     // 剧本常把“尾随”和“勒颈”拆成 SHOT 1/2；首镜必须包含完整接近动作。
     if (hasMan && coercive && !/(choke|throat|forearm|drags? her)/i.test(shots[0])) {
       shots[0] += ' In the same continuous shot, he closes the distance behind her, loops his forearm around her throat, pulls her back against his chest, and drags her toward the dark doorway; she gasps and claws at his arm.';
+    }
+    while (shots.length < 11) {
+      shots.push('Afterglow in the exact same location and position: both bodies still, breathing slowing, sweat cooling on skin, the final physical evidence of the act still visible; no new act, no reset.');
     }
   }
   const nudeLine = 'She strips off the remaining clothing; from this shot onward she is completely nude, and no clothing returns.';
