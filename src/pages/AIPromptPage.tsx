@@ -465,7 +465,8 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   const isCycling = /(骑行|自行车|骑车)/.test(cyclingIntent)
     || /\b(?:bicycle|bike|cycling|cyclist|pedal(?:ing)?)\b/i.test(cyclingIntent);
   const solo = !twoWomen && !hasMan;
-  const coercive = hasMan && /(尾随|跟踪|胁迫|强迫|不情愿|强奸|强暴|抓住|按在|扒光|追上|野外|跟着|rape|force|stalk|follow|catch)/i.test(themeText);
+  // 只有明确的尾随/胁迫/CNC 主题才进入强制控制链；普通约会、地铁、办公室、泳池等主题不能被误判。
+  const coercive = hasMan && /(尾随|跟踪|胁迫|强迫|不情愿|强奸|强暴|锁喉|掐住|拖进|抓住|按在|扒光|rape|coerc|stalk|choke|throat|drag)/i.test(themeText);
   const forcePrelude = hasMan && /(尾随|跟踪|胁迫|强迫|不情愿|强奸|强暴|抓住|按在|扒光|追上|跟着|跟踪|尾随)/i.test(userHint);
   const locationMatch = scene.match(/((?:[A-Za-z-]+\s+){0,4}(?:alley|lane|street|road|sidewalk|room|office|corridor|entrance|path|trail|house|home|beach|park|garage|club|bar|hotel|classroom|warehouse|stairwell|landing))/i);
   let locationLabel = (locationMatch?.[0] || 'the opening location').replace(/[.,;]+$/g, '').replace(/\s+/g, ' ').trim();
@@ -705,7 +706,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   let maleUndressIdx = hasMan ? shots.findIndex((s) => /(?:drops? (?:his )?(?:jeans|pants|trousers|boxers)|shoves? (?:his )?(?:jeans|pants|trousers|boxers) (?:down|off)|strips? (?:off )?his|he is (?:now )?(?:fully )?nude|his (?:pants|jeans|trousers) (?:down|off)|kicks? off (?:his |the )?(?:remaining )?clothes)/i.test(s)) : -1;
   // 剧本没有明确写男性脱衣时，强制把脱衣点放到第 7 镜之前，避免 Subject 2 一出场就全裸。
   if (hasMan && coercive && maleUndressIdx < 0) maleUndressIdx = shots.length >= 7 ? 6 : Math.max(3, shots.length - 2);
-  if (hasMan && maleUndressIdx > 0) {
+  if (hasMan && coercive && maleUndressIdx > 0) {
     shots = shots.map((s, i) => i < maleUndressIdx
       ? `${s} He is still fully clothed in a dark shirt and trousers; no male nudity in this shot.`
       : s);
@@ -870,7 +871,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
     ? '<Subject 2> is @Woman2 — the exact second cisgender adult woman shown in Picture 1, if present. She has a vulva only: no penis, no futanari, no male genitalia. Identity and appearance come only from Picture 1.'
     : hasMan
       ? malePicture
-        ? `<Subject 2> is @Man <Picture 2> — the exact adult man shown in Picture 2, wearing ${isCycling ? 'a black cycling jersey and black cycling shorts, standing astride or riding a black bicycle' : 'a dark shirt and dark trousers, no bicycle'}. He remains FULLY CLOTHED in Shots 1-${Math.max(1, maleUndressIdx)}; he must NOT be nude or shirtless before Shot ${Math.max(1, maleUndressIdx + 1)}. Preserve his face, hair, body proportions and identity from Picture 2; face kept off extreme close-up. All S2 lines are clear natural Mandarin Chinese, spoken in a low adult male voice; no gibberish, no English, no mumbling.`
+        ? `<Subject 2> is @Man <Picture 2> — the exact adult man shown in Picture 2, wearing ${isCycling ? 'a black cycling jersey and black cycling shorts, standing astride or riding a black bicycle' : 'the clothing shown in Picture 1 or the source scene, no bicycle'}. ${coercive ? `He remains FULLY CLOTHED in Shots 1-${Math.max(1, maleUndressIdx)}; he must NOT be nude or shirtless before Shot ${Math.max(1, maleUndressIdx + 1)}. ` : ''}Preserve his face, hair, body proportions and identity from Picture 2; face kept off extreme close-up. All S2 lines are clear natural Mandarin Chinese, spoken in a low adult male voice; no gibberish, no English, no mumbling.`
         : `<Subject 2> is @Man — the adult man in the scene; if he appears in Picture 1 preserve his face, otherwise use a fully adult muscular Black man with face kept off close-up, wearing ${isCycling ? 'a black cycling jersey and black cycling shorts, standing astride or riding a black bicycle' : 'a dark shirt and dark trousers, no bicycle'}. Appearance comes from Picture 1 when visible.`
       : '';
   const mode = twoWomen ? 'two-woman' : solo ? 'solo female' : 'heterosexual';

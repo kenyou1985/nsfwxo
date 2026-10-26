@@ -124,7 +124,7 @@ export function normalizeH3Script(raw: string, opts: NormalizeOptions): string[]
   let beats = sourceBeats.map((x) => stripForbiddenProps(x, opts.theme));
   if (!beats.length) return [];
   // 模型偶发只给对白不给画面；H3 的分镜必须有可视动作，否则这一段会变成纯旁白/空镜。
-  const visualFallback = [
+  const visualFallback = opts.coercive ? [
     'Camera medium tracking shot; same location; she walks ahead, he follows behind.',
     'Camera handheld two-shot; he closes the distance, grabs her waist, and locks a forearm around her throat.',
     'Camera low angle following the drag; he pulls her through the dark doorway into the room.',
@@ -137,6 +137,19 @@ export function normalizeH3Script(raw: string, opts: NormalizeOptions): string[]
     'Camera overhead; he folds her legs back and pounds her on the mattress.',
     'Camera extreme close-up on the join; he finishes deep inside her, then pulls back.',
     'Camera slow pull-back; afterglow, both bodies still, sweat cooling, no reset.',
+  ] : [
+    'Camera medium two-shot, same location; she holds her pose, he stays in frame.',
+    'Camera handheld close-up; they move together, hands and faces visible.',
+    'Camera medium tracking shot; the action continues without a scene change.',
+    'Camera side angle; clothing and bodies shift naturally with the movement.',
+    'Camera close-up on hands and torsos; the interaction deepens.',
+    'Camera low angle; the two bodies occupy the frame, breathing visible.',
+    'Camera medium shot; the pose changes while the location stays the same.',
+    'Camera close-up; faces and hands react to the movement.',
+    'Camera rear three-quarter; the action continues in the same space.',
+    'Camera overhead; bodies move together on the same surface.',
+    'Camera extreme close-up; the physical contact is visible.',
+    'Camera slow pull-back; both bodies still, breathing slowing, no reset.',
   ];
   beats = beats.map((beat, i) => {
     const visualText = beat.replace(/\(S\d\):\s*<d>[\s\S]*?<\/d>/g, '').trim();
@@ -195,14 +208,23 @@ export function normalizeDialogueSpeakers(raw: string): string {
  * H3 结构化归一：把模型偶发的 11 镜、错位 Shot 12、裸男矛盾、散落 speaker_mapping 修正成
  * 严格 12 镜 / 4 段结构。幂等，可对任何完整 H3 文本调用。
  */
-export function normalizeH3PromptStructure(raw: string): string {
+export interface H3StructureOptions {
+  coercive?: boolean;
+  hasMan?: boolean;
+}
+
+export function normalizeH3PromptStructure(raw: string, opts: H3StructureOptions = {}): string {
   if (!raw || !/(?:\[Shot\s+\d+\]|SHOT\s+\d+\s*:)/i.test(raw)) return raw;
+  const coercive = opts.coercive ?? /(?:choke|throat|forearm|drags?|stalking|stalk|coerc|CNC|胁迫|锁喉|拖|尾随|强上|强迫)/i.test(raw);
+  const hasMan = opts.hasMan ?? /<Subject\s*2>|@Man|\bman\b|\bmale\b|男人|男性/i.test(raw);
   const headMatch = raw.match(/^([\s\S]*?)(?=detailed_description\s*:)/i);
   let head = (headMatch ? headMatch[1] : '').trim();
-  head = head.replace(/He remains FULLY CLOTHED[^.]*?before Shot \d+\./gi,
-    'He remains FULLY CLOTHED in Shots 1-6; he must NOT be nude or shirtless before Shot 7.');
-  head = head.replace(/he keeps his dark shirt and trousers on[^.]*?before Shot \d+\./gi,
-    'He remains FULLY CLOTHED in Shots 1-6; he must NOT be nude or shirtless before Shot 7.');
+  if (coercive) {
+    head = head.replace(/He remains FULLY CLOTHED[^.]*?before Shot \d+\./gi,
+      'He remains FULLY CLOTHED in Shots 1-6; he must NOT be nude or shirtless before Shot 7.');
+    head = head.replace(/he keeps his dark shirt and trousers on[^.]*?before Shot \d+\./gi,
+      'He remains FULLY CLOTHED in Shots 1-6; he must NOT be nude or shirtless before Shot 7.');
+  }
   head = head.replace(/through\s+(?:woman|man)\s+walks?[^,;]*?\bhome\s+in/gi, 'through the narrow alley in');
   head = head.replace(/through\s+Handheld[^,;]*?\bin/gi, 'through the narrow alley in');
   head = head.replace(/through\s+shot\s*-\s*Quiet narrow path/gi, 'through the narrow alley');
@@ -231,8 +253,10 @@ export function normalizeH3PromptStructure(raw: string): string {
   let shots = [...byNum.entries()].sort((a, b) => a[0] - b[0]).slice(0, 12).map(([, v]) => v);
 
   const anchor = 'He is still fully clothed in a dark shirt and trousers; no male nudity in this shot.';
-  const maleNude = /(?:\b(?:man|he)\b[^.\n]{0,100}\b(?:fully\s+|still\s+)?nude\b|\bboth\s+(?:now\s+|still\s+)?(?:fully\s+)?nude\b|\bhe\s+(?:is\s+|now\s+)?shirtless\b|\b(?:his\s+)?(?:torso|chest)\s+(?:is\s+)?bare\b|\brevealing\s+(?:a\s+)?(?:massive\s+)?(?:tattooed\s+)?chest\b|\bhis\s+(?:\w+\s+){0,4}(?:cock|penis)\s+(?:springs|is|comes)\s+free\b|\bhis\s+\w+\s+(?:cock|penis)\s+(?:out|free)\b|\bhe\s+(?:yanks?|pulls?|rips?|strips?|shoves?)\s+(?:his|the)\s+(?:own\s+)?(?:hoodie|t-shirt|shirt|tee|top|clothes)[^.;]*|\bhe\s+(?:remains?|stays?)\s+in\s+(?:jeans|pants|trousers)\s+only\b|\bhe\s+(?:shoves|kicks|pushes|strips)\s+(?:his|the)\s+(?:jeans|pants|trousers|boxers|clothes)[^.;]*|\bclothing stays off forever\b)/gi;
-  for (let i = 0; i < Math.min(6, shots.length); i++) {
+  const maleNude = /(?:\b(?:man|he)\b[^.\n]{0,100}\b(?:fully\s+|still\s+)?nude\b|\bboth\s+(?:now\s+|still\s+)?(?:fully\s+)?nude\b|\bhe\s+(?:is\s+|now\s+)?shirtless\b|\b(?:his\s+)?(?:torso|chest)\s+(?:is\s+)?bare\b|\brevealing\s+(?:a\s+)?(?:massive\s+)?(?:tattooed\s+)?chest\b|\bhis\s+(?:\w+\s+){0,4}(?:cock|penis)\s+(?:springs|is|comes)\s+free\b|\bhis\s+\w+\s+(?:cock|penis)\s+(?:out|free)\b|(?:\bhe\s+)?(?:then\s+)?(?:yanks?|pulls?|rips?|strips?|shoves?)\s+(?:his|the)\s+(?:own\s+)?(?:hoodie|t-shirt|shirt|tee|top|clothes)[^.;]*|\bhe\s+(?:remains?|stays?)\s+in\s+(?:jeans|pants|trousers)\s+only\b|\bhe\s+(?:shoves|kicks|pushes|strips)\s+(?:his|the)\s+(?:jeans|pants|trousers|boxers|clothes)[^.;]*|\bclothing stays off forever\b)/gi;
+  const maleCleanUntil = coercive ? 6 : shots.findIndex((s0) => maleNude.test(s0));
+  const maleLimit = maleCleanUntil > 0 ? maleCleanUntil : (coercive ? 6 : 0);
+  for (let i = 0; i < Math.min(maleLimit, shots.length); i++) {
     shots[i] = shots[i].replace(maleNude, 'he keeps his dark shirt and trousers on');
     if (!/fully clothed|no male nudity|trousers remain on|keeps his dark shirt/i.test(shots[i])) {
       shots[i] = `${shots[i]} ${anchor}`.trim();
@@ -240,12 +264,12 @@ export function normalizeH3PromptStructure(raw: string): string {
   }
 
   // 前 6 镜已强制穿衣；若第 7 镜没有明确脱裤，补一次，保证男性裸体从 Shot 7 开始而不是更早/更晚。
-  if (shots.length >= 7 && !/(?:drops?|shoves?|pulls?|kicks?)\s+(?:his|the)\s+(?:jeans|pants|trousers|boxers)|fully nude now|he is fully nude/i.test(shots[6])) {
+  if (coercive && shots.length >= 7 && !/(?:drops?|shoves?|pulls?|kicks?)\s+(?:his|the)\s+(?:jeans|pants|trousers|boxers)|fully nude now|he is fully nude/i.test(shots[6])) {
     shots[6] = `He shoves his trousers and boxers down and is fully nude now. ${shots[6]}`;
   }
 
   // 纯对白镜头补可见画面，避免 H3 只生成音频/空镜。
-  const visualFallback = [
+  const visualFallback = coercive ? [
     'Camera medium tracking shot; same location; she walks ahead, he follows behind.',
     'Camera handheld two-shot; he closes the distance, grabs her waist, and locks a forearm around her throat.',
     'Camera low angle following the drag; he pulls her through the dark doorway into the room.',
@@ -258,6 +282,19 @@ export function normalizeH3PromptStructure(raw: string): string {
     'Camera overhead; he folds her legs back and pounds her on the mattress.',
     'Camera extreme close-up on the join; he finishes deep inside her, then pulls back.',
     'Camera slow pull-back; afterglow, both bodies still, sweat cooling, no reset.',
+  ] : [
+    'Camera medium two-shot, same location; she holds her pose, he stays in frame.',
+    'Camera handheld close-up; they move together, hands and faces visible.',
+    'Camera medium tracking shot; the action continues without a scene change.',
+    'Camera side angle; clothing and bodies shift naturally with the movement.',
+    'Camera close-up on hands and torsos; the interaction deepens.',
+    'Camera low angle; the two bodies occupy the frame, breathing visible.',
+    'Camera medium shot; the pose changes while the location stays the same.',
+    'Camera close-up; faces and hands react to the movement.',
+    'Camera rear three-quarter; the action continues in the same space.',
+    'Camera overhead; bodies move together on the same surface.',
+    'Camera extreme close-up; the physical contact is visible.',
+    'Camera slow pull-back; both bodies still, breathing slowing, no reset.',
   ];
   shots = shots.map((s0, i) => {
     const visual = s0.replace(/\(S\d\):\s*<d>[\s\S]*?<\/d>/g, '').trim();
@@ -265,8 +302,8 @@ export function normalizeH3PromptStructure(raw: string): string {
       ? s0 : `${visualFallback[Math.min(i, visualFallback.length - 1)]} ${s0}`.trim();
   });
 
-  // 12 镜开场：1 走路/尾随，2 锁喉，3 拖入暗门。
-  if (shots.length <= 12) {
+  // 12 镜开场：只有胁迫/尾随主题才强制“走路→锁喉→拖入”；其他主题保持原剧情。
+  if (coercive && shots.length <= 12) {
     shots[0] = shots[0]
       .replace(/(?:In the same continuous shot,\s*)?he closes[^.;]*(?:throat|choke|chest)[^.;]*[.;]?/gi, '')
       .replace(/\b(?:forearm|choke|throat)\b[^.;]*[.;]?/gi, '')
