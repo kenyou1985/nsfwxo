@@ -9,7 +9,7 @@ import { openNdjsonStream, type StreamEvent, type StreamHandle } from './streami
 
 export interface ExpandRequest {
   user_input: string;
-  type: 'image' | 'video';
+  type: 'image' | 'video' | 'script';
   r18: boolean;
   count: number;
   variant_index?: number;
@@ -37,7 +37,7 @@ export interface PromptResult {
 }
 
 export interface RandomRequest {
-  type: 'image' | 'video';
+  type: 'image' | 'video' | 'script';
   r18: boolean;
   count: number;
   theme: string;
@@ -180,7 +180,7 @@ async function apiRequest<T>(
 
 export async function expandPrompt(
   userInput: string,
-  type: 'image' | 'video',
+  type: 'image' | 'video' | 'script' | 'script',
   r18: boolean = false,
   count: number = 5,
   variantIndex: number = 0,
@@ -278,7 +278,7 @@ export async function expandVideoFromImage(
 }
 
 export async function randomPrompt(
-  type: 'image' | 'video',
+  type: 'image' | 'video' | 'script',
   r18: boolean = false,
   count: number = 5,
   theme: string = '',
@@ -727,7 +727,7 @@ export interface StreamRandomCallbacks {
 }
 
 export async function streamRandomPrompt(
-  type: 'image' | 'video',
+  type: 'image' | 'video' | 'script',
   r18: boolean,
   count: number,
   theme: string,
@@ -798,7 +798,7 @@ export interface StreamExpandCallbacks {
 
 export async function streamExpandPrompt(
   userInput: string,
-  type: 'image' | 'video',
+  type: 'image' | 'video' | 'script',
   r18: boolean,
   count: number,
   variantIndex: number,

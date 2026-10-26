@@ -8,7 +8,7 @@ from typing import Literal, Dict, List, Optional
 
 class ExpandRequest(BaseModel):
     user_input: str = Field(..., min_length=1, max_length=2000, description="用户简短描述")
-    type: Literal["image", "video"] = Field(..., description="生成类型: image 或 video")
+    type: Literal["image", "video", "script"] = Field(..., description="生成类型: image / video / script")
     r18: bool = Field(default=False, description="是否启用 R18 模式")
     count: int = Field(default=5, ge=1, le=10, description="生成数量 1-10，默认 5")
     variant_index: int = Field(default=0, ge=0, description="Diversity variant index: 0=East Asian, 1=Western/European")

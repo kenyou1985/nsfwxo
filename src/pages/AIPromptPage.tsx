@@ -1308,7 +1308,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
                 settled = true;
                 if (err) reject(err); else resolve(value);
               };
-              void streamExpandPrompt(input.trim(), 'image', r18Mode, 1, i, undefined, false, undefined, {
+              void streamExpandPrompt(input.trim(), 'script', r18Mode, 1, i, undefined, false, undefined, {
                 onStart: () => {
                   if (type !== 'video') setResults((prev) => prev.map((r, idx) => idx === i ? { ...r, prompt: '生成中…' } : r));
                 },
@@ -1329,29 +1329,17 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               throw new Error(`第 ${i + 1} 个图片提示词扩写返回为空`);
             }
 
-            // Step 2: 图片提示词 → 视频提示词（超时则自动切换 fast 模型兜底）
-            let videoRes;
-            try {
-              videoRes = await expandVideoFromImage(expandedImgPrompt, themeTitle, r18Mode, 1);
-            } catch (secondErr) {
-              const isTimeout = secondErr instanceof Error &&
-                (secondErr.message.includes('超时') || secondErr.message.includes('timeout'));
-              if (isTimeout) {
-                console.warn(`[智能扩写] expandVideoFromImage 超时，尝试 fast 模型重试（150s）`);
-                videoRes = await expandVideoFromImage(expandedImgPrompt, themeTitle, r18Mode, 1, ['grok-4.6', 'grok-4.3'], 150000);
-              } else {
-                throw secondErr;
-              }
-            }
-            const videoPrompt = videoRes.results?.[0]?.prompt?.trim();
-            if (!videoPrompt) {
-              throw new Error(`第 ${i + 1} 个视频提示词扩写返回为空`);
+            // Step 2: 剧本已经是完整 900-1100 词剧本，直接作为 H3 的 scene/source，
+            // 不再经过会压缩内容的 image→video 二次调用。
+            const scriptText = expandedImgPrompt.trim();
+            if (scriptText.length < 500) {
+              throw new Error(`第 ${i + 1} 个剧本过短（${scriptText.length} 字），未达到 1 分钟剧本要求`);
             }
 
             // Step 3: 统一走英文 11 镜 H3 模板，锚定参考图，禁止中文旧模板
-            const hasMaleRole = /(\bman\b|\bmale\b|男子|男人|男性|男友|男主)/i.test(`${expandedImgPrompt} ${input}`);
+            const hasMaleRole = /(\bman\b|\bmale\b|男子|男人|男性|男友|男主)/i.test(`${scriptText} ${input}`);
             const h3Anchors = selectedAnchors.length ? selectedAnchors : ([getDefaultAnchor('female'), getDefaultAnchor('male')].filter(Boolean) as GirlfriendPreset[]);
-            const h3 = applyAnchorNames(buildAnchoredH3(expandedImgPrompt, i, hasMaleRole, videoShotCount, input), h3Anchors);
+            const h3 = applyAnchorNames(buildAnchoredH3(scriptText, i, hasMaleRole, videoShotCount, input), h3Anchors);
 
             return { index: i, id: ids[i], prompt: h3, error: null };
           } catch (err) {
