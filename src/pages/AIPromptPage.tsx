@@ -764,7 +764,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   const scriptJoined = normalizedScriptShots.join(' ');
   const scriptIsSolo = /(only her own|her own hand|no man|no male|solo female)/i.test(scriptJoined);
   const scriptHasGroping = /(grope|fondle|touch(?:es|ing)? her|hand .*?(?:ass|hip|thigh|crotch|pussy)|摸|臀|下体)/i.test(scriptJoined);
-  const scriptHasOldSex = /(penetrat|thrust|blowjob|deepthroat|cowgirl|doggy|missionary|creampie|cumshot|shoves? his trousers|fully nude now|He enters her)/i.test(scriptJoined);
+  const scriptHasOldSex = /(penetrat|thrust|blowjob|deepthroat|cowgirl|doggy|missionary|creampie|cumshot|shoves? his trousers|fully nude now|He enters her|reversing the ride|floor lick|takes him deep|buries himself|hips meeting|deeper strokes|oral close-up|fluid at the join)/i.test(scriptJoined);
   const scriptMismatch = (hasMan && scriptIsSolo) || (isGroping && (!scriptHasGroping || scriptHasOldSex));
   const hasScriptShots = normalizedScriptShots.length >= 8 && !scriptMismatch;
   if (hasScriptShots) {
@@ -943,6 +943,8 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
       .replace(/He shoves his trousers and boxers down[^.]*\./gi, '')
       .replace(/Continue the exact penetration[^.]*\./gi, '')
       .replace(/Transition into [^.]*\./gi, '')
+      .replace(/(?:reversing the ride|floor lick|takes him deep|buries himself|creampie|deeper strokes|fluid at the join|oral close-up)[^.]*\./gi, '')
+      .replace(/Final shot:[^.]*\./gi, '')
       .replace(/\(\s*S2\s*\):\s*<d>\[Chinese\][^<]*(?:吞|操|射|夹紧)[^<]*<\/d>/gi, '(S2): <d>[Chinese] 别动。</d>')
       .replace(/\(\s*S1\s*\):\s*<d>\[Chinese\][^<]*(?:别插|插进去|好深)[^<]*<\/d>/gi, '(S1): <d>[Chinese] 不要…</d>')
       .replace(/\n{3,}/g, '\n\n');
