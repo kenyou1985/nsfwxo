@@ -2296,7 +2296,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               videoState={cardVideoStates[result.id]}
               digitalHumanMode={digitalHumanMode}
               selectedGirlfriend={selectedGirlfriend}
-              onCopy={() => handleCopy(result.id, result.prompt)}
+              onCopy={() => handleCopy(result.id, normalizeCardPrompt(result.prompt))}
               onDelete={() => {
                 const idx = results.findIndex((r) => r.id === result.id);
                 setResults((p) => p.filter((r) => r.id !== result.id));
@@ -2441,6 +2441,7 @@ function ExpandResultCard({ result, r18Mode, isCopied, genState, videoState, onC
   // Without this guard, the card body renders empty during the stream
   // — the user reported "点击扩写，没有任何生成中的状态显示".
   const isPromptLoading = !result.prompt;
+  const displayPrompt = normalizeCardPrompt(result.prompt);
   const [promptExpanded, setPromptExpanded] = useState(false);
   // Tick once per second so the "已等待 X 秒" label re-renders.
   const [loadingSeconds, setLoadingSeconds] = useState(0);
@@ -2496,7 +2497,7 @@ function ExpandResultCard({ result, r18Mode, isCopied, genState, videoState, onC
             </div>
           ) : (
             <div className="flex-1 min-w-0">
-              <p className={`text-sm leading-relaxed whitespace-pre-wrap ${promptExpanded ? '' : 'max-h-28 overflow-hidden'} ${r18Mode ? 'text-red-700' : 'text-text-secondary'}`}>{result.prompt}</p>
+              <p className={`text-sm leading-relaxed whitespace-pre-wrap ${promptExpanded ? '' : 'max-h-28 overflow-hidden'} ${r18Mode ? 'text-red-700' : 'text-text-secondary'}`}>{displayPrompt}</p>
               <button onClick={() => setPromptExpanded((v) => !v)} className="mt-1 text-[11px] text-text-tertiary hover:text-primary">
                 {promptExpanded ? '收起提示词' : '展开提示词'}
               </button>
@@ -3571,7 +3572,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               tagsVisible={tagsVisible}
               r18Mode={r18Mode}
               onToggle={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
-              onCopy={() => handleCopy(idx, result.prompt)}
+              onCopy={() => handleCopy(idx, normalizeCardPrompt(result.prompt))}
               genState={genStates[idx]}
               onGenerateImage={() => handleRandomGenerateImage(idx, result.prompt)}
               onGenerateVideo={() => handleGenerateVideo(idx)}
