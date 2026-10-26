@@ -3234,7 +3234,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       const processOne = async (i: number, result: PromptResult): Promise<void> => {
         try {
           // 固定英文 11 镜 H3 模板，锚定当前图片，不再走 LLM（避免审核拒绝与中文旧模板）
-          completed[i] = buildAnchoredH3(result.prompt, 0, false, 12);
+          completed[i] = normalizeDialogueSpeakers(normalizeH3PromptStructure(buildAnchoredH3(result.prompt, 0, false, 12)));
           return;
         } finally {
           // 无论成功/失败/空结果，都立即从 processing 集合中移除该索引，
