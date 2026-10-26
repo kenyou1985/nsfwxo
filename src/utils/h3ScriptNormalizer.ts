@@ -121,6 +121,26 @@ export function normalizeH3Script(raw: string, opts: NormalizeOptions): string[]
   }
   let beats = sourceBeats.map((x) => stripForbiddenProps(x, opts.theme));
   if (!beats.length) return [];
+  // 模型偶发只给对白不给画面；H3 的分镜必须有可视动作，否则这一段会变成纯旁白/空镜。
+  const visualFallback = [
+    'Camera medium tracking shot; same location; she walks ahead, he follows behind.',
+    'Camera handheld two-shot; he closes the distance, grabs her waist, and locks a forearm around her throat.',
+    'Camera low angle following the drag; he pulls her through the dark doorway into the room.',
+    'Camera tight two-shot against the wall; he pins her, tears the blouse open, and gropes her bare breasts.',
+    'Camera close-up on hands and bodies; he strips the remaining clothes and fingers her.',
+    'Camera low angle; he pushes her to her knees and feeds her his cock.',
+    'Camera side profile; he lifts her and thrusts into her against the wall.',
+    'Camera handheld close-up; he chokes her and fucks her harder.',
+    'Camera rear three-quarter; he bends her over the surface and drives in from behind.',
+    'Camera overhead; he folds her legs back and pounds her on the mattress.',
+    'Camera extreme close-up on the join; he finishes deep inside her, then pulls back.',
+    'Camera slow pull-back; afterglow, both bodies still, sweat cooling, no reset.',
+  ];
+  beats = beats.map((beat, i) => {
+    const visualText = beat.replace(/\(S\d\):\s*<d>[\s\S]*?<\/d>/g, '').trim();
+    const hasVisual = /(camera|location|body positions?|clothing state|physical action|\bshe\b|\bher\b|\bhe\b|\bhis\b)/i.test(visualText);
+    return hasVisual && visualText.length >= 70 ? beat : `${visualFallback[Math.min(i, visualFallback.length - 1)]} ${beat}`.trim();
+  });
   beats = dedupeFirstContact(beats, opts);
   beats = normalizeClothing(beats);
   const count = opts.shotCount || 12;

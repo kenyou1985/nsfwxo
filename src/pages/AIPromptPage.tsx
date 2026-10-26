@@ -738,7 +738,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   });
   // 最终不变式：强制/尾随主题的首镜必须包含一次接近与控制动作。
   // 不管剧本解析、模板回退还是归一化器是否命中，这里都兜底，避免再次出现“第一帧就是勒颈”。
-  if (hasMan && coercive && !/(choke|throat|forearm|clamp(?:s|ed)? (?:a )?hand|drags? her|grabs? her)/i.test(shots[0])) {
+  if (hasMan && coercive && shotCount < 12 && !/(choke|throat|forearm|clamp(?:s|ed)? (?:a )?hand|drags? her|grabs? her)/i.test(shots[0])) {
     shots[0] += ' In the same continuous shot, he closes the distance behind her, loops his forearm around her throat, pulls her back against his chest, and drags her toward the dark doorway; she gasps and claws at his arm.';
   }
   const d = (zh: string, speaker: 'S1' | 'S2' = 'S1') => `(${speaker}): <d>[Chinese] ${zh}</d>`;
@@ -1374,7 +1374,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
             // Step 3: 统一走英文 11 镜 H3 模板，锚定参考图，禁止中文旧模板
             const hasMaleRole = /(\bman\b|\bmale\b|男子|男人|男性|男友|男主)/i.test(`${scriptText} ${input}`);
             const h3Anchors = selectedAnchors.length ? selectedAnchors : ([getDefaultAnchor('female'), getDefaultAnchor('male')].filter(Boolean) as GirlfriendPreset[]);
-            const h3 = applyAnchorNames(buildAnchoredH3(scriptText, i, hasMaleRole, videoShotCount, input), h3Anchors);
+            const h3 = normalizeDialogueSpeakers(normalizeH3PromptStructure(applyAnchorNames(buildAnchoredH3(scriptText, i, hasMaleRole, videoShotCount, input), h3Anchors)));
 
             return { index: i, id: ids[i], prompt: h3, error: null };
           } catch (err) {
@@ -3278,7 +3278,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     
     try {
       // 固定英文 11 镜 H3 模板，锚定当前图片
-      const localH3 = buildAnchoredH3(result.prompt, 0, false, 12);
+      const localH3 = normalizeDialogueSpeakers(normalizeH3PromptStructure(buildAnchoredH3(result.prompt, 0, false, 12)));
       setH3Prompts(prev => ({ ...prev, [idx]: localH3 }));
       onSuccess(`第 ${idx + 1} 个 H3 视频提示词已生成`);
       return localH3;
@@ -3305,7 +3305,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     if (!rhKey) { onError('请先配置 RunningHub API Key'); setVideoStates(prev => ({ ...prev, [idx]: { loading: false, error: '未配置 API Key' } })); return; }
     try {
       // 始终按当前图片重建英文 11 镜 H3，避免复用旧缓存里的中文模板
-      const h3 = buildAnchoredH3(result.prompt);
+      const h3 = normalizeDialogueSpeakers(normalizeH3PromptStructure(buildAnchoredH3(result.prompt, 0, false, 12)));
       setH3Prompts(prev => ({ ...prev, [idx]: h3 }));
 
       const localTaskId = `random-video-${Date.now()}-${idx}`;
