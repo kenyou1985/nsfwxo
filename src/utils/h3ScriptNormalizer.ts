@@ -221,12 +221,14 @@ export function normalizeDialogueSpeakers(raw: string): string {
 export interface H3StructureOptions {
   coercive?: boolean;
   hasMan?: boolean;
+  groping?: boolean;
 }
 
 export function normalizeH3PromptStructure(raw: string, opts: H3StructureOptions = {}): string {
   if (!raw || !/(?:\[Shot\s+\d+\]|SHOT\s+\d+\s*:)/i.test(raw)) return raw;
   const coercive = opts.coercive ?? /(?:choke|throat|forearm|drags?|stalking|stalk|coerc|CNC|胁迫|锁喉|拖|尾随|强上|强迫)/i.test(raw);
   const hasMan = opts.hasMan ?? /<Subject\s*2>|@Man|\bman\b|\bmale\b|男人|男性/i.test(raw);
+  const groping = opts.groping ?? /(?:clothed subway groping|no penetration|grope|fondle|猥亵|摸向|地铁.*摸)/i.test(raw);
   const headMatch = raw.match(/^([\s\S]*?)(?=detailed_description\s*:)/i);
   let head = (headMatch ? headMatch[1] : '').trim();
   if (coercive) {
@@ -311,8 +313,8 @@ export function normalizeH3PromptStructure(raw: string, opts: H3StructureOptions
       ? s0 : `${visualFallback[Math.min(i, visualFallback.length - 1)]} ${s0}`.trim();
   });
 
-  // 12 镜开场：只有胁迫/尾随主题才强制“走路→锁喉→拖入”；其他主题保持原剧情。
-  if (coercive && shots.length <= 12) {
+  // 12 镜开场：只有胁迫/尾随主题才强制“走路→锁喉→拖入”；猥亵主题禁止这套。
+  if (coercive && !groping && shots.length <= 12) {
     // Shot 1 只保留走路/尾随；模型经常把“锁喉+拖入”追加在末尾，整段截断，避免 H3 把第一段压缩成控制动作。
     const firstCut = shots[0].search(/(?:In this one continuous shot|In the same continuous shot|she gasps and claws|He is still fully clothed|he closes the distance behind her)/i);
     shots[0] = (firstCut > 0 ? shots[0].slice(0, firstCut) : shots[0])
@@ -330,6 +332,18 @@ export function normalizeH3PromptStructure(raw: string, opts: H3StructureOptions
     }
   }
 
+  if (groping) {
+    shots = shots.map((x) => x
+      .replace(/She walks ahead through the location[^.]*\./gi, '')
+      .replace(/He closes the distance, grabs her waist[^.]*\./gi, '')
+      .replace(/He drags her through the dark doorway[^.]*\./gi, '')
+      .replace(/He shoves his trousers and boxers down[^.]*\./gi, '')
+      .replace(/Continue the exact penetration[^.]*\./gi, '')
+      .replace(/Transition into [^.]*\./gi, '')
+      .replace(/\(\s*S2\s*\):\s*<d>\[Chinese\][^<]*(?:吞|操|射|夹紧)[^<]*<\/d>/gi, '(S2): <d>[Chinese] 别动。</d>')
+      .replace(/\(\s*S1\s*\):\s*<d>\[Chinese\][^<]*(?:别插|插进去|好深)[^<]*<\/d>/gi, '(S1): <d>[Chinese] 不要…</d>')
+      .replace(/\n{3,}/g, '\n\n').trim());
+  }
   if (coercive && shots.length >= 3) {
     // Shot 2 只做接近/控制，不能提前把“拖入门”演完；否则 Shot 3 会重复拖拽。
     if (!/through the (?:dark )?doorway/i.test(shots[1] || '')) {

@@ -932,7 +932,20 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
     return `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(Math.floor(sec % 60)).padStart(2, '0')}.${String(Math.round((sec % 1) * 1000)).padStart(3, '0')}`;
   });
   const voiced = longActions.map((action, i) => i === 0 || !dialogue[i] ? action : `${action} ${dialogue[i]}`);
-  const body = voiced.map((action, i) => `[Shot ${i + 1}] ${times[i]} ${action}`).join('\n');
+  let body = voiced.map((action, i) => `[Shot ${i + 1}] ${times[i]} ${action}`).join('\n');
+  if (isGroping) {
+    // 最终清洗：旧性交剧本/旧模板残留绝不能进入 clothed groping prompt。
+    body = body
+      .replace(/She walks ahead through the location[^.]*\./gi, '')
+      .replace(/He closes the distance, grabs her waist[^.]*\./gi, '')
+      .replace(/He drags her through the dark doorway[^.]*\./gi, '')
+      .replace(/He shoves his trousers and boxers down[^.]*\./gi, '')
+      .replace(/Continue the exact penetration[^.]*\./gi, '')
+      .replace(/Transition into [^.]*\./gi, '')
+      .replace(/\(\s*S2\s*\):\s*<d>\[Chinese\][^<]*(?:吞|操|射|夹紧)[^<]*<\/d>/gi, '(S2): <d>[Chinese] 别动。</d>')
+      .replace(/\(\s*S1\s*\):\s*<d>\[Chinese\][^<]*(?:别插|插进去|好深)[^<]*<\/d>/gi, '(S1): <d>[Chinese] 不要…</d>')
+      .replace(/\n{3,}/g, '\n\n');
+  }
   const speakerMap = twoWomen ? '{"S1":"Chinese (Mandarin)_Adult_Female_Soft","S2":"Chinese (Mandarin)_Adult_Female_Soft"}' : solo ? '{"S1":"Chinese (Mandarin)_Adult_Female_Soft"}' : '{"S1":"Chinese (Mandarin)_Adult_Female_Soft","S2":"Chinese (Mandarin)_Adult_Male_Low"}';
   const subject2 = twoWomen
     ? '<Subject 2> is @Woman2 — the exact second cisgender adult woman shown in Picture 1, if present. She has a vulva only: no penis, no futanari, no male genitalia. Identity and appearance come only from Picture 1.'
@@ -1006,7 +1019,12 @@ ${body}
 overall_soundscape: ${isGroping ? 'Crowded subway car rumble, rail clicks, passengers shifting, fabric friction, her held breath and small stifled moans, one shaky exhale at the end; no penetration sounds, no bed sounds, no music.' : solo ? 'Location ambience, her own breathing and soft moans, wet fingers/toy sounds, a clear squirting splash, then trembling after-breaths. No male voice.' : twoWomen ? 'Location ambience, wet kisses, skin-on-skin, both women breathing and moaning, wet squirting splashes, one shared climax cry, then after-breaths. No male voice.' : 'Location ambience under skin-on-skin impact, wet penetration and plug-shifting sounds, fabric friction, heavy breathing, her broken moans and one climax cry, one male groan, then after-breaths.'}
 non_diegetic_music: None
 speaker_mapping: ${speakerMap}`;
-  return normalizeDialogueSpeakers(normalizeH3PromptStructure(rawPrompt));
+  const cleanedRaw = isGroping
+    ? rawPrompt
+        .replace(/(ending in a silent clothed orgasm), ending in a silent clothed orgasm/i, '$1')
+        .replace(/\n{3,}/g, '\n\n')
+    : rawPrompt;
+  return normalizeDialogueSpeakers(normalizeH3PromptStructure(cleanedRaw, { groping: isGroping, coercive: isGroping ? false : coercive, hasMan }));
 }/**
  * 将 GirlfriendPreset.portraitUrl 转为 File 对象用于上传。
  * fetch 支持 data: / blob: / http: 等各类 URL 类型。
