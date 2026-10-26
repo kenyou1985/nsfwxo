@@ -1269,6 +1269,9 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
             _wf['440']['inputs']['images'] = ['439', 0]
         if '443' in _wf and isinstance(_wf['443'].get('inputs'), dict):
             _wf['443']['inputs']['images'] = ['442', 0]
+        # 3013 正常链路使用 27.6 帧/秒计算 H3 length；24 会让 12 秒段提前 execution_success
+        if '9' in _wf and isinstance(_wf['9'].get('inputs'), dict):
+            _wf['9']['inputs']['expression'] = 'max(5, round(a * 27.6)) + (5 - (max(5, round(a * 27.6)) % 17)) % 17'
         # ===== 自杀链：不注入，保持画布默认（440/443 filename_prefix=H3_suicide_A/B、438/441 delay=30）=====
         # 用户铁律：自杀式节点（报错失败免扣分）是核心命脉，禁止删除/绕过。画布验证过 SaveImage 报错免扣费。
         # ===== 提交体核对（2026-10-19 假成功诊断用）：直接输出将要 POST 的关键字段形态 =====
