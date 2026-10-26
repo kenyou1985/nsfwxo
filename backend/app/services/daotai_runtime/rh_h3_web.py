@@ -794,9 +794,31 @@ def _seg_text_list_full(prompt, lo, hi, n_segs=2):
     _sm_full = re.search(r'speaker_mapping\s*[:：].*$', prompt, re.I | re.S)
     _sm_text = _sm_full.group(0).strip() if _sm_full else ''
     def _seg_one(idx0, idx1):
-        _b = '\n'.join('[Shot %d] %s' % (i + 1, _clean(mine[j]))
-                       for i, j in enumerate(range(idx0, min(idx1, len(mine)))))
-        _out = (tags + '\n' + _b).strip()
+        _seg_tags = tags
+        _seg_shots = []
+        for i, j in enumerate(range(idx0, min(idx1, len(mine)))):
+            _body = _clean(mine[j])
+            if idx0 > 0:
+                # 续段必须从上一段尾帧的裸体状态开始，禁止把参考图初始穿着当成新开头
+                _body = 'She is already completely nude from the previous segment; no clothing remains. ' + _body
+            _seg_shots.append('[Shot %d] %s' % (i + 1, _body))
+        _b = '\n'.join(_seg_shots)
+        if idx0 > 0:
+            # 段2+ 的 head 不能继续携带全局“从穿着开始”的 summary / 服装说明
+            _seg_tags = re.sub(
+                r'(?is)(summary\s*[:：]).*?(?=\n\s*(?:retention_analysis|详细画面描述)\s*[:：])',
+                r'\1\n[video continuation] This segment continues directly from <Picture_Last>. '
+                r'The woman is already completely nude; no clothing returns; do not restart, do not undress, do not return to the opening outfit.',
+                _seg_tags,
+                count=1,
+            )
+            _seg_tags = re.sub(
+                r'(?i)Clothing applies only to Shot 1[^\n]*',
+                'She is already completely nude from the previous segment; clothing never resets; no bra, no panties, no fabric.',
+                _seg_tags,
+                count=1,
+            )
+        _out = (_seg_tags + '\n' + _b).strip()
         if after:
             # 只保留 overall_soundscape，丢弃用户原始 non_diegetic_music（会被硬约束覆盖）
             _sc_m = re.search(r'overall_soundscape\s*[:：]\s*(.*?)(?=\n\s*(?:non_diegetic_music|speaker_mapping)\s*[:：]|\Z)', after, re.I | re.S)
