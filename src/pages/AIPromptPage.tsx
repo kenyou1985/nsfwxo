@@ -695,11 +695,19 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
     .map((block) => block
       .replace(/^\s*(?:\*\*)?(?:SHOT|Shot)\s+\d+\b[^\n]*\n?/i, '')
       .replace(/^\s*\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}[^\n]*\n?/i, '')
+      .split(/CHINESE DIALOGUE SECTION/i)[0]
+      // 剧本里裸露的 Woman/Man/女人/男人 台词块不能直接进 H3，否则会被当旁白朗读；
+      // 只保留已经带 <d> 标签的台词。
+      .replace(/(?:^|\n)\s*(?:Woman|Man|女人|男人)\s*[（(][^\n]*[)）]\s*[:：]?[^\n]*(?:\n(?!\s*(?:\*\*)?(?:SHOT|Shot)\s+\d+)[^\n]*)*/gi, '')
       .trim())
     .filter((block) => block.length > 30);
   const hasScriptShots = scriptShotBlocks.length >= 8;
   if (hasScriptShots) {
     shots = scriptShotBlocks.slice(0, 11);
+    // 剧本常把“尾随”和“勒颈”拆成 SHOT 1/2；首镜必须包含完整接近动作。
+    if (hasMan && coercive && !/(choke|throat|forearm|drags? her)/i.test(shots[0])) {
+      shots[0] += ' In the same continuous shot, he closes the distance behind her, loops his forearm around her throat, pulls her back against his chest, and drags her toward the dark doorway; she gasps and claws at his arm.';
+    }
   }
   const nudeLine = 'She strips off the remaining clothing; from this shot onward she is completely nude, and no clothing returns.';
   const needsNude = /(nude|naked|topless|bare breasts|exposed breasts|pulled aside|tugged aside|bunched around|off her shoulders|skirt up|undress|strips?|lingerie|bikini)/i.test(scene);
@@ -886,7 +894,9 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
         .replace(/\b(?:a|one) finger\b/gi, 'her own finger')
         .replace(/\bfingers\b/gi, 'her own fingers')
     : core;
-  const clothingPolicy = (hasMan && (coercive || !explicitAct))
+  const clothingPolicy = hasScriptShots
+    ? 'Clothing continuity follows the detailed_description exactly; once the script reaches fully nude, no clothing returns and no character resets to the opening outfit.'
+    : (hasMan && (coercive || !explicitAct))
     ? isCycling
       ? 'Shot 1 uses the reference clothing; Shot 2 he catches her on his bicycle; Shot 3 rips the cycling suit completely off; she is completely nude by the end of Shot 3, no bra, no panties, no fabric. He keeps his cycling shorts on until Shot 6, then pulls them down to his thighs before penetration.'
       : 'Shot 1 uses the clothing shown in Picture 1 or the source scene; Shot 2 he closes in and grabs her; Shot 3 he rips her top, bra, lower garment and panties off and she is completely nude by the end of Shot 3; no clothing returns after Shot 3; Shot 6 he pulls his trousers and boxers down to his ankles before penetration; from Shot 3 onward she is completely nude with bare breasts, ass and vulva.'
