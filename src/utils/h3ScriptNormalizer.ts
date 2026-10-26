@@ -22,19 +22,19 @@ const NUDE_RE = /completely nude|fully nude|already nude|no clothing remains|now
 
 function cleanBeat(raw: string): string {
   return raw
-    .replace(/^\s*(?:\*\*)?(?:SHOT|Shot)\s+\d+\b[^\n]*\n?/i, '')
+    .replace(/^\s*(?:\[\s*)?(?:\*\*)?(?:SHOT|Shot)\s+\d+\b\s*\]?[^\n]*\n?/i, '')
     .replace(/^\s*\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}[^\n]*\n?/i, '')
     .replace(/^\s*Time range[^\n]*\n?/gmi, '')
     .replace(/^\s*FADE OUT\b[^\n]*\n?/gmi, '')
     .split(/CHINESE\s+DIALOGUE/i)[0]
     // 剧本文本里裸露的说话人标签，不是 <d> 台词，全部清掉
-    .replace(/(?:^|\n)\s*(?:Woman|Man|Male|Female|女人|男人)\s*[（(][^\n]*[)）]\s*[:：]?[^\n]*(?:\n(?!\s*(?:\*\*)?(?:SHOT|Shot)\s+\d+)[^\n]*)*/gi, '')
+    .replace(/(?:^|\n)\s*(?:Woman|Man|Male|Female|女人|男人)\s*[（(][^\n]*[)）]\s*[:：]?[^\n]*(?:\n(?!\s*(?:\[\s*)?(?:\*\*)?(?:SHOT|Shot)\s+\d+)[^\n]*)*/gi, '')
     .trim();
 }
 
 function splitScript(raw: string): string[] {
   return raw
-    .split(/(?=^\s*(?:\*\*)?(?:SHOT|Shot)\s+\d+\b)/mi)
+    .split(/(?=^\s*(?:\[\s*)?(?:\*\*)?(?:SHOT|Shot)\s+\d+\b\s*\]?)/mi)
     .slice(1)
     .map(cleanBeat)
     .filter((x) => x.length > 30);
