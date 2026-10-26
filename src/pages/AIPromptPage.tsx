@@ -929,7 +929,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
     : twoWomen
       ? 'multiple positions and mutual oral'
       : 'multiple positions and oral';
-  return `subject_definitions:
+  const rawPrompt = `subject_definitions:
 <Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1. Face, hair color, hairstyle, skin tone, body proportions and breast size/shape come ONLY from Picture 1. Clothing applies only to Shot 1: from Shot 2 onward follow the detailed_description nude state, not the reference image.
 ${subject2}
 
@@ -949,6 +949,7 @@ ${body}
 overall_soundscape: ${solo ? 'Location ambience, her own breathing and soft moans, wet fingers/toy sounds, a clear squirting splash, then trembling after-breaths. No male voice.' : twoWomen ? 'Location ambience, wet kisses, skin-on-skin, both women breathing and moaning, wet squirting splashes, one shared climax cry, then after-breaths. No male voice.' : 'Location ambience under skin-on-skin impact, wet penetration and plug-shifting sounds, fabric friction, heavy breathing, her broken moans and one climax cry, one male groan, then after-breaths.'}
 non_diegetic_music: None
 speaker_mapping: ${speakerMap}`;
+  return normalizeDialogueSpeakers(normalizeH3PromptStructure(rawPrompt));
 }/**
  * 将 GirlfriendPreset.portraitUrl 转为 File 对象用于上传。
  * fetch 支持 data: / blob: / http: 等各类 URL 类型。

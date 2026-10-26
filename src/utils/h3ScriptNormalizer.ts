@@ -115,7 +115,9 @@ function dedupeFirstContact(beats: string[], opts: NormalizeOptions): string[] {
 
 export function normalizeH3Script(raw: string, opts: NormalizeOptions): string[] {
   let sourceBeats = splitScript(raw);
-  if (sourceBeats.length < 8 && raw.trim().length > 500) {
+  // 不足 8 个真实镜头时不能补 afterglow 后当剧本用；返回空让上层走完整模板/重试。
+  const realShotCount = sourceBeats.length;
+  if (realShotCount < 8 && raw.trim().length > 500) {
     // 模型偶尔不写 SHOT 标题，只写多段剧本；不能静默回退旧模板，按段落切成镜头。
     sourceBeats = raw
       .split(/\n{2,}/)
@@ -124,6 +126,7 @@ export function normalizeH3Script(raw: string, opts: NormalizeOptions): string[]
       // 纯中文对白段不是镜头，不能当成 Shot；没有画面/动作锚点的段落丢弃。
       .filter((x) => /(?:Camera|Location|Body|Clothing|Action|Emotional|she |her |he |his |woman|man)/i.test(x));
   }
+  if (realShotCount < 8) return [];
   let beats = sourceBeats.map((x) => stripForbiddenProps(x, opts.theme));
   if (!beats.length) return [];
   // 模型偶发只给对白不给画面；H3 的分镜必须有可视动作，否则这一段会变成纯旁白/空镜。
