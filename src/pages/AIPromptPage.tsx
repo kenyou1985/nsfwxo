@@ -474,10 +474,18 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   const wantsAss = /(anal|anus|ass|doggy|behind|plug|glute)/i.test(scene);
   const wantsOral = /(oral|blowjob|mouth|deepthroat|suck)/i.test(scene);
   const cumEnding = hasMan ? ['ass', 'oral', 'internal'][variant % 3] : wantsOral ? 'oral' : wantsAss ? 'ass' : 'internal';
-  const openingCandidates = sentences.filter((x) => /(walk|walking|follow|following|approach|street|alley|corridor|entrance|office|home|room|path|trail)/i.test(x) && !/(nude|naked|penetrat|thrust|cock|pussy|sex|bound|rope|climax)/i.test(x));
+  const openingCandidates = sentences
+    .filter((x) => /(walk|walking|follow|following|approach|street|alley|corridor|entrance|office|home|room|path|trail)/i.test(x)
+      && !/(nude|naked|penetrat|thrust|cock|pussy|sex|bound|rope|climax|choke|throat|grab|pins|strips|undress|drags?)/i.test(x))
+    .sort((a, b) => Number(/(walk|walking)/i.test(b)) - Number(/(walk|walking)/i.test(a)));
   const englishScene = /[\u4e00-\u9fff]/.test(scene) ? '' : scene;
-  const openingScene = (openingCandidates[0] || englishScene || 'The scene begins in the live-action location, with the woman already walking and the man following behind her at a distance.').replace(/\.+$/, '').slice(0, 260);
-  const first = `The video opens directly in the live-action scene, already in motion: ${openingScene}. Picture 1 is an identity and scene reference, NOT a static first frame: do not start on a portrait, reference-sheet pose, photo face shot, or frozen replica of Picture 1. The woman's identity comes from Picture 1, but the opening frame is a real cinematic action frame with the body, clothing and environment already moving.${hasMan ? ' The man is already following her a few steps behind.' : ''}`;
+  const walkOpening = `After work she walks toward the camera through ${locationLabel} in her blouse and ultra-short skirt, unaware; the man follows several steps behind and slowly closes the distance`;
+  // 强制首镜从“走路 + 尾随”开始，禁止把掐脖子/抓人当成第一帧
+  const openingScene = (coercive && hasMan ? walkOpening : (openingCandidates[0] || englishScene || walkOpening)).replace(/\.+$/, '').slice(0, 260);
+  const firstAction = hasMan && coercive
+    ? 'In this one continuous shot, he closes the distance behind her, loops his forearm around her throat, pulls her back against his chest, and drags her toward the dark doorway; she gasps and claws at his arm.'
+    : `${hasMan ? 'The man is already following her a few steps behind. ' : ''}The opening frame shows her walking before any contact.`;
+  const first = `The video opens directly in the live-action scene, already in motion: ${openingScene}. ${firstAction} Picture 1 is an identity and scene reference, NOT a static first frame: do not start on a portrait, reference-sheet pose, photo face shot, or frozen replica of Picture 1. The woman's identity comes from Picture 1, but the opening frame is a real cinematic action frame with the body, clothing and environment already moving.`;
   const same = `${placeLine.replace(/\.+$/, '')}. Same people. Cut smoothly between positions; the next shot starts from the previous body configuration and changes only the minimum needed. No reset, no scene change, no character change.`;
   const poseSeq = pickPoseSequence(scene);
   const penPoses = poseSeq.map((p) => p.name);
@@ -605,7 +613,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
     ];
     const sceneCoercionVariants = [
       [
-        `He closes the distance in the scene and grabs her wrist; she tries to pull away, he tightens his grip and threatens her under his breath. ${placeLine}.`,
+        `Inside the dark doorway, he tightens his forearm across her throat and pushes her deeper into the room; she gasps and claws at his arm. ${placeLine}.`,
         'He pins her against the nearest wall or surface, one hand on her throat, the other ripping her top, bra, skirt and panties off; by the end of this shot she is completely nude; she pleads, he tells her to shut up.',
         'She is already completely nude; he drags her to a more hidden spot and bends her over the nearest surface, one hand on her back.',
         'She is already completely nude; he pushes her to her knees, opens his trousers, and feeds her his cock; she gags, tears in her eyes.',
