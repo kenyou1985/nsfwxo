@@ -308,7 +308,7 @@ export function normalizeH3PromptStructure(raw: string, opts: H3StructureOptions
   // 12 镜开场：只有胁迫/尾随主题才强制“走路→锁喉→拖入”；其他主题保持原剧情。
   if (coercive && shots.length <= 12) {
     // Shot 1 只保留走路/尾随；模型经常把“锁喉+拖入”追加在末尾，整段截断，避免 H3 把第一段压缩成控制动作。
-    const firstCut = shots[0].search(/(?:In the same continuous shot|she gasps and claws|He is still fully clothed|he closes the distance behind her)/i);
+    const firstCut = shots[0].search(/(?:In this one continuous shot|In the same continuous shot|she gasps and claws|He is still fully clothed|he closes the distance behind her)/i);
     shots[0] = (firstCut > 0 ? shots[0].slice(0, firstCut) : shots[0])
       .replace(/(?:In the same continuous shot,\s*)?he closes[^.;]*(?:throat|choke|chest)[^.;]*[.;]?/gi, '')
       .replace(/\b(?:forearm|choke|throat)\b[^.;]*[.;]?/gi, '')
