@@ -969,7 +969,7 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
             # 修复：502=true（导演台 LLM 链）让 15/228 视觉=真实参考图（276/282 前 N 槽接 ref 节点），
             #   LLM 基于参考图+提示词输出带剧情描述 → 首段画面恢复正常；空槽仍 9999 透明防 LLM 报错。
             #   502=false（火宝防爆窗）保持全置空不变（127.prompt=514 直接段文本，不走 LLM）。
-            _llm_val_now = False if cfg.get('_from_openapi') else bool(wfc.get('llm_value', True))
+            _llm_val_now = True  # 对齐 8765：LLM 视觉必须吃真实参考图，不能全置 9999
             if _llm_val_now:
                 for _i in range(1, 6):
                     _slot = ['%s' % ref_nodes[_i - 1], 0] if _i <= len(_refs) else ['9999', 0]
