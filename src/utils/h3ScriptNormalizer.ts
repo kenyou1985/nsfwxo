@@ -22,7 +22,7 @@ const NUDE_RE = /she is (?:now )?(?:completely|fully) nude|she's (?:now )?(?:com
 
 function cleanBeat(raw: string): string {
   return raw
-    .replace(/^\s*(?:\[\s*)?(?:\*\*)?(?:SHOT|Shot)\s+\d+\b\s*\]?[^\n]*\n?/i, '')
+    .replace(/^\s*(?:\[\s*)?(?:\*\*)?(?:SHOT|Shot)\s+\d+\b\s*\]?\s*[:：]?\s*/i, '')
     .replace(/^\s*\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}[^\n]*\n?/i, '')
     .replace(/^\s*Time range[^\n]*\n?/gmi, '')
     .replace(/^\s*(?:TITLE|SETTING|Clothing tracked)\s*[:：][^\n]*\n?/gmi, '')
@@ -46,8 +46,10 @@ function cleanBeat(raw: string): string {
 }
 
 function splitScript(raw: string): string[] {
+  // 不能只匹配行首：模型经常输出 `[Shot 1] SHOT 2: ...` 或 `SHOT 2: ... SHOT 3: ...`
+  // 同一行内混排；只按行首切会把 SHOT 2..12 全部塞进 Shot 1。
   return raw
-    .split(/(?=^\s*(?:\[\s*)?(?:\*\*)?(?:SHOT|Shot)\s+\d+\b\s*\]?)/mi)
+    .split(/(?=(?:\[\s*(?:\*\*)?(?:SHOT|Shot)\s+\d+\s*\]?|\bSHOT\s+\d+\s*:))/i)
     .slice(1)
     .map(cleanBeat)
     .filter((x) => x.length > 30);
