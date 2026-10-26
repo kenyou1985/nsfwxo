@@ -1294,6 +1294,11 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     //   Step 3: generateH3Prompt → 格式化成 H3 Ref2VA 六段式
     if (type === 'video') {
       setLoading(true);
+      // 新一轮提示词生成必须清空上一轮的视频 pending/loading，
+      // 否则旧任务的“视频生成中”会挂到新卡片上，即使没有点击生视频。
+      clearMainPending();
+      setMainVideo({ loading: false });
+      setCardVideoStates({});
       try {
         const baseId = `h3-${Date.now()}`;
         const ids = Array.from({ length: count }, (_, i) => `${baseId}-${i}`);
