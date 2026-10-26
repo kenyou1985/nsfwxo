@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { extractVideoPromptFromImagePrompt } from '../utils/videoPromptExtractor';
 import { normalizeKrea2Prompt } from '../utils/krea2Prompt';
+import { normalizeH3Script } from '../utils/h3ScriptNormalizer';
 import { makeThumbnailForStorage, makePreviewForStorage } from '../utils/imageThumbnail';
 import { AspectAwareImage } from '../components/AspectAwareImage';
 import { OneClickProduce } from '../components/OneClickProduce';
@@ -690,39 +691,13 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
       final,
     ];
   }
-  // 如果上游传入的是 900-1100 词完整剧本（SHOT 1..11），优先用剧本分镜替换模板分镜。
-  const scriptShotBlocks = imagePrompt
-    .split(/(?=^\s*(?:\*\*)?(?:SHOT|Shot)\s+\d+\b)/mi)
-    .slice(1)
-    .map((block) => block
-      .replace(/^\s*(?:\*\*)?(?:SHOT|Shot)\s+\d+\b[^\n]*\n?/i, '')
-      .replace(/^\s*\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}[^\n]*\n?/i, '')
-      .replace(/^\s*Time range[^\n]*\n?/gmi, '')
-      .replace(/^\s*FADE OUT\b[^\n]*\n?/gmi, '')
-      .split(/CHINESE\s+DIALOGUE/i)[0]
-      // 剧本里裸露的 Woman/Man/女人/男人 台词块不能直接进 H3，否则会被当旁白朗读；
-      // 只保留已经带 <d> 标签的台词。
-      .replace(/(?:^|\n)\s*(?:Woman|Man|Male|Female|女人|男人)\s*[（(][^\n]*[)）]\s*[:：]?[^\n]*(?:\n(?!\s*(?:\*\*)?(?:SHOT|Shot)\s+\d+)[^\n]*)*/gi, '')
-      .trim())
-    .filter((block) => block.length > 30);
-  const hasScriptShots = scriptShotBlocks.length >= 8;
+  // 如果上游传入的是 900-1100 词完整剧本（SHOT 1..11），走通用 H3 状态机规范化。
+  const normalizedScriptShots = normalizeH3Script(imagePrompt, {
+    hasMan, coercive, theme: themeText, shotCount: 11,
+  });
+  const hasScriptShots = normalizedScriptShots.length >= 8;
   if (hasScriptShots) {
-    shots = scriptShotBlocks.slice(0, 11);
-    // 剧本常把“尾随”和“勒颈”拆成 SHOT 1/2；首镜必须包含完整接近动作。
-    let appendedFirstAction = false;
-    if (hasMan && coercive && !/(choke|throat|forearm|drags? her)/i.test(shots[0])) {
-      shots[0] += ' In the same continuous shot, he closes the distance behind her, loops his forearm around her throat, pulls her back against his chest, and drags her toward the dark doorway; she gasps and claws at his arm.';
-      appendedFirstAction = true;
-    }
-    if (appendedFirstAction && shots.length > 2) {
-      // 首镜已经完成勒颈拖入，后续两镜不能再次重复同一动作；保留原有 <d> 台词。
-      const _dlg = (txt: string) => (txt.match(/\(S\d\):\s*<d>[\s\S]*?<\/d>/g) || []).join(' ');
-      shots[1] = 'Inside the dark room, he keeps his forearm across her throat and pushes her deeper; she gasps and claws at his arm.';
-      shots[2] = 'Inside the dark room, he pins her against the wall and starts tearing her blouse open; she pleads. ' + _dlg(shots[2]);
-    }
-    while (shots.length < 11) {
-      shots.push('Afterglow in the exact same location and position: both bodies still, breathing slowing, sweat cooling on skin, the final physical evidence of the act still visible; no new act, no reset.');
-    }
+    shots = normalizedScriptShots;
   }
   const nudeLine = 'She strips off the remaining clothing; from this shot onward she is completely nude, and no clothing returns.';
   const needsNude = /(nude|naked|topless|bare breasts|exposed breasts|pulled aside|tugged aside|bunched around|off her shoulders|skirt up|undress|strips?|lingerie|bikini)/i.test(scene);
