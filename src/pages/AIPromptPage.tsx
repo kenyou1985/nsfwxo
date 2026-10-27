@@ -1119,7 +1119,8 @@ function buildH3FromScript(script: string, hasMan: boolean, malePicture: boolean
       : framework === 'solo'
         ? 'Solo female framework: only S1, self-touch/toy/climax; no male voice or male penetration.'
         : 'Lesbian framework: both speakers are female, no male penetration; toy/finger penetration allowed.';
-  const summaryFirst = shots[0]
+  const firstVisualShot = shots.find((s) => /(camera|location|body|action|\b(she|her|he|his)\b)/i.test(s)) || shots[0];
+  const summaryFirst = firstVisualShot
     .split(/\(S[12]\):/)[0]
     .replace(/\(S[12]\):\s*<d>[\s\S]*?<\/d>/g, '')
     .replace(/^[\s.·\-–—]*\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}\s*[.\-–—]*\s*/i, '')

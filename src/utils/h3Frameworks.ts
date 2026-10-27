@@ -143,6 +143,10 @@ export function ensureCoerciveArc(shots: string[]): string[] {
   // 前 4 镜保留主题自己的接近/压制/反抗/脱上衣；
   // 后半段由 coercive 框架保证：全裸→强制口交→插入→抽插→内射→被迫顺从。
   const head = shots.slice(0, 4).map((s) => s.replace(/She is still fully clothed[^.]*\./gi, '').trim());
+  // 模型偶尔第一镜只写对白，没有构图；补一个中性视觉锚点，不能让 H3 第一镜空画面。
+  if (head[0] && !/(camera|location|body|action|\b(she|her|he|his)\b)/i.test(head[0]) && head[1]) {
+    head[0] = `At the current location, she holds the written pose; he stands close behind her, not yet touching. ${head[0]}`;
+  }
   const tail = [
     'He strips the last garment from her; she is completely nude; no clothing remains; he keeps his dark shirt and trousers on. She stops kicking and only shakes.',
     'He forces her to her knees, fists her hair, and pushes his cock into her mouth; she gags, saliva stringing, hands clawing at his thigh. (S2): <d>[Chinese] 张嘴。</d>',
