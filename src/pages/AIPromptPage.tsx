@@ -1075,7 +1075,61 @@ speaker_mapping: ${speakerMap}`;
         .replace(/\n{3,}/g, '\n\n')
     : rawPrompt;
   return normalizeDialogueSpeakers(normalizeH3PromptStructure(cleanedRaw, { groping: isGroping, coercive: isGroping ? false : coercive, hasMan }));
-}/**
+}
+
+/**
+ * 剧本直出：不经过任何动作模板/分支，只把当前主题的 12 镜剧本格式化为 H3。
+ * 动作、场景、服装、对白全部来自 script；模板只负责 H3 六段结构。
+ */
+function buildH3FromScript(script: string, hasMan: boolean, malePicture: boolean, shotCount = 12): string {
+  const shots = normalizeH3Script(script, {
+    hasMan,
+    coercive: false,
+    theme: script,
+    shotCount,
+  });
+  if (shots.length < 8) return '';
+
+  const body = shots.slice(0, 12).map((shot, i) => {
+    const sec = i === 0 ? 0 : (i * 55) / Math.max(1, Math.min(12, shots.length) - 1);
+    const stamp = `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(Math.floor(sec % 60)).padStart(2, '0')}.000`;
+    return `[Shot ${i + 1}] ${stamp} ${shot}`;
+  }).join('\n');
+
+  const subject2 = hasMan
+    ? (malePicture
+      ? '<Subject 2> is @Man <Picture 2> — the exact adult man shown in Picture 2, wearing the clothing shown in Picture 1 or the source scene, no bicycle. Preserve his face, hair, body proportions and identity from Picture 2; face kept off extreme close-up. All S2 lines are clear natural Mandarin Chinese, spoken in a low adult male voice; no gibberish, no English, no mumbling.'
+      : '<Subject 2> is @Man — the adult man in the scene, wearing a dark shirt and dark trousers, no bicycle. Do NOT default to any race or skin tone. Preserve his identity if a male reference is present; face kept off extreme close-up. All S2 lines are clear natural Mandarin Chinese, spoken in a low adult male voice; no gibberish, no English, no mumbling.')
+    : '';
+
+  const speakerMap = hasMan
+    ? '{"S1":"Chinese (Mandarin)_Adult_Female_Soft","S2":"Chinese (Mandarin)_Adult_Male_Low"}'
+    : '{"S1":"Chinese (Mandarin)_Adult_Female_Soft"}';
+
+  const prompt = `subject_definitions:
+<Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1. Picture 1 defines face, hair, hairstyle, skin tone, body proportions and breast size/shape ONLY. IGNORE all clothing from Picture 1: do NOT copy the reference blouse, skirt, colors or outfit. Clothing, undressing and nudity follow the detailed_description exactly; never reset clothing at a segment boundary.
+${subject2}
+
+summary:
+[reference generation] The video follows the current theme exactly, shot by shot, with the same people and location. ${shots[0].slice(0, 180)} The sequence ends with the final beat written in the screenplay; no action is added or substituted by a template. No scene change, no character change, no extra person.
+
+retention_analysis:
+<Subject 1> <Picture 1>: fully_preserved — identity, face, hair and body come from the reference image. Clothing state is controlled only by the detailed_description.
+<Picture 1> identity reference: fully_preserved for face, hair and body; Picture 1 is not used as a static first frame.
+${malePicture ? '<Picture 2> identity: fully_preserved — the male lead face, hair and body come only from Picture 2.' : ''}
+Scene and action: fully_preserved from the current theme; only the written shot progression changes.
+
+detailed_description:
+${body}
+
+overall_soundscape: Location ambience, fabric friction, breathing and the physical sounds implied by the written actions; dialogue only from the <d> tags; no music.
+non_diegetic_music: None
+speaker_mapping: ${speakerMap}`;
+
+  return normalizeDialogueSpeakers(normalizeH3PromptStructure(prompt));
+}
+
+/**
  * 将 GirlfriendPreset.portraitUrl 转为 File 对象用于上传。
  * fetch 支持 data: / blob: / http: 等各类 URL 类型。
  */
@@ -1537,7 +1591,8 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
             // Step 3: 统一走英文 12 镜 H3 模板，锚定参考图，禁止中文旧模板
             const hasMaleRole = /(\bman\b|\bmale\b|男子|男人|男性|男友|男主|大叔|痴汉|猥琐|色狼|老汉|叔叔)/i.test(`${scriptText} ${input}`);
             const h3Anchors = selectedAnchors.length ? selectedAnchors : ([getDefaultAnchor('female'), getDefaultAnchor('male')].filter(Boolean) as GirlfriendPreset[]);
-            const h3 = normalizeDialogueSpeakers(normalizeH3PromptStructure(applyAnchorNames(buildAnchoredH3(scriptText, i, hasMaleRole, videoShotCount, input), h3Anchors)));
+            const h3 = normalizeDialogueSpeakers(normalizeH3PromptStructure(applyAnchorNames(buildH3FromScript(scriptText, hasMaleRole, hasMaleRole, videoShotCount), h3Anchors)));
+            if (!h3) throw new Error('当前主题剧本不足 8 镜，未生成 H3；请重试主题扩写');
 
             return { index: i, id: ids[i], prompt: h3, error: null };
           } catch (err) {
@@ -3401,7 +3456,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       const processOne = async (i: number, result: PromptResult): Promise<void> => {
         try {
           // 固定英文 11 镜 H3 模板，锚定当前图片，不再走 LLM（避免审核拒绝与中文旧模板）
-          completed[i] = normalizeDialogueSpeakers(normalizeH3PromptStructure(buildAnchoredH3(result.prompt, 0, /<Picture\s*2>|@Picture\s*2/i.test(result.prompt), 12)));
+          completed[i] = normalizeDialogueSpeakers(normalizeH3PromptStructure(buildH3FromScript(result.prompt, /(?:@Man|<Subject 2>|\bman\b|男人|男性|大叔|黑人)/i.test(result.prompt), /(?:@Man|<Subject 2>|\bman\b|男人|男性|大叔|黑人)/i.test(result.prompt), 12)));
           return;
         } finally {
           // 无论成功/失败/空结果，都立即从 processing 集合中移除该索引，
@@ -3459,7 +3514,8 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     
     try {
       // 固定英文 11 镜 H3 模板，锚定当前图片
-      const localH3 = normalizeDialogueSpeakers(normalizeH3PromptStructure(buildAnchoredH3(result.prompt, 0, /<Picture\s*2>|@Picture\s*2/i.test(result.prompt), 12)));
+      const localH3 = normalizeDialogueSpeakers(normalizeH3PromptStructure(buildH3FromScript(result.prompt, /(?:@Man|<Subject 2>|\bman\b|男人|男性|大叔|黑人)/i.test(result.prompt), /(?:@Man|<Subject 2>|\bman\b|男人|男性|大叔|黑人)/i.test(result.prompt), 12)));
+      if (!localH3) { onError('当前剧本不足 8 镜，请重新生成主题剧本'); return undefined; }
       setH3Prompts(prev => ({ ...prev, [idx]: localH3 }));
       onSuccess(`第 ${idx + 1} 个 H3 视频提示词已生成`);
       return localH3;
@@ -3486,7 +3542,8 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     if (!rhKey) { onError('请先配置 RunningHub API Key'); setVideoStates(prev => ({ ...prev, [idx]: { loading: false, error: '未配置 API Key' } })); return; }
     try {
       // 始终按当前图片重建英文 11 镜 H3，避免复用旧缓存里的中文模板
-      const h3 = normalizeDialogueSpeakers(normalizeH3PromptStructure(buildAnchoredH3(result.prompt, 0, /<Picture\s*2>|@Picture\s*2/i.test(result.prompt), 12)));
+      const h3 = normalizeDialogueSpeakers(normalizeH3PromptStructure(buildH3FromScript(result.prompt, /(?:@Man|<Subject 2>|\bman\b|男人|男性|大叔|黑人)/i.test(result.prompt), /(?:@Man|<Subject 2>|\bman\b|男人|男性|大叔|黑人)/i.test(result.prompt), 12)));
+      if (!h3) { onError('当前剧本不足 8 镜，请重新生成主题剧本'); return; }
       setH3Prompts(prev => ({ ...prev, [idx]: h3 }));
 
       const localTaskId = `random-video-${Date.now()}-${idx}`;
