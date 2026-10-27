@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { extractVideoPromptFromImagePrompt } from '../utils/videoPromptExtractor';
 import { normalizeKrea2Prompt } from '../utils/krea2Prompt';
 import { normalizeH3Script, normalizeDialogueSpeakers, normalizeH3PromptStructure } from '../utils/h3ScriptNormalizer';
-import { applyFramework, detectFramework } from '../utils/h3Frameworks';
+import { applyFramework, detectFramework, H3_FRAMEWORKS } from '../utils/h3Frameworks';
 import { makeThumbnailForStorage, makePreviewForStorage } from '../utils/imageThumbnail';
 import { AspectAwareImage } from '../components/AspectAwareImage';
 import { OneClickProduce } from '../components/OneClickProduce';
@@ -1107,6 +1107,15 @@ function buildH3FromScript(script: string, hasMan: boolean, malePicture: boolean
     ? '{"S1":"Chinese (Mandarin)_Adult_Female_Soft","S2":"Chinese (Mandarin)_Adult_Male_Low"}'
     : '{"S1":"Chinese (Mandarin)_Adult_Female_Soft"}';
 
+  const framework = detectFramework(script, hasMan);
+  const frameworkMeta = H3_FRAMEWORKS[framework];
+  const frameworkHint = framework === 'coercive'
+    ? 'Coercive action framework: use restraint, slaps, hair-pulling, spanking, forced stripping, forced oral and forced penetration where the theme allows; the female starts resisting and gradually weakens into submission; actions carry the scene, dialogue stays sparse. Include creampie, facial or ass cum when the written ending reaches that beat.'
+    : framework === 'consensual'
+      ? 'Consensual framework: mutual response, oral/penetration/climax allowed, balanced dialogue.'
+      : framework === 'solo'
+        ? 'Solo female framework: only S1, self-touch/toy/climax; no male voice or male penetration.'
+        : 'Lesbian framework: both speakers are female, no male penetration; toy/finger penetration allowed.';
   const summaryFirst = shots[0]
     .split(/\(S[12]\):/)[0]
     .replace(/\(S[12]\):\s*<d>[\s\S]*?<\/d>/g, '')
@@ -1121,7 +1130,7 @@ function buildH3FromScript(script: string, hasMan: boolean, malePicture: boolean
 ${subject2}
 
 summary:
-[reference generation] The video follows the current theme exactly, shot by shot, with the same people and location. ${summaryFirst} The sequence ends with the final beat written in the screenplay; no action is added or substituted by a template. No scene change, no character change, no extra person.
+[reference generation] The video follows the current theme exactly, shot by shot, with the same people and location. ${frameworkHint} ${summaryFirst} The sequence ends with the final beat written in the screenplay; no action is added or substituted by a template. No scene change, no character change, no extra person.
 
 retention_analysis:
 <Subject 1> <Picture 1>: fully_preserved — identity, face, hair and body come from the reference image. Clothing state is controlled only by the detailed_description.
@@ -1136,7 +1145,6 @@ overall_soundscape: Location ambience, fabric friction, breathing and the physic
 non_diegetic_music: None
 speaker_mapping: ${speakerMap}`;
 
-  const framework = detectFramework(script, hasMan);
   return applyFramework(normalizeDialogueSpeakers(normalizeH3PromptStructure(prompt)), framework);
 }
 

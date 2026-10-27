@@ -11,24 +11,34 @@ export interface FrameworkMeta {
   label: string;
   needsMale: boolean;
   maxLinesPerShot: number;
+  allowPenetration: boolean;
+  actionArc: string[];
   description: string;
 }
 
 export const H3_FRAMEWORKS: Record<H3Framework, FrameworkMeta> = {
   consensual: {
     id: 'consensual', label: '双方情愿', needsMale: true, maxLinesPerShot: 2,
+    allowPenetration: true,
+    actionArc: ['approach', 'kiss/foreplay', 'undress', 'oral', 'penetration', 'climax', 'aftercare'],
     description: '双方自愿、回应式对白，男女声都存在；不强制支配/屈服。',
   },
   coercive: {
     id: 'coercive', label: '非情愿/胁迫', needsMale: true, maxLinesPerShot: 1,
-    description: '胁迫、威胁、骚扰、强制脱衣等；男声命令、女声抗拒/求饶；台词必须短。',
+    allowPenetration: true,
+    actionArc: ['approach/trap', 'restrain', 'slap/spank/drag', 'strip', 'forced oral', 'forced penetration', 'creampie/facial/ass cum', 'resistance weakening', 'submission/aftermath'],
+    description: '胁迫、威胁、骚扰、强制脱衣等；男声命令、女声抗拒/求饶；动作推进为主，台词必须短。',
   },
   solo: {
     id: 'solo', label: '单人女性', needsMale: false, maxLinesPerShot: 1,
+    allowPenetration: false,
+    actionArc: ['setup', 'self-touch', 'toy/fingers', 'climax', 'afterglow'],
     description: '只有女性主体，自慰/玩具/自我高潮；禁止 S2 男声台词。',
   },
   lesbian: {
     id: 'lesbian', label: '女女', needsMale: false, maxLinesPerShot: 2,
+    allowPenetration: true,
+    actionArc: ['approach', 'kiss', 'mutual touch', 'oral', 'toy/fingers', 'climax', 'aftercare'],
     description: '两名女性，无男性插入；S1/S2 都是女声。',
   },
 };
