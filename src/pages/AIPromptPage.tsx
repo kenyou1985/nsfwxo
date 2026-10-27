@@ -581,7 +581,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
     ];
   } else if (isGroping) {
     const skirtState = wantsSkirtOff
-      ? 'Her red skirt is pulled down and off by Shot 4; she is red skirt gone, panties, blouse and bra still on; no male nudity, no penis, no intercourse.'
+      ? 'Her skirt is pulled down and off by Shot 4; from then on the skirt is gone; panties, blouse and bra still on; no male nudity, no penis, no intercourse.'
       : 'Both remain fully clothed; only hands move under the fabric; no male nudity, no penis, no intercourse.';
     const insertLine = wantsFingerInsert
       ? 'He pushes two fingers inside her while his thumb circles her clit, his mouth at her ear.'
@@ -595,9 +595,9 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
     shots = [
       first,
       `He closes the last few centimetres behind her as the car sways, his chest almost against her back; one hand settles on her hip, proprietary and slow. ${placeLine}. ${skirtState} (S2): <d>[Chinese] 别动。</d>`,
-      `His hand slides down over the red skirt and squeezes her ass through the fabric; she stiffens, fingers tightening on the strap, eyes forward. ${placeLine}. ${skirtState}`,
+      `His hand slides down over her skirt and squeezes her ass through the fabric; she stiffens, fingers tightening on the strap, eyes forward. ${placeLine}. ${skirtState}`,
       wantsSkirtOff
-        ? `He hooks the waistband of her red skirt and pulls it down her legs; the skirt drops around her ankles, leaving her in panties, blouse and heels. ${placeLine}. ${skirtState}`
+        ? `He hooks the waistband of her skirt and pulls it down her legs; the skirt drops around her ankles, leaving her in panties, blouse and heels. ${placeLine}. ${skirtState}`
         : `He presses his hips into her from behind, pinning her against the door frame, and works his palm under the hem of her skirt. ${placeLine}. ${skirtState} (S2): <d>[Chinese] 别出声。</d>`,
       wantsSkirtOff
         ? `His hand slides under her panties and squeezes her bare ass; she jolts, tries to pull the skirt up, but it is already gone. ${placeLine}. ${skirtState}`
@@ -613,8 +613,8 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
     // 服装状态必须按镜头位置表述：Shot 2/3 不能说裙子已经被脱掉，
     // 否则 H3 会在第一段提前脱裙；Shot 4 之后才用“已脱掉”。
     if (wantsSkirtOff) {
-      const before = 'Her red skirt is still on; blouse and bra still on; no male nudity, no penis, no intercourse.';
-      const after = 'The red skirt is gone; panties, blouse and bra still on; no male nudity, no penis, no intercourse.';
+      const before = 'Her skirt is still on; blouse and bra still on; no male nudity, no penis, no intercourse.';
+      const after = 'The skirt is gone; panties, blouse and bra still on; no male nudity, no penis, no intercourse.';
       shots = shots.map((line, idx) => line.split(skirtState).join(idx < 3 ? before : after));
     }
   } else if (atFacesit && !forcePrelude) {  } else if (atFacesit && !forcePrelude) {
@@ -1013,7 +1013,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   const clothingPolicy = hasScriptShots
     ? 'Clothing continuity follows the detailed_description exactly; once the script reaches fully nude, no clothing returns and no character resets to the opening outfit.'
     : isGroping
-    ? (wantsSkirtOff ? 'Shot 1 uses the reference clothing; Shot 4 he pulls her red skirt down and off; from Shot 4 onward the red skirt is gone, panties, blouse and bra still on; no full nudity and no intercourse.' : 'Both remain fully clothed in Shots 1-12; only the blouse and skirt are displaced by hands; no nudity and no intercourse.')
+    ? (wantsSkirtOff ? 'Shot 1 uses the theme outfit; Shot 4 he pulls her skirt down and off; from Shot 4 onward the skirt is gone, panties, blouse and bra still on; no full nudity and no intercourse.' : 'Both remain fully clothed in Shots 1-12; only the blouse and skirt are displaced by hands; no nudity and no intercourse.')
     : hasMan && coercive
     ? isCycling
       ? 'Shot 1 uses the reference clothing; Shot 2 he catches her on his bicycle; Shot 3 rips the cycling suit completely off; she is completely nude by the end of Shot 3, no bra, no panties, no fabric. He keeps his cycling shorts on until Shot 6, then pulls them down to his thighs before penetration.'
@@ -1031,14 +1031,14 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
         ? (wantsSkirtOff ? 'a subway groping sequence, her skirt pulled off, fingers inside her' : 'a clothed subway groping sequence, hands moving under her clothes')
         : 'multiple positions and oral';
   const rawPrompt = `subject_definitions:
-<Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1. Picture 1 defines face, hair, hairstyle, skin tone, body proportions and breast size/shape ONLY. IGNORE all clothing from Picture 1: do NOT copy the reference blouse, skirt, colors or outfit. Shot 1 must use the theme outfit${themeOutfit ? `: ${themeOutfit}` : ' described in the theme'}. ${isGroping ? (wantsSkirtOff ? 'Shot 1 wears the yellow blouse and red skirt; from Shot 4 her skirt is pulled off and she is bottomless, blouse and bra still on; no full nudity and no intercourse.' : 'She remains fully clothed in Shots 1-12; only the blouse and skirt are displaced; no nudity and no undressing.') : 'From Shot 2 onward follow the detailed_description nude state; no reference clothing returns.'}
+<Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1. Picture 1 defines face, hair, hairstyle, skin tone, body proportions and breast size/shape ONLY. IGNORE all clothing from Picture 1: do NOT copy the reference blouse, skirt, colors or outfit. Shot 1 must use the theme outfit${themeOutfit ? `: ${themeOutfit}` : ' described in the theme'}. ${isGroping ? (wantsSkirtOff ? 'Shot 1 wears the theme outfit; from Shot 4 her skirt is pulled off, panties, blouse and bra still on; no full nudity and no intercourse.' : 'She remains fully clothed in Shots 1-12; only the blouse and skirt are displaced; no nudity and no undressing.') : 'From Shot 2 onward follow the detailed_description nude state; no reference clothing returns.'}
 ${subject2}
 
 summary:
 [reference generation] Theme outline: ${openingScene}. A cinematic ${targetDuration}-second ${mode} sequence. Picture 1 is a full identity/scene reference, NOT a static first frame. The video starts directly in the live-action scene, already in motion, then progresses through ${progression}, ending in ${endingText}. ${clothingPolicy} ${coercive ? `She is coerced and pleading; he threatens and overpowers her. ${isCycling ? 'The man is riding a bicycle, not running.' : 'He closes in and overpowers her; there is no bicycle in this scene.'}` : ''} No scene change, no character change, no extra person.
 
 retention_analysis:
-<Subject 1> <Picture 1>: fully_preserved — identity, face, hair and body come from the reference image. ${isGroping ? (wantsSkirtOff ? 'Shot 1 wears the yellow blouse and red skirt; from Shot 4 the red skirt is gone, panties, blouse and bra still on; no full nudity.' : 'She remains fully clothed; only the blouse and skirt are displaced by hands; no nudity.') : 'Starting clothing is used only for Shot 1, then the shot sequence controls nudity.'}
+<Subject 1> <Picture 1>: fully_preserved — identity, face, hair and body come from the reference image. ${isGroping ? (wantsSkirtOff ? 'Shot 1 wears the theme outfit; from Shot 4 the skirt is gone, panties, blouse and bra still on; no full nudity.' : 'She remains fully clothed; only the blouse and skirt are displaced by hands; no nudity.') : 'Starting clothing is used only for Shot 1, then the shot sequence controls nudity.'}
 <Picture 1> identity reference: fully_preserved for face, hair and body; Picture 1 is not used as a static first frame.
 ${hasMaleRef && hasMan ? '<Picture 2> identity: fully_preserved — the male lead face, hair and body come only from Picture 2.' : ''}
 Scene and action: fully_preserved from the source image prompt; only positions progress, location never changes.
