@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { extractVideoPromptFromImagePrompt } from '../utils/videoPromptExtractor';
 import { normalizeKrea2Prompt } from '../utils/krea2Prompt';
 import { normalizeH3Script, normalizeDialogueSpeakers, normalizeH3PromptStructure } from '../utils/h3ScriptNormalizer';
-import { applyFramework, detectFramework, H3_FRAMEWORKS } from '../utils/h3Frameworks';
+import { applyFramework, detectFramework, ensureCoerciveArc, H3_FRAMEWORKS } from '../utils/h3Frameworks';
 import { makeThumbnailForStorage, makePreviewForStorage } from '../utils/imageThumbnail';
 import { AspectAwareImage } from '../components/AspectAwareImage';
 import { OneClickProduce } from '../components/OneClickProduce';
@@ -1091,7 +1091,10 @@ function buildH3FromScript(script: string, hasMan: boolean, malePicture: boolean
   });
   if (shots.length < 8) return '';
 
-  const body = shots.slice(0, 12).map((shot, i) => {
+  const detected = detectFramework(script, hasMan);
+  const framedShots = detected === 'coercive' && hasMan ? ensureCoerciveArc(shots) : shots;
+
+  const body = framedShots.slice(0, 12).map((shot, i) => {
     const sec = i === 0 ? 0 : (i * 55) / Math.max(1, Math.min(12, shots.length) - 1);
     const stamp = `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(Math.floor(sec % 60)).padStart(2, '0')}.000`;
     return `[Shot ${i + 1}] ${stamp} ${shot}`;
@@ -1122,7 +1125,8 @@ function buildH3FromScript(script: string, hasMan: boolean, malePicture: boolean
     .replace(/^[\s.·\-–—]*\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}\s*[.\-–—]*\s*/i, '')
     .replace(/^\s*\(\s*\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}\s*\)\s*[.\-–—]*\s*/i, '')
     .replace(/\s+/g, ' ')
-    .slice(0, 260)
+    .split(/(?<=[.!?])\s+/)[0]
+    .slice(0, 220)
     .replace(/\s+\S*$/, '')
     .trim();
   const prompt = `subject_definitions:
