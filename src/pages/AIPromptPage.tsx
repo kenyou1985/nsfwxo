@@ -37,7 +37,7 @@ import { VIDEO_POSE_PRESETS } from '../data/presetPoses';
 
 function normalizeCardPrompt(prompt: string): string {
   if (!prompt || !/^\s*subject_definitions\s*:/i.test(prompt)) return prompt;
-  return normalizeDialogueSpeakers(normalizeH3PromptStructure(prompt));
+  return normalizeDialogueSpeakers(normalizeH3PromptStructure(prompt, { shotCount: getH3ShotCount() }));
 }
 
 const KREA2_N_STRONG_WORKFLOW = '2101119999196127233';
@@ -3670,7 +3670,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         loop_routes: videoRoutes,
         instance: 'plus',
       };
-      const anchoredPrompt = normalizeDialogueSpeakers(normalizeH3PromptStructure(anchorH3Prompt(h3)));
+      const anchoredPrompt = normalizeDialogueSpeakers(normalizeH3PromptStructure(anchorH3Prompt(h3), { shotCount: getH3ShotCount() }));
       const submit = await submitDaotaiVideo(rhKey, anchoredPrompt, { ...body, prompt: anchoredPrompt });
       submittedTaskId = submit.taskId;
       publishExternalVideoTask({
