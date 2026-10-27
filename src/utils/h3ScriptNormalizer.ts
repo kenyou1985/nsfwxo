@@ -54,10 +54,10 @@ function splitScript(raw: string): string[] {
   return raw
     // `SHOT N:` 只允许行首或紧跟在 `[Shot N]` 后面，避免把
     // "Clothing applies only to Shot 1: from Shot 2 onward..." 当成镜头标题。
-    .split(/(?=(?:\[\s*(?:\*\*)?(?:SHOT|Shot)\s+\d+\s*\]?|(?:^|\n|\])\s*SHOT\s+\d+\s*:))/im)
+    .split(/(?=(?:\[\s*(?:\*\*)?(?:SHOT|Shot)\s+\d+\s*\]?|(?:^|\n|\])\s*(?:\*\*)?SHOT\s+\d+\b[:：]?))/im)
     .slice(1)
     .map(cleanBeat)
-    .filter((x) => x.length > 30);
+    .filter((x) => x.length > 10);
 }
 
 function stripForbiddenProps(text: string, theme: string): string {
@@ -107,7 +107,7 @@ export function normalizeH3Script(raw: string, opts: NormalizeOptions): string[]
     sourceBeats = raw
       .split(/(?<=[.!?。！？])\s+/)
       .map(cleanBeat)
-      .filter((x) => x.length > 25)
+      .filter((x) => x.length > 10)
       .filter((x) => /(?:she|her|he|his|woman|man|camera|location|body|clothing|action|女人|男人|她|他)/i.test(x));
   }
   if (sourceBeats.length < 8) return [];
