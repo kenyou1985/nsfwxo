@@ -1078,6 +1078,33 @@ speaker_mapping: ${speakerMap}`;
   return normalizeDialogueSpeakers(normalizeH3PromptStructure(cleanedRaw, { groping: isGroping, coercive: isGroping ? false : coercive, hasMan }));
 }
 
+function extractWardrobe(text: string): string {
+  const colors: Record<string, string> = {
+    红色: 'red', 黄色: 'yellow', 白色: 'white', 黑色: 'black', 蓝色: 'blue',
+    灰色: 'grey', 粉色: 'pink', 紫色: 'purple', 绿色: 'green',
+  };
+  const found: string[] = [];
+  const push = (v: string) => { if (v && !found.includes(v)) found.push(v); };
+  // 中文：红色低胸衬衫 / 白色超短裙
+  for (const m of text.matchAll(/(红色|黄色|白色|黑色|蓝色|灰色|粉色|紫色|绿色)\s*([\u4e00-\u9fff]{0,8}?)(衬衫|上衣|裙|bra|内衣|内裤|panties|thong|blouse|shirt|skirt|jeans|heels|高跟鞋)/gi)) {
+    const color = colors[m[1]] || m[1];
+    const raw = (m[2] || '') + (m[3] || '');
+    const garment = /衬衫|blouse|shirt/i.test(raw) ? 'low-cut shirt'
+      : /超短裙|短裙|miniskirt|skirt/i.test(raw) ? (/超短|mini/i.test(raw) ? 'ultra-mini skirt' : 'skirt')
+      : /bra|内衣/i.test(raw) ? 'bra'
+      : /panties|内裤|thong/i.test(raw) ? 'panties'
+      : /jeans|牛仔/i.test(raw) ? 'jeans'
+      : /heels|高跟鞋/i.test(raw) ? 'heels'
+      : raw;
+    push(`${color} ${garment}`.trim());
+  }
+  // 英文：red low-cut shirt / white miniskirt
+  for (const m of text.matchAll(/\b(red|yellow|white|black|blue|grey|pink|purple|green)\s+(?:low-cut\s+)?(shirt|blouse|miniskirt|skirt|bra|panties|thong|jeans|heels)\b/gi)) {
+    push(`${m[1].toLowerCase()} ${m[2].toLowerCase()}`.replace('miniskirt', 'ultra-mini skirt'));
+  }
+  return found.join(', ');
+}
+
 /**
  * 剧本直出：不经过任何动作模板/分支，只把当前主题的 12 镜剧本格式化为 H3。
  * 动作、场景、服装、对白全部来自 script；模板只负责 H3 六段结构。
@@ -1092,12 +1119,15 @@ function buildH3FromScript(script: string, hasMan: boolean, malePicture: boolean
   if (shots.length < 8) return '';
 
   const detected = detectFramework(script, hasMan);
+  const wardrobe = extractWardrobe(script);
+  const wardrobeLock = wardrobe ? `Wardrobe lock: ${wardrobe}. Keep these exact colors and garments; never swap red/white or inherit clothing from Picture 1.` : '';
   const framedShots = detected === 'coercive' && hasMan ? ensureCoerciveArc(shots) : shots;
 
   const body = framedShots.slice(0, 12).map((shot, i) => {
-    const sec = i === 0 ? 0 : (i * 55) / Math.max(1, Math.min(12, shots.length) - 1);
+    const sec = i === 0 ? 0 : (i * 55) / Math.max(1, Math.min(12, framedShots.length) - 1);
     const stamp = `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(Math.floor(sec % 60)).padStart(2, '0')}.000`;
-    return `[Shot ${i + 1}] ${stamp} ${shot}`;
+    const wardrobeLine = wardrobeLock && i < 4 ? ` ${wardrobeLock}` : '';
+    return `[Shot ${i + 1}] ${stamp} ${shot}${wardrobeLine}`;
   }).join('\n');
 
   const subject2 = hasMan
@@ -1131,11 +1161,11 @@ function buildH3FromScript(script: string, hasMan: boolean, malePicture: boolean
     .replace(/\s+\S*$/, '')
     .trim();
   const prompt = `subject_definitions:
-<Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1. Picture 1 defines face, hair, hairstyle, skin tone, body proportions and breast size/shape ONLY. IGNORE all clothing from Picture 1: do NOT copy the reference blouse, skirt, colors or outfit. Clothing, undressing and nudity follow the detailed_description exactly; never reset clothing at a segment boundary.
+<Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1. Picture 1 defines face, hair, hairstyle, skin tone, body proportions and breast size/shape ONLY. IGNORE all clothing from Picture 1: do NOT copy the reference blouse, skirt, colors or outfit. ${wardrobeLock} Clothing, undressing and nudity follow the detailed_description exactly; never reset clothing at a segment boundary.
 ${subject2}
 
 summary:
-[reference generation] The video follows the current theme exactly, shot by shot, with the same people and location. ${frameworkHint} ${summaryFirst} The sequence ends with the final beat written in the screenplay; no action is added or substituted by a template. No scene change, no character change, no extra person.
+[reference generation] The video follows the current theme exactly, shot by shot, with the same people and location. ${frameworkHint} ${wardrobeLock} ${summaryFirst} The sequence ends with the final beat written in the screenplay; no action is added or substituted by a template. No scene change, no character change, no extra person.
 
 retention_analysis:
 <Subject 1> <Picture 1>: fully_preserved — identity, face, hair and body come from the reference image. Clothing state is controlled only by the detailed_description.
