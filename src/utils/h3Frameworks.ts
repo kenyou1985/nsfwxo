@@ -196,11 +196,12 @@ export function pickPenetrationPositions(context: string): PositionPlan {
  * coercive 框架的最低动作弧：只补缺失的强制 oral/penetration/ending，
  * 不删除主题已有的动作；所有内容仍是当前主题的胁迫场景。
  */
-export function ensureCoerciveArc(shots: string[], context = ''): string[] {
+export function ensureCoerciveArc(shots: string[], context = '', targetShots = 12): string[] {
   if (!Array.isArray(shots) || shots.length < 4) return shots;
   // 前 4 镜保留主题自己的接近/压制/反抗/脱上衣；
   // 后半段由 coercive 框架保证：全裸→强制口交→插入→抽插→内射→被迫顺从。
-  const head = shots.slice(0, 4).map((s) => s.replace(/She is still fully clothed[^.]*\./gi, '').trim());
+  const headCount = targetShots >= 20 ? Math.min(8, targetShots - 8) : 4;
+  const head = shots.slice(0, headCount).map((s) => s.replace(/She is still fully clothed[^.]*\./gi, '').trim());
   // 模型偶尔第一镜只写对白，没有构图；补一个中性视觉锚点，不能让 H3 第一镜空画面。
   if (head[0] && !/(camera|location|body|action|\b(she|her|he|his)\b)/i.test(head[0]) && head[1]) {
     head[0] = `At the current location, she holds the written pose; he stands close behind her, not yet touching. ${head[0]}`;
@@ -216,5 +217,16 @@ export function ensureCoerciveArc(shots: string[], context = ''): string[] {
     'He buries himself to the hilt and finishes inside her; thick creampie pulses out as her resistance collapses into shaking submission. (S2): <d>[Chinese] 接好。</d>',
     'She sinks down against the surface, spent and trembling, fully nude, his hands still on her; he does not dress her. (S1): <d>[Chinese] 我不敢了…</d>',
   ];
-  return [...head, ...tail].slice(0, 12);
+  if (targetShots >= 20) {
+    const longTail = [
+      tail[0], tail[1], tail[2], tail[3], tail[4], tail[5],
+      'He pulls out and slaps her ass, then pushes her back to her knees for a second oral beat; she gags around him, mascara running, hands braced on his thighs. (S2): <d>[Chinese] 含深点。</d>',
+      'He hauls her up by the hair and bends her over the same surface again, this time slower, making her feel every inch; her resistance is nearly gone. (S2): <d>[Chinese] 自己动。</d>',
+      'He reaches around to squeeze her breast and rub her clit while he fucks her, forcing a broken moan out of her. (S1): <d>[Chinese] 不要…又要去了…</d>',
+      'He turns her into the final position: ' + positions.p3 + '; then fucks her through the last stretch, sweat dripping from his chest onto hers.',
+      tail[6], tail[7],
+    ];
+    return [...head, ...longTail].slice(0, targetShots);
+  }
+  return [...head, ...tail].slice(0, Math.min(12, targetShots));
 }

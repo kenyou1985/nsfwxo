@@ -1132,13 +1132,15 @@ function buildH3FromScript(script: string, hasMan: boolean, malePicture: boolean
   const detected = detectFramework(script, hasMan);
   const wardrobe = extractWardrobe(script);
   const wardrobeLock = wardrobe ? `Wardrobe lock: ${wardrobe}. Keep these exact colors and garments; never swap colors or inherit clothing from Picture 1.` : '';
-  const framedShots = detected === 'coercive' && hasMan ? ensureCoerciveArc(shots, script) : shots;
+  const framedShots = detected === 'coercive' && hasMan ? ensureCoerciveArc(shots, script, shotCount) : shots;
   // 通用服装锁定范围：到剧本第一次明确脱衣/撕裂动作为止；不固定前 4 镜。
   const firstRemoval = shots.findIndex((s) => /(?:shirt|blouse|skirt|bra|panties|garment|clothes?)\b[^.]{0,30}(?:removed|off|ripped|pulled|stripped|gone)|(?:脱|撕|扒|扯)[^。]{0,12}(?:衣|裙|内裤|bra|衬衫)/i.test(s));
   const wardrobeEnd = firstRemoval >= 0 ? firstRemoval : shots.length;
 
-  const body = framedShots.slice(0, 12).map((shot, i) => {
-    const sec = i === 0 ? 0 : (i * 55) / Math.max(1, Math.min(12, framedShots.length) - 1);
+  const actualShots = Math.max(12, Math.min(30, shotCount));
+  const duration = actualShots >= 30 ? 180 : actualShots >= 20 ? 120 : 60;
+  const body = framedShots.slice(0, actualShots).map((shot, i) => {
+    const sec = i === 0 ? 0 : (i * (duration - 5)) / Math.max(1, Math.min(actualShots, framedShots.length) - 1);
     const stamp = `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(Math.floor(sec % 60)).padStart(2, '0')}.000`;
     const wardrobeLine = wardrobeLock && i < wardrobeEnd ? ` ${wardrobeLock}` : '';
     return `[Shot ${i + 1}] ${stamp} ${shot}${wardrobeLine}`;
@@ -1195,7 +1197,7 @@ overall_soundscape: Location ambience, fabric friction, breathing and the physic
 non_diegetic_music: None
 speaker_mapping: ${speakerMap}`;
 
-  return applyFramework(normalizeDialogueSpeakers(normalizeH3PromptStructure(prompt)), framework);
+  return applyFramework(normalizeDialogueSpeakers(normalizeH3PromptStructure(prompt, { shotCount: actualShots })), framework);
 }
 
 /**

@@ -201,6 +201,7 @@ export interface H3StructureOptions {
   coercive?: boolean;
   hasMan?: boolean;
   groping?: boolean;
+  shotCount?: number;
 }
 
 export function normalizeH3PromptStructure(raw: string, opts: H3StructureOptions = {}): string {
@@ -240,7 +241,7 @@ export function normalizeH3PromptStructure(raw: string, opts: H3StructureOptions
   if (!byNum.has(1) && byNum.has(2)) {
     byNum.set(1, 'The opening frame establishes the same location, the same two people, and the first visible action of the theme.');
   }
-  let shots = [...byNum.entries()].sort((a, b) => a[0] - b[0]).slice(0, 12).map(([, v]) => v);
+  let shots = [...byNum.entries()].sort((a, b) => a[0] - b[0]).slice(0, opts.shotCount || 12).map(([, v]) => v);
 
   const anchor = 'He is still fully clothed in a dark shirt and trousers; no male nudity in this shot.';
   const maleNude = /(?:\b(?:man|he)\b[^.\n]{0,100}\b(?:fully\s+|still\s+)?nude\b|\bboth\s+(?:now\s+|still\s+)?(?:fully\s+)?nude\b|\bhe\s+(?:is\s+|now\s+)?shirtless\b|\b(?:his\s+)?(?:torso|chest)\s+(?:is\s+)?bare\b|\brevealing\s+(?:a\s+)?(?:massive\s+)?(?:tattooed\s+)?chest\b|\bhis\s+(?:\w+\s+){0,4}(?:cock|penis)\s+(?:springs|is|comes)\s+free\b|\bhis\s+\w+\s+(?:cock|penis)\s+(?:out|free)\b|(?:\bhe\s+)?(?:then\s+)?(?:yanks?|pulls?|rips?|strips?|shoves?)\s+(?:his|the)\s+(?:own\s+)?(?:hoodie|t-shirt|shirt|tee|top|clothes)[^.;]*|\bhe\s+(?:remains?|stays?)\s+in\s+(?:jeans|pants|trousers)\s+only\b|\bhe\s+(?:shoves|kicks|pushes|strips)\s+(?:his|the)\s+(?:jeans|pants|trousers|boxers|clothes)[^.;]*|\bclothing stays off forever\b)/gi;
