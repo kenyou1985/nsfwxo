@@ -1108,8 +1108,10 @@ function buildH3FromScript(script: string, hasMan: boolean, malePicture: boolean
     : '{"S1":"Chinese (Mandarin)_Adult_Female_Soft"}';
 
   const summaryFirst = shots[0]
+    .split(/\(S[12]\):/)[0]
     .replace(/\(S[12]\):\s*<d>[\s\S]*?<\/d>/g, '')
     .replace(/^[\s.·\-–—]*\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}\s*[.\-–—]*\s*/i, '')
+    .replace(/^\s*\(\s*\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}\s*\)\s*[.\-–—]*\s*/i, '')
     .replace(/\s+/g, ' ')
     .slice(0, 260)
     .replace(/\s+\S*$/, '')

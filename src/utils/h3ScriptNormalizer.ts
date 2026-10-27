@@ -29,6 +29,8 @@ function cleanBeat(raw: string): string {
     .replace(/^\s*\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}[^\n]*\n?/i, '')
     // 模型常在镜头正文前再写一次 `. 0:00–0:05.`，必须去掉，否则 H3 会看到重复时间戳。
     .replace(/^[\s.·\-–—]*\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}\s*[.\-–—]*\s*/i, '')
+    // 跳过 model 在正文前保留的括号时间范围：(0:05–0:10)
+    .replace(/^\s*\(\s*\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}\s*\)\s*[.\-–—]*\s*/i, '')
     .replace(/^\s*TIME\s*\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}[^\n]*\n?/gmi, '')
     .replace(/^\s*Time range[^\n]*\n?/gmi, '')
     .replace(/^\s*(?:TITLE|SETTING|Clothing tracked)\s*[:：][^\n]*\n?/gmi, '')
