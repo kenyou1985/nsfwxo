@@ -139,24 +139,19 @@ export function applyFramework(text: string, framework: H3Framework): string {
  * 不删除主题已有的动作；所有内容仍是当前主题的胁迫场景。
  */
 export function ensureCoerciveArc(shots: string[]): string[] {
-  if (!Array.isArray(shots) || shots.length < 8) return shots;
-  const text = shots.join(' ');
-  const hasOral = /(forced oral|blowjob|deepthroat|takes? him in her mouth|mouth around|sucks? (?:his|the) (?:cock|shaft)|tongue .*shaft|口交)/i.test(text);
-  const hasPen = /(penetrat|inside her|pushes? into her|enters? her|thrust|creampie|cum inside|内射|插入)/i.test(text);
-  const hasCum = /(creampie|cum(?:shot)?|ejaculat|射精|射在|口爆| facial|ass cum)/i.test(text);
-  if (hasOral && hasPen && hasCum) return shots;
-
-  const copy = [...shots];
-  // 保留前 7 镜的接近/压制/脱衣/拍打，后段补足胁迫性行为。
-  if (!hasOral) {
-    copy[7] = `He forces her to her knees, fists her hair, and pushes his cock into her mouth; she gags, saliva stringing, hands clawing at his thigh. ${copy[7] || ''}`.trim();
-  }
-  if (!hasPen) {
-    copy[8] = `He drags her up by the hair, bends her over the nearest surface, and drives into her from behind in one hard thrust; her body jolts and she cries out.`;
-    copy[9] = `He fucks her hard and fast, one hand in her hair, the other holding her hip; her resistance breaks into helpless noise.`;
-  }
-  if (!hasCum) {
-    copy[10] = `He buries himself to the hilt and finishes inside her; thick creampie pulses out as her resistance collapses into shaking submission.`;
-  }
-  return copy;
+  if (!Array.isArray(shots) || shots.length < 4) return shots;
+  // 前 4 镜保留主题自己的接近/压制/反抗/脱上衣；
+  // 后半段由 coercive 框架保证：全裸→强制口交→插入→抽插→内射→被迫顺从。
+  const head = shots.slice(0, 4).map((s) => s.replace(/She is still fully clothed[^.]*\./gi, '').trim());
+  const tail = [
+    'He strips the last garment from her; she is completely nude; no clothing remains; he keeps his dark shirt and trousers on. She stops kicking and only shakes.',
+    'He forces her to her knees, fists her hair, and pushes his cock into her mouth; she gags, saliva stringing, hands clawing at his thigh. (S2): <d>[Chinese] 张嘴。</d>',
+    'He drags her up by the hair, bends her over the nearest surface, and drives into her from behind in one hard thrust; her body jolts and she cries out. (S2): <d>[Chinese] 夹紧。</d>',
+    'He fucks her hard and fast, one hand in her hair, the other holding her hip; her resistance breaks into helpless noise; he spanks her bare ass in rhythm. (S2): <d>[Chinese] 别躲。</d>',
+    'He keeps her pinned and uses her, pulling her hair and slapping her ass while she stops fighting and takes it, her body shaking. (S1): <d>[Chinese] 求求你…</d>',
+    'He buries himself to the hilt and finishes inside her; thick creampie pulses out as her resistance collapses into shaking submission. (S2): <d>[Chinese] 接好。</d>',
+    'She sinks down against the surface, spent and trembling, fully nude, his hands still on her; he does not dress her. (S1): <d>[Chinese] 我不敢了…</d>',
+    'Afterglow in the exact same location and position: both bodies still, breathing slowing, sweat cooling on skin; no new act, no reset.',
+  ];
+  return [...head, ...tail].slice(0, 12);
 }
