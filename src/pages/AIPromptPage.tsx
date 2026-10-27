@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { extractVideoPromptFromImagePrompt } from '../utils/videoPromptExtractor';
 import { normalizeKrea2Prompt } from '../utils/krea2Prompt';
 import { normalizeH3Script, normalizeDialogueSpeakers, normalizeH3PromptStructure } from '../utils/h3ScriptNormalizer';
-import { applyFramework, detectFramework, ensureCoerciveArc, H3_FRAMEWORKS } from '../utils/h3Frameworks';
+import { applyFramework, detectFramework, ensureCoerciveArc, H3_FRAMEWORKS, enforceH3Speakers } from '../utils/h3Frameworks';
 import { makeThumbnailForStorage, makePreviewForStorage } from '../utils/imageThumbnail';
 import { AspectAwareImage } from '../components/AspectAwareImage';
 import { OneClickProduce } from '../components/OneClickProduce';
@@ -37,7 +37,7 @@ import { VIDEO_POSE_PRESETS } from '../data/presetPoses';
 
 function normalizeCardPrompt(prompt: string): string {
   if (!prompt || !/^\s*subject_definitions\s*:/i.test(prompt)) return prompt;
-  return normalizeDialogueSpeakers(normalizeH3PromptStructure(prompt, { shotCount: getH3ShotCount() }));
+  return enforceH3Speakers(normalizeDialogueSpeakers(normalizeH3PromptStructure(prompt, { shotCount: getH3ShotCount() })));
 }
 
 const KREA2_N_STRONG_WORKFLOW = '2101119999196127233';
@@ -1082,7 +1082,9 @@ function sanitizeAgeTerms(text: string): string {
   // 不把角色写成 uncle / middle-aged / 老年，避免安全审核把成人场景误判为未成年人相关。
   return String(text || '')
     .replace(/\b(middle[- ]aged|older man|old man|elderly man|uncle)\b/gi, 'the adult man')
-    .replace(/大叔|中年男子|中年男人|老年男子|老年男人|老汉|老头|叔叔/g, '成年男子');
+    .replace(/大叔|中年男子|中年男人|老年男子|老年男人|老汉|老头|叔叔/g, '成年男子')
+    .replace(/\bthe the adult man\b/gi, 'the adult man')
+    .replace(/\bThe the adult man\b/g, 'The adult man');
 }
 
 function extractSceneLock(text: string): string {
@@ -1223,7 +1225,7 @@ overall_soundscape: Location ambience, fabric friction, breathing and the physic
 non_diegetic_music: None
 speaker_mapping: ${speakerMap}`;
 
-  return sanitizeAgeTerms(applyFramework(normalizeDialogueSpeakers(normalizeH3PromptStructure(prompt, { shotCount: actualShots })), framework));
+  return sanitizeAgeTerms(enforceH3Speakers(applyFramework(normalizeDialogueSpeakers(normalizeH3PromptStructure(prompt, { shotCount: actualShots })), framework)));
 }
 
 /**

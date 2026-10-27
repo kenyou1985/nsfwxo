@@ -106,6 +106,23 @@ function normalizeShotDialogue(block: string, framework: H3Framework): string {
   return cleaned.replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n');
 }
 
+/** 最终硬校正：只按台词文本判断男女，防止任何前置归一器把男性命令写成 S1。 */
+export function enforceH3Speakers(text: string): string {
+  if (!text) return text;
+  return text.replace(/\(S[12]\):\s*<d>[\s\S]*?<\/d>/g, (line) => {
+    const body = line.replace(/^<d>|<\/d>$/g, '');
+    const raw = body.replace(/<[^>]+>/g, '');
+    if (/^(?:他|男|马库斯|MARCUS)$/i.test(raw)) return line;
+    if ((MALE_COMMAND.test(raw) && !FEMALE_PLEA.test(raw)) || /^(?:别动|张嘴|接好|夹紧|站稳|转过来|腿抬好|自己动|含深点|脱掉|裙子脱掉)/.test(raw)) {
+      return line.replace(/^\(S[12]\):/, '(S2):');
+    }
+    if (FEMALE_PLEA.test(raw) || /^(?:你|我|他蹲|这里|有人|会看到)/.test(raw)) {
+      return line.replace(/^\(S[12]\):/, '(S1):');
+    }
+    return line;
+  });
+}
+
 export function applyFramework(text: string, framework: H3Framework): string {
   if (!text) return text;
   let out = text;
