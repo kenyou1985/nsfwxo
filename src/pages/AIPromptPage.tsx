@@ -1403,6 +1403,15 @@ function formatTime(seconds: number): string {
   return `${m}m ${s}s`;
 }
 
+function getH3ShotCount(): number {
+  try {
+    const n = Number(localStorage.getItem('nsfwxo_video_shot_count') || 12);
+    return [12, 20, 30].includes(n) ? n : 12;
+  } catch {
+    return 12;
+  }
+}
+
 function VideoElapsed({ startTime, active }: { startTime?: number; active?: boolean }) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
@@ -1428,7 +1437,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   const savedExpand = getExpandSession();
   const [input, setInput] = useState(savedExpand?.input || '');
   const [type, setType] = useState<'image' | 'video'>(savedExpand?.type || 'image');
-  const [videoShotCount, setVideoShotCount] = useState(12);
+  const [videoShotCount, setVideoShotCount] = useState(() => getH3ShotCount());
   const [videoClarity, setVideoClarity] = useState(0.2);
   const [videoSegments, setVideoSegments] = useState(4);
   const [videoRoutes, setVideoRoutes] = useState(1);
@@ -2485,7 +2494,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
                     onChange={(e) => setVideoSegments(Math.min(16, Math.max(2, Math.round(Number(e.target.value) || 4))))}
                     className="w-12 px-1 py-0.5 rounded border border-border bg-white text-center" />
                   <label>分镜</label>
-                  <select value={videoShotCount} onChange={(e) => setVideoShotCount(Number(e.target.value))}
+                  <select value={videoShotCount} onChange={(e) => { const n = Number(e.target.value); setVideoShotCount(n); try { localStorage.setItem('nsfwxo_video_shot_count', String(n)); } catch {} }}
                     className="px-1 py-0.5 rounded border border-border bg-white text-center text-[10px]">
                     <option value={12}>12 / 60s</option>
                     <option value={20}>20 / 120s</option>
@@ -3557,7 +3566,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       const processOne = async (i: number, result: PromptResult): Promise<void> => {
         try {
           // 固定英文 11 镜 H3 模板，锚定当前图片，不再走 LLM（避免审核拒绝与中文旧模板）
-          completed[i] = normalizeDialogueSpeakers(normalizeH3PromptStructure(buildH3FromScript(result.prompt, /(?:@Man|<Subject 2>|\bman\b|男人|男性|大叔|黑人)/i.test(result.prompt), /(?:@Man|<Subject 2>|\bman\b|男人|男性|大叔|黑人)/i.test(result.prompt), 12)));
+          completed[i] = normalizeDialogueSpeakers(normalizeH3PromptStructure(buildH3FromScript(result.prompt, /(?:@Man|<Subject 2>|\bman\b|男人|男性|大叔|黑人)/i.test(result.prompt), /(?:@Man|<Subject 2>|\bman\b|男人|男性|大叔|黑人)/i.test(result.prompt), getH3ShotCount()), { shotCount: getH3ShotCount() }));
           return;
         } finally {
           // 无论成功/失败/空结果，都立即从 processing 集合中移除该索引，
@@ -3615,7 +3624,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     
     try {
       // 固定英文 11 镜 H3 模板，锚定当前图片
-      const localH3 = normalizeDialogueSpeakers(normalizeH3PromptStructure(buildH3FromScript(result.prompt, /(?:@Man|<Subject 2>|\bman\b|男人|男性|大叔|黑人)/i.test(result.prompt), /(?:@Man|<Subject 2>|\bman\b|男人|男性|大叔|黑人)/i.test(result.prompt), 12)));
+      const localH3 = normalizeDialogueSpeakers(normalizeH3PromptStructure(buildH3FromScript(result.prompt, /(?:@Man|<Subject 2>|\bman\b|男人|男性|大叔|黑人)/i.test(result.prompt), /(?:@Man|<Subject 2>|\bman\b|男人|男性|大叔|黑人)/i.test(result.prompt), getH3ShotCount()), { shotCount: getH3ShotCount() }));
       if (!localH3) { onError('当前剧本不足 8 镜，请重新生成主题剧本'); return undefined; }
       setH3Prompts(prev => ({ ...prev, [idx]: localH3 }));
       onSuccess(`第 ${idx + 1} 个 H3 视频提示词已生成`);
@@ -3643,7 +3652,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     if (!rhKey) { onError('请先配置 RunningHub API Key'); setVideoStates(prev => ({ ...prev, [idx]: { loading: false, error: '未配置 API Key' } })); return; }
     try {
       // 始终按当前图片重建英文 11 镜 H3，避免复用旧缓存里的中文模板
-      const h3 = normalizeDialogueSpeakers(normalizeH3PromptStructure(buildH3FromScript(result.prompt, /(?:@Man|<Subject 2>|\bman\b|男人|男性|大叔|黑人)/i.test(result.prompt), /(?:@Man|<Subject 2>|\bman\b|男人|男性|大叔|黑人)/i.test(result.prompt), 12)));
+      const h3 = normalizeDialogueSpeakers(normalizeH3PromptStructure(buildH3FromScript(result.prompt, /(?:@Man|<Subject 2>|\bman\b|男人|男性|大叔|黑人)/i.test(result.prompt), /(?:@Man|<Subject 2>|\bman\b|男人|男性|大叔|黑人)/i.test(result.prompt), getH3ShotCount()), { shotCount: getH3ShotCount() }));
       if (!h3) { onError('当前剧本不足 8 镜，请重新生成主题剧本'); return; }
       setH3Prompts(prev => ({ ...prev, [idx]: h3 }));
 
