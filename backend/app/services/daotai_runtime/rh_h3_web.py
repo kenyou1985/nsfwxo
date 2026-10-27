@@ -2744,6 +2744,15 @@ def run_job(job):
                       % (_ns_det, _N_det, _M_det, _cap_det, _ns_det - _cap_det,
                          -(-_ns_det // _M_det)))
             cfg['total_segs'] = _N_det
+            # 全局修复：并发路数不能把每路分镜数压到少于 2 段所需。
+            # 例：20 镜 / 8 段 / 2 路 → 每路只有 10 镜，8 段每段至少 2 镜需要 16 镜，必然失败。
+            # 优先保留 8 段和 20 镜，自动降为 1 路，而不是拒绝提交或缩短视频。
+            if _routes_det > 1:
+                _per_route_det = -(-_ns_det // _routes_det)
+                if _per_route_det < 2 * _N_det - 1:
+                    _emit('⚠ %d 镜 / %d 段 / %d 路：每路仅 %d 镜，无法填满 %d 段（每段至少 2 镜）→ 自动降为 1 路提交，保留 %d 段和全部 %d 镜'
+                          % (_ns_det, _N_det, _routes_det, _per_route_det, _N_det, _N_det, _ns_det))
+                    _routes_det = 1
             if _routes_det > 1:
                 # 全局修复（2026-10-15）：保留每路 1/R 子集的语义，但 v10 修复画布提取链的段 4 重复污染。
                 # 4 路 8 分镜/路 × 503=4 段 / 8 路 4 分镜/路 × 503=2 段 / 任意路 → 1305/1306/1351/1307 只保留有效 JjkConcat 份。
