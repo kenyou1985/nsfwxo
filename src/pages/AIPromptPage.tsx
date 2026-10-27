@@ -581,7 +581,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
     ];
   } else if (isGroping) {
     const skirtState = wantsSkirtOff
-      ? 'Her red skirt is pulled down and off by Shot 4; she is bottomless from then on, blouse and bra still on; no male nudity, no penis, no intercourse.'
+      ? 'Her red skirt is pulled down and off by Shot 4; she is red skirt gone, panties, blouse and bra still on; no male nudity, no penis, no intercourse.'
       : 'Both remain fully clothed; only hands move under the fabric; no male nudity, no penis, no intercourse.';
     const insertLine = wantsFingerInsert
       ? 'He pushes two fingers inside her while his thumb circles her clit, his mouth at her ear.'
@@ -610,6 +610,13 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
       `${climaxLine} ${placeLine}. ${skirtState}`,
       `${endLine} ${placeLine}. ${skirtState}`,
     ];
+    // 服装状态必须按镜头位置表述：Shot 2/3 不能说裙子已经被脱掉，
+    // 否则 H3 会在第一段提前脱裙；Shot 4 之后才用“已脱掉”。
+    if (wantsSkirtOff) {
+      const before = 'Her red skirt is still on; blouse and bra still on; no male nudity, no penis, no intercourse.';
+      const after = 'The red skirt is gone; panties, blouse and bra still on; no male nudity, no penis, no intercourse.';
+      shots = shots.map((line, idx) => line.split(skirtState).join(idx < 3 ? before : after));
+    }
   } else if (atFacesit && !forcePrelude) {  } else if (atFacesit && !forcePrelude) {
     shots = [
       first,
@@ -1006,7 +1013,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   const clothingPolicy = hasScriptShots
     ? 'Clothing continuity follows the detailed_description exactly; once the script reaches fully nude, no clothing returns and no character resets to the opening outfit.'
     : isGroping
-    ? (wantsSkirtOff ? 'Shot 1 uses the reference clothing; Shot 4 he pulls her red skirt down and off; from Shot 4 onward she is bottomless, blouse and bra still on; no full nudity and no intercourse.' : 'Both remain fully clothed in Shots 1-12; only the blouse and skirt are displaced by hands; no nudity and no intercourse.')
+    ? (wantsSkirtOff ? 'Shot 1 uses the reference clothing; Shot 4 he pulls her red skirt down and off; from Shot 4 onward the red skirt is gone, panties, blouse and bra still on; no full nudity and no intercourse.' : 'Both remain fully clothed in Shots 1-12; only the blouse and skirt are displaced by hands; no nudity and no intercourse.')
     : hasMan && coercive
     ? isCycling
       ? 'Shot 1 uses the reference clothing; Shot 2 he catches her on his bicycle; Shot 3 rips the cycling suit completely off; she is completely nude by the end of Shot 3, no bra, no panties, no fabric. He keeps his cycling shorts on until Shot 6, then pulls them down to his thighs before penetration.'
@@ -1031,7 +1038,7 @@ summary:
 [reference generation] Theme outline: ${openingScene}. A cinematic ${targetDuration}-second ${mode} sequence. Picture 1 is a full identity/scene reference, NOT a static first frame. The video starts directly in the live-action scene, already in motion, then progresses through ${progression}, ending in ${endingText}. ${clothingPolicy} ${coercive ? `She is coerced and pleading; he threatens and overpowers her. ${isCycling ? 'The man is riding a bicycle, not running.' : 'He closes in and overpowers her; there is no bicycle in this scene.'}` : ''} No scene change, no character change, no extra person.
 
 retention_analysis:
-<Subject 1> <Picture 1>: fully_preserved — identity, face, hair and body come from the reference image. ${isGroping ? (wantsSkirtOff ? 'Shot 1 wears the yellow blouse and red skirt; from Shot 4 the skirt is off and she is bottomless, blouse and bra still on; no full nudity.' : 'She remains fully clothed; only the blouse and skirt are displaced by hands; no nudity.') : 'Starting clothing is used only for Shot 1, then the shot sequence controls nudity.'}
+<Subject 1> <Picture 1>: fully_preserved — identity, face, hair and body come from the reference image. ${isGroping ? (wantsSkirtOff ? 'Shot 1 wears the yellow blouse and red skirt; from Shot 4 the red skirt is gone, panties, blouse and bra still on; no full nudity.' : 'She remains fully clothed; only the blouse and skirt are displaced by hands; no nudity.') : 'Starting clothing is used only for Shot 1, then the shot sequence controls nudity.'}
 <Picture 1> identity reference: fully_preserved for face, hair and body; Picture 1 is not used as a static first frame.
 ${hasMaleRef && hasMan ? '<Picture 2> identity: fully_preserved — the male lead face, hair and body come only from Picture 2.' : ''}
 Scene and action: fully_preserved from the source image prompt; only positions progress, location never changes.
