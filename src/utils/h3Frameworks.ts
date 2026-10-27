@@ -108,15 +108,16 @@ function normalizeShotDialogue(block: string, framework: H3Framework): string {
 
 /** 去掉正文里的 S1/S2 代称，只保留真正的台词标签。 */
 export function cleanSpeakerProse(text: string): string {
-  return String(text || '')
-    // 只清理不在“行首标签 (Sx): <d>”位置的代称；标签本身必须保留。
-    .replace(/\bS2[’']s\b/gi, 'his')
-    .replace(/\bS1[’']s\b/gi, 'her')
-    .replace(/\(S2\)\s*,\s*the adult man/gi, 'the man')
-    .replace(/\(S1\)\s*,\s*the adult woman/gi, 'the woman')
-    .replace(/\(S2\)(?=\s*[,，])/g, 'the man')
-    .replace(/\(S1\)(?=\s*[,，])/g, 'the woman')
-    ;
+  return String(text || '').split('\n').map((line) => {
+    if (/speaker_mapping\s*:/i.test(line)) return line;
+    if (/\(S[12]\):\s*<d>/.test(line)) return line;
+    return line
+      .replace(/\bS2[’']s\b/gi, 'his')
+      .replace(/\bS1[’']s\b/gi, 'her')
+      .replace(/\bAll S2 lines\b/gi, "All the man's lines")
+      .replace(/\bS2\b/g, 'the man')
+      .replace(/\bS1\b/g, 'the woman');
+  }).join('\n');
 }
 
 /** 最终硬校正：只按台词文本判断男女，防止任何前置归一器把男性命令写成 S1。 */
