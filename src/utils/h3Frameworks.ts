@@ -134,11 +134,63 @@ export function applyFramework(text: string, framework: H3Framework): string {
 }
 
 
+
+export interface PositionPlan {
+  p1: string;
+  p2: string;
+  p3: string;
+}
+
+/** 按场景选择三种插入姿势；只决定“可用空间”，不覆盖主题动作。 */
+export function pickPenetrationPositions(context: string): PositionPlan {
+  const t = String(context || '');
+  if (/(classroom|lecture|blackboard|desk|podium|教室|讲台|黑板|课桌)/i.test(t)) {
+    return {
+      p1: 'bent over the teacher\'s desk, both feet on the floor, chest pressed to the wood',
+      p2: 'one knee on the chair and one leg lifted onto the desk, entering her from behind at a new angle',
+      p3: 'laid back on the desk in missionary, legs over his shoulders, desk creaking under her',
+    };
+  }
+  if (/(bed|mattress|床上|床)/i.test(t)) {
+    return {
+      p1: 'on all fours on the bed, taken from behind',
+      p2: 'on her side with one leg lifted, entered at an angle',
+      p3: 'on her back in missionary, legs around his waist',
+    };
+  }
+  if (/(sofa|couch|沙发)/i.test(t)) {
+    return {
+      p1: 'bent over the sofa arm, taken from behind',
+      p2: 'straddling his lap on the sofa, riding him',
+      p3: 'laid back on the sofa in missionary, legs pushed up',
+    };
+  }
+  if (/(office|desk|办公|桌子)/i.test(t)) {
+    return {
+      p1: 'bent over the office desk, taken from behind',
+      p2: 'one leg lifted onto the chair, entered at a new angle',
+      p3: 'laid back on the desk in missionary',
+    };
+  }
+  if (/(kitchen|counter|厨房|台面)/i.test(t)) {
+    return {
+      p1: 'bent over the kitchen counter, taken from behind',
+      p2: 'one leg lifted onto a stool, entered from the side',
+      p3: 'laid back on the counter in missionary',
+    };
+  }
+  return {
+    p1: 'bent over the nearest stable surface, taken from behind',
+    p2: 'turned and entered with one leg lifted, her back against the surface',
+    p3: 'laid back on the surface in missionary, legs held open',
+  };
+}
+
 /**
  * coercive 框架的最低动作弧：只补缺失的强制 oral/penetration/ending，
  * 不删除主题已有的动作；所有内容仍是当前主题的胁迫场景。
  */
-export function ensureCoerciveArc(shots: string[]): string[] {
+export function ensureCoerciveArc(shots: string[], context = ''): string[] {
   if (!Array.isArray(shots) || shots.length < 4) return shots;
   // 前 4 镜保留主题自己的接近/压制/反抗/脱上衣；
   // 后半段由 coercive 框架保证：全裸→强制口交→插入→抽插→内射→被迫顺从。
@@ -147,13 +199,14 @@ export function ensureCoerciveArc(shots: string[]): string[] {
   if (head[0] && !/(camera|location|body|action|\b(she|her|he|his)\b)/i.test(head[0]) && head[1]) {
     head[0] = `At the current location, she holds the written pose; he stands close behind her, not yet touching. ${head[0]}`;
   }
+  const positions = pickPenetrationPositions(context);
   const tail = [
     'He strips the last garment from her; she is completely nude. He then shoves his dark trousers and boxers down to his ankles, frees his cock, and kicks them aside; he is fully nude too; no clothing remains. She stops kicking and only shakes.',
     'He forces her to her knees, fists her hair, and pushes his cock into her mouth; she gags, saliva stringing, hands clawing at his thigh. (S2): <d>[Chinese] 张嘴。</d>',
-    'He drags her up by the hair, bends her over the nearest surface, and drives into her from behind in one hard thrust; her body jolts and she cries out. (S2): <d>[Chinese] 夹紧。</d>',
-    'Without pulling out, he turns her to face him, lifts one leg against his hip, and keeps fucking her in the new standing position; her back hits the board and she gasps. (S2): <d>[Chinese] 转过来。腿抬好。</d>',
+    `He drags her up by the hair, positions her ${positions.p1}, and drives into her in one hard thrust; her body jolts and she cries out. (S2): <d>[Chinese] 夹紧。</d>`,
+    `Without pulling out, he changes her position: ${positions.p2}; she gasps as he enters at the new angle. (S2): <d>[Chinese] 转过来。腿抬好。</d>`,
     'Extreme close-up on the join: his cock sliding in and out of her wet pussy, fluid stringing, her thighs trembling, his hand gripping her raised thigh. (S1): <d>[Chinese] 不要看那里…</d>',
-    'He fucks her hard and fast in the lifted-leg position, one hand in her hair, the other slamming her hip into the board; her resistance breaks into helpless noise and he spanks her bare ass in rhythm. (S2): <d>[Chinese] 别躲。</d>',
+    `He changes once more: ${positions.p3}; then fucks her hard and fast, one hand in her hair, the other holding her hip; her resistance breaks into helpless noise. (S2): <d>[Chinese] 别躲。</d>`,
     'He buries himself to the hilt and finishes inside her; thick creampie pulses out as her resistance collapses into shaking submission. (S2): <d>[Chinese] 接好。</d>',
     'She sinks down against the surface, spent and trembling, fully nude, his hands still on her; he does not dress her. (S1): <d>[Chinese] 我不敢了…</d>',
   ];

@@ -1132,7 +1132,7 @@ function buildH3FromScript(script: string, hasMan: boolean, malePicture: boolean
   const detected = detectFramework(script, hasMan);
   const wardrobe = extractWardrobe(script);
   const wardrobeLock = wardrobe ? `Wardrobe lock: ${wardrobe}. Keep these exact colors and garments; never swap colors or inherit clothing from Picture 1.` : '';
-  const framedShots = detected === 'coercive' && hasMan ? ensureCoerciveArc(shots) : shots;
+  const framedShots = detected === 'coercive' && hasMan ? ensureCoerciveArc(shots, script) : shots;
   // 通用服装锁定范围：到剧本第一次明确脱衣/撕裂动作为止；不固定前 4 镜。
   const firstRemoval = shots.findIndex((s) => /(?:shirt|blouse|skirt|bra|panties|garment|clothes?)\b[^.]{0,30}(?:removed|off|ripped|pulled|stripped|gone)|(?:脱|撕|扒|扯)[^。]{0,12}(?:衣|裙|内裤|bra|衬衫)/i.test(s));
   const wardrobeEnd = firstRemoval >= 0 ? firstRemoval : shots.length;
