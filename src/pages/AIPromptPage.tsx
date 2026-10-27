@@ -1081,12 +1081,12 @@ speaker_mapping: ${speakerMap}`;
 function extractWardrobe(text: string): string {
   const colors: Record<string, string> = {
     红色: 'red', 黄色: 'yellow', 白色: 'white', 黑色: 'black', 蓝色: 'blue',
-    灰色: 'grey', 粉色: 'pink', 紫色: 'purple', 绿色: 'green',
+    灰色: 'grey', 粉色: 'pink', 紫色: 'purple', 绿色: 'green', 棕色: 'brown', 米色: 'beige', 橙色: 'orange', 金色: 'gold', 银色: 'silver', 深蓝: 'navy', 酒红: 'wine-red',
   };
   const found: string[] = [];
   const push = (v: string) => { if (v && !found.includes(v)) found.push(v); };
   // 中文：红色低胸衬衫 / 白色超短裙
-  for (const m of text.matchAll(/(红色|黄色|白色|黑色|蓝色|灰色|粉色|紫色|绿色)\s*([\u4e00-\u9fff]{0,8}?)(衬衫|上衣|裙|bra|内衣|内裤|panties|thong|blouse|shirt|skirt|jeans|heels|高跟鞋)/gi)) {
+  for (const m of text.matchAll(/(红色|黄色|白色|黑色|蓝色|灰色|粉色|紫色|绿色|棕色|米色|橙色|金色|银色|深蓝|酒红)\s*([\u4e00-\u9fff]{0,8}?)(衬衫|上衣|裙|bra|内衣|内裤|panties|thong|blouse|shirt|skirt|jeans|heels|高跟鞋)/gi)) {
     const color = colors[m[1]] || m[1];
     const raw = (m[2] || '') + (m[3] || '');
     const garment = /衬衫|blouse|shirt/i.test(raw) ? 'low-cut shirt'
