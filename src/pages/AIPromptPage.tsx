@@ -1078,6 +1078,23 @@ speaker_mapping: ${speakerMap}`;
   return normalizeDialogueSpeakers(normalizeH3PromptStructure(cleanedRaw, { groping: isGroping, coercive: isGroping ? false : coercive, hasMan }));
 }
 
+function extractSceneLock(text: string): string {
+  const t = String(text || '');
+  if (/(subway|metro|train|carriage|地铁|车厢|列车)/i.test(t)) {
+    return 'Location lock: the same packed subway car throughout; same pole, aisle and seats; no bedroom, room, bed or private interior.';
+  }
+  if (/(classroom|lecture|blackboard|podium|教室|讲台|黑板)/i.test(t)) {
+    return 'Location lock: the same classroom throughout; same blackboard, podium and existing furniture; no bedroom or new room.';
+  }
+  if (/(office|办公|办公室)/i.test(t)) {
+    return 'Location lock: the same office throughout; existing desk, chair and walls only; no bedroom or new room.';
+  }
+  if (/(kitchen|厨房)/i.test(t)) {
+    return 'Location lock: the same kitchen throughout; existing counter and stools only; no bedroom or new room.';
+  }
+  return 'Location lock: the same current location throughout; no scene change, no new room, no new furniture.';
+}
+
 function extractWardrobe(text: string): string {
   const colors: Record<string, string> = {
     红色: 'red', 黄色: 'yellow', 白色: 'white', 黑色: 'black', 蓝色: 'blue',
@@ -1130,6 +1147,7 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
   if (shots.length < 8) return '';
 
   const detected = detectFramework(script, hasMan);
+  const sceneLock = extractSceneLock(script);
   const wardrobe = extractWardrobe(script);
   const wardrobeLock = wardrobe ? `Wardrobe lock: ${wardrobe}. Keep these exact colors and garments; never swap colors or inherit clothing from Picture 1.` : '';
   const framedShots = detected === 'coercive' && hasMan ? ensureCoerciveArc(shots, script, shotCount) : shots;
@@ -1178,11 +1196,11 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
     .replace(/\s+\S*$/, '')
     .trim();
   const prompt = `subject_definitions:
-<Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1. Picture 1 defines face, hair, hairstyle, skin tone, body proportions and breast size/shape ONLY. IGNORE all clothing from Picture 1: do NOT copy the reference blouse, skirt, colors or outfit. ${wardrobeLock} Clothing, undressing and nudity follow the detailed_description exactly; never reset clothing at a segment boundary.
+<Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1. Picture 1 defines face, hair, hairstyle, skin tone, body proportions and breast size/shape ONLY. IGNORE all clothing from Picture 1: do NOT copy the reference blouse, skirt, colors or outfit. ${sceneLock} ${wardrobeLock} Clothing, undressing and nudity follow the detailed_description exactly; never reset clothing at a segment boundary.
 ${subject2}
 
 summary:
-[reference generation] The video follows the current theme exactly, shot by shot, with the same people and location. ${frameworkHint} ${wardrobeLock} ${summaryFirst} The sequence ends with the final beat written in the screenplay; no action is added or substituted by a template. No scene change, no character change, no extra person.
+[reference generation] The video follows the current theme exactly, shot by shot, with the same people and location. ${frameworkHint} ${sceneLock} ${wardrobeLock} ${summaryFirst} The sequence ends with the final beat written in the screenplay; no action is added or substituted by a template. No scene change, no character change, no extra person.
 
 retention_analysis:
 <Subject 1> <Picture 1>: fully_preserved — identity, face, hair and body come from the reference image. Clothing state is controlled only by the detailed_description.
@@ -1442,7 +1460,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   const [videoSegments, setVideoSegments] = useState(4);
   const [videoRoutes, setVideoRoutes] = useState(1);
   const [mainVideo, setMainVideo] = useState<{loading:boolean;url?:string;error?:string}>({ loading: false });
-  const [cardVideoStates, setCardVideoStates] = useState<Record<string, { loading: boolean; url?: string; error?: string; startTime?: number }>>({});
+  const [cardVideoStates, setCardVideoStates] = useState<Record<string, { loading: boolean; url?: string; urls?: string[]; error?: string; startTime?: number }>>({});
   const [count, setCount] = useState(savedExpand?.count || 5);
   const [results, setResults] = useState<{ id: string; original: string; prompt: string; r18: boolean }[]>(savedExpand?.results || []);
   const expandRunIdRef = useRef(0);
@@ -2727,7 +2745,7 @@ function ExpandResultCard({ result, r18Mode, isCopied, genState, videoState, onC
   genState?: { loading: boolean; images: string[]; taskId: string | null };
   onCopy: () => void; onDelete: () => void; onGenerateImage: () => void; onSendToH3Page: () => void; onUseAsOutput: () => void;
   onFavorited?: (url: string) => void;
-  videoState?: { loading: boolean; url?: string; error?: string; startTime?: number };
+  videoState?: { loading: boolean; url?: string; urls?: string[]; error?: string; startTime?: number };
   taskManager: TaskManagerReturn;
   digitalHumanMode?: boolean; selectedGirlfriend?: GirlfriendPreset | null;
 }) {
@@ -2831,6 +2849,13 @@ function ExpandResultCard({ result, r18Mode, isCopied, genState, videoState, onC
         {videoState?.url && (
           <div className="mt-3 pt-3 border-t border-border/50">
             <video src={videoState.url} controls playsInline className="w-full rounded-xl border border-border bg-black max-h-[420px] object-contain" />
+            {videoState.urls && videoState.urls.length > 1 && (
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                {videoState.urls.map((u, i) => (
+                  <video key={u + i} src={u} controls playsInline className="w-full rounded-lg border border-border bg-black" />
+                ))}
+              </div>
+            )}
           </div>
         )}
         {videoState?.error && <p className="mt-2 text-[11px] text-red-500">{videoState.error}</p>}
@@ -2883,7 +2908,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
   // Track which indices are currently being processed (for parallel loading indicators)
   const [h3ProcessingIndices, setH3ProcessingIndices] = useState<Set<number>>(new Set());
   const autoH3Ref = useRef(false);
-  const [videoStates, setVideoStates] = useState<Record<number, { loading: boolean; url?: string; error?: string; startTime?: number }>>({});
+  const [videoStates, setVideoStates] = useState<Record<number, { loading: boolean; url?: string; urls?: string[]; error?: string; startTime?: number }>>({});
   const inlineRestoredRef = useRef<Set<string>>(new Set());
   const [videoClarity, setVideoClarity] = useState(0.2);
   const [videoSegments, setVideoSegments] = useState(4);
@@ -3681,18 +3706,20 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       addInlinePending({ taskId: submit.taskId, promptKey: result.prompt, idx, startTime: Date.now() });
 
       let videoUrl: string | undefined;
+      let videoUrls: string[] = [];
       for (let i = 0; i < 480; i++) {
         await new Promise(r => setTimeout(r, 5000));
         const data = await pollDaotaiTask(rhKey, submit.taskId);
         if (data.status === 'SUCCESS') {
           videoUrl = data.video_url || data.output?.video_url || data.url || data.images?.[0] || data.output?.images?.[0];
+          videoUrls = data.videos || data.output?.videos || (data.segments || []).map(s => s.url).filter(Boolean);
           break;
         }
         if (data.status === 'FAILED') throw new Error(data.message || '视频生成失败');
       }
       if (!videoUrl) throw new Error('视频生成超时或未返回视频地址');
 
-      setVideoStates(prev => ({ ...prev, [idx]: { loading: false, url: videoUrl } }));
+      setVideoStates(prev => ({ ...prev, [idx]: { loading: false, url: videoUrl, urls: videoUrls } }));
       saveInlineDone(result.prompt, videoUrl);
       removeInlinePending(submit.taskId);
       publishExternalVideoTask({
@@ -4022,7 +4049,7 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
   onGenerateVideo: () => void;
   onSendToH3Page: () => void;
   onGenerateH3: () => void;
-  videoState?: { loading: boolean; url?: string; error?: string; startTime?: number };
+  videoState?: { loading: boolean; url?: string; urls?: string[]; error?: string; startTime?: number };
   videoClarity: number; videoSegments: number; videoRoutes: number;
   onVideoClarityChange: (v: number) => void;
   onVideoSegmentsChange: (v: number) => void;
@@ -4249,6 +4276,13 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
           {videoState?.url && (
             <div className="mb-3 rounded-xl overflow-hidden border border-border bg-black">
               <video src={videoState.url} controls playsInline className="w-full max-h-[420px] object-contain" />
+              {videoState.urls && videoState.urls.length > 1 && (
+                <div className="grid grid-cols-2 gap-2 p-2">
+                  {videoState.urls.map((u, i) => (
+                    <video key={u + i} src={u} controls playsInline className="w-full rounded-lg border border-border bg-black" />
+                  ))}
+                </div>
+              )}
             </div>
           )}
           {videoState?.error && (

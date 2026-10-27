@@ -157,6 +157,13 @@ export function pickPenetrationPositions(context: string): PositionPlan {
       p3: hasDesk ? 'laid back on the desk in missionary, legs over his shoulders, the same desk under her' : 'laid back on the nearest existing surface in missionary, legs held open',
     };
   }
+  if (/(subway|metro|train|carriage|地铁|车厢|列车)/i.test(t)) {
+    return {
+      p1: 'standing in the same crowded car, bent forward against the pole, taken from behind',
+      p2: 'one leg lifted in the aisle, her back against the same pole, entered from the front',
+      p3: 'held up against the pole with both legs around him, fucked standing in the same car',
+    };
+  }
   if (/(bed|mattress|床上|床)/i.test(t)) {
     return {
       p1: 'on all fours on the bed, taken from behind',

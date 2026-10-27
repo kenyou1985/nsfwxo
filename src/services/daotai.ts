@@ -30,12 +30,18 @@ export interface DaotaiPollResponse {
   images?: string[];
   thumbs?: string[];
   video_url?: string;
+  final_url?: string;
   url?: string;
+  videos?: string[];
+  segments?: Array<{ index: number | string; url: string; file?: string; status?: string }>;
   taskId?: string;
   output?: {
     images?: string[];
     thumbs?: string[];
     video_url?: string;
+    final_url?: string;
+    videos?: string[];
+    segments?: Array<{ index: number | string; url: string; file?: string; status?: string }>;
   };
 }
 

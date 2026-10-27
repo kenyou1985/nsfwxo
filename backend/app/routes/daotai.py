@@ -384,7 +384,31 @@ async def query_task(request: Request):
         _dir = os.path.basename(job.run_dir) if job.run_dir else ''
         _fname = os.path.basename(snap['final_url'])
         u = _absolute_url(request, f'/api/daotai/media/{_dir}/{urllib.parse.quote(_fname)}')
-        return {'status': 'SUCCESS', 'video_url': u, 'output': {'video_url': u}, 'url': u}
+        # 返回每一段视频 + 最终合成视频；前端不能只拿到最终片。
+        _segments = []
+        _videos = []
+        for _k, _v in (snap.get('segments') or {}).items():
+            _su = _v.get('url') if isinstance(_v, dict) else None
+            if _su:
+                _su = _absolute_url(request, _su)
+                _videos.append(_su)
+                _segments.append({'index': int(_k) if str(_k).isdigit() else _k,
+                                  'url': _su, 'file': _v.get('file'),
+                                  'status': _v.get('status')})
+        # 路由级视频也作为段产物返回（部分工作流只落 route_*.mp4）
+        try:
+            import glob as _glob
+            for _rp in sorted(_glob.glob(os.path.join(job.run_dir, 'route_*.mp4'))):
+                if os.path.getsize(_rp) > 1024:
+                    _videos.append(_absolute_url(request, f'/api/daotai/media/{_dir}/{urllib.parse.quote(os.path.basename(_rp))}'))
+        except Exception:
+            pass
+        # 去重，保持顺序
+        _videos = list(dict.fromkeys(_videos))
+        return {'status': 'SUCCESS', 'video_url': u, 'final_url': u,
+                'videos': _videos, 'segments': _segments,
+                'output': {'video_url': u, 'final_url': u, 'videos': _videos, 'segments': _segments},
+                'url': u}
     if stt == 'finished' and not snap.get('final_url'):
         # 段视频已落盘但合并失败：直接在这里补一次 ffmpeg 合并
         try:
