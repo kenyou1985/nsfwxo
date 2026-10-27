@@ -1234,7 +1234,7 @@ overall_soundscape: Location ambience, fabric friction, breathing and the physic
 non_diegetic_music: None
 speaker_mapping: ${speakerMap}`;
 
-  return cleanSpeakerProse(unifySingleMale(sanitizeAgeTerms(enforceH3Speakers(applyFramework(normalizeDialogueSpeakers(normalizeH3PromptStructure(prompt, { shotCount: actualShots })), framework)))));
+  return cleanSpeakerProse(sanitizeAgeTerms(enforceH3Speakers(applyFramework(normalizeDialogueSpeakers(normalizeH3PromptStructure(prompt, { shotCount: actualShots })), framework))));
 }
 
 /**

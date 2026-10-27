@@ -116,8 +116,7 @@ export function cleanSpeakerProse(text: string): string {
     .replace(/\(S1\)\s*,\s*the adult woman/gi, 'the woman')
     .replace(/\(S2\)(?=\s*[,，])/g, 'the man')
     .replace(/\(S1\)(?=\s*[,，])/g, 'the woman')
-    .replace(/(?<!\()\bS2\b(?!\s*:)/g, 'he')
-    .replace(/(?<!\()\bS1\b(?!\s*:)/g, 'she');
+    ;
 }
 
 /** 最终硬校正：只按台词文本判断男女，防止任何前置归一器把男性命令写成 S1。 */
