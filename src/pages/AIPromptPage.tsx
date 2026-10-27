@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { extractVideoPromptFromImagePrompt } from '../utils/videoPromptExtractor';
 import { normalizeKrea2Prompt } from '../utils/krea2Prompt';
 import { normalizeH3Script, normalizeDialogueSpeakers, normalizeH3PromptStructure } from '../utils/h3ScriptNormalizer';
+import { applyFramework, detectFramework } from '../utils/h3Frameworks';
 import { makeThumbnailForStorage, makePreviewForStorage } from '../utils/imageThumbnail';
 import { AspectAwareImage } from '../components/AspectAwareImage';
 import { OneClickProduce } from '../components/OneClickProduce';
@@ -1107,6 +1108,8 @@ function buildH3FromScript(script: string, hasMan: boolean, malePicture: boolean
     : '{"S1":"Chinese (Mandarin)_Adult_Female_Soft"}';
 
   const summaryFirst = shots[0]
+    .replace(/\(S[12]\):\s*<d>[\s\S]*?<\/d>/g, '')
+    .replace(/^[\s.·\-–—]*\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}\s*[.\-–—]*\s*/i, '')
     .replace(/\s+/g, ' ')
     .slice(0, 260)
     .replace(/\s+\S*$/, '')
@@ -1131,7 +1134,8 @@ overall_soundscape: Location ambience, fabric friction, breathing and the physic
 non_diegetic_music: None
 speaker_mapping: ${speakerMap}`;
 
-  return normalizeDialogueSpeakers(normalizeH3PromptStructure(prompt));
+  const framework = detectFramework(script, hasMan);
+  return applyFramework(normalizeDialogueSpeakers(normalizeH3PromptStructure(prompt)), framework);
 }
 
 /**
@@ -2029,7 +2033,11 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       };
       // 智能扩写卡片里已经是完整 H3；不能再拿 H3 当图片提示词二次 build，否则会把上一版女女/男模板混进来
       const isH3Prompt = /^\s*subject_definitions\s*:/i.test(videoText);
-      const anchoredPrompt = normalizeDialogueSpeakers(normalizeH3PromptStructure(applyAnchorNames(isH3Prompt ? videoText : buildAnchoredH3(videoText, 0, !!maleImage, videoShotCount, input), anchorList)));
+      const hasManForVideo = /(?:@Man|<Subject 2>|\bman\b|男人|男性|大叔|黑人)/i.test(`${videoText} ${input}`);
+      const anchoredPrompt = normalizeDialogueSpeakers(normalizeH3PromptStructure(applyAnchorNames(
+        isH3Prompt ? videoText : buildH3FromScript(videoText, hasManForVideo, !!maleImage, videoShotCount),
+        anchorList,
+      )));
       const submit = await submitDaotaiVideo(key, anchoredPrompt, { ...body, prompt: anchoredPrompt });
       saveMainPending({ taskId: submit.taskId, promptKey: videoText, startTime: Date.now() });
       const localId = `expand-video-${Date.now()}`;
