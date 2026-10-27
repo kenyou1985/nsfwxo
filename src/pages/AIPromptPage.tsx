@@ -478,6 +478,8 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   const wantsSkirtOff = /(脱|扒|掀|拉下|褪下).{0,12}(裙|短裙)|skirt (?:off|down)|pull.{0,20}skirt/i.test(themeText);
   const wantsFingerInsert = /(手指|指尖|指头).{0,16}(插|进|伸进)|finger.{0,20}(inside|insert)|fingering/i.test(themeText);
   const wantsSquirt = /(潮吹|喷水|喷出|squirt|squirting)/i.test(themeText);
+  const wantsLick = /(舔|舌头|口交|lick|cunnilingus|oral)/i.test(themeText);
+  const wantsFastFinger = /(快速|抽插|fast|pound)/i.test(themeText);
   const wantsFullNude = /(全裸|裸体|脱光|一丝不挂|fully nude|naked)/i.test(themeText);
   const forcePrelude = hasMan && /(尾随|跟踪|胁迫|强迫|不情愿|强奸|强暴|抓住|按在|扒光|追上|跟着|跟踪|尾随)/i.test(userHint);
   const locationMatch = scene.match(/((?:[A-Za-z-]+\s+){0,4}(?:alley|lane|street|road|sidewalk|room|office|corridor|entrance|path|trail|house|home|beach|park|garage|club|bar|hotel|classroom|warehouse|stairwell|landing))/i);
@@ -592,6 +594,12 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
     const endLine = wantsSquirt
       ? 'She sinks down against the door, spent and trembling, skirt gone, blouse open; he withdraws his hand and steps back into the crowd.'
       : 'He withdraws his hand, straightens her skirt, and steps back into the crowd; she stands flushed and trembling.';
+    const lickClimax = wantsSquirt
+      ? 'Her body locks; she squirts a clear stream onto his hand and the floor, thighs shaking, then her knees give out.'
+      : 'She shudders through a silent orgasm, thighs clamping around his hand, nails digging into his sleeve.';
+    const fingerAction = wantsFingerInsert
+      ? (wantsFastFinger ? 'He finger-fucks her fast and deep, palm slapping her clit, her hips bucking into his hand; the train rocks around them.' : 'He pushes two fingers inside her and curls them slowly, thumb circling her clit.')
+      : 'He presses two fingers against her wet entrance without entering, thumb circling her clit.';
     shots = [
       first,
       `He closes the last few centimetres behind her as the car sways, his chest almost against her back; one hand settles on her hip, proprietary and slow. ${placeLine}. ${skirtState} (S2): <d>[Chinese] 别动。</d>`,
@@ -616,6 +624,16 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
       const before = 'Her skirt is still on; blouse and bra still on; no male nudity, no penis, no intercourse.';
       const after = 'The skirt is gone; panties, blouse and bra still on; no male nudity, no penis, no intercourse.';
       shots = shots.map((line, idx) => line.split(skirtState).join(idx < 3 ? before : after));
+    }
+    if (wantsLick) {
+      // 主题明确要求口交/舔阴/舔臀时，必须在手指插入之前插入口交段落，不能跳过。
+      shots[5] = `He crouches between her legs, pulls her panties aside, and drags his tongue slowly from her clit to her entrance; her thighs jerk against his shoulders. ${placeLine}. ${skirtState} (S2): <d>[Chinese] 别动。</d>`;
+      shots[6] = `He keeps licking, tongue circling her clit and then lower over her ass, hands spreading her cheeks; she bites her lip and grips the strap. ${placeLine}. ${skirtState}`;
+      shots[7] = `He pushes two fingers inside her and curls them upward while his tongue works her clit, his mouth wet against her. ${placeLine}. ${skirtState} (S2): <d>[Chinese] 不许出声。</d>`;
+      shots[8] = `${fingerAction} ${placeLine}. ${skirtState} (S1): <d>[Chinese] 不要…</d>`;
+      shots[9] = `Her knees buckle; she grabs his wrist but does not pull it away, head falling back, mouth open. ${placeLine}. ${skirtState}`;
+      shots[10] = `${lickClimax} ${placeLine}. ${skirtState}`;
+      shots[11] = `She sinks down against the door, spent and trembling, skirt gone, blouse open; he withdraws his hand and steps back into the crowd. ${placeLine}. ${skirtState}`;
     }
   } else if (atFacesit && !forcePrelude) {  } else if (atFacesit && !forcePrelude) {
     shots = [
@@ -1028,7 +1046,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
     : twoWomen
       ? 'multiple positions and mutual oral'
       : isGroping
-        ? (wantsSkirtOff ? 'a subway groping sequence, her skirt pulled off, fingers inside her' : 'a clothed subway groping sequence, hands moving under her clothes')
+        ? (wantsSkirtOff ? (wantsLick ? 'a subway sequence, her skirt pulled off, her panties pulled aside, his tongue on her pussy and ass, then fast finger-fucking' : 'a subway groping sequence, her skirt pulled off, fingers inside her') : 'a clothed subway groping sequence, hands moving under her clothes')
         : 'multiple positions and oral';
   const rawPrompt = `subject_definitions:
 <Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1. Picture 1 defines face, hair, hairstyle, skin tone, body proportions and breast size/shape ONLY. IGNORE all clothing from Picture 1: do NOT copy the reference blouse, skirt, colors or outfit. Shot 1 must use the theme outfit${themeOutfit ? `: ${themeOutfit}` : ' described in the theme'}. ${isGroping ? (wantsSkirtOff ? 'Shot 1 wears the theme outfit; from Shot 4 her skirt is pulled off, panties, blouse and bra still on; no full nudity and no intercourse.' : 'She remains fully clothed in Shots 1-12; only the blouse and skirt are displaced; no nudity and no undressing.') : 'From Shot 2 onward follow the detailed_description nude state; no reference clothing returns.'}
@@ -1047,7 +1065,7 @@ detailed_description:
 ${body}
 
 
-overall_soundscape: ${isGroping ? (wantsSquirt ? 'Crowded subway car rumble, rail clicks, fabric friction, wet fingers, her held breath, a muffled cry and a wet squirt hitting the floor, then shaking breaths; no male penetration sounds, no bed sounds, no music.' : 'Crowded subway car rumble, rail clicks, passengers shifting, fabric friction, her held breath and small stifled moans, one shaky exhale at the end; no bed sounds, no music.') : solo ? 'Location ambience, her own breathing and soft moans, wet fingers/toy sounds, a clear squirting splash, then trembling after-breaths. No male voice.' : twoWomen ? 'Location ambience, wet kisses, skin-on-skin, both women breathing and moaning, wet squirting splashes, one shared climax cry, then after-breaths. No male voice.' : 'Location ambience under skin-on-skin impact, wet penetration and plug-shifting sounds, fabric friction, heavy breathing, her broken moans and one climax cry, one male groan, then after-breaths.'}
+overall_soundscape: ${isGroping ? (wantsLick ? 'Crowded subway car rumble, rail clicks, fabric friction, wet tongue and fingers, her held breath, a muffled cry and a wet squirt hitting the floor, then shaking breaths; no male penetration sounds, no bed sounds, no music.' : wantsSquirt ? 'Crowded subway car rumble, rail clicks, fabric friction, wet fingers, her held breath, a muffled cry and a wet squirt hitting the floor, then shaking breaths; no male penetration sounds, no bed sounds, no music.' : 'Crowded subway car rumble, rail clicks, passengers shifting, fabric friction, her held breath and small stifled moans, one shaky exhale at the end; no bed sounds, no music.') : solo ? 'Location ambience, her own breathing and soft moans, wet fingers/toy sounds, a clear squirting splash, then trembling after-breaths. No male voice.' : twoWomen ? 'Location ambience, wet kisses, skin-on-skin, both women breathing and moaning, wet squirting splashes, one shared climax cry, then after-breaths. No male voice.' : 'Location ambience under skin-on-skin impact, wet penetration and plug-shifting sounds, fabric friction, heavy breathing, her broken moans and one climax cry, one male groan, then after-breaths.'}
 non_diegetic_music: None
 speaker_mapping: ${speakerMap}`;
   const cleanedRaw = isGroping
