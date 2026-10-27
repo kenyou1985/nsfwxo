@@ -1087,8 +1087,8 @@ function extractWardrobe(text: string): string {
   const push = (v: string) => {
     if (!v) return;
     // 同一颜色同一服装只保留一个；优先保留 ultra-mini 版本。
-    const key = v.toLowerCase().replace(/ultra-mini|mini/g, 'mini');
-    const existing = found.findIndex((x) => x.toLowerCase().replace(/ultra-mini|mini/g, 'mini') === key);
+    const key = v.toLowerCase().replace(/ultra-mini|mini/g, 'mini').replace(/\s+/g, ' ').trim();
+    const existing = found.findIndex((x) => x.toLowerCase().replace(/ultra-mini|mini/g, 'mini').replace(/\s+/g, ' ').trim() === key);
     if (existing >= 0) {
       if (/ultra-mini/i.test(v) && !/ultra-mini/i.test(found[existing])) found[existing] = v;
       return;
@@ -1106,7 +1106,8 @@ function extractWardrobe(text: string): string {
       : /jeans|牛仔/i.test(raw) ? 'jeans'
       : /heels|高跟鞋/i.test(raw) ? 'heels'
       : raw;
-    push(`${color} ${garment}`.trim());
+    // wardrobe lock 只锁外层服装；bra/panties/thong 随剧情变化，不当作固定外衣。
+    if (!/^(?:bra|panties|thong)$/i.test(garment)) push(`${color} ${garment}`.trim());
   }
   // 英文：red low-cut shirt / white miniskirt
   for (const m of text.matchAll(/\b(red|yellow|white|black|blue|grey|pink|purple|green)\s+(?:low-cut\s+)?(shirt|blouse|miniskirt|mini(?:-skirt)?|skirt|bra|panties|thong|jeans|heels)\b/gi)) {
@@ -1165,6 +1166,7 @@ function buildH3FromScript(script: string, hasMan: boolean, malePicture: boolean
   const firstVisualShot = shots.find((s) => /(camera|location|body|action|\b(she|her|he|his)\b)/i.test(s)) || shots[0];
   const summaryFirst = firstVisualShot
     .split(/\(S[12]\):/)[0]
+    .replace(/^\s*\|\s*/, '')
     .replace(/\(S[12]\):\s*<d>[\s\S]*?<\/d>/g, '')
     .replace(/^[\s.·\-–—]*\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}\s*[.\-–—]*\s*/i, '')
     .replace(/^\s*\(\s*\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}\s*\)\s*[.\-–—]*\s*/i, '')
