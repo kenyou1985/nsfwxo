@@ -289,7 +289,7 @@ export function normalizeH3PromptStructure(raw: string, opts: H3StructureOptions
 
   shots = shots.filter(Boolean);
   while (shots.length < 12) shots.push('Afterglow in the exact same location and position: both bodies still, breathing slowing, sweat cooling on skin; no new act, no reset.');
-  shots = shots.slice(0, 12);
+  shots = shots.slice(0, opts.shotCount || 12);
 
   const overallMatch = raw.match(/overall_soundscape\s*:\s*([\s\S]*?)(?=\n\s*non_diegetic_music\s*:|\n\s*speaker_mapping\s*:|$)/i);
   const overall = (overallMatch ? overallMatch[1] : 'Location ambience, wet skin contact, breathing, one climax cry, then after-breaths.').trim();
