@@ -92,15 +92,25 @@ function normalizeClothing(beats: string[]): string[] {
 
 export function normalizeH3Script(raw: string, opts: NormalizeOptions): string[] {
   let sourceBeats = splitScript(raw);
-  const realShotCount = sourceBeats.length;
-  if (realShotCount < 8 && raw.trim().length > 500) {
+  if (sourceBeats.length < 8 && raw.trim().length > 500) {
+    // 没有 SHOT 标题时按段落回退；注意必须在回退后重新计算数量，
+    // 不能继续用回退前的 sourceBeats.length，否则 12 段会被误判为空。
     sourceBeats = raw
       .split(/\n{2,}/)
       .map(cleanBeat)
       .filter((x) => x.length > 30)
       .filter((x) => /(?:Camera|Location|Body|Clothing|Action|Emotional|she |her |he |his |woman|man)/i.test(x));
   }
-  if (realShotCount < 8) return [];
+  if (sourceBeats.length < 8) {
+    // 既没有 SHOT 标题，也没有足够空行分段时，按完整视觉句再切一次；
+    // 仍然只使用当前剧本内容，不注入任何旧动作模板。
+    sourceBeats = raw
+      .split(/(?<=[.!?。！？])\s+/)
+      .map(cleanBeat)
+      .filter((x) => x.length > 25)
+      .filter((x) => /(?:she|her|he|his|woman|man|camera|location|body|clothing|action|女人|男人|她|他)/i.test(x));
+  }
+  if (sourceBeats.length < 8) return [];
   let beats = sourceBeats.map((x) => stripForbiddenProps(x, opts.theme));
   if (!beats.length) return [];
   const visualFallback = [
