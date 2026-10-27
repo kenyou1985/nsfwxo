@@ -1084,7 +1084,17 @@ function extractWardrobe(text: string): string {
     灰色: 'grey', 粉色: 'pink', 紫色: 'purple', 绿色: 'green', 棕色: 'brown', 米色: 'beige', 橙色: 'orange', 金色: 'gold', 银色: 'silver', 深蓝: 'navy', 酒红: 'wine-red',
   };
   const found: string[] = [];
-  const push = (v: string) => { if (v && !found.includes(v)) found.push(v); };
+  const push = (v: string) => {
+    if (!v) return;
+    // 同一颜色同一服装只保留一个；优先保留 ultra-mini 版本。
+    const key = v.toLowerCase().replace(/ultra-mini|mini/g, 'mini');
+    const existing = found.findIndex((x) => x.toLowerCase().replace(/ultra-mini|mini/g, 'mini') === key);
+    if (existing >= 0) {
+      if (/ultra-mini/i.test(v) && !/ultra-mini/i.test(found[existing])) found[existing] = v;
+      return;
+    }
+    found.push(v);
+  };
   // 中文：红色低胸衬衫 / 白色超短裙
   for (const m of text.matchAll(/(红色|黄色|白色|黑色|蓝色|灰色|粉色|紫色|绿色|棕色|米色|橙色|金色|银色|深蓝|酒红)\s*([\u4e00-\u9fff]{0,8}?)(衬衫|上衣|裙|bra|内衣|内裤|panties|thong|blouse|shirt|skirt|jeans|heels|高跟鞋)/gi)) {
     const color = colors[m[1]] || m[1];
@@ -1099,7 +1109,7 @@ function extractWardrobe(text: string): string {
     push(`${color} ${garment}`.trim());
   }
   // 英文：red low-cut shirt / white miniskirt
-  for (const m of text.matchAll(/\b(red|yellow|white|black|blue|grey|pink|purple|green)\s+(?:low-cut\s+)?(shirt|blouse|miniskirt|skirt|bra|panties|thong|jeans|heels)\b/gi)) {
+  for (const m of text.matchAll(/\b(red|yellow|white|black|blue|grey|pink|purple|green)\s+(?:low-cut\s+)?(shirt|blouse|miniskirt|mini(?:-skirt)?|skirt|bra|panties|thong|jeans|heels)\b/gi)) {
     push(`${m[1].toLowerCase()} ${m[2].toLowerCase()}`.replace('miniskirt', 'ultra-mini skirt'));
   }
   return found.join(', ');
