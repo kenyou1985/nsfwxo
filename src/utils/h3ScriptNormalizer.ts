@@ -147,6 +147,10 @@ export function normalizeH3Script(raw: string, opts: NormalizeOptions): string[]
  */
 export function normalizeDialogueSpeakers(raw: string): string {
   if (!raw) return raw;
+  // 清掉不是紧贴 <d> 的孤儿说话人前缀，避免 (S2): 低声说，(S1): <d>台词</d> 错位。
+  raw = raw.replace(/\((S[12])\)\s*[:：]\s*(?![^\n]*?<d>)/gi, '');
+  // 去掉脱离台词的短舞台提示行（如 "low, oily whisper,"），避免 H3 把它当上一句台词。
+  raw = raw.replace(/^[^\n<]{1,90},\s*\n(?=\s*\(S[12]\)\s*:\s*<d>)/gm, '');
   const maleLines = /(别叫|跟我走|闭嘴|硬了|腿张开|我要进去|夹这么紧|夹死|接着夹|叫出来|看着我|谁在操|嘴也|射了|还好吗|夹紧|吞下去|含住|不许|别动|别出声|不许出声|骚货|骚穴|操死|鸡巴套子|不要动|不要出声|张开|舔干净|爸爸|哥哥|跪好|趴好|痛才对|脱了|自己把腿|含深|再叫|奶子|干你|求我|进来|把衣服|腿分开|别装|欠操|喊也没用|衣服一件件|这么低胸|巨乳就该|讲台上就该|放过？衣服脱光|黑板前|继续写|转过去|按住了|这件先下去|巨乳女老师|裙子也脱|站直|挺胸|给谁看)/;
   const femaleLines = /(放开|求你|不要(?!动|出声)|你……|太大|太深|好满|去了|嗯|啊|慢|好舒服|我快|别摸|停下|还要|会坏|安全词|抱一会|没有|疼|别插|轻点)/;
   const cleanInner = (inner: string): { text: string; speaker?: 'S1' | 'S2' } => {

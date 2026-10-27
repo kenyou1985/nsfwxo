@@ -51,8 +51,8 @@ export function detectFramework(theme: string, hasMan: boolean): H3Framework {
   return 'consensual';
 }
 
-const MALE_COMMAND = /(别动|别叫|继续|转过去|脱|站好|跪好|趴好|张开|夹紧|不许|闭嘴|看着|叫出来|吞下去|含住|按住了|衣服一件件|这件|裙子|自己把|求我|给谁看|奶子|屁股|巨乳|讲课|下次|教室正好|出丑|这么大|手感|丢脸|巨乳女老师|两件都|讲台|黑板前|这才叫|衣服都|站直|挺胸|给全班|给谁|手放下|讲台就是|一件件都脱|没有衣服|叫。|转过来|让他们看|按着|给我|裙子也别想留|把胸挺起来|再敢动一下|手拿开|记住今天|别想留|挺起来|再敢|张嘴|夹紧|别躲|接好)/;
-const FEMALE_PLEA = /(求你|放过|不要|别|放开|疼|轻点|停下|不行|羞|丢脸|救命|我错|饶了我|别摸|别脱|别这样|不敢|你干什么|你怎么|你谁|这里是|谁？|谁\.\.\.)/;
+const MALE_COMMAND = /(别动|别叫|继续|转过去|脱|站好|跪好|趴好|张开|夹紧|不许|闭嘴|看着|叫出来|吞下去|含住|按住了|衣服一件件|这件|裙子|自己把|求我|给谁看|奶子|屁股|巨乳|讲课|下次|教室正好|出丑|这么大|手感|丢脸|巨乳女老师|两件都|讲台|黑板前|这才叫|衣服都|站直|挺胸|给全班|给谁|手放下|讲台就是|一件件都脱|没有衣服|叫。|转过来|让他们看|按着|给我|裙子也别想留|把胸挺起来|再敢动一下|手拿开|记住今天|别想留|挺起来|再敢|张嘴|夹紧|别躲|接好|站稳|裙子脱掉|内裤留着|自己动|含深点|把舌头|让他舔|手拿开|拿开|别动|别叫|继续写|不许动|松开|趴好|跪好)/;
+const FEMALE_PLEA = /(求你|放过|不要|别|放开|疼|轻点|停下|不行|羞|丢脸|救命|我错|饶了我|别摸|别脱|别这样|不敢|你干什么|你怎么|你谁|这里是|谁？|谁\.\.\.|我站不住|我会|我不敢|我错|有人|会看到|要用舌头|吗[。…！？]?$|啊[。…！？]?$)/;
 
 function stripS2(line: string): string {
   return line.replace(/^\(S2\):\s*/i, '(S1): ');
@@ -222,33 +222,33 @@ export function ensureCoerciveArc(shots: string[], context = '', targetShots = 1
     'Extreme close-up on the join: his cock sliding in and out of her wet pussy, fluid stringing, her thighs trembling, his hand gripping her raised thigh. (S1): <d>[Chinese] 不要看那里…</d>',
     `He changes once more: ${positions.p3}; then fucks her hard and fast, one hand in her hair, the other holding her hip; her resistance breaks into helpless noise. (S2): <d>[Chinese] 别躲。</d>`,
     'He buries himself to the hilt and finishes inside her; thick creampie pulses out as her resistance collapses into shaking submission. (S2): <d>[Chinese] 接好。</d>',
-    'She sinks down against the surface, spent and trembling, fully nude, his hands still on her; he does not dress her. (S1): <d>[Chinese] 我不敢了…</d>',
+    'She sinks down at the same spot, spent and trembling, fully nude, his hands still on her; he does not dress her. (S1): <d>[Chinese] 我不敢了…</d>',
   ];
   if (targetShots >= 30) {
     // 30 镜/180s：更多前戏、冲突、羞辱和插入姿势；所有家具仍然只取当前场景。
     const long30 = [
       tail[0], tail[1], tail[2], tail[3], tail[4], tail[5],
       'He pulls out and slaps her ass, then pushes her back to her knees for a second oral beat; she gags around him, mascara running, hands braced on his thighs. (S2): <d>[Chinese] 含深点。</d>',
-      'He hauls her up by the hair and bends her over the same surface again, this time slower, making her feel every inch; her resistance is nearly gone. (S2): <d>[Chinese] 自己动。</d>',
+      'He hauls her up by the hair and bends her forward again, this time slower, making her feel every inch; her resistance is nearly gone. (S2): <d>[Chinese] 自己动。</d>',
       'He reaches around to squeeze her breast and rub her clit while he fucks her, forcing a broken moan out of her. (S1): <d>[Chinese] 不要…又要去了…</d>',
-      `He turns her into another position: ${positions.p2}; then takes her with slow, deep strokes while she grips the surface. (S2): <d>[Chinese] 看着我。</d>`,
+      `He turns her into another position: ${positions.p2}; then takes her with slow, deep strokes while she grips his arm. (S2): <d>[Chinese] 看着我。</d>`,
       'Insertion close-up again: his shaft glistening, her inner thighs wet, his fingers spreading her ass while he pushes back in.',
       `He lifts her leg against the board and enters her from the side, using only the wall/board already present. (S2): <d>[Chinese] 站稳。</d>`,
       'He pulls out and makes her lick his shaft clean before pushing her back down; she obeys with a broken, humiliated expression. (S1): <d>[Chinese] 好脏…</d>',
       `Back to ${positions.p1}; he fucks her faster, one hand in her hair, the other spanking her bare ass. (S2): <d>[Chinese] 夹紧。</d>`,
-      `He changes to ${positions.p3} and drives deep; her breasts bounce, sweat dripping onto the surface. (S1): <d>[Chinese] 太深了…</d>`,
+      `He changes to ${positions.p3} and drives deep; her breasts bounce, sweat dripping onto her. (S1): <d>[Chinese] 太深了…</d>`,
       'He slows to a punishing grind, making her feel every inch, then pulls almost all the way out and slams back in. (S2): <d>[Chinese] 数着。</d>',
       `He takes her in ${positions.p2} again, this time reaching around to rub her clit in rhythm; her legs shake. (S1): <d>[Chinese] 不要…会坏掉…</d>`,
       'He pulls her upright against his chest, one hand on her throat without crushing, the other holding her hip; she stops fighting. (S2): <d>[Chinese] 乖一点。</d>',
-      'He bends her over the surface and spanks her in a slow rhythm, then pushes back inside before she can recover. (S1): <d>[Chinese] 疼…又进来了…</d>',
+      'He bends her forward and spanks her in a slow rhythm, then pushes back inside before she can recover. (S1): <d>[Chinese] 疼…又进来了…</d>',
       'Close-up on her face and the join: tears, sweat, open mouth, his cock sliding in and out of her wet pussy.',
-      `He pulls her onto his lap on the same surface, guiding her hips down onto him; she rides him with shaking thighs while he watches her face. (S2): <d>[Chinese] 自己动。</d>`,
+      `He pulls her onto his lap, guiding her hips down onto him; she rides him with shaking thighs while he watches her face. (S2): <d>[Chinese] 自己动。</d>`,
       'He holds both her wrists behind her back and takes her in short, hard strokes, his other hand smacking her ass between thrusts. (S1): <d>[Chinese] 太深了…停一下…</d>',
-      'He pulls out and slaps his wet cock against her pussy, then pushes back in without warning; she gasps and her nails scrape the surface. (S2): <d>[Chinese] 别躲。</d>',
+      'He pulls out and slaps his wet cock against her pussy, then pushes back in without warning; she gasps and her nails scrape his back. (S2): <d>[Chinese] 别躲。</d>',
       'He makes her look at the blackboard while he takes her from behind, one hand in her hair, the other spreading her ass for the camera. (S2): <d>[Chinese] 看着前面。</d>',
-      `He turns her onto her back on the same surface in ${positions.p3}; legs over his shoulders, he fucks her through the final stretch. (S2): <d>[Chinese] 接好。</d>`,
+      `He turns her onto her back in ${positions.p3}; legs over his shoulders, he fucks her through the final stretch. (S2): <d>[Chinese] 接好。</d>`,
       'He buries himself to the hilt and finishes inside her; thick creampie pulses out as her resistance collapses into shaking submission.',
-      'She sinks down against the surface, spent and trembling, fully nude, his hands still on her; he does not dress her. (S1): <d>[Chinese] 我不敢了…</d>',
+      'She sinks down at the same spot, spent and trembling, fully nude, his hands still on her; he does not dress her. (S1): <d>[Chinese] 我不敢了…</d>',
       'Afterglow in the exact same location and position: both bodies still, breathing slowing, sweat cooling on skin; no new act, no reset.',
     ];
     return [...head, ...long30].slice(0, targetShots);
@@ -257,7 +257,7 @@ export function ensureCoerciveArc(shots: string[], context = '', targetShots = 1
     const longTail = [
       tail[0], tail[1], tail[2], tail[3], tail[4], tail[5],
       'He pulls out and slaps her ass, then pushes her back to her knees for a second oral beat; she gags around him, mascara running, hands braced on his thighs. (S2): <d>[Chinese] 含深点。</d>',
-      'He hauls her up by the hair and bends her over the same surface again, this time slower, making her feel every inch; her resistance is nearly gone. (S2): <d>[Chinese] 自己动。</d>',
+      'He hauls her up by the hair and bends her forward again, this time slower, making her feel every inch; her resistance is nearly gone. (S2): <d>[Chinese] 自己动。</d>',
       'He reaches around to squeeze her breast and rub her clit while he fucks her, forcing a broken moan out of her. (S1): <d>[Chinese] 不要…又要去了…</d>',
       'He turns her into the final position: ' + positions.p3 + '; then fucks her through the last stretch, sweat dripping from his chest onto hers.',
       tail[6], tail[7],
