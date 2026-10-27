@@ -36,8 +36,10 @@ import { publishExternalVideoTask } from '../services/videoTaskBridge';
 import { VIDEO_POSE_PRESETS } from '../data/presetPoses';
 
 function normalizeCardPrompt(prompt: string): string {
-  if (!prompt || !/^\s*subject_definitions\s*:/i.test(prompt)) return prompt;
-  return cleanSpeakerProse(enforceH3Speakers(normalizeDialogueSpeakers(normalizeH3PromptStructure(prompt, { shotCount: getH3ShotCount() }))));
+  // H3 提示词在 buildH3FromScript 内已经完成唯一一次归一化。
+  // 卡片显示/复制禁止再次归一化，否则会二次截断分镜、重排声线、改回旧模板。
+  if (!prompt || /^\s*subject_definitions\s*:/i.test(prompt)) return prompt;
+  return prompt;
 }
 
 const KREA2_N_STRONG_WORKFLOW = '2101119999196127233';
@@ -3705,7 +3707,8 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         loop_routes: videoRoutes,
         instance: 'plus',
       };
-      const anchoredPrompt = normalizeDialogueSpeakers(normalizeH3PromptStructure(anchorH3Prompt(h3), { shotCount: getH3ShotCount() }));
+      // h3 已是 buildH3FromScript 的最终产物；提交前只做锚点检查，不再次归一化。
+      const anchoredPrompt = anchorH3Prompt(h3);
       const submit = await submitDaotaiVideo(rhKey, anchoredPrompt, { ...body, prompt: anchoredPrompt });
       submittedTaskId = submit.taskId;
       publishExternalVideoTask({
