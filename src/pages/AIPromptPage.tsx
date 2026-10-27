@@ -1087,8 +1087,8 @@ function extractWardrobe(text: string): string {
   const push = (v: string) => {
     if (!v) return;
     // 同一颜色同一服装只保留一个；优先保留 ultra-mini 版本。
-    const key = v.toLowerCase().replace(/ultra-mini|mini/g, 'mini').replace(/\s+/g, ' ').trim();
-    const existing = found.findIndex((x) => x.toLowerCase().replace(/ultra-mini|mini/g, 'mini').replace(/\s+/g, ' ').trim() === key);
+    const key = v.toLowerCase().replace(/ultra-mini|mini/g, '').replace(/\s+/g, ' ').trim();
+    const existing = found.findIndex((x) => x.toLowerCase().replace(/ultra-mini|mini/g, '').replace(/\s+/g, ' ').trim() === key);
     if (existing >= 0) {
       if (/ultra-mini/i.test(v) && !/ultra-mini/i.test(found[existing])) found[existing] = v;
       return;

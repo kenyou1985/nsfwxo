@@ -145,10 +145,16 @@ export interface PositionPlan {
 export function pickPenetrationPositions(context: string): PositionPlan {
   const t = String(context || '');
   if (/(classroom|lecture|blackboard|desk|podium|教室|讲台|黑板|课桌)/i.test(t)) {
+    const hasChair = /(chair|stool|椅子|凳子|椅)/i.test(t);
+    const hasDesk = /(desk|table|podium|讲台|课桌|桌)/i.test(t);
     return {
-      p1: 'bent over the teacher\'s desk, both feet on the floor, chest pressed to the wood',
-      p2: 'one knee on the chair and one leg lifted onto the desk, entering her from behind at a new angle',
-      p3: 'laid back on the desk in missionary, legs over his shoulders, desk creaking under her',
+      p1: hasDesk ? 'bent over the desk already in the scene, both feet on the floor, chest pressed to the surface' : 'bent over the nearest stable surface already in the scene, taken from behind',
+      p2: hasChair && hasDesk
+        ? 'one knee on the chair and one leg lifted onto the desk, entering her from behind at a new angle'
+        : hasDesk
+          ? 'one leg lifted onto the desk, entering her from behind at a new angle, no new furniture added'
+          : 'turned and entered with one leg lifted, using only the surface already in frame',
+      p3: hasDesk ? 'laid back on the desk in missionary, legs over his shoulders, the same desk under her' : 'laid back on the nearest existing surface in missionary, legs held open',
     };
   }
   if (/(bed|mattress|床上|床)/i.test(t)) {
