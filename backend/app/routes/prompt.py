@@ -7072,7 +7072,7 @@ async def _stream_single_expand(
         })
 
         system_for_local = _script_system_for_theme(req.user_input, req.r18) if req.type == 'script' else system_prompt
-        _max_tokens = 1800 if req.type == "script" else None
+        _max_tokens = 4096 if req.type == "script" else None
         for attempt in range(MAX_RETRIES):
             collected: list[str] = []
             try:

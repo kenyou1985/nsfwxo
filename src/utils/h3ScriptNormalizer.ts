@@ -27,6 +27,9 @@ function cleanBeat(raw: string): string {
     .replace(/\bI (?:also )?(?:won't|will not|cannot|can't) (?:write|provide|generate)[^.;]*[.;]?/gi, '')
     .replace(/^\s*(?:\[\s*)?(?:\*\*)?(?:SHOT|Shot)\s+\d+\b\s*\]?\s*[:：]?\s*/i, '')
     .replace(/^\s*\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}[^\n]*\n?/i, '')
+    // 模型常在镜头正文前再写一次 `. 0:00–0:05.`，必须去掉，否则 H3 会看到重复时间戳。
+    .replace(/^[\s.·\-–—]*\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}\s*[.\-–—]*\s*/i, '')
+    .replace(/^\s*TIME\s*\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}[^\n]*\n?/gmi, '')
     .replace(/^\s*Time range[^\n]*\n?/gmi, '')
     .replace(/^\s*(?:TITLE|SETTING|Clothing tracked)\s*[:：][^\n]*\n?/gmi, '')
     .replace(/^\s*\d+\.\s*(?:\(?\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}\)?)?\s*/i, '')
@@ -142,7 +145,7 @@ export function normalizeH3Script(raw: string, opts: NormalizeOptions): string[]
  */
 export function normalizeDialogueSpeakers(raw: string): string {
   if (!raw) return raw;
-  const maleLines = /(别叫|跟我走|闭嘴|硬了|腿张开|我要进去|夹这么紧|夹死|接着夹|叫出来|看着我|谁在操|嘴也|射了|还好吗|夹紧|吞下去|含住|不许|别动|别出声|不许出声|骚货|骚穴|操死|鸡巴套子|不要动|不要出声|张开|舔干净|爸爸|哥哥|跪好|趴好|痛才对|脱了|自己把腿|含深|再叫|奶子|干你|求我|进来|把衣服|腿分开|别装|欠操)/;
+  const maleLines = /(别叫|跟我走|闭嘴|硬了|腿张开|我要进去|夹这么紧|夹死|接着夹|叫出来|看着我|谁在操|嘴也|射了|还好吗|夹紧|吞下去|含住|不许|别动|别出声|不许出声|骚货|骚穴|操死|鸡巴套子|不要动|不要出声|张开|舔干净|爸爸|哥哥|跪好|趴好|痛才对|脱了|自己把腿|含深|再叫|奶子|干你|求我|进来|把衣服|腿分开|别装|欠操|喊也没用|衣服一件件|这么低胸|巨乳就该|讲台上就该|放过？衣服脱光|黑板前|继续写|转过去|按住了|这件先下去|巨乳女老师|裙子也脱|站直|挺胸|给谁看)/;
   const femaleLines = /(放开|求你|不要(?!动|出声)|你……|太大|太深|好满|去了|嗯|啊|慢|好舒服|我快|别摸|停下|还要|会坏|安全词|抱一会|没有|疼|别插|轻点)/;
   const cleanInner = (inner: string): { text: string; speaker?: 'S1' | 'S2' } => {
     let text = inner.trim();

@@ -1106,12 +1106,17 @@ function buildH3FromScript(script: string, hasMan: boolean, malePicture: boolean
     ? '{"S1":"Chinese (Mandarin)_Adult_Female_Soft","S2":"Chinese (Mandarin)_Adult_Male_Low"}'
     : '{"S1":"Chinese (Mandarin)_Adult_Female_Soft"}';
 
+  const summaryFirst = shots[0]
+    .replace(/\s+/g, ' ')
+    .slice(0, 260)
+    .replace(/\s+\S*$/, '')
+    .trim();
   const prompt = `subject_definitions:
 <Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1. Picture 1 defines face, hair, hairstyle, skin tone, body proportions and breast size/shape ONLY. IGNORE all clothing from Picture 1: do NOT copy the reference blouse, skirt, colors or outfit. Clothing, undressing and nudity follow the detailed_description exactly; never reset clothing at a segment boundary.
 ${subject2}
 
 summary:
-[reference generation] The video follows the current theme exactly, shot by shot, with the same people and location. ${shots[0].slice(0, 180)} The sequence ends with the final beat written in the screenplay; no action is added or substituted by a template. No scene change, no character change, no extra person.
+[reference generation] The video follows the current theme exactly, shot by shot, with the same people and location. ${summaryFirst} The sequence ends with the final beat written in the screenplay; no action is added or substituted by a template. No scene change, no character change, no extra person.
 
 retention_analysis:
 <Subject 1> <Picture 1>: fully_preserved — identity, face, hair and body come from the reference image. Clothing state is controlled only by the detailed_description.
