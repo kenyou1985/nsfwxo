@@ -810,9 +810,10 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   const scriptJoined = normalizedScriptShots.join(' ');
   const scriptIsSolo = /(only her own|her own hand|no man|no male|solo female)/i.test(scriptJoined);
   const scriptHasGroping = /(grope|fondle|touch(?:es|ing)? her|hand .*?(?:ass|hip|thigh|crotch|pussy)|摸|臀|下体)/i.test(scriptJoined);
-  const scriptHasOldSex = /(penetrat|thrust|blowjob|deepthroat|cowgirl|doggy|missionary|creampie|cumshot|shoves? his trousers|fully nude now|He enters her|reversing the ride|floor lick|shoe lick|takes him deep|buries himself|hips meeting|deeper strokes|oral close-up|fluid at the join|69|woman on top|without pulling out|staying inside)/i.test(scriptJoined);
+  // 只拒绝“阴茎插入/口交/骑乘/内射”等男性性交模板；不拒绝主题明确要求的手指插入。
+  const scriptHasOldSex = /(blowjob|deepthroat|cowgirl|doggy|missionary|creampie|cumshot|shoves? his trousers|fully nude now|He enters her|reversing the ride|floor lick|shoe lick|takes him deep|buries himself|hips meeting|oral close-up|fluid at the join|69|woman on top|without pulling out|staying inside)/i.test(scriptJoined);
   const scriptMismatch = (hasMan && scriptIsSolo) || (isGroping && (!scriptHasGroping || scriptHasOldSex));
-  const hasScriptShots = normalizedScriptShots.length >= 8 && !scriptMismatch && !isGroping;
+  const hasScriptShots = normalizedScriptShots.length >= 8 && !scriptMismatch;
   if (hasScriptShots) {
     shots = normalizedScriptShots;
   }
