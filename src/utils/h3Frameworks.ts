@@ -80,7 +80,7 @@ function normalizeShotDialogue(block: string, framework: H3Framework): string {
       continue;
     }
     if (framework === 'coercive') {
-      if (MALE_COMMAND.test(text) && !FEMALE_PLEA.test(text)) cleaned = cleaned.replace(line, setSpeaker(line, 'S2'));
+      if ((MALE_COMMAND.test(text) && !FEMALE_PLEA.test(text)) || /(别躲|张嘴|接好|夹紧|别动|别叫)/.test(text)) cleaned = cleaned.replace(line, setSpeaker(line, 'S2'));
       else if (FEMALE_PLEA.test(text)) cleaned = cleaned.replace(line, setSpeaker(line, 'S1'));
     }
   }

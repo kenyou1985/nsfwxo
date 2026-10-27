@@ -244,8 +244,9 @@ export function normalizeH3PromptStructure(raw: string, opts: H3StructureOptions
 
   const anchor = 'He is still fully clothed in a dark shirt and trousers; no male nudity in this shot.';
   const maleNude = /(?:\b(?:man|he)\b[^.\n]{0,100}\b(?:fully\s+|still\s+)?nude\b|\bboth\s+(?:now\s+|still\s+)?(?:fully\s+)?nude\b|\bhe\s+(?:is\s+|now\s+)?shirtless\b|\b(?:his\s+)?(?:torso|chest)\s+(?:is\s+)?bare\b|\brevealing\s+(?:a\s+)?(?:massive\s+)?(?:tattooed\s+)?chest\b|\bhis\s+(?:\w+\s+){0,4}(?:cock|penis)\s+(?:springs|is|comes)\s+free\b|\bhis\s+\w+\s+(?:cock|penis)\s+(?:out|free)\b|(?:\bhe\s+)?(?:then\s+)?(?:yanks?|pulls?|rips?|strips?|shoves?)\s+(?:his|the)\s+(?:own\s+)?(?:hoodie|t-shirt|shirt|tee|top|clothes)[^.;]*|\bhe\s+(?:remains?|stays?)\s+in\s+(?:jeans|pants|trousers)\s+only\b|\bhe\s+(?:shoves|kicks|pushes|strips)\s+(?:his|the)\s+(?:jeans|pants|trousers|boxers|clothes)[^.;]*|\bclothing stays off forever\b)/gi;
-  const maleCleanUntil = coercive ? 6 : shots.findIndex((s0) => maleNude.test(s0));
-  const maleLimit = maleCleanUntil > 0 ? maleCleanUntil : (coercive ? 6 : 0);
+  // coercive 框架前 4 镜男性穿衣；Shot 5 是男性脱裤/全裸的动作点，不能清洗掉。
+  const maleCleanUntil = coercive ? 4 : shots.findIndex((s0) => maleNude.test(s0));
+  const maleLimit = maleCleanUntil > 0 ? maleCleanUntil : (coercive ? 4 : 0);
   for (let i = 0; i < Math.min(maleLimit, shots.length); i++) {
     shots[i] = shots[i].replace(maleNude, 'he keeps his dark shirt and trousers on');
     if (!/fully clothed|no male nudity|trousers remain on|keeps his dark shirt/i.test(shots[i])) {
