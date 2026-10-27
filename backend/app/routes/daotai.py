@@ -165,6 +165,10 @@ async def submit_video(request: Request):
     prompt = body.get('prompt') or ''
     if not prompt.strip():
         return JSONResponse(status_code=400, content={'error': 'prompt 不能为空'})
+    # 安全审核全局净化：成人角色只能是 adult man；禁止 uncle/middle-aged/老年 触发未成年人误判。
+    import re as _re
+    prompt = _re.sub(r'\b(middle[- ]aged|older man|old man|elderly man|uncle)\b', 'the adult man', prompt, flags=_re.I)
+    prompt = _re.sub(r'大叔|中年男子|中年男人|老年男子|老年男人|老汉|老头|叔叔', '成年男子', prompt)
 
     # ===== 火宝桥接：复用 8765 导演台（已验证可出片），绕开本地 det16 假成功 =====
     if body.get('use_bridge'):

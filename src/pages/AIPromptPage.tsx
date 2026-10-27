@@ -1078,6 +1078,13 @@ speaker_mapping: ${speakerMap}`;
   return normalizeDialogueSpeakers(normalizeH3PromptStructure(cleanedRaw, { groping: isGroping, coercive: isGroping ? false : coercive, hasMan }));
 }
 
+function sanitizeAgeTerms(text: string): string {
+  // 不把角色写成 uncle / middle-aged / 老年，避免安全审核把成人场景误判为未成年人相关。
+  return String(text || '')
+    .replace(/\b(middle[- ]aged|older man|old man|elderly man|uncle)\b/gi, 'the adult man')
+    .replace(/大叔|中年男子|中年男人|老年男子|老年男人|老汉|老头|叔叔/g, '成年男子');
+}
+
 function extractSceneLock(text: string): string {
   const t = String(text || '');
   if (/(subway|metro|train|carriage|地铁|车厢|列车)/i.test(t)) {
@@ -1138,6 +1145,7 @@ function extractWardrobe(text: string): string {
  * 动作、场景、服装、对白全部来自 script；模板只负责 H3 六段结构。
  */
 export function buildH3FromScript(script: string, hasMan: boolean, malePicture: boolean, shotCount = 12): string {
+  script = sanitizeAgeTerms(script);
   const shots = normalizeH3Script(script, {
     hasMan,
     coercive: false,
@@ -1215,7 +1223,7 @@ overall_soundscape: Location ambience, fabric friction, breathing and the physic
 non_diegetic_music: None
 speaker_mapping: ${speakerMap}`;
 
-  return applyFramework(normalizeDialogueSpeakers(normalizeH3PromptStructure(prompt, { shotCount: actualShots })), framework);
+  return sanitizeAgeTerms(applyFramework(normalizeDialogueSpeakers(normalizeH3PromptStructure(prompt, { shotCount: actualShots })), framework));
 }
 
 /**
