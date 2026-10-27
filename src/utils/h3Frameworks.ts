@@ -52,7 +52,7 @@ export function detectFramework(theme: string, hasMan: boolean): H3Framework {
 }
 
 const MALE_COMMAND = /(别动|别叫|继续|转过去|脱|站好|跪好|趴好|张开|夹紧|不许|闭嘴|看着|叫出来|吞下去|含住|按住了|衣服一件件|这件|裙子|自己把|求我|给谁看|奶子|屁股|巨乳|讲课|下次|教室正好|出丑|这么大|手感|丢脸|巨乳女老师|两件都|讲台|黑板前|这才叫|衣服都|站直|挺胸|给全班|给谁|手放下|讲台就是|一件件都脱|没有衣服|叫。|转过来|让他们看|按着|给我|裙子也别想留|把胸挺起来|再敢动一下|手拿开|记住今天|别想留|挺起来|再敢|张嘴|夹紧|别躲|接好|站稳|裙子脱掉|内裤留着|自己动|含深点|把舌头|让他舔|手拿开|拿开|别动|别叫|继续写|不许动|松开|趴好|跪好)/;
-const FEMALE_PLEA = /(求你|放过|不要|别|放开|疼|轻点|停下|不行|羞|丢脸|救命|我错|饶了我|别摸|别脱|别这样|不敢|你干什么|你怎么|你谁|这里是|谁？|谁\.\.\.|我站不住|我会|我不敢|我错|有人|会看到|要用舌头|吗[。…！？]?$|啊[。…！？]?$)/;
+const FEMALE_PLEA = /(求你|放过|不要|别|放开|疼|轻点|停下|不行|羞|丢脸|救命|我错|饶了我|别摸|别脱|别这样|不敢|你干什么|你怎么|你谁|这里是|谁？|谁\.\.\.|你在|我裙子|我站不住|我会|我不敢|我错|有人|会看到|要用舌头|吗[。…！？]?$|啊[。…！？]?$)/;
 
 function stripS2(line: string): string {
   return line.replace(/^\(S2\):\s*/i, '(S1): ');
@@ -125,10 +125,35 @@ export function applyFramework(text: string, framework: H3Framework): string {
   }
 
   // 按镜头块处理台词，避免跨镜误删。
-  out = out.split(/(?=\[Shot\s+\d+\])/).map((block) => {
+  const blocks = out.split(/(?=\[Shot\s+\d+\])/);
+  out = blocks.map((block) => {
     if (!/^\[Shot\s+\d+\]/i.test(block)) return block;
     return normalizeShotDialogue(block, framework);
   }).join('');
+
+  // 全局台词预算：coercive 不是每镜都说；20 镜约 4-5 句，30 镜约 7-8 句。
+  // 只保留动作节点上的关键句，其余全部删掉，避免 H3 生成密集对白/口型错位。
+  if (framework === 'coercive') {
+    const shotCount = (out.match(/\[Shot\s+\d+\]/g) || []).length;
+    const budget = Math.max(3, Math.ceil(shotCount / 4));
+    const keyLine = /(脱|夹紧|张嘴|接好|含深|别躲|自己动|站稳|转过来|腿抬好|不敢|求|不要|站|停|轻点)/;
+    let used = 0;
+    out = out.split(/(?=\[Shot\s+\d+\])/).map((block) => {
+      if (!/^\[Shot\s+\d+\]/i.test(block)) return block;
+      const lines = block.match(/\(S[12]\):\s*<d>[\s\S]*?<\/d>/g) || [];
+      if (!lines.length) return block;
+      let next = block;
+      for (const line of lines) {
+        const text = line.replace(/<[^>]+>/g, '');
+        if (used < budget && keyLine.test(text)) {
+          used += 1;
+        } else {
+          next = next.replace(line, '');
+        }
+      }
+      return next;
+    }).join('');
+  }
 
   return out.replace(/\n{3,}/g, '\n\n');
 }
