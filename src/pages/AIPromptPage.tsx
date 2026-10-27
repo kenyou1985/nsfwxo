@@ -579,7 +579,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
       `Squirting climax: clear fluid gushes out around her own fingers/toy, splashing her thighs and the surface, body locking hard. ${soloGuard}`,
       `Afterglow: wet thighs and slick surface in frame, chest heaving, toy still resting against her, skin flushed, eyes dazed. ${soloGuard}`,
     ];
-  } else if (isGroping && !explicitAct) {
+  } else if (isGroping) {
     const skirtState = wantsSkirtOff
       ? 'Her red skirt is pulled down and off by Shot 4; she is bottomless from then on, blouse and bra still on; no male nudity, no penis, no intercourse.'
       : 'Both remain fully clothed; only hands move under the fabric; no male nudity, no penis, no intercourse.';
@@ -787,7 +787,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   const scriptHasGroping = /(grope|fondle|touch(?:es|ing)? her|hand .*?(?:ass|hip|thigh|crotch|pussy)|摸|臀|下体)/i.test(scriptJoined);
   const scriptHasOldSex = /(penetrat|thrust|blowjob|deepthroat|cowgirl|doggy|missionary|creampie|cumshot|shoves? his trousers|fully nude now|He enters her|reversing the ride|floor lick|shoe lick|takes him deep|buries himself|hips meeting|deeper strokes|oral close-up|fluid at the join|69|woman on top|without pulling out|staying inside)/i.test(scriptJoined);
   const scriptMismatch = (hasMan && scriptIsSolo) || (isGroping && (!scriptHasGroping || scriptHasOldSex));
-  const hasScriptShots = normalizedScriptShots.length >= 8 && !scriptMismatch;
+  const hasScriptShots = normalizedScriptShots.length >= 8 && !scriptMismatch && !isGroping;
   if (hasScriptShots) {
     shots = normalizedScriptShots;
   }
@@ -975,7 +975,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
     ? '<Subject 2> is @Woman2 — the exact second cisgender adult woman shown in Picture 1, if present. She has a vulva only: no penis, no futanari, no male genitalia. Identity and appearance come only from Picture 1.'
     : hasMan
       ? hasMaleRef
-        ? `<Subject 2> is @Man <Picture 2> — the exact adult man shown in Picture 2, wearing ${isCycling ? 'a black cycling jersey and black cycling shorts, standing astride or riding a black bicycle' : 'the clothing shown in Picture 1 or the source scene, no bicycle'}. ${isGroping ? 'He remains FULLY CLOTHED in all 12 shots; no male nudity and no penetration. ' : coercive ? `He remains FULLY CLOTHED in Shots 1-${Math.max(1, maleUndressIdx)}; he must NOT be nude or shirtless before Shot ${Math.max(1, maleUndressIdx + 1)}. ` : ''}Preserve his face, hair, body proportions and identity from Picture 2; face kept off extreme close-up. All S2 lines are clear natural Mandarin Chinese, spoken in a low adult male voice; no gibberish, no English, no mumbling.`
+        ? `<Subject 2> is @Man <Picture 2> — the exact adult man shown in Picture 2, wearing ${isCycling ? 'a black cycling jersey and black cycling shorts, standing astride or riding a black bicycle' : 'the clothing shown in Picture 1 or the source scene, no bicycle'}. ${isGroping ? 'He remains FULLY CLOTHED in all 12 shots; no male nudity and no penile penetration. ' : coercive ? `He remains FULLY CLOTHED in Shots 1-${Math.max(1, maleUndressIdx)}; he must NOT be nude or shirtless before Shot ${Math.max(1, maleUndressIdx + 1)}. ` : ''}Preserve his face, hair, body proportions and identity from Picture 2; face kept off extreme close-up. All S2 lines are clear natural Mandarin Chinese, spoken in a low adult male voice; no gibberish, no English, no mumbling.`
         : `<Subject 2> is @Man — the adult man in the scene; if he appears in Picture 1 preserve his face, otherwise use a fully adult man with face kept off close-up; do NOT default to any race or skin tone, wearing ${isCycling ? 'a black cycling jersey and black cycling shorts, standing astride or riding a black bicycle' : 'a dark shirt and dark trousers, no bicycle'}. Appearance comes from Picture 1 when visible.`
       : '';
   const mode = twoWomen ? 'two-woman' : solo ? 'solo female' : isGroping ? 'heterosexual clothed-harassment' : 'heterosexual';
@@ -1021,7 +1021,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
     : twoWomen
       ? 'multiple positions and mutual oral'
       : isGroping
-        ? (wantsSkirtOff ? 'a subway groping sequence, her skirt pulled off, fingers inside her, ending in a squirt' : 'a clothed subway groping sequence, hands moving under her clothes')
+        ? (wantsSkirtOff ? 'a subway groping sequence, her skirt pulled off, fingers inside her' : 'a clothed subway groping sequence, hands moving under her clothes')
         : 'multiple positions and oral';
   const rawPrompt = `subject_definitions:
 <Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1. Picture 1 defines face, hair, hairstyle, skin tone, body proportions and breast size/shape ONLY. IGNORE all clothing from Picture 1: do NOT copy the reference blouse, skirt, colors or outfit. Shot 1 must use the theme outfit${themeOutfit ? `: ${themeOutfit}` : ' described in the theme'}. ${isGroping ? (wantsSkirtOff ? 'Shot 1 wears the yellow blouse and red skirt; from Shot 4 her skirt is pulled off and she is bottomless, blouse and bra still on; no full nudity and no intercourse.' : 'She remains fully clothed in Shots 1-12; only the blouse and skirt are displaced; no nudity and no undressing.') : 'From Shot 2 onward follow the detailed_description nude state; no reference clothing returns.'}
@@ -1031,7 +1031,7 @@ summary:
 [reference generation] Theme outline: ${openingScene}. A cinematic ${targetDuration}-second ${mode} sequence. Picture 1 is a full identity/scene reference, NOT a static first frame. The video starts directly in the live-action scene, already in motion, then progresses through ${progression}, ending in ${endingText}. ${clothingPolicy} ${coercive ? `She is coerced and pleading; he threatens and overpowers her. ${isCycling ? 'The man is riding a bicycle, not running.' : 'He closes in and overpowers her; there is no bicycle in this scene.'}` : ''} No scene change, no character change, no extra person.
 
 retention_analysis:
-<Subject 1> <Picture 1>: fully_preserved — identity, face, hair and body come from the reference image. ${isGroping ? 'She remains fully clothed throughout; only the blouse and skirt are displaced by hands; no nudity.' : 'Starting clothing is used only for Shot 1, then the shot sequence controls nudity.'}
+<Subject 1> <Picture 1>: fully_preserved — identity, face, hair and body come from the reference image. ${isGroping ? (wantsSkirtOff ? 'Shot 1 wears the yellow blouse and red skirt; from Shot 4 the skirt is off and she is bottomless, blouse and bra still on; no full nudity.' : 'She remains fully clothed; only the blouse and skirt are displaced by hands; no nudity.') : 'Starting clothing is used only for Shot 1, then the shot sequence controls nudity.'}
 <Picture 1> identity reference: fully_preserved for face, hair and body; Picture 1 is not used as a static first frame.
 ${hasMaleRef && hasMan ? '<Picture 2> identity: fully_preserved — the male lead face, hair and body come only from Picture 2.' : ''}
 Scene and action: fully_preserved from the source image prompt; only positions progress, location never changes.
