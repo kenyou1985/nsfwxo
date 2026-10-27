@@ -1102,8 +1102,8 @@ function buildH3FromScript(script: string, hasMan: boolean, malePicture: boolean
 
   const subject2 = hasMan
     ? (malePicture
-      ? '<Subject 2> is @Man <Picture 2> — the exact adult man shown in Picture 2, wearing the clothing shown in Picture 1 or the source scene, no bicycle. Preserve his face, hair, body proportions and identity from Picture 2; face kept off extreme close-up. All S2 lines are clear natural Mandarin Chinese, spoken in a low adult male voice; no gibberish, no English, no mumbling.'
-      : '<Subject 2> is @Man — the adult man in the scene, wearing a dark shirt and dark trousers, no bicycle. Do NOT default to any race or skin tone. Preserve his identity if a male reference is present; face kept off extreme close-up. All S2 lines are clear natural Mandarin Chinese, spoken in a low adult male voice; no gibberish, no English, no mumbling.')
+      ? '<Subject 2> is @Man <Picture 2> — the exact adult man shown in Picture 2, wearing the clothing shown in Picture 1 or the source scene, no bicycle. Preserve his face, hair, body proportions and identity from Picture 2; face kept off extreme close-up. All S2 lines are clear natural Mandarin Chinese, spoken in a low adult male voice; no gibberish, no English, no mumbling. If the detailed_description reaches the undress beat, he removes his trousers and boxers and is fully nude from that shot onward.'
+      : '<Subject 2> is @Man — the adult man in the scene, wearing a dark shirt and dark trousers, no bicycle. Do NOT default to any race or skin tone. Preserve his identity if a male reference is present; face kept off extreme close-up. All S2 lines are clear natural Mandarin Chinese, spoken in a low adult male voice; no gibberish, no English, no mumbling. If the detailed_description reaches the undress beat, he removes his trousers and boxers and is fully nude from that shot onward.')
     : '';
 
   const speakerMap = hasMan

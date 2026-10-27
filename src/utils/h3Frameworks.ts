@@ -51,7 +51,7 @@ export function detectFramework(theme: string, hasMan: boolean): H3Framework {
   return 'consensual';
 }
 
-const MALE_COMMAND = /(别动|别叫|继续|转过去|脱|站好|跪好|趴好|张开|夹紧|不许|闭嘴|看着|叫出来|吞下去|含住|按住了|衣服一件件|这件|裙子|自己把|求我|给谁看|奶子|屁股|巨乳|讲课|下次|教室正好|出丑|这么大|手感|丢脸|巨乳女老师|两件都|讲台|黑板前|这才叫|衣服都|站直|挺胸|给全班|给谁|手放下|讲台就是|一件件都脱|没有衣服|叫。|转过来|让他们看|按着|给我|裙子也别想留|把胸挺起来|再敢动一下|手拿开|记住今天|别想留|挺起来|再敢)/;
+const MALE_COMMAND = /(别动|别叫|继续|转过去|脱|站好|跪好|趴好|张开|夹紧|不许|闭嘴|看着|叫出来|吞下去|含住|按住了|衣服一件件|这件|裙子|自己把|求我|给谁看|奶子|屁股|巨乳|讲课|下次|教室正好|出丑|这么大|手感|丢脸|巨乳女老师|两件都|讲台|黑板前|这才叫|衣服都|站直|挺胸|给全班|给谁|手放下|讲台就是|一件件都脱|没有衣服|叫。|转过来|让他们看|按着|给我|裙子也别想留|把胸挺起来|再敢动一下|手拿开|记住今天|别想留|挺起来|再敢|张嘴|夹紧|别躲|接好)/;
 const FEMALE_PLEA = /(求你|放过|不要|别|放开|疼|轻点|停下|不行|羞|丢脸|救命|我错|饶了我|别摸|别脱|别这样|不敢)/;
 
 function stripS2(line: string): string {
@@ -148,7 +148,7 @@ export function ensureCoerciveArc(shots: string[]): string[] {
     head[0] = `At the current location, she holds the written pose; he stands close behind her, not yet touching. ${head[0]}`;
   }
   const tail = [
-    'He strips the last garment from her; she is completely nude; no clothing remains; he keeps his dark shirt and trousers on. She stops kicking and only shakes.',
+    'He strips the last garment from her; she is completely nude. He then shoves his dark trousers and boxers down to his ankles, frees his cock, and kicks them aside; he is fully nude too; no clothing remains. She stops kicking and only shakes.',
     'He forces her to her knees, fists her hair, and pushes his cock into her mouth; she gags, saliva stringing, hands clawing at his thigh. (S2): <d>[Chinese] 张嘴。</d>',
     'He drags her up by the hair, bends her over the nearest surface, and drives into her from behind in one hard thrust; her body jolts and she cries out. (S2): <d>[Chinese] 夹紧。</d>',
     'He fucks her hard and fast, one hand in her hair, the other holding her hip; her resistance breaks into helpless noise; he spanks her bare ass in rhythm. (S2): <d>[Chinese] 别躲。</d>',
