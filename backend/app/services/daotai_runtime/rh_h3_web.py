@@ -2735,8 +2735,9 @@ def run_job(job):
                 _emit('⚠ 未检测到 [Shot N] 分镜标记，确定性切分需要 [Shot 1]..[Shot N] 锚点，拒绝提交')
                 job.set_status('failed')
                 return
-            # 每段分镜数：保证 4 段时 11 个 Shot 全部覆盖（ceil(11/4)=3，1269=3）
-            _M_det = max(2, -(-int(_ns_det) // max(2, _N_det)))
+            # 每段分镜数：多路时按“每路分镜数”计算，不能拿总 20 镜除以每路 4 段。
+            _per_route_det = -(-int(_ns_det) // max(1, _routes_det))
+            _M_det = max(2, -(-_per_route_det // max(2, _N_det)))
             _cap_det = _M_det * _N_det
             if _ns_det > _cap_det:
                 _emit('  ⚠ 提示词有 %d 个分镜，但 503=%d 段 × 1269=%d 分镜/段 只覆盖前 %d 个 → '
@@ -2749,7 +2750,7 @@ def run_job(job):
             # 优先保留 8 段和 20 镜，自动降为 1 路，而不是拒绝提交或缩短视频。
             if _routes_det > 1:
                 _per_route_det = -(-_ns_det // _routes_det)
-                if _per_route_det < 2 * _N_det - 1:
+                if _per_route_det < 2 * _N_det:
                     _emit('⚠ %d 镜 / %d 段 / %d 路：每路仅 %d 镜，无法填满 %d 段（每段至少 2 镜）→ 自动降为 1 路提交，保留 %d 段和全部 %d 镜'
                           % (_ns_det, _N_det, _routes_det, _per_route_det, _N_det, _N_det, _ns_det))
                     _routes_det = 1
@@ -2770,7 +2771,7 @@ def run_job(job):
                     _s0 += _n
                 _per_det = _base_det + (1 if _extra_det else 0)
                 _min_shots = min(b - a + 1 for _, a, b in _plan_det)
-                _need = _M_det * _N_det - 1
+                _need = _per_route_det
                 if _min_shots < _need:
                     _N_old = _N_det
                     _N_det = max(2, (_min_shots + 1) // 2)
