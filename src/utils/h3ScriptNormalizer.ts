@@ -162,8 +162,15 @@ export function normalizeDialogueSpeakers(raw: string): string {
     }
     return `(S${speaker === 'S2' ? 2 : 1}): <d>[Chinese] ${text}</d>`;
   });
-  // 同一镜头内完全相同的相邻台词去重，避免 H3 把重复 S2 读成两遍火星语。
-  out = out.replace(/(\(S[12]\):\s*<d>[^<]*<\/d>)(?:\s*\1)+/g, '$1');
+  // 同一镜头内完全相同的台词去重（不要求相邻），避免 H3 把重复 S2 读成两遍火星语。
+  out = out.split(/(?=\[Shot\s+\d+\])/).map((block) => {
+    const seen = new Set<string>();
+    return block.replace(/(\(S[12]\):\s*<d>[^<]*<\/d>)/g, (line) => {
+      if (seen.has(line)) return '';
+      seen.add(line);
+      return line;
+    });
+  }).join('');
   // 没有 speaker_mapping 时补上，避免 H3 用默认声线串台。
   if (!/speaker_mapping\s*:/i.test(out)) {
     return out.trimEnd() + '\nspeaker_mapping: {"S1":"Chinese (Mandarin)_Adult_Female_Soft","S2":"Chinese (Mandarin)_Adult_Male_Low"}';
