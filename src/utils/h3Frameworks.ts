@@ -26,7 +26,7 @@ export const H3_FRAMEWORKS: Record<H3Framework, FrameworkMeta> = {
   coercive: {
     id: 'coercive', label: '非情愿/胁迫', needsMale: true, maxLinesPerShot: 1,
     allowPenetration: true,
-    actionArc: ['approach/trap', 'restrain', 'slap/spank/drag', 'strip', 'forced oral', 'forced penetration', 'creampie/facial/ass cum', 'resistance weakening', 'submission/aftermath'],
+    actionArc: ['approach/trap', 'restrain', 'slap/spank/drag', 'strip', 'forced oral', 'penetration position 1', 'penetration position 2', 'join close-up', 'creampie/facial/ass cum', 'resistance weakening', 'submission/aftermath'],
     description: '胁迫、威胁、骚扰、强制脱衣等；男声命令、女声抗拒/求饶；动作推进为主，台词必须短。',
   },
   solo: {
@@ -151,11 +151,11 @@ export function ensureCoerciveArc(shots: string[]): string[] {
     'He strips the last garment from her; she is completely nude. He then shoves his dark trousers and boxers down to his ankles, frees his cock, and kicks them aside; he is fully nude too; no clothing remains. She stops kicking and only shakes.',
     'He forces her to her knees, fists her hair, and pushes his cock into her mouth; she gags, saliva stringing, hands clawing at his thigh. (S2): <d>[Chinese] 张嘴。</d>',
     'He drags her up by the hair, bends her over the nearest surface, and drives into her from behind in one hard thrust; her body jolts and she cries out. (S2): <d>[Chinese] 夹紧。</d>',
-    'He fucks her hard and fast, one hand in her hair, the other holding her hip; her resistance breaks into helpless noise; he spanks her bare ass in rhythm. (S2): <d>[Chinese] 别躲。</d>',
-    'He keeps her pinned and uses her, pulling her hair and slapping her ass while she stops fighting and takes it, her body shaking. (S1): <d>[Chinese] 求求你…</d>',
+    'Without pulling out, he turns her to face him, lifts one leg against his hip, and keeps fucking her in the new standing position; her back hits the board and she gasps. (S2): <d>[Chinese] 转过来。腿抬好。</d>',
+    'Extreme close-up on the join: his cock sliding in and out of her wet pussy, fluid stringing, her thighs trembling, his hand gripping her raised thigh. (S1): <d>[Chinese] 不要看那里…</d>',
+    'He fucks her hard and fast in the lifted-leg position, one hand in her hair, the other slamming her hip into the board; her resistance breaks into helpless noise and he spanks her bare ass in rhythm. (S2): <d>[Chinese] 别躲。</d>',
     'He buries himself to the hilt and finishes inside her; thick creampie pulses out as her resistance collapses into shaking submission. (S2): <d>[Chinese] 接好。</d>',
     'She sinks down against the surface, spent and trembling, fully nude, his hands still on her; he does not dress her. (S1): <d>[Chinese] 我不敢了…</d>',
-    'Afterglow in the exact same location and position: both bodies still, breathing slowing, sweat cooling on skin; no new act, no reset.',
   ];
   return [...head, ...tail].slice(0, 12);
 }
