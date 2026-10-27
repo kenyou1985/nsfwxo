@@ -1172,20 +1172,15 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
 
   const detected = detectFramework(script, hasMan);
   const sceneLock = `${extractSceneLock(script)} Only one male is in frame: Subject 2; no second man, no clone, no extra male touching her.`;
-  const wardrobe = extractWardrobe(script);
-  const wardrobeLock = wardrobe ? `Wardrobe lock: ${wardrobe}. Keep these exact colors and garments; never swap colors or inherit clothing from Picture 1.` : '';
+  const wardrobeRule = 'Clothing comes from the current theme description. If the theme does not specify an item, use the clothing visible in Picture 1. Do not invent colors or garments; never reset clothing at a segment boundary.';
   const framedShots = detected === 'coercive' && hasMan ? ensureCoerciveArc(shots, script, shotCount) : shots;
-  // 通用服装锁定范围：到剧本第一次明确脱衣/撕裂动作为止；不固定前 4 镜。
-  const firstRemoval = shots.findIndex((s) => /(?:shirt|blouse|skirt|bra|panties|garment|clothes?)\b[^.]{0,30}(?:removed|off|ripped|pulled|stripped|gone)|(?:脱|撕|扒|扯)[^。]{0,12}(?:衣|裙|内裤|bra|衬衫)/i.test(s));
-  const wardrobeEnd = firstRemoval >= 0 ? firstRemoval : shots.length;
 
   const actualShots = Math.max(12, Math.min(30, shotCount));
   const duration = actualShots >= 30 ? 180 : actualShots >= 20 ? 120 : 60;
   const body = framedShots.slice(0, actualShots).map((shot, i) => {
     const sec = i === 0 ? 0 : (i * (duration - 5)) / Math.max(1, Math.min(actualShots, framedShots.length) - 1);
     const stamp = `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(Math.floor(sec % 60)).padStart(2, '0')}.000`;
-    const wardrobeLine = wardrobeLock && i < wardrobeEnd ? ` ${wardrobeLock}` : '';
-    return `[Shot ${i + 1}] ${stamp} ${shot}${wardrobeLine}`;
+    return `[Shot ${i + 1}] ${stamp} ${shot}`;
   }).join('\n');
 
   const subject2 = hasMan
@@ -1220,11 +1215,11 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
     .replace(/\s+\S*$/, '')
     .trim();
   const prompt = `subject_definitions:
-<Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1. Picture 1 defines face, hair, hairstyle, skin tone, body proportions and breast size/shape ONLY. IGNORE all clothing from Picture 1: do NOT copy the reference blouse, skirt, colors or outfit. ${sceneLock} ${wardrobeLock} Clothing, undressing and nudity follow the detailed_description exactly; never reset clothing at a segment boundary.
+<Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1. Picture 1 defines face, hair, hairstyle, skin tone, body proportions and breast size/shape ONLY. ${wardrobeRule} ${sceneLock} Clothing, undressing and nudity follow the detailed_description exactly; never reset clothing at a segment boundary.
 ${subject2}
 
 summary:
-[reference generation] The video follows the current theme exactly, shot by shot, with the same people and location. ${frameworkHint} ${sceneLock} ${wardrobeLock} ${summaryFirst} The sequence ends with the final beat written in the screenplay; no action is added or substituted by a template. No scene change, no character change, no extra person.
+[reference generation] The video follows the current theme exactly, shot by shot, with the same people and location. ${frameworkHint} ${sceneLock} ${wardrobeRule} ${summaryFirst} The sequence ends with the final beat written in the screenplay; no action is added or substituted by a template. No scene change, no character change, no extra person.
 
 retention_analysis:
 <Subject 1> <Picture 1>: fully_preserved — identity, face, hair and body come from the reference image. Clothing state is controlled only by the detailed_description.
