@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { extractVideoPromptFromImagePrompt } from '../utils/videoPromptExtractor';
 import { normalizeKrea2Prompt } from '../utils/krea2Prompt';
 import { normalizeH3Script, normalizeDialogueSpeakers, normalizeH3PromptStructure } from '../utils/h3ScriptNormalizer';
-import { applyFramework, detectFramework, ensureCoerciveArc, H3_FRAMEWORKS, enforceH3Speakers } from '../utils/h3Frameworks';
+import { applyFramework, detectFramework, ensureCoerciveArc, H3_FRAMEWORKS, enforceH3Speakers, cleanSpeakerProse } from '../utils/h3Frameworks';
 import { makeThumbnailForStorage, makePreviewForStorage } from '../utils/imageThumbnail';
 import { AspectAwareImage } from '../components/AspectAwareImage';
 import { OneClickProduce } from '../components/OneClickProduce';
@@ -37,7 +37,7 @@ import { VIDEO_POSE_PRESETS } from '../data/presetPoses';
 
 function normalizeCardPrompt(prompt: string): string {
   if (!prompt || !/^\s*subject_definitions\s*:/i.test(prompt)) return prompt;
-  return enforceH3Speakers(normalizeDialogueSpeakers(normalizeH3PromptStructure(prompt, { shotCount: getH3ShotCount() })));
+  return cleanSpeakerProse(enforceH3Speakers(normalizeDialogueSpeakers(normalizeH3PromptStructure(prompt, { shotCount: getH3ShotCount() }))));
 }
 
 const KREA2_N_STRONG_WORKFLOW = '2101119999196127233';
@@ -1225,7 +1225,7 @@ overall_soundscape: Location ambience, fabric friction, breathing and the physic
 non_diegetic_music: None
 speaker_mapping: ${speakerMap}`;
 
-  return sanitizeAgeTerms(enforceH3Speakers(applyFramework(normalizeDialogueSpeakers(normalizeH3PromptStructure(prompt, { shotCount: actualShots })), framework)));
+  return cleanSpeakerProse(sanitizeAgeTerms(enforceH3Speakers(applyFramework(normalizeDialogueSpeakers(normalizeH3PromptStructure(prompt, { shotCount: actualShots })), framework))));
 }
 
 /**

@@ -47,12 +47,12 @@ export function detectFramework(theme: string, hasMan: boolean): H3Framework {
   const t = String(theme || '');
   if (/(two women|two girls|lesbian|女女|百合|双女|两个女人|两名女性)/i.test(t)) return 'lesbian';
   if (!hasMan) return 'solo';
-  if (/(尾随|跟踪|胁迫|强迫|不情愿|强奸|强暴|迷奸|威胁|骚扰|猥亵|痴汉|凌辱|按在|拖进|锁喉|扒光|rape|coerc|stalk|choke|drag|grope|assault)/i.test(t)) return 'coercive';
+  if (/(尾随|跟踪|胁迫|强迫|不情愿|强奸|强暴|迷奸|威胁|骚扰|猥亵|痴汉|凌辱|按在|拖进|锁喉|扒光|rape|coerc|stalk|choke|drag|grope|assault|squat|lick|tongue|under her skirt|against her will|holds her|forces|forced|public violation)/i.test(t)) return 'coercive';
   return 'consensual';
 }
 
-const MALE_COMMAND = /(别动|别叫|继续|转过去|脱|站好|跪好|趴好|张开|夹紧|不许|闭嘴|看着|叫出来|吞下去|含住|按住了|衣服一件件|这件|裙子|自己把|求我|给谁看|奶子|屁股|巨乳|讲课|下次|教室正好|出丑|这么大|手感|丢脸|巨乳女老师|两件都|讲台|黑板前|这才叫|衣服都|站直|挺胸|给全班|给谁|手放下|讲台就是|一件件都脱|没有衣服|叫。|转过来|让他们看|按着|给我|裙子也别想留|把胸挺起来|再敢动一下|手拿开|记住今天|别想留|挺起来|再敢|张嘴|夹紧|别躲|接好|站稳|裙子脱掉|内裤留着|自己动|含深点|把舌头|让他舔|手拿开|拿开|别动|别叫|继续写|不许动|松开|趴好|跪好)/;
-const FEMALE_PLEA = /(求你|放过|不要|别|放开|疼|轻点|停下|不行|羞|丢脸|救命|我错|饶了我|别摸|别脱|别这样|不敢|你干什么|你怎么|你谁|这里是|谁？|谁\.\.\.|你在|我裙子|我站不住|我会|我不敢|我错|有人|会看到|要用舌头|吗[。…！？]?$|啊[。…！？]?$)/;
+const MALE_COMMAND = /(别动|别叫|继续|转过去|脱|站好|跪好|趴好|张开|夹紧|不许|闭嘴|看着|叫出来|吞下去|含住|按住了|衣服一件件|这件|裙子|自己把|求我|给谁看|奶子|屁股|巨乳|讲课|下次|教室正好|出丑|这么大|手感|丢脸|巨乳女老师|两件都|讲台|黑板前|这才叫|衣服都|站直|挺胸|给全班|给谁|手放下|讲台就是|一件件都脱|没有衣服|叫。|转过来|让他们看|按着|给我|裙子也别想留|把胸挺起来|再敢动一下|手拿开|记住今天|别想留|挺起来|再敢|张嘴|夹紧|别躲|接好|站稳|裙子脱掉|内裤留着|自己动|含深点|把舌头|让他舔|手拿开|拿开|别动|别叫|继续写|不许动|松开|趴好|跪好|内裤拉开|让我摸|蹲下|用舌头|喷得|舔干净)/;
+const FEMALE_PLEA = /(求你|放过|不要|别|放开|疼|轻点|停下|不行|羞|丢脸|救命|我错|饶了我|别摸|别脱|别这样|不敢|你干什么|你怎么|你谁|这里是|谁？|谁\.\.\.|你在|我裙子|我站不住|好湿|拿开.*好湿|我忍不住|潮吹|我会|我不敢|我错|有人|会看到|要用舌头|吗[。…！？]?$|啊[。…！？]?$)/;
 
 function stripS2(line: string): string {
   return line.replace(/^\(S2\):\s*/i, '(S1): ');
@@ -106,6 +106,17 @@ function normalizeShotDialogue(block: string, framework: H3Framework): string {
   return cleaned.replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n');
 }
 
+/** 去掉正文里的 S1/S2 代称，只保留真正的台词标签。 */
+export function cleanSpeakerProse(text: string): string {
+  return String(text || '')
+    .replace(/\bS2[’']s\b/gi, 'his')
+    .replace(/\bS1[’']s\b/gi, 'her')
+    .replace(/\(S2\)\s*,\s*the adult man/gi, 'the adult man')
+    .replace(/\(S1\)\s*,\s*the adult woman/gi, 'the adult woman')
+    .replace(/\((S2)\)(?=\s*[,，])/g, 'the man')
+    .replace(/\((S1)\)(?=\s*[,，])/g, 'the woman');
+}
+
 /** 最终硬校正：只按台词文本判断男女，防止任何前置归一器把男性命令写成 S1。 */
 export function enforceH3Speakers(text: string): string {
   if (!text) return text;
@@ -113,7 +124,7 @@ export function enforceH3Speakers(text: string): string {
     const body = line.replace(/^<d>|<\/d>$/g, '');
     const raw = body.replace(/<[^>]+>/g, '');
     if (/^(?:他|男|马库斯|MARCUS)$/i.test(raw)) return line;
-    if ((MALE_COMMAND.test(raw) && !FEMALE_PLEA.test(raw)) || /^(?:别动|张嘴|接好|夹紧|站稳|转过来|腿抬好|自己动|含深点|脱掉|裙子脱掉)/.test(raw)) {
+    if ((MALE_COMMAND.test(raw) && !FEMALE_PLEA.test(raw)) || /^(?:别动|张嘴|接好|夹紧|站稳|转过来|腿抬好|自己动|含深点|脱掉|裙子|内裤|蹲下|用舌头|喷得)/.test(raw)) {
       return line.replace(/^\(S[12]\):/, '(S2):');
     }
     if (FEMALE_PLEA.test(raw) || /^(?:你|我|他蹲|这里|有人|会看到)/.test(raw)) {
