@@ -1080,6 +1080,18 @@ speaker_mapping: ${speakerMap}`;
   return normalizeDialogueSpeakers(normalizeH3PromptStructure(cleanedRaw, { groping: isGroping, coercive: isGroping ? false : coercive, hasMan }));
 }
 
+function unifySingleMale(text: string): string {
+  // H3 只能稳定锚定一个男性参考图；第二个男人会被生成成克隆人。
+  // 把 uncle / Black man / second man 统一成同一个 Subject 2，禁止额外男性互动。
+  return String(text || '')
+    .replace(/\b(?:the\s+)?(?:adult\s+)?Black\s+man\b/gi, 'the man')
+    .replace(/\b(?:the\s+)?(?:second|another|older|squatting|kneeling)\s+man\b/gi, 'the man')
+    .replace(/\b(?:the\s+)?uncle\b/gi, 'the man')
+    .replace(/\b(?:the\s+)?two\s+men\b/gi, 'the man')
+    .replace(/\bboth\s+men\b/gi, 'the man')
+    .replace(/第二个男人|另一个男人|黑人男子|黑人男人|两个男人|两名男人|大叔|老汉/g, '男人');
+}
+
 function sanitizeAgeTerms(text: string): string {
   // 不把角色写成 uncle / middle-aged / 老年，避免安全审核把成人场景误判为未成年人相关。
   return String(text || '')
@@ -1103,7 +1115,7 @@ function extractSceneLock(text: string): string {
   if (/(kitchen|厨房)/i.test(t)) {
     return 'Location lock: the same kitchen throughout; existing counter and stools only; no bedroom or new room.';
   }
-  return 'Location lock: the same current location throughout; no scene change, no new room, no new furniture.';
+  return 'Location lock: the same current location throughout; no scene change, no new room, no new furniture. Only one male is in frame: Subject 2; no second man, no clone, no extra male touching her.';
 }
 
 function extractWardrobe(text: string): string {
@@ -1149,7 +1161,7 @@ function extractWardrobe(text: string): string {
  * 动作、场景、服装、对白全部来自 script；模板只负责 H3 六段结构。
  */
 export function buildH3FromScript(script: string, hasMan: boolean, malePicture: boolean, shotCount = 12): string {
-  script = sanitizeAgeTerms(script);
+  script = unifySingleMale(sanitizeAgeTerms(script));
   const shots = normalizeH3Script(script, {
     hasMan,
     coercive: false,
@@ -1159,7 +1171,7 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
   if (shots.length < 8) return '';
 
   const detected = detectFramework(script, hasMan);
-  const sceneLock = extractSceneLock(script);
+  const sceneLock = `${extractSceneLock(script)} Only one male is in frame: Subject 2; no second man, no clone, no extra male touching her.`;
   const wardrobe = extractWardrobe(script);
   const wardrobeLock = wardrobe ? `Wardrobe lock: ${wardrobe}. Keep these exact colors and garments; never swap colors or inherit clothing from Picture 1.` : '';
   const framedShots = detected === 'coercive' && hasMan ? ensureCoerciveArc(shots, script, shotCount) : shots;
@@ -1227,7 +1239,7 @@ overall_soundscape: Location ambience, fabric friction, breathing and the physic
 non_diegetic_music: None
 speaker_mapping: ${speakerMap}`;
 
-  return cleanSpeakerProse(sanitizeAgeTerms(enforceH3Speakers(applyFramework(normalizeDialogueSpeakers(normalizeH3PromptStructure(prompt, { shotCount: actualShots })), framework))));
+  return cleanSpeakerProse(unifySingleMale(sanitizeAgeTerms(enforceH3Speakers(applyFramework(normalizeDialogueSpeakers(normalizeH3PromptStructure(prompt, { shotCount: actualShots })), framework)))));
 }
 
 /**
