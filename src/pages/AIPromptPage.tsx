@@ -1087,6 +1087,9 @@ function unifySingleMale(text: string): string {
     .replace(/\b(?:the\s+)?(?:adult\s+)?Black\s+man\b/gi, 'the man')
     .replace(/\b(?:the\s+)?(?:second|another|older|squatting|kneeling)\s+man\b/gi, 'the man')
     .replace(/\b(?:the\s+)?uncle\b/gi, 'the man')
+    .replace(/\b(?:the\s+)?adult\s+man\b/gi, 'the man')
+    .replace(/\bA the man\b/g, 'the man')
+    .replace(/\bthe the man\b/gi, 'the man')
     .replace(/\b(?:the\s+)?two\s+men\b/gi, 'the man')
     .replace(/\bboth\s+men\b/gi, 'the man')
     .replace(/第二个男人|另一个男人|黑人男子|黑人男人|两个男人|两名男人|大叔|老汉/g, '男人');
