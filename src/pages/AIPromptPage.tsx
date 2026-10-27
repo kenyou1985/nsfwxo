@@ -1662,7 +1662,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
             // Step 3: 统一走英文 12 镜 H3 模板，锚定参考图，禁止中文旧模板
             const hasMaleRole = /(\bman\b|\bmale\b|男子|男人|男性|男友|男主|大叔|痴汉|猥琐|色狼|老汉|叔叔)/i.test(`${scriptText} ${input}`);
             const h3Anchors = selectedAnchors.length ? selectedAnchors : ([getDefaultAnchor('female'), getDefaultAnchor('male')].filter(Boolean) as GirlfriendPreset[]);
-            let h3 = normalizeDialogueSpeakers(normalizeH3PromptStructure(applyAnchorNames(buildH3FromScript(scriptText, hasMaleRole, hasMaleRole, videoShotCount), h3Anchors)));
+            let h3 = normalizeDialogueSpeakers(normalizeH3PromptStructure(applyAnchorNames(buildH3FromScript(scriptText, hasMaleRole, hasMaleRole, videoShotCount), h3Anchors), { shotCount: videoShotCount }));
             if (!h3) {
               // 剧本不是 12 镜时，不让整张卡失败：用当前主题再请求一次，
               // 明确要求 12 个 SHOT；绝不回退到上一主题/固定动作模板。
@@ -1686,7 +1686,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
                 ).catch((err) => finish('', err instanceof Error ? err : new Error(String(err))));
               });
               if (retryScript) {
-                h3 = normalizeDialogueSpeakers(normalizeH3PromptStructure(applyAnchorNames(buildH3FromScript(retryScript, hasMaleRole, hasMaleRole, videoShotCount), h3Anchors)));
+                h3 = normalizeDialogueSpeakers(normalizeH3PromptStructure(applyAnchorNames(buildH3FromScript(retryScript, hasMaleRole, hasMaleRole, videoShotCount), h3Anchors), { shotCount: videoShotCount }));
               }
             }
             if (!h3) throw new Error('当前主题剧本没有生成 12 镜；请重试一次，系统不会使用旧主题模板');
@@ -2099,7 +2099,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       const anchoredPrompt = normalizeDialogueSpeakers(normalizeH3PromptStructure(applyAnchorNames(
         isH3Prompt ? videoText : buildH3FromScript(videoText, hasManForVideo, !!maleImage, videoShotCount),
         anchorList,
-      )));
+      ), { shotCount: videoShotCount }));
       const submit = await submitDaotaiVideo(key, anchoredPrompt, { ...body, prompt: anchoredPrompt });
       saveMainPending({ taskId: submit.taskId, promptKey: videoText, startTime: Date.now() });
       const localId = `expand-video-${Date.now()}`;
