@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { extractVideoPromptFromImagePrompt } from '../utils/videoPromptExtractor';
 import { normalizeKrea2Prompt } from '../utils/krea2Prompt';
-import { normalizeH3Script, normalizeDialogueSpeakers, normalizeH3PromptStructure } from '../utils/h3ScriptNormalizer';
+import { normalizeH3Script, normalizeDialogueSpeakers, normalizeH3PromptStructure, isModelRefusal, stripModelRefusal } from '../utils/h3ScriptNormalizer';
 import { applyFramework, detectFramework, ensureCoerciveArc, H3_FRAMEWORKS, enforceH3Speakers, cleanSpeakerProse, detectLocationProgression } from '../utils/h3Frameworks';
 import { makeThumbnailForStorage, makePreviewForStorage } from '../utils/imageThumbnail';
 import { AspectAwareImage } from '../components/AspectAwareImage';
@@ -1733,6 +1733,15 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
             // Step 2: 剧本已经是完整 900-1100 词剧本，直接作为 H3 的 scene/source，
             // 不再经过会压缩内容的 image→video 二次调用。
             let scriptText = expandedImgPrompt.trim();
+            // LLM 内容审核拒写：绝不能把拒写文本当分镜解析（会产出 Afterglow 垃圾提示词）。
+            if (isModelRefusal(scriptText)) {
+              const cleaned = stripModelRefusal(scriptText);
+              if (cleaned.length < 300) {
+                throw new Error('模型拒绝了该主题的剧本生成（内容审核）；请切换到不审查的模型/接口，或改写主题后再试');
+              }
+              console.warn('[expand] model refusal detected, stripped refusal text and kept the real script');
+              scriptText = cleaned;
+            }
             // 模型偶尔只返回一两百字（审核截断/提前 stop）。不能把整张卡直接报错，
             // 用用户主题补足后交给 H3 状态机生成 12 镜兜底，避免“第 N 个剧本过短”。
             if (scriptText.length < 500) {

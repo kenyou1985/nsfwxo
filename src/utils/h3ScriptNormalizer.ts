@@ -318,3 +318,20 @@ export function normalizeH3PromptStructure(raw: string, opts: H3StructureOptions
   const body = shots.map((s, i) => `[Shot ${i + 1}] ${s}`).join('\n');
   return `${head}\n\ndetailed_description:\n${body}\n\noverall_soundscape: ${overall}\nnon_diegetic_music: None\n${speaker}`;
 }
+
+/**
+ * 检测 LLM 的内容审核拒写（refusal）。
+ * 拒写文本绝不能被当成剧本分镜解析，否则会产出 "Afterglow" 填充的垃圾提示词。
+ */
+export function isModelRefusal(text: string): boolean {
+  const t = String(text || '');
+  return /(?:I (?:can't|cannot|won't|will not|must decline|have to stop|need to stop)|I'm sorry|I apologize|If you want a (?:fully )?consensual|I can help with that instead|otherwise I have to stop|I won't produce|I can't assist|I cannot assist|I must refuse|against my (?:policy|guidelines))/i.test(t);
+}
+
+/** 去掉拒写句子，只保留模型真正写出的剧本内容。 */
+export function stripModelRefusal(text: string): string {
+  const raw = String(text || '');
+  if (!isModelRefusal(raw)) return raw;
+  const parts = raw.split(/(?<=[.!?])\s+|\n+/);
+  return parts.filter((s) => s.trim() && !isModelRefusal(s)).join(' ').trim();
+}
