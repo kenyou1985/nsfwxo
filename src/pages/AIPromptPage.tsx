@@ -1120,16 +1120,27 @@ function sanitizeAgeTerms(text: string): string {
 
 function deriveSceneAnchor(text: string): string {
   const t = String(text || '');
-  // 场景只从当前主题/剧本提取，不再维护“主题→固定锁”的分支表。
-  const explicit = [
-    'elevator', 'escalator', 'mall', 'subway', 'metro', 'train', 'classroom',
+  // 场景只从当前主题/剧本提取，不维护“主题→固定锁”分支表。
+  // 关键：主题可能有多段地点（如 扶梯 → 走廊 → 电梯），此时不能断言“从头到尾同一个地方”，
+  // 而是显式列出地点的先后顺序，并禁止加入主题里没有的地点。
+  const terms = [
+    'elevator', 'escalator', 'mall', 'corridor', 'subway', 'metro', 'train', 'classroom',
     'office', 'bedroom', 'kitchen', 'bathroom', 'hotel', 'apartment', 'house',
     'sofa', 'bed', 'pool', 'park', 'street', 'alley', 'rooftop', 'beach', 'forest',
-    '电梯', '扶梯', '商场', '地铁', '车厢', '教室', '办公室', '卧室', '厨房',
+    '电梯', '扶梯', '商场', '走廊', '地铁', '车厢', '教室', '办公室', '卧室', '厨房',
     '浴室', '酒店', '公寓', '沙发', '床', '泳池', '公园', '街道', '巷子', '天台',
-  ].find((w) => new RegExp(w, 'i').test(t));
-  if (explicit) {
-    return `Scene: the ${explicit} described by the current theme; keep that same place from Shot 1 to the end.`;
+  ];
+  // 按地点在正文里“第一次出现的位置”排序，保持主题真正的空间顺序（扶梯 → 走廊 → 电梯）。
+  const seen: string[] = [];
+  for (const w of terms) {
+    if (new RegExp(w, 'i').test(t) && !seen.includes(w)) seen.push(w);
+  }
+  seen.sort((a, b) => (t.toLowerCase().indexOf(a) - t.toLowerCase().indexOf(b)));
+  if (seen.length > 1) {
+    return `Scene: the theme's location progression is ${seen.join(' → ')}; follow only these locations in order, and do not add any location not listed.`;
+  }
+  if (seen.length === 1) {
+    return `Scene: the ${seen[0]} described by the current theme; keep that same place from Shot 1 to the end.`;
   }
   const indoor = /(indoor|inside|room|interior|室内|房间|屋里|公寓|酒店|浴室|卧室|厨房|电梯|商场)/i.test(t);
   const outdoor = /(outdoor|outside|street|alley|park|beach|forest|rooftop|室外|户外|街道|巷子|公园|海边|天台)/i.test(t);
@@ -1228,16 +1239,20 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
         ? 'Solo female framework: only S1, self-touch/toy/climax; no male voice or male penetration.'
         : 'Lesbian framework: both speakers are female, no male penetration; toy/finger penetration allowed.';
   const firstVisualShot = shots.find((s) => /(camera|location|body|action|\b(she|her|he|his)\b)/i.test(s)) || shots[0];
+  // summary 只留一句自然语言的场景概述：清除结构化字段标签(CAM/LOCATION/BODY/...)、时间区间、对白标签，
+  // 避免出现 "LOCATION: same escalator, The sequence..." 这类被截断的机器字段。
   const summaryFirst = firstVisualShot
     .split(/\(S[12]\):/)[0]
-    .replace(/^\s*\|\s*/, '')
-    .replace(/\(S[12]\):\s*<d>[\s\S]*?<\/d>/g, '')
-    .replace(/^[\s.·\-–—]*\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}\s*[.\-–—]*\s*/i, '')
-    .replace(/^\s*\(\s*\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}\s*\)\s*[.\-–—]*\s*/i, '')
+    .replace(/\(S[12]\):\s*<d>[\s\S]*?<\/d>/g, ' ')
+    .replace(/\|\s*(?:CAM|LOCATION|BODY|POSITIONS|ACTION|CLOTHING(?:\s+STATE)?|EMOTIONAL BEAT)\s*:[^|\n]*/gi, ' ')
+    .replace(/(?:CAM|LOCATION|BODY|POSITIONS|ACTION|CLOTHING(?:\s+STATE)?|EMOTIONAL BEAT)\s*:[^|\n]*/gi, ' ')
+    .replace(/\|\s*/g, ' ')
+    .replace(/\b\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}\b/g, ' ')
+    .replace(/[|·•]+/g, ' ')
     .replace(/\s+/g, ' ')
     .split(/(?<=[.!?])\s+/)[0]
     .slice(0, 220)
-    .replace(/\s+\S*$/, '')
+    .replace(/[,\s]+$/, '')
     .trim();
   const prompt = `subject_definitions:
 <Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1. Picture 1 defines face, hair, hairstyle, skin tone, body proportions and breast size/shape ONLY. ${wardrobeRule} ${sceneAnchor} Clothing, undressing and nudity follow the detailed_description exactly; never reset clothing at a segment boundary.

@@ -36,6 +36,8 @@ function cleanBeat(raw: string): string {
     .replace(/^\s*(?:TITLE|SETTING|Clothing tracked)\s*[:：][^\n]*\n?/gmi, '')
     .replace(/^\s*\d+\.\s*(?:\(?\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}\)?)?\s*/i, '')
     .replace(/^\s*\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}\s*\|?\s*/i, '')
+    // 去掉正文中间残留的管道时间字段 `| 0:05–0:10 |`，避免与前置时间戳重复。
+    .replace(/\|\s*\d{1,2}[:.]\d{2}\s*[-–—]\s*\d{1,2}[:.]\d{2}\s*\|/gi, ' ')
     .replace(/\s*\((?:her|his) voice:[^)]*\)/gi, '')
     .replace(/^\s*FADE OUT\b[^\n]*\n?/gmi, '')
     .replace(/^\s*AFTERGLOW\b[^\n]*\n?/gmi, '')
@@ -50,6 +52,9 @@ function cleanBeat(raw: string): string {
     .replace(/^(?!.*<d>).*[\u4e00-\u9fff].*$/gm, '')
     .replace(/^\s*Voice\s*[:：][^\n]*$/gmi, '')
     .replace(/([:：])\s*[\u4e00-\u9fff][^\n]*/g, '$1')
+    // 清除没有 <d> 的“语气/情绪”孤儿行：如 "Whispered, greedy." "Flat, close." "Breaking."
+    // H3 只朗读 <d> 内台词；这些碎片既不是台词也不是画面描述，只会污染镜头正文。
+    .replace(/^[ \t]*(?:whispered|murmured|muttered|growled|rasped|snapped|ordered|commanded|begged|sobbed|moaned|gasped|panted|chuckled|laughed|grunted|breaking|sobbing|pleading|voice|tone|breath|soft|flat|cold|low|high|quiet|hoarse|contemptuous|smug|wet|trembling|thin|sharp|tearful|shrinking|broken|tight|easy|calm|greedy|hungry|uneasy|fear|panic)[^.\n]{0,40}\.?[ \t]*$/gmi, '')
     .trim();
 }
 
