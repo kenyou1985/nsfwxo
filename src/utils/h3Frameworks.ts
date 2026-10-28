@@ -315,6 +315,13 @@ export function extractScriptLocations(text: string): string[] {
     if (en) push(en);
   }
   if (out.length) return out;
+  // 2b) 没有介词的裸地点名词（如主题“小巷子 脚手架”）：按出现顺序扫描。
+  const bare = Object.keys(CN_PLACE_MAP)
+    .map((k) => ({ k, i: raw.indexOf(k) }))
+    .filter((x) => x.i >= 0)
+    .sort((a, b) => a.i - b.i);
+  for (const { k } of bare) push(CN_PLACE_MAP[k]);
+  if (out.length) return out;
   // 3) 英文地点介词短语：in/at/on/inside the X
   const re = /\b(?:in|at|on|inside|through|into)\s+the\s+([a-z][a-z\s-]{2,30})/gi;
   let mm: RegExpExecArray | null;

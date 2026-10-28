@@ -98,6 +98,8 @@ function cleanBeat(raw: string): string {
     .replace(/\(S[12]\)(?!\s*:\s*<d>)/g, ' ')
     // 正文自带的单时间戳一律去掉，由模板统一重建，避免 01:06.000 01:00.000。
     .replace(/^\s*\d{2}:\d{2}\.\d{3}\s*/, '')
+    // 抽象情绪标签 "Beat: ..." 不是画面，H3 容易读成英语旁白，整段删除。
+    .replace(/\bBeat\s*:\s*[^.\n]*\.?/gi, ' ')
     // 行内孤儿声线提示：he low, not yet for her: / she uncertain: / he close, calm:
     // 只在后面紧跟 Tone/<d>/(Sx)/标点/行尾时删除，避免误删正常叙述。
     .replace(/\b(?:he|she)\s+[^.:\n]{0,45}:\s*(?=Tone\s*[:：]|\(S[12]\)|<d>|[.;])/gi, ' ')

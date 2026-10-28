@@ -1248,7 +1248,15 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
   const wardrobeAnchorItems = extractWardrobe(`${script}\n${themeHint}`);
   const wardrobeAnchor = wardrobeAnchorItems ? `Wardrobe from the current theme: ${wardrobeAnchorItems}; keep these colors and pieces consistent until they are removed.` : '';
   const shotRule = 'One shot = one continuous camera setup and one continuous action. Never combine two camera angles, an internal cut, or two locations inside one shot. Each shot fixes one camera position and one facing direction per person; do not describe a body part the camera cannot see from that position; this prevents overlapping bodies and broken anatomy.';
-  const framedShots = detected === 'coercive' && hasMan ? ensureCoerciveArc(shots, sceneText, shotCount) : shots;
+  let framedShots = detected === 'coercive' && hasMan ? ensureCoerciveArc(shots, sceneText, shotCount) : shots;
+  // 裸体状态持久化：从“全部脱光”那一镜开始，后续每镜都显式标注两人全裸，
+  // 防止 H3 在分段边界把衣服“穿回去”。
+  let nudeFrom = -1;
+  framedShots = framedShots.map((s, i) => {
+    if (nudeFrom < 0 && /(?:strips? the last garment|completely nude|no clothing remains|fully nude too)/i.test(s)) nudeFrom = i;
+    if (nudeFrom >= 0 && i > nudeFrom) return `${s} Both are fully nude; no clothing on either body.`;
+    return s;
+  });
 
   const actualShots = Math.max(12, Math.min(30, shotCount));
   const duration = actualShots >= 30 ? 180 : actualShots >= 20 ? 120 : 60;
