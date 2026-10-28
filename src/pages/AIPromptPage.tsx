@@ -3,6 +3,7 @@ import { extractVideoPromptFromImagePrompt } from '../utils/videoPromptExtractor
 import { normalizeKrea2Prompt } from '../utils/krea2Prompt';
 import { normalizeH3Script, normalizeDialogueSpeakers, normalizeH3PromptStructure } from '../utils/h3ScriptNormalizer';
 import { applyFramework, detectFramework, ensureCoerciveArc, H3_FRAMEWORKS, enforceH3Speakers, cleanSpeakerProse } from '../utils/h3Frameworks';
+import { structureTimeline, renderTimeline, renderContinuityReport } from '../utils/h3Structured';
 import { makeThumbnailForStorage, makePreviewForStorage } from '../utils/imageThumbnail';
 import { AspectAwareImage } from '../components/AspectAwareImage';
 import { OneClickProduce } from '../components/OneClickProduce';
@@ -1199,15 +1200,18 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
 
   const actualShots = Math.max(12, Math.min(30, shotCount));
   const duration = actualShots >= 30 ? 180 : actualShots >= 20 ? 120 : 60;
-  const body = framedShots.slice(0, actualShots).map((shot, i) => {
-    const sec = i === 0 ? 0 : (i * (duration - 5)) / Math.max(1, Math.min(actualShots, framedShots.length) - 1);
-    const stamp = `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(Math.floor(sec % 60)).padStart(2, '0')}.000`;
-    return `[Shot ${i + 1}] ${stamp} ${shot}`;
-  }).join('\n');
+  // 结构化时间轴：每镜显式 Start 状态 → 动作 → End 状态，下一镜只继承 End。
+  const timeline = structureTimeline(framedShots.slice(0, actualShots), {
+    sceneAnchor: sceneAnchor,
+    hasMan,
+    durationSec: duration,
+  });
+  const body = renderTimeline(timeline);
+  const continuityReport = renderContinuityReport(timeline);
 
   const subject2 = hasMan
     ? (malePicture
-      ? '<Subject 2> is @Man <Picture 2> — the exact adult man shown in Picture 2, wearing the clothing shown in Picture 1 or the source scene, no bicycle. Preserve his face, hair, body proportions and identity from Picture 2; face kept off extreme close-up. All S2 lines are clear natural Mandarin Chinese, spoken in a low adult male voice; no gibberish, no English, no mumbling. If the detailed_description reaches the undress beat, he removes his trousers and boxers and is fully nude from that shot onward.'
+      ? '<Subject 2> is @Man <Picture 2> — the exact adult man shown in Picture 2, wearing the clothing from Picture 2, or the clothing described by the current theme, no bicycle. Preserve his face, hair, body proportions and identity from Picture 2; face kept off extreme close-up. All S2 lines are clear natural Mandarin Chinese, spoken in a low adult male voice; no gibberish, no English, no mumbling. If the detailed_description reaches the undress beat, he removes his trousers and boxers and is fully nude from that shot onward.'
       : '<Subject 2> is @Man — the adult man in the scene, wearing a dark shirt and dark trousers, no bicycle. Do NOT default to any race or skin tone. Preserve his identity if a male reference is present; face kept off extreme close-up. All S2 lines are clear natural Mandarin Chinese, spoken in a low adult male voice; no gibberish, no English, no mumbling. If the detailed_description reaches the undress beat, he removes his trousers and boxers and is fully nude from that shot onward.')
     : '';
 
@@ -1256,7 +1260,8 @@ overall_soundscape: Location ambience, fabric friction, breathing and the physic
 non_diegetic_music: None
 speaker_mapping: ${speakerMap}`;
 
-  return cleanSpeakerProse(sanitizeAgeTerms(enforceH3Speakers(applyFramework(normalizeDialogueSpeakers(normalizeH3PromptStructure(prompt, { shotCount: actualShots })), framework))));
+  const finalPrompt = cleanSpeakerProse(sanitizeAgeTerms(enforceH3Speakers(applyFramework(normalizeDialogueSpeakers(normalizeH3PromptStructure(prompt, { shotCount: actualShots })), framework))));
+  return `${finalPrompt}\n\n${continuityReport}`;
 }
 
 /**
