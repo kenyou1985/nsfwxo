@@ -200,6 +200,13 @@ export interface PositionPlan {
 /** 按场景选择三种插入姿势；只决定“可用空间”，不覆盖主题动作。 */
 export function pickPenetrationPositions(context: string): PositionPlan {
   const t = String(context || '');
+  if (/(elevator|lift|escalator|电梯|扶梯)/i.test(t)) {
+    return {
+      p1: 'against the elevator wall, one leg lifted, taken from the front',
+      p2: 'bent over the elevator handrail, taken from behind in the same car',
+      p3: 'down on the elevator floor in missionary, the same car around them',
+    };
+  }
   if (/(classroom|lecture|blackboard|desk|podium|教室|讲台|黑板|课桌)/i.test(t)) {
     const hasChair = /(chair|stool|椅子|凳子|椅)/i.test(t);
     const hasDesk = /(desk|table|podium|讲台|课桌|桌)/i.test(t);
