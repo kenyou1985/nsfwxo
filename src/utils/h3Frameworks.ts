@@ -350,8 +350,15 @@ export function ensureCoerciveArc(shots: string[], context = '', targetShots = 1
   const headCount = targetShots >= 20 ? Math.min(8, targetShots - 8) : 4;
   // LLM 剧本过短时不能直接失败：用中性“接近/尾随”镜头补齐前戏，保证最终镜头数达到 targetShots。
   const rawHead = shots.slice(0, headCount);
-  while (rawHead.length < headCount) {
-    rawHead.push('At the same location, he stays close behind her without touching; she remains clothed and unaware of what comes next.');
+  // 剧本过短时用“不同”的中性接近镜头补齐，避免同一句重复 6 次被 H3 当成循环台词/音频污染。
+  const headFillers = [
+    'He keeps pace behind her at a distance, eyes on her, still not touching; she remains clothed and unaware.',
+    'He closes the gap by one step as the light shifts; she glances back but sees only shadow, and keeps walking.',
+    'He pauses at the corner, lets her round it first, then follows; her clothes stay on, her breath quickening.',
+    'He matches her pace through the turn, keeping out of sight; the tension tightens without contact.',
+  ];
+  for (let i = 0; rawHead.length < headCount; i++) {
+    rawHead.push(headFillers[i % headFillers.length]);
   }
   // 前戏阶段强制女性“仍穿衣服”：把过早的全裸/露点描述改回“仍穿着”，
   // 真正脱光只由 tail[0]（He strips the last garment...）在正式性行为前触发一次。

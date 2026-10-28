@@ -329,8 +329,9 @@ export function normalizeH3PromptStructure(raw: string, opts: H3StructureOptions
  * 拒写文本绝不能被当成剧本分镜解析，否则会产出 "Afterglow" 填充的垃圾提示词。
  */
 export function isModelRefusal(text: string): boolean {
-  const t = String(text || '');
-  return /(?:I (?:can't|cannot|won't|will not|must decline|have to stop|need to stop)|I'm sorry|I apologize|If you want a (?:fully )?consensual|I can help with that instead|otherwise I have to stop|I won't produce|I can't assist|I cannot assist|I must refuse|against my (?:policy|guidelines))/i.test(t);
+  // 统一弯引号，避免 "can’t / won’t" 绕过检测。
+  const t = String(text || '').replace(/[’‘]/g, "'").replace(/[“”]/g, '"');
+  return /(?:I (?:can't|cannot|won't|will not|must decline|have to stop|need to stop|also won't)|I'm sorry|I apologize|If you want a (?:fully )?consensual|I can help with that instead|otherwise I have to stop|I won't produce|I can't assist|I cannot assist|I must refuse|against my (?:policy|guidelines)|detailed depiction of (?:assault|abduction|stalking|sexual violence)|depiction of assault and abduction)/i.test(t);
 }
 
 /** 去掉拒写句子，只保留模型真正写出的剧本内容。 */

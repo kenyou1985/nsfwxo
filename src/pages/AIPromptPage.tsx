@@ -1154,10 +1154,10 @@ function extractWardrobe(text: string): string {
   const push = (v: string) => {
     if (!v) return;
     // 同一颜色同一服装只保留一个；优先保留 ultra-mini 版本。
-    const key = v.toLowerCase().replace(/ultra-mini|mini/g, '').replace(/\s+/g, ' ').trim();
-    const existing = found.findIndex((x) => x.toLowerCase().replace(/ultra-mini|mini/g, '').replace(/\s+/g, ' ').trim() === key);
+    const key = v.toLowerCase().replace(/ultra-mini|mini|low-cut/g, '').replace(/blouse/g, 'shirt').replace(/\s+/g, ' ').trim();
+    const existing = found.findIndex((x) => x.toLowerCase().replace(/ultra-mini|mini|low-cut/g, '').replace(/blouse/g, 'shirt').replace(/\s+/g, ' ').trim() === key);
     if (existing >= 0) {
-      if (/ultra-mini/i.test(v) && !/ultra-mini/i.test(found[existing])) found[existing] = v;
+      if ((/ultra-mini/i.test(v) && !/ultra-mini/i.test(found[existing])) || v.length > found[existing].length) found[existing] = v;
       return;
     }
     found.push(v);
@@ -1190,6 +1190,17 @@ function extractWardrobe(text: string): string {
 export function buildH3FromScript(script: string, hasMan: boolean, malePicture: boolean, shotCount = 12, themeHint = ''): string {
   // 剧本里出现 he/his/him 也证明有男性；否则会被误判 solo，导致男声缺失。
   hasMan = hasMan || /\b(he|his|him)\b|\b(man|male)\b|黑人|黑男|男人|男性|男子|男/i.test(script);
+  // 所有入口统一处理 LLM 拒写：剥离拒写句子；若几乎全是拒写，就用当前主题兜底剧本，
+  // 绝不让拒写文本进入分镜/音频。
+  if (isModelRefusal(script)) {
+    const cleaned = stripModelRefusal(script);
+    if (cleaned.length < 200) {
+      const fb = buildFallbackScript(themeHint || script);
+      if (fb) script = fb;
+    } else {
+      script = cleaned;
+    }
+  }
   script = unifySingleMale(sanitizeAgeTerms(script));
   // 场景检测同时看“剧本 + 用户主题”，避免 LLM 漏写小黑屋/室内导致场景只停在巷子。
   const sceneText = `${script}\n${themeHint}`;
@@ -1205,6 +1216,9 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
   const detected = detectFramework(script, hasMan);
   const sceneAnchor = `${deriveSceneAnchor(sceneText)} Only one male is in frame: Subject 2; no second man, no clone, no extra male touching her.`;
   const wardrobeRule = 'Clothing comes from the current theme description. If the theme does not specify an item, use the clothing visible in Picture 1. Do not invent colors or garments.';
+  // 从当前主题/剧本提取一次服装锚点（不是硬编码锁），只写在 Subject/summary，防止 H3 中途换色。
+  const wardrobeAnchorItems = extractWardrobe(`${script}\n${themeHint}`);
+  const wardrobeAnchor = wardrobeAnchorItems ? `Wardrobe from the current theme: ${wardrobeAnchorItems}; keep these colors and pieces consistent until they are removed.` : '';
   const shotRule = 'One shot = one continuous camera setup and one continuous action. Never combine two camera angles, an internal cut, or two locations inside one shot; this prevents overlapping bodies and broken anatomy.';
   const framedShots = detected === 'coercive' && hasMan ? ensureCoerciveArc(shots, sceneText, shotCount) : shots;
 
@@ -1255,11 +1269,11 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
     .replace(/[,\s]+$/, '')
     .trim();
   const prompt = `subject_definitions:
-<Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1. Picture 1 defines face, hair, hairstyle, skin tone, body proportions and breast size/shape ONLY. ${wardrobeRule} ${shotRule} ${sceneAnchor} Clothing, undressing and nudity follow the detailed_description exactly; never reset clothing at a segment boundary.
+<Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1. Picture 1 defines face, hair, hairstyle, skin tone, body proportions and breast size/shape ONLY. ${wardrobeRule} ${wardrobeAnchor} ${shotRule} ${sceneAnchor} Clothing, undressing and nudity follow the detailed_description exactly; never reset clothing at a segment boundary.
 ${subject2}
 
 summary:
-[reference generation] The video follows the current theme exactly, shot by shot, with the same people and location. ${frameworkHint} ${sceneAnchor} ${wardrobeRule} ${shotRule} ${summaryFirst} The sequence ends with the final beat written in the screenplay; no action is added or substituted by a template. No scene change, no character change, no extra person.
+[reference generation] The video follows the current theme exactly, shot by shot, with the same people and location. ${frameworkHint} ${sceneAnchor} ${wardrobeRule} ${wardrobeAnchor} ${shotRule} ${summaryFirst} The sequence ends with the final beat written in the screenplay; no action is added or substituted by a template. No scene change, no character change, no extra person.
 
 retention_analysis:
 <Subject 1> <Picture 1>: fully_preserved — identity, face, hair and body come from the reference image. Clothing state is controlled only by the detailed_description.
