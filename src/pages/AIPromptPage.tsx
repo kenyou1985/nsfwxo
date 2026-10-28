@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { extractVideoPromptFromImagePrompt } from '../utils/videoPromptExtractor';
 import { normalizeKrea2Prompt } from '../utils/krea2Prompt';
-import { normalizeH3Script, normalizeDialogueSpeakers, normalizeH3PromptStructure, isModelRefusal, stripModelRefusal } from '../utils/h3ScriptNormalizer';
+import { normalizeH3Script, normalizeDialogueSpeakers, normalizeH3PromptStructure, isModelRefusal, stripModelRefusal, stripOrphanSpeech } from '../utils/h3ScriptNormalizer';
 import { selfCheckH3Prompt } from '../utils/h3SelfCheck';
 import { applyFramework, detectFramework, ensureCoerciveArc, H3_FRAMEWORKS, enforceH3Speakers, cleanSpeakerProse, extractScriptLocations } from '../utils/h3Frameworks';
 import { makeThumbnailForStorage, makePreviewForStorage } from '../utils/imageThumbnail';
@@ -1221,10 +1221,26 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
   const remainingAction = (x: string) => {
     const m = x.match(GENERIC_SHOT_RE);
     const rest = m ? x.slice(m[0].length) : x;
-    return rest.replace(/He is still fully clothed[^.]*\./i, '').replace(/she holds her pose[^.]*\./i, '').trim();
+    return stripOrphanSpeech(rest).replace(/He is still fully clothed[^.]*\./i, '').replace(/she holds her pose[^.]*\./i, '').trim();
   };
   const placeholderCount = shots.filter((x) => remainingAction(x).length < 10).length;
   if (shots.length >= 4 && placeholderCount / shots.length >= 0.7) return '';
+  // 开头 8 镜若大量是空壳/纯旁白，说明 LLM 没真正产出剧情，直接判失败提示重生成。
+  const headShots = shots.slice(0, 8);
+  const isHeadPlaceholder = (x: string) => {
+    const m = x.match(GENERIC_SHOT_RE);
+    const rest = stripOrphanSpeech(m ? x.slice(m[0].length) : x)
+      .replace(/He is still fully clothed[^.]*\./i, '')
+      .replace(/Fully clothed\.?/i, '')
+      .trim();
+    if (rest.length < 10) return true;
+    // 只有形容词/语气碎片（Soft, uncertain...）没有“谁+动作” → 视为空壳。
+    const hasActorAction = /\b(?:she|he|her|his)\b\s+\w+/i.test(rest)
+      || /\b(?:walks?|follows?|films?|grabs?|pins?|strips?|fucks?|drives?|kneels?|forces?|drags?|bends?|thrusts?|enters?|holds?|reaches?|turns?|lifts?|pushes?|pulls?)\b/i.test(rest);
+    return !hasActorAction;
+  };
+  const headPlaceholder = headShots.filter(isHeadPlaceholder).length;
+  if (headShots.length >= 4 && headPlaceholder >= Math.ceil(headShots.length * 0.6)) return '';
   const detected = detectFramework(script, hasMan);
   const sceneAnchor = `${deriveSceneAnchor(sceneText)} Only one male is in frame: Subject 2; no second man, no clone, no extra male touching her.`;
   const wardrobeRule = 'Clothing comes from the current theme description. If the theme does not specify an item, use the clothing visible in Picture 1. Do not invent colors or garments.';

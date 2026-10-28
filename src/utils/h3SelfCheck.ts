@@ -83,12 +83,20 @@ export function selfCheckH3Prompt(raw: string): SelfCheckResult {
       // 只有台词没有画面的镜头：补一句承接动作，避免 H3 生成静止空镜。
       const visual = body.replace(/\(S[12]\):\s*<d>[\s\S]*?<\/d>/g, '').replace(/<d>[\s\S]*?<\/d>/g, '').trim();
       if (visual.length < 15) {
-        const fillers = [
+        const dlg = (body.match(/<d>([\s\S]*?)<\/d>/) || [])[1] || '';
+        const sexCtx = /夹紧|转过来|腿抬好|自己动|含深点|张嘴|别躲|接好|又要去了|受不了|好深|轻点|不要停/.test(dlg);
+        const sexFillers = [
+          'He drives into her from behind, hips snapping, one hand in her hair.',
+          'He holds her hips and fucks her harder, the steel creaking under them.',
+          'He pins her to the pole and thrusts deep, breathing at her ear.',
+        ];
+        const neutralFillers = [
           'He keeps her in place at the same spot, body close, still holding her.',
           'He holds her still, one hand on her hip, the other braced on the steel.',
           'He keeps her pinned where she is, breathing close to her ear.',
         ];
-        body = `${fillers[shots.length % fillers.length]} ${body}`.trim();
+        const arr = sexCtx ? sexFillers : neutralFillers;
+        body = `${arr[shots.length % arr.length]} ${body}`.trim();
         issues.push('dialogue-only');
       }
       const key = body.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();

@@ -22,9 +22,27 @@ const NUDE_RE = /she is (?:now )?(?:completely|fully) nude|she's (?:now )?(?:com
 
 // 删除“没有 <d> 绑定的说话/嗓音描述”句，避免 H3 把英文旁白读出来。
 export function stripOrphanSpeech(text: string): string {
-  const parts = String(text || '').split(/(?<=[.!?])\s+/);
-  const kept = parts.filter((p) => /<d>/.test(p) || !/\b(?:voice|whisper\w*|mutter\w*|murmur\w*|under (?:his|her) breath|says?|answers?|commands?|orders?|tone|cries out|moans?|gasps?)\b/i.test(p));
-  return kept.join(' ');
+  // 先按 <d>...</d> 切开：台词原样保留，台词外的句子再逐句删“嗓音/说话”旁白。
+  // 这样 "(S1): <d>...</d> His voice is a low mutter." 里的旁白也会被删掉。
+  return String(text || '')
+    .split(/(<d>[\s\S]*?<\/d>)/g)
+    .map((part) => {
+      if (/^<d>/.test(part)) return part;
+      return part
+        .split(/(?<=[.!?])\s+/)
+        .filter((p) => {
+          const t = p.trim();
+          if (!t) return false;
+          // 有说话/嗓音关键词 → 旁白
+          if (/\b(?:voice|whisper\w*|mutter\w*|murmur\w*|under (?:his|her) breath|says?|answers?|commands?|orders?|tone|cries out|moans?|gasps?)\b/i.test(t)) return false;
+          // 只有“语气形容词 + 短句”，没有谁+动作 → 语气残片
+          if (t.length < 60 && !/\b(?:she|he|her|his)\b\s+\w+/i.test(t)
+            && /^(?:soft|flat|sharp|breaking|uncertain|quiet|low|cold|high|thin|hoarse|strained|greedy|hungry|calm|uneasy|panicked|desperate|shrill|broken|small|tight|easy|wet|trembling|tearful|breathless|furious|scared|terrified|trying|almost|not yet)\b/i.test(t)) return false;
+          return true;
+        })
+        .join(' ');
+    })
+    .join('');
 }
 
 function cleanBeat(raw: string): string {
@@ -66,6 +84,7 @@ function cleanBeat(raw: string): string {
     // 同一分镜写两个画面，是 H3 人体错位/多人体粘连的主因。只保留第一个机位和连续动作。
     .replace(/(?:[,;]\s*)?then\s+(?:cut|whip|rack[- ]?focus|tilt|track(?:ing)?|push[- ]?in|punch[- ]?in|reverse|pan|zoom|dolly|pull[- ]?back|snap)\b[^.;\n]*/gi, '')
     .replace(/(?:[,;]\s*)?then\s+(?:a\s+)?(?:low angle|tight two-shot|tight shot|tight on|medium shot|medium on|wide shot|wide on|close[- ]up|close up|close on|extreme close|ECU|CU|overhead|side angle|reverse angle|reverse shot|handheld|steadicam|two-shot|insert|tracking|dolly|push in|pull back)\b[^.;\n]*/gi, '')
+    .replace(/(?:[,;.]\s*)?then\s+a\s+(?:whip[- ]?pan|cut|tilt|pan|zoom|push[- ]?in|rack[- ]?focus|dolly|reverse)\b[^.;\n]*/gi, '')
     .replace(/(?:[,;]\s*)?(?:hard\s+)?cut\s+(?:back\s+)?to\b[^.;\n]*/gi, '')
     .replace(/\bSplit\s*:\s*/gi, '')
     // 清掉句子被截断后的 "then a ." / "then a," 残片
