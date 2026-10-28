@@ -1118,24 +1118,24 @@ function sanitizeAgeTerms(text: string): string {
     .replace(/\bThe the adult man\b/g, 'The adult man');
 }
 
-function extractSceneLock(text: string): string {
+function deriveSceneAnchor(text: string): string {
   const t = String(text || '');
-  if (/(elevator|lift|escalator|mall|电梯|扶梯|商场)/i.test(t)) {
-    return 'Location lock: the same mall escalator, corridor and elevator car throughout; no subway, no bedroom, no room, no new interior.';
+  // 场景只从当前主题/剧本提取，不再维护“主题→固定锁”的分支表。
+  const explicit = [
+    'elevator', 'escalator', 'mall', 'subway', 'metro', 'train', 'classroom',
+    'office', 'bedroom', 'kitchen', 'bathroom', 'hotel', 'apartment', 'house',
+    'sofa', 'bed', 'pool', 'park', 'street', 'alley', 'rooftop', 'beach', 'forest',
+    '电梯', '扶梯', '商场', '地铁', '车厢', '教室', '办公室', '卧室', '厨房',
+    '浴室', '酒店', '公寓', '沙发', '床', '泳池', '公园', '街道', '巷子', '天台',
+  ].find((w) => new RegExp(w, 'i').test(t));
+  if (explicit) {
+    return `Scene: the ${explicit} described by the current theme; keep that same place from Shot 1 to the end.`;
   }
-  if (/(subway|metro|train|carriage|地铁|车厢|列车)/i.test(t)) {
-    return 'Location lock: the same packed subway car throughout; same pole, aisle and seats; no bedroom, room, bed or private interior.';
-  }
-  if (/(classroom|lecture|blackboard|podium|教室|讲台|黑板)/i.test(t)) {
-    return 'Location lock: the same classroom throughout; same blackboard, podium and existing furniture; no bedroom or new room.';
-  }
-  if (/(office|办公|办公室)/i.test(t)) {
-    return 'Location lock: the same office throughout; existing desk, chair and walls only; no bedroom or new room.';
-  }
-  if (/(kitchen|厨房)/i.test(t)) {
-    return 'Location lock: the same kitchen throughout; existing counter and stools only; no bedroom or new room.';
-  }
-  return 'Location lock: the same current location throughout; no scene change, no new room, no new furniture.';
+  const indoor = /(indoor|inside|room|interior|室内|房间|屋里|公寓|酒店|浴室|卧室|厨房|电梯|商场)/i.test(t);
+  const outdoor = /(outdoor|outside|street|alley|park|beach|forest|rooftop|室外|户外|街道|巷子|公园|海边|天台)/i.test(t);
+  if (indoor) return 'Scene: indoors, in the location described by the current theme; keep the same interior from Shot 1 to the end.';
+  if (outdoor) return 'Scene: outdoors, in the location described by the current theme; keep the same exterior from Shot 1 to the end.';
+  return 'Scene: the location described by the current theme; keep the same place from Shot 1 to the end.';
 }
 
 function extractWardrobe(text: string): string {
@@ -1193,7 +1193,7 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
   if (shots.length < 8) return '';
 
   const detected = detectFramework(script, hasMan);
-  const sceneLock = `${extractSceneLock(script)} Only one male is in frame: Subject 2; no second man, no clone, no extra male touching her.`;
+  const sceneAnchor = `${deriveSceneAnchor(script)} Only one male is in frame: Subject 2; no second man, no clone, no extra male touching her.`;
   const wardrobeRule = 'Clothing comes from the current theme description. If the theme does not specify an item, use the clothing visible in Picture 1. Do not invent colors or garments; never reset clothing at a segment boundary.';
   const framedShots = detected === 'coercive' && hasMan ? ensureCoerciveArc(shots, script, shotCount) : shots;
 
@@ -1237,11 +1237,11 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
     .replace(/\s+\S*$/, '')
     .trim();
   const prompt = `subject_definitions:
-<Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1. Picture 1 defines face, hair, hairstyle, skin tone, body proportions and breast size/shape ONLY. ${wardrobeRule} ${sceneLock} Clothing, undressing and nudity follow the detailed_description exactly; never reset clothing at a segment boundary.
+<Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1. Picture 1 defines face, hair, hairstyle, skin tone, body proportions and breast size/shape ONLY. ${wardrobeRule} ${sceneAnchor} Clothing, undressing and nudity follow the detailed_description exactly; never reset clothing at a segment boundary.
 ${subject2}
 
 summary:
-[reference generation] The video follows the current theme exactly, shot by shot, with the same people and location. ${frameworkHint} ${sceneLock} ${wardrobeRule} ${summaryFirst} The sequence ends with the final beat written in the screenplay; no action is added or substituted by a template. No scene change, no character change, no extra person.
+[reference generation] The video follows the current theme exactly, shot by shot, with the same people and location. ${frameworkHint} ${sceneAnchor} ${wardrobeRule} ${summaryFirst} The sequence ends with the final beat written in the screenplay; no action is added or substituted by a template. No scene change, no character change, no extra person.
 
 retention_analysis:
 <Subject 1> <Picture 1>: fully_preserved — identity, face, hair and body come from the reference image. Clothing state is controlled only by the detailed_description.
