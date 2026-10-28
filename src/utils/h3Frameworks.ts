@@ -251,6 +251,32 @@ function isSubpartOnly(loc: string): boolean {
   return words.length > 0 && words.every((w) => SUBPART_WORDS.includes(w));
 }
 
+export function collapseLocations(items: string[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of items) {
+    const v = String(raw || '').trim();
+    if (!v) continue;
+    if (/^(?:same(?:\s+(?:as above|location|place))?|同上|同一地点|原地)$/i.test(v)) continue;
+    const head = placeHeadNoun(v);
+    if (!head && isSubpartOnly(v)) continue;
+    const display = head ? (head === 'scaffold' ? 'scaffolding' : head) : v;
+    const key = (head || v).toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(display);
+  }
+  return out;
+}
+
+export function translateChineseTerms(text: string): string {
+  let out = String(text || '');
+  for (const k of Object.keys(CN_PLACE_MAP).sort((a, b) => b.length - a.length)) {
+    out = out.split(k).join(CN_PLACE_MAP[k]);
+  }
+  return out;
+}
+
 export function extractScriptLocations(text: string): string[] {
   const raw = String(text || '');
   const out: string[] = [];

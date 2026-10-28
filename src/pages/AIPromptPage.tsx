@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { extractVideoPromptFromImagePrompt } from '../utils/videoPromptExtractor';
 import { normalizeKrea2Prompt } from '../utils/krea2Prompt';
 import { normalizeH3Script, normalizeDialogueSpeakers, normalizeH3PromptStructure, isModelRefusal, stripModelRefusal } from '../utils/h3ScriptNormalizer';
+import { selfCheckH3Prompt } from '../utils/h3SelfCheck';
 import { applyFramework, detectFramework, ensureCoerciveArc, H3_FRAMEWORKS, enforceH3Speakers, cleanSpeakerProse, extractScriptLocations } from '../utils/h3Frameworks';
 import { makeThumbnailForStorage, makePreviewForStorage } from '../utils/imageThumbnail';
 import { AspectAwareImage } from '../components/AspectAwareImage';
@@ -1299,7 +1300,19 @@ overall_soundscape: Location ambience, fabric friction, breathing and the physic
 non_diegetic_music: None
 speaker_mapping: ${speakerMap}`;
 
-  return cleanSpeakerProse(sanitizeAgeTerms(enforceH3Speakers(applyFramework(normalizeDialogueSpeakers(normalizeH3PromptStructure(prompt, { shotCount: actualShots })), framework))));
+  const assembled = cleanSpeakerProse(sanitizeAgeTerms(enforceH3Speakers(applyFramework(normalizeDialogueSpeakers(normalizeH3PromptStructure(prompt, { shotCount: actualShots })), framework))));
+  // 第二次自检：按框架规则再清洗一次，确保可直接生视频。
+  const checked = selfCheckH3Prompt(assembled);
+  if (checked.issues.length) {
+    console.info('[h3-selfcheck]', checked.issues.join(', '));
+  }
+  H3_LAST_SELF_CHECK = checked.issues;
+  return checked.prompt;
+}
+
+export let H3_LAST_SELF_CHECK: string[] = [];
+export function getLastSelfCheckIssues(): string[] {
+  return H3_LAST_SELF_CHECK.slice();
 }
 
 /**
@@ -1811,6 +1824,8 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               }
             }
             if (!h3) throw new Error('模型未产出有效分镜（可能触发内容审核或被截断）；请切换模型或改写主题后重试');
+            const scIssues = getLastSelfCheckIssues();
+            if (scIssues.length) onSuccess(`已按框架自检清洗：${scIssues.join(' / ')}`);
 
             return { index: i, id: ids[i], prompt: h3, error: null };
           } catch (err) {

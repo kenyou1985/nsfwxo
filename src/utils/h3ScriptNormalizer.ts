@@ -21,7 +21,7 @@ const CLOTHING_NOUNS = 'top|bra|shirt|blouse|skirt|jeans|panties|thong|underwear
 const NUDE_RE = /she is (?:now )?(?:completely|fully) nude|she's (?:now )?(?:completely|fully) nude|no clothing remains|stays? nude/i;
 
 // 删除“没有 <d> 绑定的说话/嗓音描述”句，避免 H3 把英文旁白读出来。
-function stripOrphanSpeech(text: string): string {
+export function stripOrphanSpeech(text: string): string {
   const parts = String(text || '').split(/(?<=[.!?])\s+/);
   const kept = parts.filter((p) => /<d>/.test(p) || !/\b(?:voice|whisper\w*|mutter\w*|murmur\w*|under (?:his|her) breath|says?|answers?|commands?|orders?|tone|cries out|moans?|gasps?)\b/i.test(p));
   return kept.join(' ');
