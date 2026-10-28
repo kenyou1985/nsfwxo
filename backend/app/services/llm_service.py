@@ -402,12 +402,10 @@ async def _stream_model_single(
                 yield text_piece
 
             if refusal_detected:
-                if retry < MAX_RETRIES - 1:
-                    await asyncio.sleep(_RETRY_BASE_DELAY)
-                    last_error = OpenLuxAPIError("模型拒绝（流式）")
-                    continue
+                # 内容审核拒写：同一个模型重试没有意义，立即抛出让上层切换到下一个模型，
+                # 避免用户在前端一直转圈等 1-3 分钟。
                 raise OpenLuxAPIError(
-                    "模型拒绝了请求（可能因内容审核）"
+                    f"模型 {model_name} 拒绝（流式，内容审核）"
                 )
             return  # Successful stream completion
         except AuthenticationError as e:

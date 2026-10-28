@@ -50,7 +50,9 @@ export function selfCheckH3Prompt(raw: string): SelfCheckResult {
   const t1 = text;
   text = text
     .replace(/^[ \t]*(?:Body positions?|Physical action|Clothing state|Emotional beat|Positions?)\s*[:：]\s*/gmi, '')
-    .replace(/^[ \t]*(?:Location|Camera|Body|Action|Clothing)\s*[:：]\s*/gmi, '');
+    .replace(/^[ \t]*(?:Location|Camera|Body|Action|Clothing)\s*[:：]\s*/gmi, '')
+    .replace(/\b(?:LOCATION|BODY|CLOTHING|ACTION|POSITIONS?|EMOTIONAL(?:\s+BEAT)?)\s*[:：]\s*/g, ' ')
+    .replace(/\b(?:EMOTIONAL|Emotional)\b\s*[:：]?\s*/g, ' ');
   if (text !== t1) issues.push('labels');
 
   // 4) Scene 地点列表按中心名词归一
@@ -81,7 +83,11 @@ export function selfCheckH3Prompt(raw: string): SelfCheckResult {
       // 清洗后不能变空镜：退回原始正文，保持镜头数不变。
       if (!body) body = originalBody;
       // 只有台词没有画面的镜头：补一句承接动作，避免 H3 生成静止空镜。
-      const visual = body.replace(/\(S[12]\):\s*<d>[\s\S]*?<\/d>/g, '').replace(/<d>[\s\S]*?<\/d>/g, '').trim();
+      const visual = body
+        .replace(/\(S[12]\):\s*<d>[\s\S]*?<\/d>/g, '')
+        .replace(/<d>[\s\S]*?<\/d>/g, '')
+        .replace(/Both are fully nude; no clothing on either body\.?/gi, '')
+        .trim();
       if (visual.length < 15) {
         const dlg = (body.match(/<d>([\s\S]*?)<\/d>/) || [])[1] || '';
         const sexCtx = /夹紧|转过来|腿抬好|自己动|含深点|张嘴|别躲|接好|又要去了|受不了|好深|轻点|不要停/.test(dlg);

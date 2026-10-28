@@ -84,7 +84,8 @@ function cleanBeat(raw: string): string {
     // 同一分镜写两个画面，是 H3 人体错位/多人体粘连的主因。只保留第一个机位和连续动作。
     .replace(/(?:[,;]\s*)?then\s+(?:cut|whip|rack[- ]?focus|tilt|track(?:ing)?|push[- ]?in|punch[- ]?in|reverse|pan|zoom|dolly|pull[- ]?back|snap)\b[^.;\n]*/gi, '')
     .replace(/(?:[,;]\s*)?then\s+(?:a\s+)?(?:low angle|tight two-shot|tight shot|tight on|medium shot|medium on|wide shot|wide on|close[- ]up|close up|close on|extreme close|ECU|CU|overhead|side angle|reverse angle|reverse shot|handheld|steadicam|two-shot|insert|tracking|dolly|push in|pull back)\b[^.;\n]*/gi, '')
-    .replace(/(?:[,;.]\s*)?then\s+a\s+(?:whip[- ]?pan|cut|tilt|pan|zoom|push[- ]?in|rack[- ]?focus|dolly|reverse)\b[^.;\n]*/gi, '')
+    .replace(/(?:[,;.]\s*)?then\s+a\s+(?:whip[- ]?pan|cut|tilt|pan|zoom|push[- ]?in|rack[- ]?focus|dolly|reverse|macro)\b[^.;\n]*/gi, '')
+    .replace(/(?:[,;.]\s*)?then\s+(?:a\s+)?(?:rack(?:[- ]?focus)?\s*to|low tracking|low angle|macro|close on|medium on|wide on|tight on)\b[^.;\n]*/gi, '')
     .replace(/(?:[,;]\s*)?(?:hard\s+)?cut\s+(?:back\s+)?to\b[^.;\n]*/gi, '')
     .replace(/\bSplit\s*:\s*/gi, '')
     // 清掉句子被截断后的 "then a ." / "then a," 残片
@@ -94,6 +95,9 @@ function cleanBeat(raw: string): string {
     // 只去掉“行首字段标签”，避免误伤正文里的 "another position:"。
     .replace(/^[ \t]*(?:Body positions?|Physical action|Clothing state|Emotional beat|Positions?)\s*[:：]\s*/gmi, '')
     .replace(/^[ \t]*(?:Location|Camera|Body|Action|Clothing)\s*[:：]\s*/gmi, '')
+    // 大写内联字段标签（LOCATION: / BODY: / CLOTHING: / ACTION: / EMOTIONAL）不在行首也要清。
+    .replace(/\b(?:LOCATION|BODY|CLOTHING|ACTION|POSITIONS?|EMOTIONAL(?:\s+BEAT)?)\s*[:：]\s*/g, ' ')
+    .replace(/\b(?:EMOTIONAL|Emotional)\b\s*[:：]?\s*/g, ' ')
     // 正文里被当作主语用的 (S1)/(S2) 不是台词标签，去掉；保留 (S1): <d>。
     .replace(/\(S[12]\)(?!\s*:\s*<d>)/g, ' ')
     // 正文自带的单时间戳一律去掉，由模板统一重建，避免 01:06.000 01:00.000。
