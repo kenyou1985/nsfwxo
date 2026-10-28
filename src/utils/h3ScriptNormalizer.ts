@@ -120,7 +120,8 @@ export function normalizeH3Script(raw: string, opts: NormalizeOptions): string[]
       .filter((x) => x.length > 10)
       .filter((x) => /(?:she|her|he|his|woman|man|camera|location|body|clothing|action|女人|男人|她|他)/i.test(x));
   }
-  if (sourceBeats.length < 8) return [];
+  // 剧本哪怕只有 2-3 镜，也交给 coercive/consensual 框架补齐到 12/20/30，不能在这里直接判空导致整卡失败。
+  if (sourceBeats.length < 2) return [];
   let beats = sourceBeats.map((x) => stripForbiddenProps(x, opts.theme));
   if (!beats.length) return [];
   const visualFallback = [

@@ -1201,7 +1201,8 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
     theme: script,
     shotCount,
   });
-  if (shots.length < 8) return '';
+  // 只要有一点点主题内容就能靠 coercive/consensual 框架补齐到 12/20/30 镜，不能因为剧本偏短就整卡失败。
+  if (shots.length < 2) return '';
 
   const detected = detectFramework(script, hasMan);
   const sceneAnchor = `${deriveSceneAnchor(script)} Only one male is in frame: Subject 2; no second man, no clone, no extra male touching her.`;
@@ -1775,7 +1776,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
                 h3 = normalizeDialogueSpeakers(applyAnchorNames(buildH3FromScript(retryScript, hasMaleRole, hasMaleRole, videoShotCount), h3Anchors));
               }
             }
-            if (!h3) throw new Error('当前主题剧本没有生成 12 镜；请重试一次，系统不会使用旧主题模板');
+            if (!h3) throw new Error('当前主题剧本内容不足，无法生成 H3 分镜；请重试一次，系统不会使用旧主题模板');
 
             return { index: i, id: ids[i], prompt: h3, error: null };
           } catch (err) {
