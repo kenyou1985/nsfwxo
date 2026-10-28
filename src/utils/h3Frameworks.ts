@@ -200,66 +200,87 @@ export interface PositionPlan {
 /** 按场景选择三种插入姿势；只决定“可用空间”，不覆盖主题动作。 */
 export function pickPenetrationPositions(context: string): PositionPlan {
   const t = String(context || '');
-  if (/(elevator|lift|escalator|电梯|扶梯)/i.test(t)) {
-    return {
-      p1: 'against the elevator wall, one leg lifted, taken from the front',
-      p2: 'bent over the elevator handrail, taken from behind in the same car',
-      p3: 'down on the elevator floor in missionary, the same car around them',
-    };
+  // 根因修复：插入姿势必须由“主题最后出现的地点”决定，而不是剧本里随便哪个关键词。
+  // 之前 elevator 分支误把 escalator 也匹配进来，导致“扶梯→走廊→巷子→公园”主题的性行为发生在不存在的电梯里。
+  // 现在按每个地点词最后出现的位置排序，取最后那一个作为高潮场景。
+  const groups: Array<{ key: string; words: string[] }> = [
+    { key: 'elevator', words: ['elevator', 'lift', '电梯'] },
+    { key: 'bed', words: ['bed', 'mattress', '床'] },
+    { key: 'sofa', words: ['sofa', 'couch', '沙发'] },
+    { key: 'desk', words: ['classroom', 'lecture', 'blackboard', 'desk', 'podium', 'office', '教室', '讲台', '黑板', '课桌', '办公', '桌子'] },
+    { key: 'kitchen', words: ['kitchen', 'counter', '厨房', '台面'] },
+    { key: 'subway', words: ['subway', 'metro', 'train', 'carriage', '地铁', '车厢', '列车'] },
+    { key: 'outdoor', words: ['alley', 'park', 'street', 'rooftop', '巷子', '公园', '街道', '天台'] },
+    { key: 'indoor_walk', words: ['escalator', 'mall', 'corridor', '扶梯', '商场', '走廊'] },
+  ];
+  let lastKey: string | null = null;
+  let lastIdx = -1;
+  for (const g of groups) {
+    for (const w of g.words) {
+      const idx = t.toLowerCase().indexOf(w);
+      if (idx >= 0 && idx > lastIdx) {
+        lastIdx = idx;
+        lastKey = g.key;
+      }
+    }
   }
-  if (/(classroom|lecture|blackboard|desk|podium|教室|讲台|黑板|课桌)/i.test(t)) {
-    const hasChair = /(chair|stool|椅子|凳子|椅)/i.test(t);
-    const hasDesk = /(desk|table|podium|讲台|课桌|桌)/i.test(t);
-    return {
-      p1: hasDesk ? 'bent over the desk already in the scene, both feet on the floor, chest pressed to the surface' : 'bent over the nearest stable surface already in the scene, taken from behind',
-      p2: hasChair && hasDesk
-        ? 'one knee on the chair and one leg lifted onto the desk, entering her from behind at a new angle'
-        : hasDesk
-          ? 'one leg lifted onto the desk, entering her from behind at a new angle, no new furniture added'
-          : 'turned and entered with one leg lifted, using only the surface already in frame',
-      p3: hasDesk ? 'laid back on the desk in missionary, legs over his shoulders, the same desk under her' : 'laid back on the nearest existing surface in missionary, legs held open',
-    };
+
+  switch (lastKey) {
+    case 'elevator':
+      return {
+        p1: 'against the elevator wall, one leg lifted, taken from the front',
+        p2: 'bent over the elevator handrail, taken from behind in the same car',
+        p3: 'down on the elevator floor in missionary, the same car around them',
+      };
+    case 'bed':
+      return {
+        p1: 'on all fours on the bed, taken from behind',
+        p2: 'on her side with one leg lifted, entered at an angle',
+        p3: 'on her back in missionary, legs around his waist',
+      };
+    case 'sofa':
+      return {
+        p1: 'bent over the sofa arm, taken from behind',
+        p2: 'straddling his lap on the sofa, riding him',
+        p3: 'laid back on the sofa in missionary, legs pushed up',
+      };
+    case 'desk':
+      return {
+        p1: 'bent over the desk, taken from behind',
+        p2: 'one leg lifted onto the chair or desk, entered at a new angle',
+        p3: 'laid back on the desk in missionary',
+      };
+    case 'kitchen':
+      return {
+        p1: 'bent over the kitchen counter, taken from behind',
+        p2: 'one leg lifted onto a stool, entered from the side',
+        p3: 'laid back on the counter in missionary',
+      };
+    case 'subway':
+      return {
+        p1: 'standing in the same car, bent forward against the pole, taken from behind',
+        p2: 'one leg lifted in the aisle, her back against the pole, entered from the front',
+        p3: 'held up against the pole with both legs around him, fucked standing',
+      };
+    case 'outdoor':
+      return {
+        p1: 'against the alley or park wall, one leg lifted, taken from the front',
+        p2: 'bent over a dumpster or bench, taken from behind',
+        p3: 'down on the ground or bench in missionary, legs held open',
+      };
+    case 'indoor_walk':
+      return {
+        p1: 'against the nearest wall, one leg lifted, taken from the front',
+        p2: 'bent over the nearest stable surface, taken from behind',
+        p3: 'down on the floor in missionary, legs held open',
+      };
+    default:
+      return {
+        p1: 'bent over the nearest stable surface, taken from behind',
+        p2: 'turned and entered with one leg lifted, her back against the surface',
+        p3: 'laid back on the surface in missionary, legs held open',
+      };
   }
-  if (/(subway|metro|train|carriage|地铁|车厢|列车)/i.test(t)) {
-    return {
-      p1: 'standing in the same crowded car, bent forward against the pole, taken from behind',
-      p2: 'one leg lifted in the aisle, her back against the same pole, entered from the front',
-      p3: 'held up against the pole with both legs around him, fucked standing in the same car',
-    };
-  }
-  if (/(bed|mattress|床上|床)/i.test(t)) {
-    return {
-      p1: 'on all fours on the bed, taken from behind',
-      p2: 'on her side with one leg lifted, entered at an angle',
-      p3: 'on her back in missionary, legs around his waist',
-    };
-  }
-  if (/(sofa|couch|沙发)/i.test(t)) {
-    return {
-      p1: 'bent over the sofa arm, taken from behind',
-      p2: 'straddling his lap on the sofa, riding him',
-      p3: 'laid back on the sofa in missionary, legs pushed up',
-    };
-  }
-  if (/(office|desk|办公|桌子)/i.test(t)) {
-    return {
-      p1: 'bent over the office desk, taken from behind',
-      p2: 'one leg lifted onto the chair, entered at a new angle',
-      p3: 'laid back on the desk in missionary',
-    };
-  }
-  if (/(kitchen|counter|厨房|台面)/i.test(t)) {
-    return {
-      p1: 'bent over the kitchen counter, taken from behind',
-      p2: 'one leg lifted onto a stool, entered from the side',
-      p3: 'laid back on the counter in missionary',
-    };
-  }
-  return {
-    p1: 'bent over the nearest stable surface, taken from behind',
-    p2: 'turned and entered with one leg lifted, her back against the surface',
-    p3: 'laid back on the surface in missionary, legs held open',
-  };
 }
 
 /**
