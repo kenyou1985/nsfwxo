@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { extractVideoPromptFromImagePrompt } from '../utils/videoPromptExtractor';
 import { normalizeKrea2Prompt } from '../utils/krea2Prompt';
 import { normalizeH3Script, normalizeDialogueSpeakers, normalizeH3PromptStructure, isModelRefusal, stripModelRefusal } from '../utils/h3ScriptNormalizer';
-import { applyFramework, detectFramework, ensureCoerciveArc, H3_FRAMEWORKS, enforceH3Speakers, cleanSpeakerProse, detectLocationProgression, buildFallbackScript } from '../utils/h3Frameworks';
+import { applyFramework, detectFramework, ensureCoerciveArc, H3_FRAMEWORKS, enforceH3Speakers, cleanSpeakerProse, detectLocationProgression } from '../utils/h3Frameworks';
 import { makeThumbnailForStorage, makePreviewForStorage } from '../utils/imageThumbnail';
 import { AspectAwareImage } from '../components/AspectAwareImage';
 import { OneClickProduce } from '../components/OneClickProduce';
@@ -1190,16 +1190,12 @@ function extractWardrobe(text: string): string {
 export function buildH3FromScript(script: string, hasMan: boolean, malePicture: boolean, shotCount = 12, themeHint = ''): string {
   // 剧本里出现 he/his/him 也证明有男性；否则会被误判 solo，导致男声缺失。
   hasMan = hasMan || /\b(he|his|him)\b|\b(man|male)\b|黑人|黑男|男人|男性|男子|男/i.test(script);
-  // 所有入口统一处理 LLM 拒写：剥离拒写句子；若几乎全是拒写，就用当前主题兜底剧本，
-  // 绝不让拒写文本进入分镜/音频。
+  // 所有入口统一处理 LLM 拒写：只允许 LLM 正常审核输出的剧本。
+  // 拒写时不做兜底、不生成占位分镜，直接返回空串，由上层给出“模型拒绝”提示。
   if (isModelRefusal(script)) {
     const cleaned = stripModelRefusal(script);
-    if (cleaned.length < 200) {
-      const fb = buildFallbackScript(themeHint || script);
-      if (fb) script = fb;
-    } else {
-      script = cleaned;
-    }
+    if (cleaned.length < 200) return '';
+    script = cleaned;
   }
   script = unifySingleMale(sanitizeAgeTerms(script));
   // 场景检测同时看“剧本 + 用户主题”，避免 LLM 漏写小黑屋/室内导致场景只停在巷子。
@@ -1213,6 +1209,14 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
   // 只要有一点点主题内容就能靠 coercive/consensual 框架补齐到 12/20/30 镜，不能因为剧本偏短就整卡失败。
   if (shots.length < 2) return '';
 
+  // 判断“纯占位镜头”：整镜几乎只有通用机位句、没有真实动作/人物内容。
+  // 用过短/大量占位说明 LLM 没真正产出内容，不再硬凑，直接判失败。
+  const GENERIC_SHOT_RE = /^Camera (?:medium two-shot|handheld close-up|medium tracking shot|side angle|close-up on hands|low angle|medium shot|close-up|rear three-quarter|overhead|extreme close-up|slow pull-back)[^.]*\./i;
+  const placeholderCount = shots.filter((x) => {
+    const m = x.match(GENERIC_SHOT_RE);
+    return !!m && m[0].length >= x.length * 0.65;
+  }).length;
+  if (shots.length >= 4 && placeholderCount / shots.length >= 0.5) return '';
   const detected = detectFramework(script, hasMan);
   const sceneAnchor = `${deriveSceneAnchor(sceneText)} Only one male is in frame: Subject 2; no second man, no clone, no extra male touching her.`;
   const wardrobeRule = 'Clothing comes from the current theme description. If the theme does not specify an item, use the clothing visible in Picture 1. Do not invent colors or garments.';
@@ -1756,14 +1760,11 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
             if (isModelRefusal(scriptText)) {
               const cleaned = stripModelRefusal(scriptText);
               if (cleaned.length < 300) {
-                // 上游模型拒写：用“当前主题”直接生成分镜骨架，保证内容仍贴合主题，而不是输出 Afterglow 垃圾。
-                console.warn('[expand] model refusal, using theme-based fallback script');
-                scriptText = buildFallbackScript(input);
-                onSuccess('模型拒写：已使用当前主题的兜底分镜（非 LLM 生成）');
-              } else {
-                console.warn('[expand] model refusal detected, stripped refusal text and kept the real script');
-                scriptText = cleaned;
+                // 上游模型拒写：按用户要求直接提示，不兜底、不生成占位分镜。
+                throw new Error('模型拒绝审核该主题，未生成分镜；请切换模型或改写主题后重试');
               }
+              console.warn('[expand] model refusal detected, stripped refusal text and kept the real script');
+              scriptText = cleaned;
             }
             // 模型偶尔只返回一两百字（审核截断/提前 stop）。不能把整张卡直接报错，
             // 用用户主题补足后交给 H3 状态机生成 12 镜兜底，避免“第 N 个剧本过短”。
@@ -1802,7 +1803,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
                 h3 = normalizeDialogueSpeakers(applyAnchorNames(buildH3FromScript(retryScript, hasMaleRole, hasMaleRole, videoShotCount, input), h3Anchors));
               }
             }
-            if (!h3) throw new Error('当前主题剧本内容不足，无法生成 H3 分镜；请重试一次，系统不会使用旧主题模板');
+            if (!h3) throw new Error('模型未产出有效分镜（可能触发内容审核或被截断）；请切换模型或改写主题后重试');
 
             return { index: i, id: ids[i], prompt: h3, error: null };
           } catch (err) {
