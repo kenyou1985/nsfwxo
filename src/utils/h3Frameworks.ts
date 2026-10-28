@@ -124,8 +124,9 @@ export function cleanSpeakerProse(text: string): string {
 export function enforceH3Speakers(text: string): string {
   if (!text) return text;
   return text.replace(/\(S[12]\):\s*<d>[\s\S]*?<\/d>/g, (line) => {
-    const body = line.replace(/^<d>|<\/d>$/g, '');
-    const raw = body.replace(/<[^>]+>/g, '');
+    // 直接取 <d> 内容，去掉 [Chinese] 语言标签，再判断是男命令还是女求饶。
+    const dm = line.match(/<d>([\s\S]*?)<\/d>/);
+    const raw = (dm ? dm[1] : line).replace(/^\s*\[(?:Chinese|Mandarin|中文|汉语)\]\s*/i, '').trim();
     if (/^(?:他|男|马库斯|MARCUS)$/i.test(raw)) return line;
     if ((MALE_COMMAND.test(raw) && !FEMALE_PLEA.test(raw)) || /^(?:别动|别回头|别叫|别哭|闭嘴|安静|继续站着|站好|张嘴|接好|夹紧|站稳|转过来|腿抬好|自己动|含深点|脱掉|裙子|内裤|蹲下|用舌头|喷得)/.test(raw)) {
       return line.replace(/^\(S[12]\):/, '(S2):');
