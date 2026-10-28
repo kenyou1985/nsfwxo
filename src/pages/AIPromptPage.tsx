@@ -50,7 +50,8 @@ function finalizeH3Prompt(prompt: string): string {
     .replace(/\bthe the man\b/gi, 'the man')
     // 修复 "a tall the man" / "an older the man" 这类替换后残留的冠词病句
     .replace(/\b(a|an)\s+((?:\w+\s+){0,2})the man\b/gi, '$1 $2man')
-    .replace(/\bthe man\s+the man\b/gi, 'the man');
+    .replace(/\bthe man\s+the man\b/gi, 'the man')
+    .replace(/\bthe\s+(\w+)\s+the man\b/gi, 'the $1 man');
 }
 
 function normalizeCardPrompt(prompt: string): string {
@@ -1108,6 +1109,8 @@ function unifySingleMale(text: string): string {
     .replace(/\b(?:the\s+)?adult\s+man\b/gi, 'the man')
     .replace(/\bA the man\b/g, 'the man')
     .replace(/\bthe the man\b/gi, 'the man')
+    .replace(/\b(a|an)\s+((?:\w+\s+){0,2})the man\b/gi, '$1 $2man')
+    .replace(/\bthe\s+(\w+)\s+the man\b/gi, 'the $1 man')
     .replace(/\b(?:the\s+)?two\s+men\b/gi, 'the man')
     .replace(/\bboth\s+men\b/gi, 'the man')
     .replace(/第二个男人|另一个男人|黑人男子|黑人男人|两个男人|两名男人|大叔|老汉/g, '男人');

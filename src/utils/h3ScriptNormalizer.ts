@@ -35,6 +35,8 @@ export function stripOrphanSpeech(text: string): string {
           if (!t) return false;
           // 有说话/嗓音关键词 → 旁白
           if (/\b(?:voice|whisper\w*|mutter\w*|murmur\w*|under (?:his|her) breath|says?|answers?|commands?|orders?|tone|cries out|moans?|gasps?)\b/i.test(t)) return false;
+          // 纯声音说明句（No dialogue. / Only heel clicks...）
+          if (/^(?:no\s+(?:dialogue|speech)\b|only\s+(?:the\s+)?(?:sound|heel|shutter|fabric|breath))/i.test(t)) return false;
           // 只有“语气形容词 + 短句”，没有谁+动作 → 语气残片
           if (t.length < 60 && !/\b(?:she|he|her|his)\b\s+\w+/i.test(t)
             && /^(?:soft|flat|sharp|breaking|uncertain|quiet|low|cold|high|thin|hoarse|strained|greedy|hungry|calm|uneasy|panicked|desperate|shrill|broken|small|tight|easy|wet|trembling|tearful|breathless|furious|scared|terrified|trying|almost|not yet)\b/i.test(t)) return false;
@@ -85,9 +87,11 @@ function cleanBeat(raw: string): string {
     .replace(/(?:[,;]\s*)?then\s+(?:cut|whip|rack[- ]?focus|tilt|track(?:ing)?|push[- ]?in|punch[- ]?in|reverse|pan|zoom|dolly|pull[- ]?back|snap)\b[^.;\n]*/gi, '')
     .replace(/(?:[,;]\s*)?then\s+(?:a\s+)?(?:low angle|tight two-shot|tight shot|tight on|medium shot|medium on|wide shot|wide on|close[- ]up|close up|close on|extreme close|ECU|CU|overhead|side angle|reverse angle|reverse shot|handheld|steadicam|two-shot|insert|tracking|dolly|push in|pull back)\b[^.;\n]*/gi, '')
     .replace(/(?:[,;.]\s*)?then\s+a\s+(?:whip[- ]?pan|cut|tilt|pan|zoom|push[- ]?in|rack[- ]?focus|dolly|reverse|macro)\b[^.;\n]*/gi, '')
-    .replace(/(?:[,;.]\s*)?then\s+(?:a\s+)?(?:rack(?:[- ]?focus)?\s*to|low tracking|low angle|macro|close on|medium on|wide on|tight on)\b[^.;\n]*/gi, '')
+    .replace(/(?:[,;.]\s*)?then\s+(?:a\s+)?(?:rack(?:[- ]?focus)?\s*to|pull\s*to|low tracking|low angle|macro|close on|medium on|wide on|tight on)\b[^.;\n]*/gi, '')
     .replace(/(?:[,;]\s*)?(?:hard\s+)?cut\s+(?:back\s+)?to\b[^.;\n]*/gi, '')
     .replace(/\bSplit\s*:\s*/gi, '')
+    // 避免“second figure/second man”诱导 H3 生成克隆人
+    .replace(/\b(?:then\s+)?a?\s*second\s+(?:figure|man|person|shadow)\b[^.;\n]*/gi, ' the man ')
     // 清掉句子被截断后的 "then a ." / "then a," 残片
     .replace(/\bthen\s+a\s*[.,;]\s*/gi, ' ')
     // 分屏/双画面指令会让 H3 把两个画面糊成一帧，直接去掉 split-screen 标记
@@ -98,6 +102,8 @@ function cleanBeat(raw: string): string {
     // 大写内联字段标签（LOCATION: / BODY: / CLOTHING: / ACTION: / EMOTIONAL）不在行首也要清。
     .replace(/\b(?:LOCATION|BODY|CLOTHING|ACTION|POSITIONS?|EMOTIONAL(?:\s+BEAT)?)\s*[:：]\s*/g, ' ')
     .replace(/\b(?:EMOTIONAL|Emotional)\b\s*[:：]?\s*/g, ' ')
+    // 首字母大写的内联字段标签（Location: / Body positions: / Clothing state: / Physical action:）
+    .replace(/\b(?:Body positions?|Clothing state|Physical action|Location)\s*[:：]\s*/g, ' ')
     // 正文里被当作主语用的 (S1)/(S2) 不是台词标签，去掉；保留 (S1): <d>。
     .replace(/\(S[12]\)(?!\s*:\s*<d>)/g, ' ')
     // 正文自带的单时间戳一律去掉，由模板统一重建，避免 01:06.000 01:00.000。
