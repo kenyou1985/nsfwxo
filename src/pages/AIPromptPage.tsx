@@ -1205,7 +1205,7 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
 
   const detected = detectFramework(script, hasMan);
   const sceneAnchor = `${deriveSceneAnchor(script)} Only one male is in frame: Subject 2; no second man, no clone, no extra male touching her.`;
-  const wardrobeRule = 'Clothing comes from the current theme description. If the theme does not specify an item, use the clothing visible in Picture 1. Do not invent colors or garments; never reset clothing at a segment boundary.';
+  const wardrobeRule = 'Clothing comes from the current theme description. If the theme does not specify an item, use the clothing visible in Picture 1. Do not invent colors or garments.';
   const framedShots = detected === 'coercive' && hasMan ? ensureCoerciveArc(shots, script, shotCount) : shots;
 
   const actualShots = Math.max(12, Math.min(30, shotCount));
