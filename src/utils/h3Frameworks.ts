@@ -127,7 +127,7 @@ export function enforceH3Speakers(text: string): string {
     const body = line.replace(/^<d>|<\/d>$/g, '');
     const raw = body.replace(/<[^>]+>/g, '');
     if (/^(?:他|男|马库斯|MARCUS)$/i.test(raw)) return line;
-    if ((MALE_COMMAND.test(raw) && !FEMALE_PLEA.test(raw)) || /^(?:别动|别回头|继续站着|站好|张嘴|接好|夹紧|站稳|转过来|腿抬好|自己动|含深点|脱掉|裙子|内裤|蹲下|用舌头|喷得)/.test(raw)) {
+    if ((MALE_COMMAND.test(raw) && !FEMALE_PLEA.test(raw)) || /^(?:别动|别回头|别叫|别哭|闭嘴|安静|继续站着|站好|张嘴|接好|夹紧|站稳|转过来|腿抬好|自己动|含深点|脱掉|裙子|内裤|蹲下|用舌头|喷得)/.test(raw)) {
       return line.replace(/^\(S[12]\):/, '(S2):');
     }
     if (FEMALE_PLEA.test(raw) || /^(?:你|我|他蹲|这里|有人|会看到)/.test(raw)) {
@@ -213,6 +213,7 @@ const LOCATION_GROUPS: Array<{ key: string; words: string[] }> = [
   { key: 'park', words: ['park', '公园'] },
   { key: 'mall', words: ['mall', '商场'] },
   { key: 'room', words: ['storeroom', 'dark room', 'small room', 'room', '小黑屋', '仓库', '房间'] },
+  { key: 'worksite', words: ['worksite', 'construction site', 'abandoned site', 'scaffolding', 'rebar', 'pallet', '工地', '废弃工地', '脚手架'] },
   { key: 'corridor', words: ['corridor', '走廊'] },
   { key: 'escalator', words: ['escalator', '扶梯'] },
 ];
@@ -317,6 +318,12 @@ export function pickPenetrationPositions(context: string): PositionPlan {
         p1: 'against the storeroom wall, one leg lifted, taken from the front',
         p2: 'bent over the mattress or crates, taken from behind',
         p3: 'down on the mattress in missionary, legs held open',
+      };
+    case 'worksite':
+      return {
+        p1: 'against the scaffolding pole, one leg lifted, taken from the front',
+        p2: 'bent over the stacked pallets, taken from behind',
+        p3: 'down on the ground among the rebar in missionary, legs held open',
       };
     case 'mall':
     case 'corridor':

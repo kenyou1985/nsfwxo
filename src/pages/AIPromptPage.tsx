@@ -1129,7 +1129,7 @@ function deriveSceneAnchor(text: string): string {
     elevator: 'elevator', bedroom: 'bedroom', sofa: 'sofa', classroom: 'classroom',
     office: 'office', kitchen: 'kitchen', bathroom: 'bathroom', subway: 'subway',
     alley: 'alley', street: 'street', park: 'park', mall: 'mall', room: 'small dark room',
-    corridor: 'corridor', escalator: 'escalator',
+    corridor: 'corridor', escalator: 'escalator', worksite: 'abandoned worksite',
   };
   const names = progression.map((k) => pretty[k] || k);
   if (names.length > 1) {
