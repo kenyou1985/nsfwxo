@@ -128,7 +128,7 @@ export function enforceH3Speakers(text: string): string {
     const dm = line.match(/<d>([\s\S]*?)<\/d>/);
     const raw = (dm ? dm[1] : line).replace(/^\s*\[(?:Chinese|Mandarin|中文|汉语)\]\s*/i, '').trim();
     if (/^(?:他|男|马库斯|MARCUS)$/i.test(raw)) return line;
-    if ((MALE_COMMAND.test(raw) && !FEMALE_PLEA.test(raw)) || /^(?:别动|别回头|别叫|别哭|闭嘴|安静|继续站着|站好|张嘴|接好|夹紧|站稳|转过来|腿抬好|自己动|含深点|脱掉|裙子|内裤|蹲下|用舌头|喷得)/.test(raw)) {
+    if ((MALE_COMMAND.test(raw) && !FEMALE_PLEA.test(raw)) || /^(?:别动|别回头|别叫|别跑|站住|不许跑|别出声|别哭|闭嘴|安静|继续站着|站好|张嘴|接好|夹紧|站稳|转过来|腿抬好|自己动|含深点|脱掉|裙子|内裤|蹲下|用舌头|喷得)/.test(raw)) {
       return line.replace(/^\(S[12]\):/, '(S2):');
     }
     if (FEMALE_PLEA.test(raw) || /^(?:你|我|他蹲|这里|有人|会看到)/.test(raw)) {
@@ -233,7 +233,7 @@ function translateCn(text: string, map: Record<string, string>): string {
 // 地点的“中心名词”：只用于把 brick alley / alley bend / alley mouth 归成 alley，
 // 不属于主题→场景映射，任何主题都走同一套。
 const PLACE_HEAD_NOUNS = ['alley','street','road','lane','lot','yard','site','worksite','scaffold','scaffolding','bay','platform','room','bedroom','kitchen','bathroom','office','classroom','corridor','stairwell','elevator','escalator','subway','train','bus','mall','store','hotel','apartment','house','park','garden','woods','forest','beach','pool','rooftop','playground','garage','warehouse','factory','building','dock','pier','bridge','tunnel','cave','cell','basement','attic','fence','gate','doorway','hall','lobby','balcony'];
-const SUBPART_WORDS = ['bay','platform','upright','tower','crossbar','pole','pipe','level','landing','corner','bend','mouth','edge','end','side','top','bottom','middle','foreground','background','passage','path','walkway'];
+const SUBPART_WORDS = ['bay','platform','upright','tower','crossbar','cross','bar','pole','pipe','rail','level','landing','corner','bend','mouth','edge','end','side','top','bottom','middle','foreground','background','passage','path','walkway','height','chest'];
 function placeHeadNoun(loc: string): string {
   const t = String(loc || '').toLowerCase();
   if (/scaffold/.test(t)) return 'scaffold';

@@ -49,8 +49,8 @@ export function selfCheckH3Prompt(raw: string): SelfCheckResult {
   // 3) 结构化字段标签
   const t1 = text;
   text = text
-    .replace(/\b(?:Body positions?|Physical action|Clothing state|Emotional beat|Positions?)\s*[:：]\s*/gi, ' ')
-    .replace(/\b(?:Location|Camera|Body|Action|Clothing)\s*[:：]\s*/gi, ' ');
+    .replace(/^[ \t]*(?:Body positions?|Physical action|Clothing state|Emotional beat|Positions?)\s*[:：]\s*/gmi, '')
+    .replace(/^[ \t]*(?:Location|Camera|Body|Action|Clothing)\s*[:：]\s*/gmi, '');
   if (text !== t1) issues.push('labels');
 
   // 4) Scene 地点列表按中心名词归一
@@ -67,14 +67,30 @@ export function selfCheckH3Prompt(raw: string): SelfCheckResult {
     const preamble = blocks.shift() || '';
     const shots: string[] = [];
     const seen = new Set<string>();
+    let prevVisual = '';
     for (const b of blocks) {
       const originalBody = b
         .replace(/^\[Shot\s+\d+\]\s*(?:\d{2}:\d{2}\.\d{3}\s*)?/i, '')
         .replace(/^(?:Same pose; continue\.?\s*)+/i, '')
+        // 最后一镜可能吞进尾部区块：从镜头正文里截掉。
+        .replace(/\s*(?:overall_soundscape|non_diegetic_music|speaker_mapping)\s*:[\s\S]*$/i, '')
+        // 正文自带的多个时间戳只保留动作文本。
+        .replace(/^\s*(?:\d{2}:\d{2}\.\d{3}\s*)+/i, '')
         .trim();
       let body = stripOrphanSpeech(originalBody).trim();
       // 清洗后不能变空镜：退回原始正文，保持镜头数不变。
       if (!body) body = originalBody;
+      // 只有台词没有画面的镜头：补一句承接动作，避免 H3 生成静止空镜。
+      const visual = body.replace(/\(S[12]\):\s*<d>[\s\S]*?<\/d>/g, '').replace(/<d>[\s\S]*?<\/d>/g, '').trim();
+      if (visual.length < 15) {
+        const fillers = [
+          'He keeps her in place at the same spot, body close, still holding her.',
+          'He holds her still, one hand on her hip, the other braced on the steel.',
+          'He keeps her pinned where she is, breathing close to her ear.',
+        ];
+        body = `${fillers[shots.length % fillers.length]} ${body}`.trim();
+        issues.push('dialogue-only');
+      }
       const key = body.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
       // 重复只标记、不删除，避免镜头数从 30 掉到 29。
       if (seen.has(key)) issues.push('dup');
@@ -101,12 +117,26 @@ export function selfCheckH3Prompt(raw: string): SelfCheckResult {
     void preamble;
   }
 
-  // 6) 说话人标签归一
+  // 6) 去重复尾部区块（overall_soundscape / non_diegetic_music / speaker_mapping 只留一个）
+  for (const key of ['overall_soundscape', 'non_diegetic_music', 'speaker_mapping']) {
+    const re = new RegExp(`^[ \\t]*${key}\\s*:[^\\n]*`, 'gmi');
+    const all = text.match(re);
+    if (all && all.length > 1) {
+      let seenCount = 0;
+      text = text.replace(re, (m) => {
+        seenCount += 1;
+        return seenCount < all.length ? '' : m;
+      });
+      issues.push('dup-section');
+    }
+  }
+
+  // 7) 说话人标签归一
   const t2 = text;
   text = enforceH3Speakers(text);
   if (text !== t2) issues.push('speakers');
 
-  // 7) 收尾
+  // 8) 收尾
   text = text.replace(/[ \t]+$/gm, '').replace(/\n{3,}/g, '\n\n').trim();
   return { prompt: text, issues };
 }

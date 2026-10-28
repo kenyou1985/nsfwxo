@@ -72,9 +72,13 @@ function cleanBeat(raw: string): string {
     .replace(/\bthen\s+a\s*[.,;]\s*/gi, ' ')
     // 分屏/双画面指令会让 H3 把两个画面糊成一帧，直接去掉 split-screen 标记
     .replace(/\bsplit(?:[- ]screen)?\b\s*[-—:：]\s*/gi, '')
-    // 去掉结构化字段标签，保留内容，避免 H3 把 "Body: / Physical action:" 当元数据。
-    .replace(/\b(?:Body positions?|Physical action|Clothing state|Emotional beat|Positions?)\s*[:：]\s*/gi, ' ')
-    .replace(/\b(?:Location|Camera|Body|Action|Clothing)\s*[:：]\s*/gi, ' ')
+    // 只去掉“行首字段标签”，避免误伤正文里的 "another position:"。
+    .replace(/^[ \t]*(?:Body positions?|Physical action|Clothing state|Emotional beat|Positions?)\s*[:：]\s*/gmi, '')
+    .replace(/^[ \t]*(?:Location|Camera|Body|Action|Clothing)\s*[:：]\s*/gmi, '')
+    // 正文里被当作主语用的 (S1)/(S2) 不是台词标签，去掉；保留 (S1): <d>。
+    .replace(/\(S[12]\)(?!\s*:\s*<d>)/g, ' ')
+    // 正文自带的单时间戳一律去掉，由模板统一重建，避免 01:06.000 01:00.000。
+    .replace(/^\s*\d{2}:\d{2}\.\d{3}\s*/, '')
     // 行内孤儿声线提示：he low, not yet for her: / she uncertain: / he close, calm:
     // 只在后面紧跟 Tone/<d>/(Sx)/标点/行尾时删除，避免误删正常叙述。
     .replace(/\b(?:he|she)\s+[^.:\n]{0,45}:\s*(?=Tone\s*[:：]|\(S[12]\)|<d>|[.;])/gi, ' ')
@@ -160,6 +164,9 @@ function normalizeClothing(beats: string[]): string[] {
 }
 
 export function normalizeH3Script(raw: string, opts: NormalizeOptions): string[] {
+  // LLM 有时把 overall_soundscape / speaker_mapping 也写进正文，最后一镜会把它们吞进去。
+  // 先在剧本层截断这些尾部段落，避免最终提示词出现两套声音/说话人块。
+  raw = String(raw || '').split(/\n?\s*(?:overall_soundscape|non_diegetic_music|speaker_mapping)\s*:/i)[0];
   let sourceBeats = splitScript(raw);
   if (sourceBeats.length < 3 && raw.trim().length > 500) {
     // 没有 SHOT 标题时按段落回退；注意必须在回退后重新计算数量，
