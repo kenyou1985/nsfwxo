@@ -55,6 +55,11 @@ function cleanBeat(raw: string): string {
     // 清除没有 <d> 的“语气/情绪”孤儿行：如 "Whispered, greedy." "Flat, close." "Breaking."
     // H3 只朗读 <d> 内台词；这些碎片既不是台词也不是画面描述，只会污染镜头正文。
     .replace(/^[ \t]*(?:whispered|murmured|muttered|growled|rasped|snapped|ordered|commanded|begged|sobbed|moaned|gasped|panted|chuckled|laughed|grunted|breaking|sobbing|pleading|voice|tone|breath|soft|flat|cold|low|high|quiet|hoarse|contemptuous|smug|wet|trembling|thin|sharp|tearful|shrinking|broken|tight|easy|calm|greedy|hungry|uneasy|fear|panic)[^.\n]{0,40}\.?[ \t]*$/gmi, '')
+    // 清除行内括号语气提示，如 "(low, hungry whisper to himself)"；保留 (S1)/(S2) 与 <d> 台词。
+    // 这些提示没有 <d> 绑定，是 H3 生成英语旁白的常见来源。
+    .replace(/\((?!S[12]\))[^)<\n]{0,60}\)/g, ' ')
+    // 清除 "Tone: ..." 这类没有 <d> 的语气行
+    .replace(/^[ \t]*Tone\s*[:：][^\n]*$/gmi, '')
     .trim();
 }
 

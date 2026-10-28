@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { extractVideoPromptFromImagePrompt } from '../utils/videoPromptExtractor';
 import { normalizeKrea2Prompt } from '../utils/krea2Prompt';
 import { normalizeH3Script, normalizeDialogueSpeakers, normalizeH3PromptStructure } from '../utils/h3ScriptNormalizer';
-import { applyFramework, detectFramework, ensureCoerciveArc, H3_FRAMEWORKS, enforceH3Speakers, cleanSpeakerProse } from '../utils/h3Frameworks';
+import { applyFramework, detectFramework, ensureCoerciveArc, H3_FRAMEWORKS, enforceH3Speakers, cleanSpeakerProse, detectLocationProgression } from '../utils/h3Frameworks';
 import { makeThumbnailForStorage, makePreviewForStorage } from '../utils/imageThumbnail';
 import { AspectAwareImage } from '../components/AspectAwareImage';
 import { OneClickProduce } from '../components/OneClickProduce';
@@ -1120,29 +1120,22 @@ function sanitizeAgeTerms(text: string): string {
 
 function deriveSceneAnchor(text: string): string {
   const t = String(text || '');
-  // 场景只从当前主题/剧本提取，不维护“主题→固定锁”分支表。
-  // 关键：主题可能有多段地点（如 扶梯 → 走廊 → 电梯），此时不能断言“从头到尾同一个地方”，
-  // 而是显式列出地点的先后顺序，并禁止加入主题里没有的地点。
-  const terms = [
-    'elevator', 'escalator', 'mall', 'corridor', 'subway', 'metro', 'train', 'classroom',
-    'office', 'bedroom', 'kitchen', 'bathroom', 'hotel', 'apartment', 'house',
-    'sofa', 'bed', 'pool', 'park', 'street', 'alley', 'rooftop', 'beach', 'forest',
-    '电梯', '扶梯', '商场', '走廊', '地铁', '车厢', '教室', '办公室', '卧室', '厨房',
-    '浴室', '酒店', '公寓', '沙发', '床', '泳池', '公园', '街道', '巷子', '天台',
-  ];
-  // 按地点在正文里“第一次出现的位置”排序，保持主题真正的空间顺序（扶梯 → 走廊 → 电梯）。
-  const seen: string[] = [];
-  for (const w of terms) {
-    if (new RegExp(w, 'i').test(t) && !seen.includes(w)) seen.push(w);
+  // 场景只从当前主题/剧本提取；英文按词边界匹配，避免 "small"→mall、"strain"→train 这类子串污染。
+  const progression = detectLocationProgression(t);
+  const pretty: Record<string, string> = {
+    elevator: 'elevator', bedroom: 'bedroom', sofa: 'sofa', classroom: 'classroom',
+    office: 'office', kitchen: 'kitchen', bathroom: 'bathroom', subway: 'subway',
+    alley: 'alley', street: 'street', park: 'park', mall: 'mall', room: 'small dark room',
+    corridor: 'corridor', escalator: 'escalator',
+  };
+  const names = progression.map((k) => pretty[k] || k);
+  if (names.length > 1) {
+    return `Scene: the theme's location progression is ${names.join(' → ')}; follow only these locations in order, and do not add any location not listed.`;
   }
-  seen.sort((a, b) => (t.toLowerCase().indexOf(a) - t.toLowerCase().indexOf(b)));
-  if (seen.length > 1) {
-    return `Scene: the theme's location progression is ${seen.join(' → ')}; follow only these locations in order, and do not add any location not listed.`;
+  if (names.length === 1) {
+    return `Scene: the ${names[0]} described by the current theme; keep that same place from Shot 1 to the end.`;
   }
-  if (seen.length === 1) {
-    return `Scene: the ${seen[0]} described by the current theme; keep that same place from Shot 1 to the end.`;
-  }
-  const indoor = /(indoor|inside|room|interior|室内|房间|屋里|公寓|酒店|浴室|卧室|厨房|电梯|商场)/i.test(t);
+  const indoor = /(indoor|inside|interior|室内|房间|屋里|公寓|酒店|浴室|卧室|厨房|电梯|商场)/i.test(t);
   const outdoor = /(outdoor|outside|street|alley|park|beach|forest|rooftop|室外|户外|街道|巷子|公园|海边|天台)/i.test(t);
   if (indoor) return 'Scene: indoors, in the location described by the current theme; keep the same interior from Shot 1 to the end.';
   if (outdoor) return 'Scene: outdoors, in the location described by the current theme; keep the same exterior from Shot 1 to the end.';
