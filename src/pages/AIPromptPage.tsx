@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { extractVideoPromptFromImagePrompt } from '../utils/videoPromptExtractor';
 import { normalizeKrea2Prompt } from '../utils/krea2Prompt';
 import { normalizeH3Script, normalizeDialogueSpeakers, normalizeH3PromptStructure, isModelRefusal, stripModelRefusal } from '../utils/h3ScriptNormalizer';
-import { applyFramework, detectFramework, ensureCoerciveArc, H3_FRAMEWORKS, enforceH3Speakers, cleanSpeakerProse, detectLocationProgression } from '../utils/h3Frameworks';
+import { applyFramework, detectFramework, ensureCoerciveArc, H3_FRAMEWORKS, enforceH3Speakers, cleanSpeakerProse, detectLocationProgression, buildFallbackScript } from '../utils/h3Frameworks';
 import { makeThumbnailForStorage, makePreviewForStorage } from '../utils/imageThumbnail';
 import { AspectAwareImage } from '../components/AspectAwareImage';
 import { OneClickProduce } from '../components/OneClickProduce';
@@ -1186,7 +1186,7 @@ function extractWardrobe(text: string): string {
  */
 export function buildH3FromScript(script: string, hasMan: boolean, malePicture: boolean, shotCount = 12): string {
   // 剧本里出现 he/his/him 也证明有男性；否则会被误判 solo，导致男声缺失。
-  hasMan = hasMan || /\b(he|his|him)\b|\b(man|male)\b/i.test(script);
+  hasMan = hasMan || /\b(he|his|him)\b|\b(man|male)\b|黑人|黑男|男人|男性|男子|男/i.test(script);
   script = unifySingleMale(sanitizeAgeTerms(script));
   const shots = normalizeH3Script(script, {
     hasMan,
@@ -1737,10 +1737,13 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
             if (isModelRefusal(scriptText)) {
               const cleaned = stripModelRefusal(scriptText);
               if (cleaned.length < 300) {
-                throw new Error('模型拒绝了该主题的剧本生成（内容审核）；请切换到不审查的模型/接口，或改写主题后再试');
+                // 上游模型拒写：用“当前主题”直接生成分镜骨架，保证内容仍贴合主题，而不是输出 Afterglow 垃圾。
+                console.warn('[expand] model refusal, using theme-based fallback script');
+                scriptText = buildFallbackScript(input);
+              } else {
+                console.warn('[expand] model refusal detected, stripped refusal text and kept the real script');
+                scriptText = cleaned;
               }
-              console.warn('[expand] model refusal detected, stripped refusal text and kept the real script');
-              scriptText = cleaned;
             }
             // 模型偶尔只返回一两百字（审核截断/提前 stop）。不能把整张卡直接报错，
             // 用用户主题补足后交给 H3 状态机生成 12 镜兜底，避免“第 N 个剧本过短”。
@@ -1750,7 +1753,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
             }
 
             // Step 3: 统一走英文 12 镜 H3 模板，锚定参考图，禁止中文旧模板
-            const hasMaleRole = /(\bman\b|\bmale\b|\bhe\b|\bhis\b|\bhim\b|男子|男人|男性|男友|男主|大叔|痴汉|猥琐|色狼|老汉|叔叔)/i.test(`${scriptText} ${input}`);
+            const hasMaleRole = /(\bman\b|\bmale\b|\bhe\b|\bhis\b|\bhim\b|男子|男人|男性|男友|男主|大叔|痴汉|猥琐|色狼|老汉|叔叔|黑人|黑男|男)/i.test(`${scriptText} ${input}`);
             const h3Anchors = selectedAnchors.length ? selectedAnchors : ([getDefaultAnchor('female'), getDefaultAnchor('male')].filter(Boolean) as GirlfriendPreset[]);
             let h3 = normalizeDialogueSpeakers(applyAnchorNames(buildH3FromScript(scriptText, hasMaleRole, hasMaleRole, videoShotCount), h3Anchors));
             if (!h3) {

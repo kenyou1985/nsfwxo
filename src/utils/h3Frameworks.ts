@@ -415,3 +415,35 @@ export function ensureCoerciveArc(shots: string[], context = '', targetShots = 1
   }
   return [...head, ...tail].slice(0, Math.min(12, targetShots));
 }
+
+/**
+ * 上游 LLM 内容审核拒写时的兜底剧本：只从“当前主题”里抽动作/服装/地点，
+ * 生成与主题一致的分镜骨架，再交给 coercive 框架补齐到 12/20/30 镜。
+ * 这是拒写兜底，不是主路径；正常生成仍优先用 LLM 剧本。
+ */
+export function buildFallbackScript(theme: string): string {
+  const t = String(theme || '');
+  const has = (re: RegExp) => re.test(t);
+  const outfit = [
+    has(/红色低胸衬衫|红色衬衫|red low-cut|red blouse|red shirt/i) ? 'a red low-cut blouse' : '',
+    has(/白色超短裙|白色短裙|white mini|white skirt/i) ? 'a white ultra-mini skirt' : '',
+    has(/黑色丁字裤|丁字裤|black thong|thong/i) ? 'a black thong' : '',
+  ].filter(Boolean).join(', ');
+  const place = has(/小巷|巷子|alley/i) ? 'the alley'
+    : has(/地铁|车厢|subway|metro|train/i) ? 'the subway car'
+    : has(/电梯|elevator/i) ? 'the elevator'
+    : has(/教室|classroom/i) ? 'the classroom'
+    : has(/办公室|office/i) ? 'the office'
+    : 'the scene described by the current theme';
+  const room = has(/小黑屋|仓库|dark room|storeroom|small room|房间/i) ? 'a small dark room' : null;
+  const b: string[] = [];
+  b.push(`She walks through ${place} wearing ${outfit || 'the outfit described by the current theme'}, hips swaying, unaware.`);
+  if (has(/尾随|跟踪|follow|stalk/i)) b.push(`A man in a dark shirt follows two metres behind her, phone in hand, eyes locked on her skirt.`);
+  if (has(/蹲|偷窥|偷拍|抄底|upskirt|squat/i)) b.push(`He drops into a low squat behind her and tilts his phone under the skirt, recording her thong.`);
+  b.push(`He rises and keeps tailing her through ${place}, closing the distance.`);
+  if (has(/扑倒|按倒|扑|tackle|pin/i)) b.push(`He lunges and pins her against the nearest wall, one hand over her mouth.`);
+  if (room) b.push(`He drags her through a metal door into ${room}.`);
+  if (has(/捆绑|绑|rope|bind|tie/i)) b.push(`He forces her onto a stained mattress and binds her wrists and ankles with rope.`);
+  b.push(`He tears the blouse open and pulls the skirt down, leaving her in only her thong.`);
+  return b.map((x, i) => `SHOT ${i + 1}: ${x}`).join('\n');
+}

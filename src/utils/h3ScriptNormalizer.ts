@@ -78,7 +78,8 @@ function splitScript(raw: string): string[] {
     .split(/(?=(?:\[\s*(?:\*\*)?(?:SHOT|Shot)\s+\d+\s*\]?|(?:^|\n|\])\s*(?:\*\*)?SHOT\s+\d+\b[:：]?))/im)
     .slice(1)
     .map(cleanBeat)
-    .filter((x) => x.length > 10);
+    .filter((x) => x.length > 10)
+    .filter((x) => !isModelRefusal(x));
 }
 
 function stripForbiddenProps(text: string, theme: string): string {
