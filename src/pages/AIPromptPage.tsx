@@ -1230,7 +1230,7 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
   // 从当前主题/剧本提取一次服装锚点（不是硬编码锁），只写在 Subject/summary，防止 H3 中途换色。
   const wardrobeAnchorItems = extractWardrobe(`${script}\n${themeHint}`);
   const wardrobeAnchor = wardrobeAnchorItems ? `Wardrobe from the current theme: ${wardrobeAnchorItems}; keep these colors and pieces consistent until they are removed.` : '';
-  const shotRule = 'One shot = one continuous camera setup and one continuous action. Never combine two camera angles, an internal cut, or two locations inside one shot; this prevents overlapping bodies and broken anatomy.';
+  const shotRule = 'One shot = one continuous camera setup and one continuous action. Never combine two camera angles, an internal cut, or two locations inside one shot. Each shot fixes one camera position and one facing direction per person; do not describe a body part the camera cannot see from that position; this prevents overlapping bodies and broken anatomy.';
   const framedShots = detected === 'coercive' && hasMan ? ensureCoerciveArc(shots, sceneText, shotCount) : shots;
 
   const actualShots = Math.max(12, Math.min(30, shotCount));

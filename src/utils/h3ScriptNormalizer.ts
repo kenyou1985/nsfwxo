@@ -72,6 +72,9 @@ function cleanBeat(raw: string): string {
     .replace(/\bthen\s+a\s*[.,;]\s*/gi, ' ')
     // 分屏/双画面指令会让 H3 把两个画面糊成一帧，直接去掉 split-screen 标记
     .replace(/\bsplit(?:[- ]screen)?\b\s*[-—:：]\s*/gi, '')
+    // 去掉结构化字段标签，保留内容，避免 H3 把 "Body: / Physical action:" 当元数据。
+    .replace(/\b(?:Body positions?|Physical action|Clothing state|Emotional beat|Positions?)\s*[:：]\s*/gi, ' ')
+    .replace(/\b(?:Location|Camera|Body|Action|Clothing)\s*[:：]\s*/gi, ' ')
     // 行内孤儿声线提示：he low, not yet for her: / she uncertain: / he close, calm:
     // 只在后面紧跟 Tone/<d>/(Sx)/标点/行尾时删除，避免误删正常叙述。
     .replace(/\b(?:he|she)\s+[^.:\n]{0,45}:\s*(?=Tone\s*[:：]|\(S[12]\)|<d>|[.;])/gi, ' ')

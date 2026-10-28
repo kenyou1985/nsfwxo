@@ -233,13 +233,15 @@ function translateCn(text: string, map: Record<string, string>): string {
 // 地点的“中心名词”：只用于把 brick alley / alley bend / alley mouth 归成 alley，
 // 不属于主题→场景映射，任何主题都走同一套。
 const PLACE_HEAD_NOUNS = ['alley','street','road','lane','lot','yard','site','worksite','scaffold','scaffolding','bay','platform','room','bedroom','kitchen','bathroom','office','classroom','corridor','stairwell','elevator','escalator','subway','train','bus','mall','store','hotel','apartment','house','park','garden','woods','forest','beach','pool','rooftop','playground','garage','warehouse','factory','building','dock','pier','bridge','tunnel','cave','cell','basement','attic','fence','gate','doorway','hall','lobby','balcony'];
-const SUBPART_WORDS = ['bay','platform','upright','tower','crossbar','pole','pipe','level','landing','corner','bend','mouth','edge','end','side','top','bottom','middle','foreground','background'];
+const SUBPART_WORDS = ['bay','platform','upright','tower','crossbar','pole','pipe','level','landing','corner','bend','mouth','edge','end','side','top','bottom','middle','foreground','background','passage','path','walkway'];
 function placeHeadNoun(loc: string): string {
   const t = String(loc || '').toLowerCase();
   if (/scaffold/.test(t)) return 'scaffold';
   const words = t.replace(/-/g, ' ').split(/[^a-z]+/).filter(Boolean);
   for (const w of words) {
-    if (PLACE_HEAD_NOUNS.includes(w) && !SUBPART_WORDS.includes(w)) return w === 'scaffolding' ? 'scaffold' : w;
+    const singular = w.endsWith('s') ? w.slice(0, -1) : w;
+    const base = PLACE_HEAD_NOUNS.includes(w) ? w : (PLACE_HEAD_NOUNS.includes(singular) ? singular : '');
+    if (base && !SUBPART_WORDS.includes(base)) return base === 'scaffolding' ? 'scaffold' : base;
   }
   return '';
 }
@@ -261,6 +263,8 @@ export function extractScriptLocations(text: string): string[] {
       .replace(/[.;。；]+$/, '')
       .trim();
     if (!v) return;
+    // "same / same location / 同上" 不是地点，直接丢弃。
+    if (/^(?:same(?:\s+(?:as above|location|place))?|同上|同一地点|原地)$/i.test(v)) return;
     const key = v.toLowerCase();
     if (seen.has(key)) return;
     // 合并同一地点的变体：按中心名词归一（brick alley / alley bend → alley；scaffold bay / upright → scaffolding）。
