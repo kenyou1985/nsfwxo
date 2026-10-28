@@ -230,6 +230,25 @@ function translateCn(text: string, map: Record<string, string>): string {
   return '';
 }
 
+// 地点的“中心名词”：只用于把 brick alley / alley bend / alley mouth 归成 alley，
+// 不属于主题→场景映射，任何主题都走同一套。
+const PLACE_HEAD_NOUNS = ['alley','street','road','lane','lot','yard','site','worksite','scaffold','scaffolding','bay','platform','room','bedroom','kitchen','bathroom','office','classroom','corridor','stairwell','elevator','escalator','subway','train','bus','mall','store','hotel','apartment','house','park','garden','woods','forest','beach','pool','rooftop','playground','garage','warehouse','factory','building','dock','pier','bridge','tunnel','cave','cell','basement','attic','fence','gate','doorway','hall','lobby','balcony'];
+const SUBPART_WORDS = ['bay','platform','upright','tower','crossbar','pole','pipe','level','landing','corner','bend','mouth','edge','end','side','top','bottom','middle','foreground','background'];
+function placeHeadNoun(loc: string): string {
+  const t = String(loc || '').toLowerCase();
+  if (/scaffold/.test(t)) return 'scaffold';
+  const words = t.replace(/-/g, ' ').split(/[^a-z]+/).filter(Boolean);
+  for (const w of words) {
+    if (PLACE_HEAD_NOUNS.includes(w) && !SUBPART_WORDS.includes(w)) return w === 'scaffolding' ? 'scaffold' : w;
+  }
+  return '';
+}
+function isSubpartOnly(loc: string): boolean {
+  const words = String(loc || '').toLowerCase().replace(/-/g, ' ').split(/[^a-z]+/).filter(Boolean)
+    .filter((w) => !['the','a','an','of','in','at','on','between','two','three','first','second','third','mid'].includes(w));
+  return words.length > 0 && words.every((w) => SUBPART_WORDS.includes(w));
+}
+
 export function extractScriptLocations(text: string): string[] {
   const raw = String(text || '');
   const out: string[] = [];
@@ -244,10 +263,13 @@ export function extractScriptLocations(text: string): string[] {
     if (!v) return;
     const key = v.toLowerCase();
     if (seen.has(key)) return;
-    // 合并同一地点的变体：mid-alley / alley narrowing / alley end → alley
+    // 合并同一地点的变体：按中心名词归一（brick alley / alley bend → alley；scaffold bay / upright → scaffolding）。
+    const head = placeHeadNoun(v);
+    if (!head && isSubpartOnly(v)) return;
+    if (head && out.some((e) => placeHeadNoun(e) === head)) return;
     if (out.some((e) => e.toLowerCase().includes(key) || key.includes(e.toLowerCase()) || (e.split(/\s+/).pop() === key.split(/\s+/).pop()))) return;
     seen.add(key);
-    out.push(v);
+    out.push(head ? (head === 'scaffold' ? 'scaffolding' : head) : v);
   };
   // 1) 剧本字段：Location: ...
   for (const line of raw.split(/\n+/)) {

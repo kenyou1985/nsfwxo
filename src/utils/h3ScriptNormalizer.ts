@@ -81,16 +81,41 @@ function cleanBeat(raw: string): string {
 }
 
 function splitScript(raw: string): string[] {
-  // 不能只匹配行首：模型经常输出 `[Shot 1] SHOT 2: ...` 或 `SHOT 2: ... SHOT 3: ...`
-  // 同一行内混排；只按行首切会把 SHOT 2..12 全部塞进 Shot 1。
-  return raw
-    // `SHOT N:` 只允许行首或紧跟在 `[Shot N]` 后面，避免把
-    // "Clothing applies only to Shot 1: from Shot 2 onward..." 当成镜头标题。
-    .split(/(?=(?:\[\s*(?:\*\*)?(?:SHOT|Shot)\s+\d+\s*\]?|(?:^|\n|\])\s*(?:\*\*)?SHOT\s+\d+\b[:：]?))/im)
-    .filter((x) => x.trim().length > 0)
-    .map(cleanBeat)
-    .filter((x) => x.length > 10)
-    .filter((x) => !isModelRefusal(x));
+  const text = String(raw || '');
+  const finish = (parts: string[]) =>
+    parts.map(cleanBeat).filter((x) => x.length > 10).filter((x) => !isModelRefusal(x));
+
+  // 1) 有 SHOT N 标签：按标签切（支持 `[Shot 1]` 与 `SHOT 1:`）。
+  if (/\bSHOT\s+\d+/i.test(text)) {
+    return finish(
+      text
+        .split(/(?=(?:\[\s*(?:\*\*)?(?:SHOT|Shot)\s+\d+\s*\]?|(?:^|\n|\])\s*(?:\*\*)?SHOT\s+\d+\b[:：]?))/im)
+        .filter((x) => x.trim().length > 0),
+    );
+  }
+  // 2) 没有 SHOT 标签，但字段行（Camera/Location/Body/Action/Clothing）重复出现：
+  //    按出现最多的那个字段分组成镜，避免把每个字段行切成“碎片镜头”。
+  const fields = ['Camera', 'Location', 'Body', 'Action', 'Clothing'];
+  let topField = '';
+  let topCount = 0;
+  for (const f of fields) {
+    const n = (text.match(new RegExp(`\\b${f}\\s*[:：]`, 'gi')) || []).length;
+    if (n > topCount) { topCount = n; topField = f; }
+  }
+  if (topCount >= 3) {
+    const parts = text.split(new RegExp(`(?=\\b${topField}\\s*[:：])`, 'i')).filter((x) => x.trim().length > 0);
+    // 首个字段前的 Camera 前言并入第一个镜头块，避免多出一个只有机位的空镜。
+    if (parts.length > 1 && !new RegExp(`^\\s*\\b${topField}\\s*[:：]`, 'i').test(parts[0])) {
+      parts[1] = `${parts[0].trim()} ${parts[1]}`;
+      parts.shift();
+    }
+    return finish(parts);
+  }
+  // 3) 兜底：段落/句子切分。
+  const paras = text.split(/\n\s*\n+/).map((x) => x.trim()).filter(Boolean);
+  if (paras.length >= 4) return finish(paras);
+  const sentences = text.split(/(?<=[.!?。！？])\s+/).map((x) => x.trim()).filter(Boolean);
+  return finish(sentences.length ? sentences : [text]);
 }
 
 function stripForbiddenProps(text: string, theme: string): string {
@@ -348,3 +373,4 @@ export function stripModelRefusal(text: string): string {
   const parts = raw.split(/(?<=[.!?])\s+|\n+/);
   return parts.filter((s) => s.trim() && !isModelRefusal(s)).join(' ').trim();
 }
+
