@@ -37,7 +37,11 @@ import { VIDEO_POSE_PRESETS } from '../data/presetPoses';
 
 function finalizeH3Prompt(prompt: string): string {
   // 正文中的 (the man)/(the woman) 是叙事代称，不是说话人标签。
-  prompt = prompt.replace(/\(the man\)/gi, 'he').replace(/\(the woman\)/gi, 'she');
+  prompt = prompt
+    .replace(/\(the man\)[’']s/gi, 'his')
+    .replace(/\(the woman\)[’']s/gi, 'her')
+    .replace(/\(the man\)/gi, 'he')
+    .replace(/\(the woman\)/gi, 'she');
   // 最后一层只做声线/正文代称校正，不改变分镜数、不重建模板。
   return cleanSpeakerProse(enforceH3Speakers(prompt))
     .replace(/\bthe (?:adult|sleazy|Black) man\b/gi, 'the man')
@@ -1116,6 +1120,9 @@ function sanitizeAgeTerms(text: string): string {
 
 function extractSceneLock(text: string): string {
   const t = String(text || '');
+  if (/(elevator|lift|escalator|mall|电梯|扶梯|商场)/i.test(t)) {
+    return 'Location lock: the same mall escalator, corridor and elevator car throughout; no subway, no bedroom, no room, no new interior.';
+  }
   if (/(subway|metro|train|carriage|地铁|车厢|列车)/i.test(t)) {
     return 'Location lock: the same packed subway car throughout; same pole, aisle and seats; no bedroom, room, bed or private interior.';
   }
@@ -1128,7 +1135,7 @@ function extractSceneLock(text: string): string {
   if (/(kitchen|厨房)/i.test(t)) {
     return 'Location lock: the same kitchen throughout; existing counter and stools only; no bedroom or new room.';
   }
-  return 'Location lock: the same current location throughout; no scene change, no new room, no new furniture. Only one male is in frame: Subject 2; no second man, no clone, no extra male touching her.';
+  return 'Location lock: the same current location throughout; no scene change, no new room, no new furniture.';
 }
 
 function extractWardrobe(text: string): string {
