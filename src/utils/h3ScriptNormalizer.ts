@@ -61,6 +61,8 @@ function cleanBeat(raw: string): string {
     .replace(/(?:[,;]\s*)?then\s+(?:a\s+)?(?:low angle|tight two-shot|tight shot|tight on|medium shot|medium on|wide shot|wide on|close[- ]up|close up|close on|extreme close|ECU|CU|overhead|side angle|reverse angle|reverse shot|handheld|steadicam|two-shot|insert|tracking|dolly|push in|pull back)\b[^.;\n]*/gi, '')
     .replace(/(?:[,;]\s*)?(?:hard\s+)?cut\s+(?:back\s+)?to\b[^.;\n]*/gi, '')
     .replace(/\bSplit\s*:\s*/gi, '')
+    // 分屏/双画面指令会让 H3 把两个画面糊成一帧，直接去掉 split-screen 标记
+    .replace(/\bsplit(?:[- ]screen)?\b\s*[-—:：]\s*/gi, '')
     // 清除行内括号语气提示，如 "(low, hungry whisper to himself)"；保留 (S1)/(S2) 与 <d> 台词。
     // 这些提示没有 <d> 绑定，是 H3 生成英语旁白的常见来源。
     .replace(/\((?!S[12]\))[^)<\n]{0,60}\)/g, ' ')

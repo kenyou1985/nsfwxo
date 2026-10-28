@@ -363,6 +363,15 @@ export function ensureCoerciveArc(shots: string[], context = '', targetShots = 1
     head[0] = `At the current location, she holds the written pose; he stands close behind her, not yet touching. ${head[0]}`;
   }
   const positions = pickPenetrationPositions(context);
+  // 地点衔接：如果主题最终发生在小黑屋/室内，但剧本前戏还停在小巷/户外，补一个“拖进门”转场，
+  // 避免镜头直接从巷子跳到室内性行为（场景断裂）。已有转场则不重复。
+  const progression = detectLocationProgression(context);
+  const finalLoc = progression.length ? progression[progression.length - 1] : '';
+  const headText = head.join(' ');
+  const headHasRoom = /(storeroom|dark room|small room|\broom\b|小黑屋|仓库|室内)/i.test(headText);
+  if (['room', 'bedroom', 'sofa', 'kitchen', 'bathroom', 'office', 'classroom', 'elevator'].includes(finalLoc) && !headHasRoom) {
+    head.push('He drags her through the metal door into the small dark room and shoves her onto the mattress; she is still clothed and struggling.');
+  }
   const tail = [
     'He strips the last garment from her; she is completely nude. He then shoves his dark trousers and boxers down to his ankles, frees his cock, and kicks them aside; he is fully nude too; no clothing remains. She stops kicking and only shakes.',
     'He forces her to her knees, fists her hair, and pushes his cock into her mouth; she gags, saliva stringing, hands clawing at his thigh. (S2): <d>[Chinese] 张嘴。</d>',

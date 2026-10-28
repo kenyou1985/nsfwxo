@@ -46,7 +46,10 @@ function finalizeH3Prompt(prompt: string): string {
   return cleanSpeakerProse(enforceH3Speakers(prompt))
     .replace(/\bthe (?:adult|sleazy|Black) man\b/gi, 'the man')
     .replace(/\bA the man\b/g, 'the man')
-    .replace(/\bthe the man\b/gi, 'the man');
+    .replace(/\bthe the man\b/gi, 'the man')
+    // 修复 "a tall the man" / "an older the man" 这类替换后残留的冠词病句
+    .replace(/\b(a|an)\s+((?:\w+\s+){0,2})the man\b/gi, '$1 $2man')
+    .replace(/\bthe man\s+the man\b/gi, 'the man');
 }
 
 function normalizeCardPrompt(prompt: string): string {
