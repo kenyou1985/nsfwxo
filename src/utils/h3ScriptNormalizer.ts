@@ -20,8 +20,15 @@ export interface NormalizeOptions {
 const CLOTHING_NOUNS = 'top|bra|shirt|blouse|skirt|jeans|panties|thong|underwear|lower garment|dress|clothes|fabric';
 const NUDE_RE = /she is (?:now )?(?:completely|fully) nude|she's (?:now )?(?:completely|fully) nude|no clothing remains|stays? nude/i;
 
+// 删除“没有 <d> 绑定的说话/嗓音描述”句，避免 H3 把英文旁白读出来。
+function stripOrphanSpeech(text: string): string {
+  const parts = String(text || '').split(/(?<=[.!?])\s+/);
+  const kept = parts.filter((p) => /<d>/.test(p) || !/\b(?:voice|whisper\w*|mutter\w*|murmur\w*|under (?:his|her) breath|says?|answers?|commands?|orders?|tone|cries out|moans?|gasps?)\b/i.test(p));
+  return kept.join(' ');
+}
+
 function cleanBeat(raw: string): string {
-  return raw
+  const cleaned = raw
     // 模型偶尔在镜头正文里插入英文拒写残留，必须剔除，否则 H3 会把它当画面描述。
     .replace(/^(?:I (?:also )?(?:won't|will not|cannot|can't)[^\n]*)$/gmi, '')
     .replace(/\bI (?:also )?(?:won't|will not|cannot|can't) (?:write|provide|generate)[^.;]*[.;]?/gi, '')
@@ -78,6 +85,7 @@ function cleanBeat(raw: string): string {
     // 清除 "Tone: ..." 这类没有 <d> 的语气行
     .replace(/^[ \t]*Tone\s*[:：][^\n]*$/gmi, '')
     .trim();
+  return stripOrphanSpeech(cleaned);
 }
 
 function splitScript(raw: string): string[] {
@@ -150,7 +158,7 @@ function normalizeClothing(beats: string[]): string[] {
 
 export function normalizeH3Script(raw: string, opts: NormalizeOptions): string[] {
   let sourceBeats = splitScript(raw);
-  if (sourceBeats.length < 8 && raw.trim().length > 500) {
+  if (sourceBeats.length < 3 && raw.trim().length > 500) {
     // 没有 SHOT 标题时按段落回退；注意必须在回退后重新计算数量，
     // 不能继续用回退前的 sourceBeats.length，否则 12 段会被误判为空。
     sourceBeats = raw
@@ -159,7 +167,7 @@ export function normalizeH3Script(raw: string, opts: NormalizeOptions): string[]
       .filter((x) => x.length > 30)
       .filter((x) => /(?:Camera|Location|Body|Clothing|Action|Emotional|she |her |he |his |woman|man)/i.test(x));
   }
-  if (sourceBeats.length < 8) {
+  if (sourceBeats.length < 2) {
     // 既没有 SHOT 标题，也没有足够空行分段时，按完整视觉句再切一次；
     // 仍然只使用当前剧本内容，不注入任何旧动作模板。
     sourceBeats = raw
@@ -301,7 +309,7 @@ export function normalizeH3PromptStructure(raw: string, opts: H3StructureOptions
   }
   let shots = [...byNum.entries()].sort((a, b) => a[0] - b[0]).slice(0, opts.shotCount || 12).map(([, v]) => v);
 
-  const anchor = 'He is still fully clothed in a dark shirt and trousers; no male nudity in this shot.';
+  const anchor = 'Fully clothed.';
   const maleNude = /(?:\b(?:man|he)\b[^.\n]{0,100}\b(?:fully\s+|still\s+)?nude\b|\bboth\s+(?:now\s+|still\s+)?(?:fully\s+)?nude\b|\bhe\s+(?:is\s+|now\s+)?shirtless\b|\b(?:his\s+)?(?:torso|chest)\s+(?:is\s+)?bare\b|\brevealing\s+(?:a\s+)?(?:massive\s+)?(?:tattooed\s+)?chest\b|\bhis\s+(?:\w+\s+){0,4}(?:cock|penis)\s+(?:springs|is|comes)\s+free\b|\bhis\s+\w+\s+(?:cock|penis)\s+(?:out|free)\b|(?:\bhe\s+)?(?:then\s+)?(?:yanks?|pulls?|rips?|strips?|shoves?)\s+(?:his|the)\s+(?:own\s+)?(?:hoodie|t-shirt|shirt|tee|top|clothes)[^.;]*|\bhe\s+(?:remains?|stays?)\s+in\s+(?:jeans|pants|trousers)\s+only\b|\bhe\s+(?:shoves|kicks|pushes|strips)\s+(?:his|the)\s+(?:jeans|pants|trousers|boxers|clothes)[^.;]*|\bclothing stays off forever\b)/gi;
   // coercive 框架前 4 镜男性穿衣；Shot 5 是男性脱裤/全裸的动作点，不能清洗掉。
   const maleCleanUntil = coercive ? 4 : shots.findIndex((s0) => maleNude.test(s0));
@@ -338,8 +346,8 @@ export function normalizeH3PromptStructure(raw: string, opts: H3StructureOptions
 
   // 统一衔接语义：每镜从上一镜的结束姿态继续，不重启、不重复上一动作。
   // 归一器会被生成/提交/显示多次调用，必须幂等，不能叠加三遍 Continuity。
-  const continuity = "Continuity: begin exactly from the previous shot's end pose; same location and clothing state; do not repeat the previous action.";
-  const continuityRe = /^(?:Continuity: begin exactly from the previous shot's end pose; same location and clothing state; do not repeat the previous action\.?\s*)+/i;
+  const continuity = "Same pose; continue. ";
+  const continuityRe = /^(?:Same pose; continue\.?\s*)+/i;
   shots = shots.map((s0, i) => {
     const body = String(s0 || '').replace(continuityRe, '').trim();
     return i === 0 ? body : `${continuity} ${body}`;

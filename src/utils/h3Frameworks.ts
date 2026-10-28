@@ -369,7 +369,7 @@ export function ensureCoerciveArc(shots: string[], context = '', targetShots = 1
     `He drags her up by the hair, positions her ${positions.p1}, and drives into her in one hard thrust; her body jolts and she cries out. (S2): <d>[Chinese] 夹紧。</d>`,
     `Without pulling out, he changes her position: ${positions.p2}; she gasps as he enters at the new angle. (S2): <d>[Chinese] 转过来。腿抬好。</d>`,
     'Extreme close-up on the join: his cock sliding in and out of her wet pussy, fluid stringing, her thighs trembling, his hand gripping her raised thigh. (S1): <d>[Chinese] 不要看那里…</d>',
-    `He changes once more: ${positions.p3}; then fucks her hard and fast, one hand in her hair, the other holding her hip; her resistance breaks into helpless noise. (S2): <d>[Chinese] 别躲。</d>`,
+    `He takes her ${positions.p3}, his hips between her legs, and drives deep; one hand in her hair, the other holding her hip; her resistance breaks into helpless noise. (S2): <d>[Chinese] 别躲。</d>`,
     'He buries himself to the hilt and finishes inside her; thick creampie pulses out as her resistance collapses into shaking submission. (S2): <d>[Chinese] 接好。</d>',
     'She sinks down at the same spot, spent and trembling, fully nude, his hands still on her; he does not dress her. (S1): <d>[Chinese] 我不敢了…</d>',
   ];

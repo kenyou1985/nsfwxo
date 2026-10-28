@@ -843,7 +843,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   if (hasMan && coercive && maleUndressIdx < 0) maleUndressIdx = shots.length >= 7 ? 6 : Math.max(3, shots.length - 2);
   if (hasMan && coercive && maleUndressIdx > 0) {
     shots = shots.map((s, i) => i < maleUndressIdx
-      ? `${s} He is still fully clothed in a dark shirt and trousers; no male nudity in this shot.`
+      ? `${s} Fully clothed.`
       : s);
   }
   const nudeLine = 'She strips off the remaining clothing; from this shot onward she is completely nude, and no clothing returns.';
