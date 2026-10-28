@@ -1151,13 +1151,25 @@ function extractWardrobe(text: string): string {
     灰色: 'grey', 粉色: 'pink', 紫色: 'purple', 绿色: 'green', 棕色: 'brown', 米色: 'beige', 橙色: 'orange', 金色: 'gold', 银色: 'silver', 深蓝: 'navy', 酒红: 'wine-red',
   };
   const found: string[] = [];
+  // 服装归一 key：颜色 + 服装类型，解决 red shirt/red blouse、white ultra-mini skirt/white mini-skirt 重复。
+  const wardrobeKey = (v: string) => {
+    const w = v.toLowerCase().replace(/-/g, ' ');
+    const colorM = w.match(/\b(red|yellow|white|black|blue|grey|gray|pink|purple|green|brown|beige|orange|gold|silver|navy|wine)\b/);
+    const color = colorM ? colorM[1] : '';
+    const type = /skirt|mini/.test(w) ? 'skirt'
+      : /blouse|shirt|top/.test(w) ? 'shirt'
+      : /thong|panties|underwear/.test(w) ? 'thong'
+      : /dress/.test(w) ? 'dress'
+      : /jeans|trousers|pants/.test(w) ? 'trousers'
+      : w.replace(/\b(ultra|mini|low|cut|skirt|blouse|shirt)\b/g, ' ').trim();
+    return `${color} ${type}`.trim();
+  };
   const push = (v: string) => {
     if (!v) return;
-    // 同一颜色同一服装只保留一个；优先保留 ultra-mini 版本。
-    const key = v.toLowerCase().replace(/ultra-mini|mini|low-cut/g, '').replace(/blouse/g, 'shirt').replace(/\s+/g, ' ').trim();
-    const existing = found.findIndex((x) => x.toLowerCase().replace(/ultra-mini|mini|low-cut/g, '').replace(/blouse/g, 'shirt').replace(/\s+/g, ' ').trim() === key);
+    const key = wardrobeKey(v);
+    const existing = found.findIndex((x) => wardrobeKey(x) === key);
     if (existing >= 0) {
-      if ((/ultra-mini/i.test(v) && !/ultra-mini/i.test(found[existing])) || v.length > found[existing].length) found[existing] = v;
+      if (v.length > found[existing].length) found[existing] = v;
       return;
     }
     found.push(v);
