@@ -65,6 +65,13 @@ function cleanBeat(raw: string): string {
     .replace(/\bthen\s+a\s*[.,;]\s*/gi, ' ')
     // 分屏/双画面指令会让 H3 把两个画面糊成一帧，直接去掉 split-screen 标记
     .replace(/\bsplit(?:[- ]screen)?\b\s*[-—:：]\s*/gi, '')
+    // 行内孤儿声线提示：he low, not yet for her: / she uncertain: / he close, calm:
+    // 只在后面紧跟 Tone/<d>/(Sx)/标点/行尾时删除，避免误删正常叙述。
+    .replace(/\b(?:he|she)\s+[^.:\n]{0,45}:\s*(?=Tone\s*[:：]|\(S[12]\)|<d>|[.;])/gi, ' ')
+    // 行内语气提示（不在行首）：Tone: hungry mutter / tone：quiet command...
+    .replace(/\bTone\s*[:：]\s*[^.。\n]*/gi, ' ')
+    // 孤儿说话人提示：(S2) under his breath: (S1): <d>...  → 去掉前面的 (S2) under his breath:
+    .replace(/\(S[12]\)\s*[^.:\n]{0,40}:\s*(?=\(S[12]\))/g, ' ')
     // 清除行内括号语气提示，如 "(low, hungry whisper to himself)"；保留 (S1)/(S2) 与 <d> 台词。
     // 这些提示没有 <d> 绑定，是 H3 生成英语旁白的常见来源。
     .replace(/\((?!S[12]\))[^)<\n]{0,60}\)/g, ' ')
