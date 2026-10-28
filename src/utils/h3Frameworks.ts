@@ -266,12 +266,20 @@ export function pickPenetrationPositions(context: string): PositionPlan {
  * coercive 框架的最低动作弧：只补缺失的强制 oral/penetration/ending，
  * 不删除主题已有的动作；所有内容仍是当前主题的胁迫场景。
  */
+/** 前戏/尾随阶段女性必须仍穿衣服：把 LLM 偶发的过早裸体描述改回“仍穿着”。 */
+// 只拦截“全裸/彻底脱光”，不拦截 upskirt/露点/露阴这类“仍穿着但暴露”的合法前戏内容。
+const EARLY_FEMALE_NUDE_RE = /(?:she is (?:now |still )?(?:completely|fully)?\s*nude|(?:completely|fully) nude|strips? the last garment from her|no clothing remains|her clothes (?:are|are now) (?:gone|off)|she's (?:now )?(?:completely|fully)?\s*nude)/i;
+
 export function ensureCoerciveArc(shots: string[], context = '', targetShots = 12): string[] {
   if (!Array.isArray(shots) || shots.length < 4) return shots;
   // 前 4 镜保留主题自己的接近/压制/反抗/脱上衣；
   // 后半段由 coercive 框架保证：全裸→强制口交→插入→抽插→内射→被迫顺从。
   const headCount = targetShots >= 20 ? Math.min(8, targetShots - 8) : 4;
-  const head = shots.slice(0, headCount).map((s) => s.replace(/She is still fully clothed[^.]*\./gi, '').trim());
+  // 前戏阶段强制女性“仍穿衣服”：把过早的全裸/露点描述改回“仍穿着”，
+  // 真正脱光只由 tail[0]（He strips the last garment...）在正式性行为前触发一次。
+  const head = shots.slice(0, headCount).map((s) =>
+    s.replace(/She is still fully clothed[^.]*\./gi, '').replace(EARLY_FEMALE_NUDE_RE, 'she is still clothed').trim()
+  );
   // 模型偶尔第一镜只写对白，没有构图；补一个中性视觉锚点，不能让 H3 第一镜空画面。
   if (head[0] && !/(camera|location|body|action|\b(she|her|he|his)\b)/i.test(head[0]) && head[1]) {
     head[0] = `At the current location, she holds the written pose; he stands close behind her, not yet touching. ${head[0]}`;
