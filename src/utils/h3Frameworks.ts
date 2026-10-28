@@ -200,147 +200,64 @@ export interface PositionPlan {
 
 /** 按场景选择三种插入姿势；只决定“可用空间”，不覆盖主题动作。 */
 /** 地点分组：key 是规范地点，words 是各语言别名。 */
-const LOCATION_GROUPS: Array<{ key: string; words: string[] }> = [
-  { key: 'elevator', words: ['elevator', 'lift', '电梯'] },
-  { key: 'bedroom', words: ['bedroom', 'bed', '卧室', '床'] },
-  { key: 'sofa', words: ['sofa', 'couch', '沙发'] },
-  { key: 'classroom', words: ['classroom', 'lecture hall', 'blackboard', 'podium', '教室', '讲台', '黑板'] },
-  { key: 'office', words: ['office', '办公'] },
-  { key: 'kitchen', words: ['kitchen', '厨房'] },
-  { key: 'bathroom', words: ['bathroom', '浴室', '卫生间'] },
-  { key: 'subway', words: ['subway', 'metro', 'train', 'carriage', '地铁', '车厢', '列车'] },
-  { key: 'alley', words: ['alley', '巷子', '小巷'] },
-  { key: 'street', words: ['street', '街道'] },
-  { key: 'park', words: ['park', '公园'] },
-  { key: 'mall', words: ['mall', '商场'] },
-  { key: 'room', words: ['storeroom', 'dark room', 'small room', 'room', '小黑屋', '仓库', '房间'] },
-  { key: 'worksite', words: ['worksite', 'construction site', 'abandoned site', 'scaffolding', 'rebar', 'pallet', '工地', '废弃工地', '脚手架'] },
-  { key: 'corridor', words: ['corridor', '走廊'] },
-  { key: 'escalator', words: ['escalator', '扶梯'] },
-];
-
-/** 英文词用词边界匹配，避免 "mall" 命中 "small"、"train" 命中 "strain/restraint"。 */
-function termIndex(text: string, term: string): number {
-  const ascii = /^[a-z ]+$/i.test(term);
-  const re = ascii
-    ? new RegExp(`\\b${term.replace(/\s+/g, '\\s+')}\\b`, 'i')
-    : new RegExp(term, 'i');
-  const m = text.match(re);
-  return m && typeof m.index === 'number' ? m.index : -1;
-}
-
-/** 按正文出现顺序返回去重后的地点序列（alley/巷子 视为同一地点）。 */
-export function detectLocationProgression(text: string): string[] {
-  const t = String(text || '');
-  const hits: Array<{ key: string; idx: number }> = [];
-  for (const g of LOCATION_GROUPS) {
-    let best = Infinity;
-    for (const w of g.words) {
-      const idx = termIndex(t, w);
-      if (idx >= 0 && idx < best) best = idx;
-    }
-    if (best < Infinity) hits.push({ key: g.key, idx: best });
-  }
-  hits.sort((a, b) => a.idx - b.idx);
-  const seen = new Set<string>();
+/**
+ * 通用的“地点/支撑物”提取：不维护主题→场景的硬编码表。
+ * 地点优先来自剧本每镜的 Location: 字段（LLM 已按主题写），其次来自主题正文里的地点短语。
+ */
+export function extractScriptLocations(text: string): string[] {
+  const raw = String(text || '');
   const out: string[] = [];
-  for (const h of hits) {
-    if (!seen.has(h.key)) {
-      seen.add(h.key);
-      out.push(h.key);
-    }
+  const seen = new Set<string>();
+  const push = (loc: string) => {
+    let v = String(loc || '')
+      .replace(/^\s*(?:same|the same)\s+/i, '')
+      .replace(/^\s*(?:the|a|an)\s+/i, '')
+      .replace(/\s*[,，].*$/, '')
+      .replace(/[.;。；]+$/, '')
+      .trim();
+    if (!v) return;
+    const key = v.toLowerCase();
+    if (seen.has(key)) return;
+    // 合并同一地点的变体：mid-alley / alley narrowing / alley end → alley
+    if (out.some((e) => e.toLowerCase().includes(key) || key.includes(e.toLowerCase()) || (e.split(/\s+/).pop() === key.split(/\s+/).pop()))) return;
+    seen.add(key);
+    out.push(v);
+  };
+  // 1) 剧本字段：Location: ...
+  for (const line of raw.split(/\n+/)) {
+    const m = line.match(/\bLocation\s*[:：]\s*([^.;\n]+)/i);
+    if (m) push(m[1]);
   }
+  if (out.length) return out;
+  // 2) 中文地点短语：在/到/绑在/拖进 + 地点 + 方位词
+  const cnRe = /(?:在|到|进入|走进|来到|退到|按在|绑在|趴在|靠在|坐在|躺在|拖进|拖到|拽进|拽到)([\u4e00-\u9fff]{2,10}?)(?:上|里|中|内|下|边|旁|前|后|处|着)/g;
+  let cm: RegExpExecArray | null;
+  while ((cm = cnRe.exec(raw))) push(cm[1]);
+  if (out.length) return out;
+  // 3) 英文地点介词短语：in/at/on/inside the X
+  const re = /\b(?:in|at|on|inside|through|into)\s+the\s+([a-z][a-z\s-]{2,30})/gi;
+  let mm: RegExpExecArray | null;
+  while ((mm = re.exec(raw))) push(mm[1]);
   return out;
 }
 
+/** 从地点短语里取一个可倚靠/可趴的支撑物名词；没有就返回空，由调用方用通用词。 */
+function extractAnchor(location: string): string {
+  const m = String(location || '').match(/(?:\b(scaffolding|scaffold|pole|wall|railing|rail|bed|mattress|sofa|couch|desk|table|counter|bench|chair|tree|rock|car|hood|bar|column|pillar|frame|crate|pallet|dumpster|sink|tub|board|floor|ground)\b|脚手架|栏杆|柱子|墙|床垫|床|沙发|桌子|柜台|长椅|椅子|树|石头|吧台|箱子|托盘|水槽|浴缸|地板|地面)/i);
+  if (!m) return '';
+  return (m[1] || m[0]).toLowerCase();
+}
+
 export function pickPenetrationPositions(context: string): PositionPlan {
-  // 插入姿势由“主题最后出现的地点”决定；不做关键词子串匹配，避免扶梯/走廊主题被误判成地铁或室内。
-  const progression = detectLocationProgression(context);
-  const last = progression.length ? progression[progression.length - 1] : 'room';
-  switch (last) {
-    case 'elevator':
-      return {
-        p1: 'against the elevator wall, one leg lifted, taken from the front',
-        p2: 'bent over the elevator handrail, taken from behind in the same car',
-        p3: 'down on the elevator floor in missionary, the same car around them',
-      };
-    case 'bedroom':
-      return {
-        p1: 'on all fours on the bed, taken from behind',
-        p2: 'on her side with one leg lifted, entered at an angle',
-        p3: 'on her back in missionary, legs around his waist',
-      };
-    case 'sofa':
-      return {
-        p1: 'bent over the sofa arm, taken from behind',
-        p2: 'straddling his lap on the sofa, riding him',
-        p3: 'laid back on the sofa in missionary, legs pushed up',
-      };
-    case 'classroom':
-      return {
-        p1: 'bent over the desk, taken from behind',
-        p2: 'one leg lifted onto the chair or desk, entered at a new angle',
-        p3: 'laid back on the desk in missionary',
-      };
-    case 'office':
-      return {
-        p1: 'bent over the office desk, taken from behind',
-        p2: 'one leg lifted onto the chair, entered at a new angle',
-        p3: 'laid back on the desk in missionary',
-      };
-    case 'kitchen':
-      return {
-        p1: 'bent over the kitchen counter, taken from behind',
-        p2: 'one leg lifted onto a stool, entered from the side',
-        p3: 'laid back on the counter in missionary',
-      };
-    case 'bathroom':
-      return {
-        p1: 'bent over the bathroom sink, taken from behind',
-        p2: 'one leg lifted onto the edge of the tub, entered from the front',
-        p3: 'down on the bathroom floor in missionary',
-      };
-    case 'subway':
-      return {
-        p1: 'standing in the same car, bent forward against the pole, taken from behind',
-        p2: 'one leg lifted in the aisle, her back against the pole, entered from the front',
-        p3: 'held up against the pole with both legs around him, fucked standing',
-      };
-    case 'alley':
-    case 'street':
-    case 'park':
-      return {
-        p1: 'against the alley or park wall, one leg lifted, taken from the front',
-        p2: 'bent over a dumpster or bench, taken from behind',
-        p3: 'down on the ground or bench in missionary, legs held open',
-      };
-    case 'room':
-      return {
-        p1: 'against the storeroom wall, one leg lifted, taken from the front',
-        p2: 'bent over the mattress or crates, taken from behind',
-        p3: 'down on the mattress in missionary, legs held open',
-      };
-    case 'worksite':
-      return {
-        p1: 'against the scaffolding pole, one leg lifted, taken from the front',
-        p2: 'bent over the stacked pallets, taken from behind',
-        p3: 'down on the ground among the rebar in missionary, legs held open',
-      };
-    case 'mall':
-    case 'corridor':
-    case 'escalator':
-      return {
-        p1: 'against the nearest wall, one leg lifted, taken from the front',
-        p2: 'bent over the nearest stable surface, taken from behind',
-        p3: 'down on the floor in missionary, legs held open',
-      };
-    default:
-      return {
-        p1: 'against the nearest wall, one leg lifted, taken from the front',
-        p2: 'bent over the nearest stable surface, taken from behind',
-        p3: 'down on the floor in missionary, legs held open',
-      };
-  }
+  // 不再按主题名硬编码姿势：只从“剧本/主题最后一个地点”里取支撑物，生成通用姿势。
+  const locs = extractScriptLocations(context);
+  const anchor = extractAnchor(locs[locs.length - 1] || '') || extractAnchor(context) || 'nearest surface';
+  const a = `the ${anchor}`;
+  return {
+    p1: `against ${a}, one leg lifted, taken from the front`,
+    p2: `bent over ${a}, taken from behind`,
+    p3: `down on the ground beside ${a} in missionary, legs held open`,
+  };
 }
 
 /**
@@ -378,17 +295,19 @@ export function ensureCoerciveArc(shots: string[], context = '', targetShots = 1
     head[0] = `At the current location, she holds the written pose; he stands close behind her, not yet touching. ${head[0]}`;
   }
   const positions = pickPenetrationPositions(context);
-  // 地点衔接：如果主题最终发生在小黑屋/室内，但剧本前戏还停在小巷/户外，补一个“拖进门”转场，
-  // 避免镜头直接从巷子跳到室内性行为（场景断裂）。已有转场则不重复。
-  const progression = detectLocationProgression(context);
-  const finalLoc = progression.length ? progression[progression.length - 1] : '';
+  // 地点/动作衔接完全由“剧本 + 主题”决定，不锁定具体场景。
+  // 若主题要求捆绑、但前戏还没写到捆绑，就在主题最后地点补一个捆绑转场；否则只在最后地点缺失时补一个移动镜头。
+  const locs = extractScriptLocations(context);
+  const finalLoc = locs.length ? locs[locs.length - 1] : '';
   const headText = head.join(' ');
-  const headHasRoom = /(storeroom|dark room|small room|\broom\b|小黑屋|仓库|室内)/i.test(headText);
-  if (['room', 'bedroom', 'sofa', 'kitchen', 'bathroom', 'office', 'classroom', 'elevator'].includes(finalLoc) && !headHasRoom) {
-    const needsBind = /捆绑|绑住|绑|绳索|绳|rope|bind|tie/i.test(context);
-    head.push(needsBind
-      ? 'He drags her through the metal door into the small dark room, shoves her onto the mattress, and ties her wrists with rope; she is still clothed and struggling.'
-      : 'He drags her through the metal door into the small dark room and shoves her onto the mattress; she is still clothed and struggling.');
+  const esc = finalLoc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const headHasLoc = finalLoc ? new RegExp(esc, 'i').test(headText) : true;
+  const needsBind = /捆绑|绑住|绑|绳索|绳|rope|bind|tie/i.test(context);
+  const headHasBind = /\bbinds?\b|\btied\b|\brope\b|捆绑|绑住|绑在/i.test(headText);
+  if (needsBind && !headHasBind) {
+    head.push(`He forces her against ${finalLoc || 'the nearest support'} and binds her wrists with rope; she is still clothed and struggling.`);
+  } else if (finalLoc && !headHasLoc) {
+    head.push(`He moves her into ${finalLoc}; she is still clothed and struggling.`);
   }
   const tail = [
     'He strips the last garment from her; she is completely nude. He then shoves his dark trousers and boxers down to his ankles, frees his cock, and kicks them aside; he is fully nude too; no clothing remains. She stops kicking and only shakes.',
@@ -443,34 +362,4 @@ export function ensureCoerciveArc(shots: string[], context = '', targetShots = 1
   return [...head, ...tail].slice(0, Math.min(12, targetShots));
 }
 
-/**
- * 上游 LLM 内容审核拒写时的兜底剧本：只从“当前主题”里抽动作/服装/地点，
- * 生成与主题一致的分镜骨架，再交给 coercive 框架补齐到 12/20/30 镜。
- * 这是拒写兜底，不是主路径；正常生成仍优先用 LLM 剧本。
- */
-export function buildFallbackScript(theme: string): string {
-  const t = String(theme || '');
-  const has = (re: RegExp) => re.test(t);
-  const outfit = [
-    has(/红色低胸衬衫|红色衬衫|red low-cut|red blouse|red shirt/i) ? 'a red low-cut blouse' : '',
-    has(/白色超短裙|白色短裙|white mini|white skirt/i) ? 'a white ultra-mini skirt' : '',
-    has(/黑色丁字裤|丁字裤|black thong|thong/i) ? 'a black thong' : '',
-  ].filter(Boolean).join(', ');
-  const place = has(/小巷|巷子|alley/i) ? 'the alley'
-    : has(/地铁|车厢|subway|metro|train/i) ? 'the subway car'
-    : has(/电梯|elevator/i) ? 'the elevator'
-    : has(/教室|classroom/i) ? 'the classroom'
-    : has(/办公室|office/i) ? 'the office'
-    : 'the scene described by the current theme';
-  const room = has(/小黑屋|仓库|dark room|storeroom|small room|房间/i) ? 'a small dark room' : null;
-  const b: string[] = [];
-  b.push(`She walks through ${place} wearing ${outfit || 'the outfit described by the current theme'}, hips swaying, unaware.`);
-  if (has(/尾随|跟踪|follow|stalk/i)) b.push(`A man in a dark shirt follows two metres behind her, phone in hand, eyes locked on her skirt.`);
-  if (has(/蹲|偷窥|偷拍|抄底|upskirt|squat/i)) b.push(`He drops into a low squat behind her and tilts his phone under the skirt, recording her thong.`);
-  b.push(`He rises and keeps tailing her through ${place}, closing the distance.`);
-  if (has(/扑倒|按倒|扑|tackle|pin/i)) b.push(`He lunges and pins her against the nearest wall, one hand over her mouth.`);
-  if (room) b.push(`He drags her through a metal door into ${room}.`);
-  if (has(/捆绑|绑|rope|bind|tie/i)) b.push(`He forces her onto a stained mattress and binds her wrists and ankles with rope.`);
-  b.push(`He tears the blouse open and pulls the skirt down, leaving her in only her thong.`);
-  return b.map((x, i) => `SHOT ${i + 1}: ${x}`).join('\n');
-}
+

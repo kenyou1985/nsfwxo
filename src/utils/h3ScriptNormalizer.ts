@@ -87,7 +87,7 @@ function splitScript(raw: string): string[] {
     // `SHOT N:` 只允许行首或紧跟在 `[Shot N]` 后面，避免把
     // "Clothing applies only to Shot 1: from Shot 2 onward..." 当成镜头标题。
     .split(/(?=(?:\[\s*(?:\*\*)?(?:SHOT|Shot)\s+\d+\s*\]?|(?:^|\n|\])\s*(?:\*\*)?SHOT\s+\d+\b[:：]?))/im)
-    .slice(1)
+    .filter((x) => x.trim().length > 0)
     .map(cleanBeat)
     .filter((x) => x.length > 10)
     .filter((x) => !isModelRefusal(x));

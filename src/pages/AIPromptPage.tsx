@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { extractVideoPromptFromImagePrompt } from '../utils/videoPromptExtractor';
 import { normalizeKrea2Prompt } from '../utils/krea2Prompt';
 import { normalizeH3Script, normalizeDialogueSpeakers, normalizeH3PromptStructure, isModelRefusal, stripModelRefusal } from '../utils/h3ScriptNormalizer';
-import { applyFramework, detectFramework, ensureCoerciveArc, H3_FRAMEWORKS, enforceH3Speakers, cleanSpeakerProse, detectLocationProgression } from '../utils/h3Frameworks';
+import { applyFramework, detectFramework, ensureCoerciveArc, H3_FRAMEWORKS, enforceH3Speakers, cleanSpeakerProse, extractScriptLocations } from '../utils/h3Frameworks';
 import { makeThumbnailForStorage, makePreviewForStorage } from '../utils/imageThumbnail';
 import { AspectAwareImage } from '../components/AspectAwareImage';
 import { OneClickProduce } from '../components/OneClickProduce';
@@ -1123,20 +1123,13 @@ function sanitizeAgeTerms(text: string): string {
 
 function deriveSceneAnchor(text: string): string {
   const t = String(text || '');
-  // 场景只从当前主题/剧本提取；英文按词边界匹配，避免 "small"→mall、"strain"→train 这类子串污染。
-  const progression = detectLocationProgression(t);
-  const pretty: Record<string, string> = {
-    elevator: 'elevator', bedroom: 'bedroom', sofa: 'sofa', classroom: 'classroom',
-    office: 'office', kitchen: 'kitchen', bathroom: 'bathroom', subway: 'subway',
-    alley: 'alley', street: 'street', park: 'park', mall: 'mall', room: 'small dark room',
-    corridor: 'corridor', escalator: 'escalator', worksite: 'abandoned worksite',
-  };
-  const names = progression.map((k) => pretty[k] || k);
-  if (names.length > 1) {
-    return `Scene: the theme's location progression is ${names.join(' → ')}; follow only these locations in order, and do not add any location not listed.`;
+  // 地点完全来自“剧本 Location 字段 + 主题正文”，不维护主题→场景硬编码表。
+  const locs = extractScriptLocations(t);
+  if (locs.length > 1) {
+    return `Scene: the theme's location progression is ${locs.join(' → ')}; follow only these locations in order, and do not add any location not listed.`;
   }
-  if (names.length === 1) {
-    return `Scene: the ${names[0]} described by the current theme; keep that same place from Shot 1 to the end.`;
+  if (locs.length === 1) {
+    return `Scene: the ${locs[0]} described by the current theme; keep that same place from Shot 1 to the end.`;
   }
   const indoor = /(indoor|inside|interior|室内|房间|屋里|公寓|酒店|浴室|卧室|厨房|电梯|商场)/i.test(t);
   const outdoor = /(outdoor|outside|street|alley|park|beach|forest|rooftop|室外|户外|街道|巷子|公园|海边|天台)/i.test(t);
