@@ -204,6 +204,32 @@ export interface PositionPlan {
  * 通用的“地点/支撑物”提取：不维护主题→场景的硬编码表。
  * 地点优先来自剧本每镜的 Location: 字段（LLM 已按主题写），其次来自主题正文里的地点短语。
  */
+// 中文地点/支撑物 → 英文。仅做“翻译”，不做主题→场景映射，任何主题都走同一套。
+const CN_PLACE_MAP: Record<string, string> = {
+  废弃工地: 'abandoned construction site', 建筑工地: 'construction site', 工地: 'construction site',
+  脚手架: 'scaffolding', 仓库: 'warehouse', 厂房: 'factory floor', 小黑屋: 'small dark room',
+  小巷子: 'alley', 小巷: 'alley', 巷子: 'alley', 街道: 'street', 街头: 'street', 马路: 'road', 公路: 'road',
+  卧室: 'bedroom', 客厅: 'living room', 房间: 'room', 厨房: 'kitchen', 浴室: 'bathroom', 卫生间: 'bathroom',
+  办公室: 'office', 教室: 'classroom', 走廊: 'corridor', 楼道: 'stairwell', 电梯: 'elevator', 扶梯: 'escalator',
+  地铁: 'subway', 车厢: 'subway car', 列车: 'train', 公交车: 'bus', 商场: 'mall', 超市: 'supermarket',
+  酒店: 'hotel', 公寓: 'apartment', 别墅: 'villa', 房子: 'house', 公园: 'park', 花园: 'garden',
+  树林: 'woods', 森林: 'forest', 海边: 'beach', 沙滩: 'beach', 游泳池: 'pool', 泳池: 'pool',
+  屋顶: 'rooftop', 天台: 'rooftop', 操场: 'playground', 停车场: 'parking lot', 车库: 'garage',
+  床: 'bed', 沙发: 'sofa', 桌子: 'desk', 柜台: 'counter', 吧台: 'bar counter', 地板: 'floor',
+  地面: 'ground', 墙: 'wall', 栏杆: 'railing', 柱子: 'pillar', 浴缸: 'bathtub', 洗手台: 'sink',
+};
+const CN_ANCHOR_MAP: Record<string, string> = {
+  脚手架: 'scaffolding', 栏杆: 'railing', 柱子: 'pillar', 墙: 'wall', 床垫: 'mattress', 床: 'bed',
+  沙发: 'sofa', 桌子: 'desk', 柜台: 'counter', 长椅: 'bench', 椅子: 'chair', 树: 'tree', 石头: 'rock',
+  吧台: 'bar counter', 箱子: 'crate', 托盘: 'pallet', 水槽: 'sink', 浴缸: 'bathtub', 地板: 'floor', 地面: 'ground',
+};
+function translateCn(text: string, map: Record<string, string>): string {
+  const t = String(text || '');
+  const keys = Object.keys(map).sort((a, b) => b.length - a.length);
+  for (const k of keys) if (t.includes(k)) return map[k];
+  return '';
+}
+
 export function extractScriptLocations(text: string): string[] {
   const raw = String(text || '');
   const out: string[] = [];
@@ -232,7 +258,10 @@ export function extractScriptLocations(text: string): string[] {
   // 2) 中文地点短语：在/到/绑在/拖进 + 地点 + 方位词
   const cnRe = /(?:在|到|进入|走进|来到|退到|按在|绑在|趴在|靠在|坐在|躺在|拖进|拖到|拽进|拽到)([\u4e00-\u9fff]{2,10}?)(?:上|里|中|内|下|边|旁|前|后|处|着)/g;
   let cm: RegExpExecArray | null;
-  while ((cm = cnRe.exec(raw))) push(cm[1]);
+  while ((cm = cnRe.exec(raw))) {
+    const en = translateCn(cm[1], CN_PLACE_MAP);
+    if (en) push(en);
+  }
   if (out.length) return out;
   // 3) 英文地点介词短语：in/at/on/inside the X
   const re = /\b(?:in|at|on|inside|through|into)\s+the\s+([a-z][a-z\s-]{2,30})/gi;
@@ -243,9 +272,11 @@ export function extractScriptLocations(text: string): string[] {
 
 /** 从地点短语里取一个可倚靠/可趴的支撑物名词；没有就返回空，由调用方用通用词。 */
 function extractAnchor(location: string): string {
-  const m = String(location || '').match(/(?:\b(scaffolding|scaffold|pole|wall|railing|rail|bed|mattress|sofa|couch|desk|table|counter|bench|chair|tree|rock|car|hood|bar|column|pillar|frame|crate|pallet|dumpster|sink|tub|board|floor|ground)\b|脚手架|栏杆|柱子|墙|床垫|床|沙发|桌子|柜台|长椅|椅子|树|石头|吧台|箱子|托盘|水槽|浴缸|地板|地面)/i);
-  if (!m) return '';
-  return (m[1] || m[0]).toLowerCase();
+  const loc = String(location || '');
+  const cn = translateCn(loc, CN_ANCHOR_MAP);
+  if (cn) return cn;
+  const m = loc.match(/\b(scaffolding|scaffold|pole|wall|railing|rail|bed|mattress|sofa|couch|desk|table|counter|bench|chair|tree|rock|car|hood|bar|column|pillar|frame|crate|pallet|dumpster|sink|tub|board|floor|ground)\b/i);
+  return m ? m[1].toLowerCase() : '';
 }
 
 export function pickPenetrationPositions(context: string): PositionPlan {
@@ -305,9 +336,10 @@ export function ensureCoerciveArc(shots: string[], context = '', targetShots = 1
   const needsBind = /捆绑|绑住|绑|绳索|绳|rope|bind|tie/i.test(context);
   const headHasBind = /\bbinds?\b|\btied\b|\brope\b|捆绑|绑住|绑在/i.test(headText);
   if (needsBind && !headHasBind) {
-    head.push(`He forces her against ${finalLoc || 'the nearest support'} and binds her wrists with rope; she is still clothed and struggling.`);
+    const dest = finalLoc ? (/^(?:the|a|an)\s/i.test(finalLoc) ? finalLoc : `the ${finalLoc}`) : 'the nearest support';
+    head.push(`He forces her against ${dest} and binds her wrists with rope; she is still clothed and struggling.`);
   } else if (finalLoc && !headHasLoc) {
-    head.push(`He moves her into ${finalLoc}; she is still clothed and struggling.`);
+    head.push(`He moves her into ${finalLoc ? (/^(?:the|a|an)\s/i.test(finalLoc) ? finalLoc : `the ${finalLoc}`) : 'the final location'}; she is still clothed and struggling.`);
   }
   const tail = [
     'He strips the last garment from her; she is completely nude. He then shoves his dark trousers and boxers down to his ankles, frees his cock, and kicks them aside; he is fully nude too; no clothing remains. She stops kicking and only shakes.',

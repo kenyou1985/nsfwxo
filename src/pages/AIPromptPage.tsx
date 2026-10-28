@@ -1217,11 +1217,13 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
   // 判断“纯占位镜头”：整镜几乎只有通用机位句、没有真实动作/人物内容。
   // 用过短/大量占位说明 LLM 没真正产出内容，不再硬凑，直接判失败。
   const GENERIC_SHOT_RE = /^Camera (?:medium two-shot|handheld close-up|medium tracking shot|side angle|close-up on hands|low angle|medium shot|close-up|rear three-quarter|overhead|extreme close-up|slow pull-back)[^.]*\./i;
-  const placeholderCount = shots.filter((x) => {
+  const remainingAction = (x: string) => {
     const m = x.match(GENERIC_SHOT_RE);
-    return !!m && m[0].length >= x.length * 0.65;
-  }).length;
-  if (shots.length >= 4 && placeholderCount / shots.length >= 0.5) return '';
+    const rest = m ? x.slice(m[0].length) : x;
+    return rest.replace(/He is still fully clothed[^.]*\./i, '').replace(/she holds her pose[^.]*\./i, '').trim();
+  };
+  const placeholderCount = shots.filter((x) => remainingAction(x).length < 10).length;
+  if (shots.length >= 4 && placeholderCount / shots.length >= 0.7) return '';
   const detected = detectFramework(script, hasMan);
   const sceneAnchor = `${deriveSceneAnchor(sceneText)} Only one male is in frame: Subject 2; no second man, no clone, no extra male touching her.`;
   const wardrobeRule = 'Clothing comes from the current theme description. If the theme does not specify an item, use the clothing visible in Picture 1. Do not invent colors or garments.';
