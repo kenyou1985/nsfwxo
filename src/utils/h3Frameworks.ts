@@ -370,7 +370,10 @@ export function ensureCoerciveArc(shots: string[], context = '', targetShots = 1
   const headText = head.join(' ');
   const headHasRoom = /(storeroom|dark room|small room|\broom\b|小黑屋|仓库|室内)/i.test(headText);
   if (['room', 'bedroom', 'sofa', 'kitchen', 'bathroom', 'office', 'classroom', 'elevator'].includes(finalLoc) && !headHasRoom) {
-    head.push('He drags her through the metal door into the small dark room and shoves her onto the mattress; she is still clothed and struggling.');
+    const needsBind = /捆绑|绑住|绑|绳索|绳|rope|bind|tie/i.test(context);
+    head.push(needsBind
+      ? 'He drags her through the metal door into the small dark room, shoves her onto the mattress, and ties her wrists with rope; she is still clothed and struggling.'
+      : 'He drags her through the metal door into the small dark room and shoves her onto the mattress; she is still clothed and struggling.');
   }
   const tail = [
     'He strips the last garment from her; she is completely nude. He then shoves his dark trousers and boxers down to his ankles, frees his cock, and kicks them aside; he is fully nude too; no clothing remains. She stops kicking and only shakes.',

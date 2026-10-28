@@ -1187,10 +1187,12 @@ function extractWardrobe(text: string): string {
  * 剧本直出：不经过任何动作模板/分支，只把当前主题的 12 镜剧本格式化为 H3。
  * 动作、场景、服装、对白全部来自 script；模板只负责 H3 六段结构。
  */
-export function buildH3FromScript(script: string, hasMan: boolean, malePicture: boolean, shotCount = 12): string {
+export function buildH3FromScript(script: string, hasMan: boolean, malePicture: boolean, shotCount = 12, themeHint = ''): string {
   // 剧本里出现 he/his/him 也证明有男性；否则会被误判 solo，导致男声缺失。
   hasMan = hasMan || /\b(he|his|him)\b|\b(man|male)\b|黑人|黑男|男人|男性|男子|男/i.test(script);
   script = unifySingleMale(sanitizeAgeTerms(script));
+  // 场景检测同时看“剧本 + 用户主题”，避免 LLM 漏写小黑屋/室内导致场景只停在巷子。
+  const sceneText = `${script}\n${themeHint}`;
   const shots = normalizeH3Script(script, {
     hasMan,
     coercive: false,
@@ -1201,10 +1203,10 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
   if (shots.length < 2) return '';
 
   const detected = detectFramework(script, hasMan);
-  const sceneAnchor = `${deriveSceneAnchor(script)} Only one male is in frame: Subject 2; no second man, no clone, no extra male touching her.`;
+  const sceneAnchor = `${deriveSceneAnchor(sceneText)} Only one male is in frame: Subject 2; no second man, no clone, no extra male touching her.`;
   const wardrobeRule = 'Clothing comes from the current theme description. If the theme does not specify an item, use the clothing visible in Picture 1. Do not invent colors or garments.';
   const shotRule = 'One shot = one continuous camera setup and one continuous action. Never combine two camera angles, an internal cut, or two locations inside one shot; this prevents overlapping bodies and broken anatomy.';
-  const framedShots = detected === 'coercive' && hasMan ? ensureCoerciveArc(shots, script, shotCount) : shots;
+  const framedShots = detected === 'coercive' && hasMan ? ensureCoerciveArc(shots, sceneText, shotCount) : shots;
 
   const actualShots = Math.max(12, Math.min(30, shotCount));
   const duration = actualShots >= 30 ? 180 : actualShots >= 20 ? 120 : 60;
@@ -1743,6 +1745,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
                 // 上游模型拒写：用“当前主题”直接生成分镜骨架，保证内容仍贴合主题，而不是输出 Afterglow 垃圾。
                 console.warn('[expand] model refusal, using theme-based fallback script');
                 scriptText = buildFallbackScript(input);
+                onSuccess('模型拒写：已使用当前主题的兜底分镜（非 LLM 生成）');
               } else {
                 console.warn('[expand] model refusal detected, stripped refusal text and kept the real script');
                 scriptText = cleaned;
@@ -1758,7 +1761,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
             // Step 3: 统一走英文 12 镜 H3 模板，锚定参考图，禁止中文旧模板
             const hasMaleRole = /(\bman\b|\bmale\b|\bhe\b|\bhis\b|\bhim\b|男子|男人|男性|男友|男主|大叔|痴汉|猥琐|色狼|老汉|叔叔|黑人|黑男|男)/i.test(`${scriptText} ${input}`);
             const h3Anchors = selectedAnchors.length ? selectedAnchors : ([getDefaultAnchor('female'), getDefaultAnchor('male')].filter(Boolean) as GirlfriendPreset[]);
-            let h3 = normalizeDialogueSpeakers(applyAnchorNames(buildH3FromScript(scriptText, hasMaleRole, hasMaleRole, videoShotCount), h3Anchors));
+            let h3 = normalizeDialogueSpeakers(applyAnchorNames(buildH3FromScript(scriptText, hasMaleRole, hasMaleRole, videoShotCount, input), h3Anchors));
             if (!h3) {
               // 剧本不是 12 镜时，不让整张卡失败：用当前主题再请求一次，
               // 明确要求 12 个 SHOT；绝不回退到上一主题/固定动作模板。
@@ -1782,7 +1785,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
                 ).catch((err) => finish('', err instanceof Error ? err : new Error(String(err))));
               });
               if (retryScript) {
-                h3 = normalizeDialogueSpeakers(applyAnchorNames(buildH3FromScript(retryScript, hasMaleRole, hasMaleRole, videoShotCount), h3Anchors));
+                h3 = normalizeDialogueSpeakers(applyAnchorNames(buildH3FromScript(retryScript, hasMaleRole, hasMaleRole, videoShotCount, input), h3Anchors));
               }
             }
             if (!h3) throw new Error('当前主题剧本内容不足，无法生成 H3 分镜；请重试一次，系统不会使用旧主题模板');
@@ -2193,7 +2196,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       const isH3Prompt = /^\s*subject_definitions\s*:/i.test(videoText);
       const hasManForVideo = /(?:@Man|<Subject 2>|\bman\b|\bhe\b|\bhis\b|\bhim\b|男人|男性|大叔|黑人)/i.test(`${videoText} ${input}`);
       const anchoredPrompt = normalizeDialogueSpeakers(applyAnchorNames(
-        isH3Prompt ? videoText : buildH3FromScript(videoText, hasManForVideo, !!maleImage, videoShotCount),
+        isH3Prompt ? videoText : buildH3FromScript(videoText, hasManForVideo, !!maleImage, videoShotCount, videoText),
         anchorList,
       ));
       const submit = await submitDaotaiVideo(key, anchoredPrompt, { ...body, prompt: anchoredPrompt });
@@ -3660,7 +3663,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       const processOne = async (i: number, result: PromptResult): Promise<void> => {
         try {
           // 固定英文 11 镜 H3 模板，锚定当前图片，不再走 LLM（避免审核拒绝与中文旧模板）
-          completed[i] = normalizeDialogueSpeakers(buildH3FromScript(result.prompt, /(?:@Man|<Subject 2>|\bman\b|\bhe\b|\bhis\b|\bhim\b|男人|男性|大叔|黑人)/i.test(result.prompt), /(?:@Man|<Subject 2>|\bman\b|\bhe\b|\bhis\b|\bhim\b|男人|男性|大叔|黑人)/i.test(result.prompt), getH3ShotCount()));
+          completed[i] = normalizeDialogueSpeakers(buildH3FromScript(result.prompt, /(?:@Man|<Subject 2>|\bman\b|\bhe\b|\bhis\b|\bhim\b|男人|男性|大叔|黑人)/i.test(result.prompt), /(?:@Man|<Subject 2>|\bman\b|\bhe\b|\bhis\b|\bhim\b|男人|男性|大叔|黑人)/i.test(result.prompt), getH3ShotCount(), result.prompt));
           return;
         } finally {
           // 无论成功/失败/空结果，都立即从 processing 集合中移除该索引，
@@ -3718,7 +3721,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     
     try {
       // 固定英文 11 镜 H3 模板，锚定当前图片
-      const localH3 = normalizeDialogueSpeakers(buildH3FromScript(result.prompt, /(?:@Man|<Subject 2>|\bman\b|\bhe\b|\bhis\b|\bhim\b|男人|男性|大叔|黑人)/i.test(result.prompt), /(?:@Man|<Subject 2>|\bman\b|\bhe\b|\bhis\b|\bhim\b|男人|男性|大叔|黑人)/i.test(result.prompt), getH3ShotCount()));
+      const localH3 = normalizeDialogueSpeakers(buildH3FromScript(result.prompt, /(?:@Man|<Subject 2>|\bman\b|\bhe\b|\bhis\b|\bhim\b|男人|男性|大叔|黑人)/i.test(result.prompt), /(?:@Man|<Subject 2>|\bman\b|\bhe\b|\bhis\b|\bhim\b|男人|男性|大叔|黑人)/i.test(result.prompt), getH3ShotCount(), result.prompt));
       if (!localH3) { onError('当前剧本不足 8 镜，请重新生成主题剧本'); return undefined; }
       setH3Prompts(prev => ({ ...prev, [idx]: localH3 }));
       onSuccess(`第 ${idx + 1} 个 H3 视频提示词已生成`);
@@ -3746,7 +3749,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     if (!rhKey) { onError('请先配置 RunningHub API Key'); setVideoStates(prev => ({ ...prev, [idx]: { loading: false, error: '未配置 API Key' } })); return; }
     try {
       // 始终按当前图片重建英文 11 镜 H3，避免复用旧缓存里的中文模板
-      const h3 = normalizeDialogueSpeakers(buildH3FromScript(result.prompt, /(?:@Man|<Subject 2>|\bman\b|\bhe\b|\bhis\b|\bhim\b|男人|男性|大叔|黑人)/i.test(result.prompt), /(?:@Man|<Subject 2>|\bman\b|\bhe\b|\bhis\b|\bhim\b|男人|男性|大叔|黑人)/i.test(result.prompt), getH3ShotCount()));
+      const h3 = normalizeDialogueSpeakers(buildH3FromScript(result.prompt, /(?:@Man|<Subject 2>|\bman\b|\bhe\b|\bhis\b|\bhim\b|男人|男性|大叔|黑人)/i.test(result.prompt), /(?:@Man|<Subject 2>|\bman\b|\bhe\b|\bhis\b|\bhim\b|男人|男性|大叔|黑人)/i.test(result.prompt), getH3ShotCount(), result.prompt));
       if (!h3) { onError('当前剧本不足 8 镜，请重新生成主题剧本'); return; }
       setH3Prompts(prev => ({ ...prev, [idx]: h3 }));
 
