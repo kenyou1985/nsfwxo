@@ -3,7 +3,6 @@ import { extractVideoPromptFromImagePrompt } from '../utils/videoPromptExtractor
 import { normalizeKrea2Prompt } from '../utils/krea2Prompt';
 import { normalizeH3Script, normalizeDialogueSpeakers, normalizeH3PromptStructure } from '../utils/h3ScriptNormalizer';
 import { applyFramework, detectFramework, ensureCoerciveArc, H3_FRAMEWORKS, enforceH3Speakers, cleanSpeakerProse } from '../utils/h3Frameworks';
-import { structureTimeline, renderTimeline, renderContinuityReport } from '../utils/h3Structured';
 import { makeThumbnailForStorage, makePreviewForStorage } from '../utils/imageThumbnail';
 import { AspectAwareImage } from '../components/AspectAwareImage';
 import { OneClickProduce } from '../components/OneClickProduce';
@@ -1200,14 +1199,14 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
 
   const actualShots = Math.max(12, Math.min(30, shotCount));
   const duration = actualShots >= 30 ? 180 : actualShots >= 20 ? 120 : 60;
-  // 结构化时间轴：每镜显式 Start 状态 → 动作 → End 状态，下一镜只继承 End。
-  const timeline = structureTimeline(framedShots.slice(0, actualShots), {
-    sceneAnchor: sceneAnchor,
-    hasMan,
-    durationSec: duration,
-  });
-  const body = renderTimeline(timeline);
-  const continuityReport = renderContinuityReport(timeline);
+  // 只输出干净的 H3 六段式：每镜 = 时间戳 + 自然语言画面描述。
+  // 时间戳严格按 时长/分镜数 等距（20镜/120s = 每6秒），最后一镜结束于 01:54 而非 01:55。
+  // 连续性由后续 normalizeH3PromptStructure 统一加 "Continuity:" 前缀，不再注入 Start/End 状态行。
+  const body = framedShots.slice(0, actualShots).map((shot, i) => {
+    const sec = i * (duration / actualShots);
+    const stamp = `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(Math.floor(sec % 60)).padStart(2, '0')}.000`;
+    return `[Shot ${i + 1}] ${stamp} ${shot}`;
+  }).join('\n');
 
   const subject2 = hasMan
     ? (malePicture
@@ -1260,8 +1259,7 @@ overall_soundscape: Location ambience, fabric friction, breathing and the physic
 non_diegetic_music: None
 speaker_mapping: ${speakerMap}`;
 
-  const finalPrompt = cleanSpeakerProse(sanitizeAgeTerms(enforceH3Speakers(applyFramework(normalizeDialogueSpeakers(normalizeH3PromptStructure(prompt, { shotCount: actualShots })), framework))));
-  return `${finalPrompt}\n\n${continuityReport}`;
+  return cleanSpeakerProse(sanitizeAgeTerms(enforceH3Speakers(applyFramework(normalizeDialogueSpeakers(normalizeH3PromptStructure(prompt, { shotCount: actualShots })), framework))));
 }
 
 /**
