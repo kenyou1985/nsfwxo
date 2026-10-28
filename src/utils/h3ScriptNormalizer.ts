@@ -55,6 +55,12 @@ function cleanBeat(raw: string): string {
     // 清除没有 <d> 的“语气/情绪”孤儿行：如 "Whispered, greedy." "Flat, close." "Breaking."
     // H3 只朗读 <d> 内台词；这些碎片既不是台词也不是画面描述，只会污染镜头正文。
     .replace(/^[ \t]*(?:whispered|murmured|muttered|growled|rasped|snapped|ordered|commanded|begged|sobbed|moaned|gasped|panted|chuckled|laughed|grunted|breaking|sobbing|pleading|voice|tone|breath|soft|flat|cold|low|high|quiet|hoarse|contemptuous|smug|wet|trembling|thin|sharp|tearful|shrinking|broken|tight|easy|calm|greedy|hungry|uneasy|fear|panic)[^.\n]{0,40}\.?[ \t]*$/gmi, '')
+    // 单镜单机位：删掉同一镜里"then cut to / then whip to / then a low angle"这类的第二机位。
+    // 同一分镜写两个画面，是 H3 人体错位/多人体粘连的主因。只保留第一个机位和连续动作。
+    .replace(/(?:[,;]\s*)?then\s+(?:cut|whip|rack[- ]?focus|tilt|track(?:ing)?|push[- ]?in|punch[- ]?in|reverse|pan|zoom|dolly|pull[- ]?back|snap)\b[^.;\n]*/gi, '')
+    .replace(/(?:[,;]\s*)?then\s+(?:a\s+)?(?:low angle|tight two-shot|tight shot|tight on|medium shot|medium on|wide shot|wide on|close[- ]up|close up|close on|extreme close|ECU|CU|overhead|side angle|reverse angle|reverse shot|handheld|steadicam|two-shot|insert|tracking|dolly|push in|pull back)\b[^.;\n]*/gi, '')
+    .replace(/(?:[,;]\s*)?(?:hard\s+)?cut\s+(?:back\s+)?to\b[^.;\n]*/gi, '')
+    .replace(/\bSplit\s*:\s*/gi, '')
     // 清除行内括号语气提示，如 "(low, hungry whisper to himself)"；保留 (S1)/(S2) 与 <d> 台词。
     // 这些提示没有 <d> 绑定，是 H3 生成英语旁白的常见来源。
     .replace(/\((?!S[12]\))[^)<\n]{0,60}\)/g, ' ')

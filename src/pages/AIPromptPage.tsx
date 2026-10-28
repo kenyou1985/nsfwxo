@@ -1200,6 +1200,7 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
   const detected = detectFramework(script, hasMan);
   const sceneAnchor = `${deriveSceneAnchor(script)} Only one male is in frame: Subject 2; no second man, no clone, no extra male touching her.`;
   const wardrobeRule = 'Clothing comes from the current theme description. If the theme does not specify an item, use the clothing visible in Picture 1. Do not invent colors or garments.';
+  const shotRule = 'One shot = one continuous camera setup and one continuous action. Never combine two camera angles, an internal cut, or two locations inside one shot; this prevents overlapping bodies and broken anatomy.';
   const framedShots = detected === 'coercive' && hasMan ? ensureCoerciveArc(shots, script, shotCount) : shots;
 
   const actualShots = Math.max(12, Math.min(30, shotCount));
@@ -1249,11 +1250,11 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
     .replace(/[,\s]+$/, '')
     .trim();
   const prompt = `subject_definitions:
-<Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1. Picture 1 defines face, hair, hairstyle, skin tone, body proportions and breast size/shape ONLY. ${wardrobeRule} ${sceneAnchor} Clothing, undressing and nudity follow the detailed_description exactly; never reset clothing at a segment boundary.
+<Subject 1> is @Woman <Picture 1> — the exact adult woman shown in Picture 1. Picture 1 defines face, hair, hairstyle, skin tone, body proportions and breast size/shape ONLY. ${wardrobeRule} ${shotRule} ${sceneAnchor} Clothing, undressing and nudity follow the detailed_description exactly; never reset clothing at a segment boundary.
 ${subject2}
 
 summary:
-[reference generation] The video follows the current theme exactly, shot by shot, with the same people and location. ${frameworkHint} ${sceneAnchor} ${wardrobeRule} ${summaryFirst} The sequence ends with the final beat written in the screenplay; no action is added or substituted by a template. No scene change, no character change, no extra person.
+[reference generation] The video follows the current theme exactly, shot by shot, with the same people and location. ${frameworkHint} ${sceneAnchor} ${wardrobeRule} ${shotRule} ${summaryFirst} The sequence ends with the final beat written in the screenplay; no action is added or substituted by a template. No scene change, no character change, no extra person.
 
 retention_analysis:
 <Subject 1> <Picture 1>: fully_preserved — identity, face, hair and body come from the reference image. Clothing state is controlled only by the detailed_description.
