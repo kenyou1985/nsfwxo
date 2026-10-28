@@ -233,7 +233,7 @@ function translateCn(text: string, map: Record<string, string>): string {
 // 地点的“中心名词”：只用于把 brick alley / alley bend / alley mouth 归成 alley，
 // 不属于主题→场景映射，任何主题都走同一套。
 const PLACE_HEAD_NOUNS = ['alley','street','road','lane','lot','yard','site','worksite','scaffold','scaffolding','bay','platform','room','bedroom','kitchen','bathroom','office','classroom','corridor','stairwell','elevator','escalator','subway','train','bus','mall','store','hotel','apartment','house','park','garden','woods','forest','beach','pool','rooftop','playground','garage','warehouse','factory','building','dock','pier','bridge','tunnel','cave','cell','basement','attic','fence','gate','doorway','hall','lobby','balcony'];
-const SUBPART_WORDS = ['bay','platform','upright','tower','crossbar','cross','bar','pole','pipe','rail','level','landing','corner','bend','mouth','edge','end','side','top','bottom','middle','foreground','background','passage','path','walkway','height','chest','gate','fence'];
+const SUBPART_WORDS = ['bay','platform','upright','tower','crossbar','cross','bar','bars','pole','poles','pipe','rail','level','midlevel','landing','corner','bend','mouth','edge','end','side','top','bottom','middle','foreground','background','passage','path','walkway','height','chest','gate','fence','yard','site','vertical','horizontal','mid','lower','upper'];
 function placeHeadNoun(loc: string): string {
   const t = String(loc || '').toLowerCase();
   if (/scaffold/.test(t)) return 'scaffold';
@@ -248,7 +248,8 @@ function placeHeadNoun(loc: string): string {
 function isSubpartOnly(loc: string): boolean {
   const words = String(loc || '').toLowerCase().replace(/-/g, ' ').split(/[^a-z]+/).filter(Boolean)
     .filter((w) => !['the','a','an','of','in','at','on','between','two','three','first','second','third','mid'].includes(w));
-  return words.length > 0 && words.every((w) => SUBPART_WORDS.includes(w));
+  // 没有主地点名词、但含子区域词（yard/site/pole/bar/vertical…）→ 视为子区域，丢弃。
+  return words.length > 0 && words.some((w) => SUBPART_WORDS.includes(w)) && !placeHeadNoun(loc);
 }
 
 export function collapseLocations(items: string[]): string[] {

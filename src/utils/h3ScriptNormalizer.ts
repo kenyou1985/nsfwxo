@@ -37,6 +37,8 @@ export function stripOrphanSpeech(text: string): string {
           if (/\b(?:voice|whisper\w*|mutter\w*|murmur\w*|under (?:his|her) breath|says?|answers?|commands?|orders?|tone|cries out|moans?|gasps?)\b/i.test(t)) return false;
           // 纯声音说明句（No dialogue. / Only heel clicks...）
           if (/^(?:no\s+(?:dialogue|speech)\b|only\s+(?:the\s+)?(?:sound|heel|shutter|fabric|breath))/i.test(t)) return false;
+          // 导演注释/元话语（as the theme requires / the theme's ... beat / no chase yet）→ 不是画面
+          if (/\bthemes?\b|\bas the theme\b|\bno chase yet\b|\btheme action\b/i.test(t)) return false;
           // 只有“语气形容词 + 短句”，没有谁+动作 → 语气残片
           if (t.length < 60 && !/\b(?:she|he|her|his)\b\s+\w+/i.test(t)
             && /^(?:soft|flat|sharp|breaking|uncertain|quiet|low|cold|high|thin|hoarse|strained|greedy|hungry|calm|uneasy|panicked|desperate|shrill|broken|small|tight|easy|wet|trembling|tearful|breathless|furious|scared|terrified|trying|almost|not yet)\b/i.test(t)) return false;
