@@ -11,7 +11,7 @@ const H3_SEX_FILLERS = [
   'He holds her hips and pounds into her, the steel creaking under them.',
   'He takes her hard against the metal, her body jolting with each thrust.',
 ];
-import { applyFramework, detectFramework, ensureCoerciveArc, H3_FRAMEWORKS, enforceH3Speakers, cleanSpeakerProse, extractScriptLocations } from '../utils/h3Frameworks';
+import { applyFramework, detectFramework, ensureCoerciveArc, H3_FRAMEWORKS, enforceH3Speakers, cleanSpeakerProse, extractScriptLocations, collapseLocations } from '../utils/h3Frameworks';
 import { makeThumbnailForStorage, makePreviewForStorage } from '../utils/imageThumbnail';
 import { AspectAwareImage } from '../components/AspectAwareImage';
 import { OneClickProduce } from '../components/OneClickProduce';
@@ -1136,9 +1136,10 @@ function sanitizeAgeTerms(text: string): string {
 function deriveSceneAnchor(text: string): string {
   const t = String(text || '');
   // 地点完全来自“剧本 Location 字段 + 主题正文”，不维护主题→场景硬编码表。
-  const locs = extractScriptLocations(t);
+  const locs = collapseLocations(extractScriptLocations(t));
   if (locs.length > 1) {
-    return `Scene: the theme's location progression is ${locs.join(' → ')}; follow only these locations in order, and do not add any location not listed.`;
+    const finalLoc = locs[locs.length - 1];
+    return `Scene: the theme's location progression is ${locs.join(' → ')}; the walk and the following happen only in the earlier locations, and all binding and sexual acts happen only at the final location (${finalLoc}); follow only these locations in order, and do not add any location not listed.`;
   }
   if (locs.length === 1) {
     return `Scene: the ${locs[0]} described by the current theme; keep that same place from Shot 1 to the end.`;
