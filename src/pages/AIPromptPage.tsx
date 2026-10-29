@@ -1257,6 +1257,10 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
   framedShots = framedShots.map((s, i) => {
     if (nudeFrom < 0 && /(?:strips? the last garment|completely nude|no clothing remains|fully nude too)/i.test(s)) nudeFrom = i;
     if (nudeFrom >= 0 && i > nudeFrom) {
+      // 脱衣镜本身不补性行为（它只是脱光转场）。
+      if (/(?:strips? the last garment|completely nude|no clothing remains)/i.test(s)) {
+        return `${s} Both are fully nude; no clothing on either body.`;
+      }
       // 脱光之后的每一镜必须真的有性行为画面；只有台词/中性占位时补一句，避免静止空镜。
       const bodyNoD = s.replace(/<d>[\s\S]*?<\/d>/g, '').replace(/Both are fully nude;? no clothing on either body\.?/gi, '').trim();
       const fixed = bodyNoD.length < 15 || !SEX_VERB.test(bodyNoD)

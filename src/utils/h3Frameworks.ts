@@ -307,7 +307,19 @@ export function extractScriptLocations(text: string): string[] {
     const m = line.match(/\bLocation\s*[:：]\s*([^.;\n]+)/i);
     if (m) push(m[1]);
   }
-  if (out.length) return out;
+  if (out.length) {
+    // Location 字段只写了一部分地点时，从正文补其它主地点（如 scaffolding），避免场景锚点漏地点。
+    const words = raw.toLowerCase().replace(/-/g, ' ').split(/[^a-z]+/).filter(Boolean);
+    const seenHeads = new Set(out.map((e) => placeHeadNoun(e) || e.toLowerCase()));
+    for (const w of words) {
+      if (!PLACE_HEAD_NOUNS.includes(w) || SUBPART_WORDS.includes(w)) continue;
+      const head = w === 'scaffolding' ? 'scaffold' : w;
+      if (seenHeads.has(head)) continue;
+      seenHeads.add(head);
+      push(head === 'scaffold' ? 'scaffolding' : head);
+    }
+    return out;
+  }
   // 2) 中文地点短语：在/到/绑在/拖进 + 地点 + 方位词
   const cnRe = /(?:在|到|进入|走进|来到|退到|按在|绑在|趴在|靠在|坐在|躺在|拖进|拖到|拽进|拽到)([\u4e00-\u9fff]{2,10}?)(?:上|里|中|内|下|边|旁|前|后|处|着)/g;
   let cm: RegExpExecArray | null;
@@ -394,7 +406,7 @@ export function ensureCoerciveArc(shots: string[], context = '', targetShots = 1
   const esc = finalLoc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const headHasLoc = finalLoc ? new RegExp(esc, 'i').test(headText) : true;
   const needsBind = /捆绑|绑住|绑|绳索|绳|rope|bind|tie/i.test(context);
-  const headHasBind = /\bbinds?\b|\btied\b|\brope\b|捆绑|绑住|绑在/i.test(headText);
+  const headHasBind = /\bbind\w*\b|\btied\b|\btying\b|\brope\b|\bzip[- ]?tie\b|\bstrap\b|\bcuffs?\b|捆绑|绑住|绑在/i.test(headText);
   if (needsBind && !headHasBind) {
     const dest = finalLoc ? (/^(?:the|a|an)\s/i.test(finalLoc) ? finalLoc : `the ${finalLoc}`) : 'the nearest support';
     head.push(`He forces her against ${dest} and binds her wrists with rope; she is still clothed and struggling.`);

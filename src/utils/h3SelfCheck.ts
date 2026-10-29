@@ -94,6 +94,16 @@ export function selfCheckH3Prompt(raw: string): SelfCheckResult {
       let body = stripOrphanSpeech(originalBody).trim();
       // 清洗后不能变空镜：退回原始正文，保持镜头数不变。
       if (!body) body = originalBody;
+      // 脱光后的镜头：若没有性行为动词，强制补一句，避免“He keeps her pinned”这类中性空镜。
+      const SEX_RE = /(?:fucks?|thrusts?|drives?|enters?|pounds?|penetrat\w*|strokes?|hips|pins? her|bends her|knees?|mouth|gags?|sucks?|licks?|spanks?|slaps?|fingers?|rubs?|throat|oral|rides?|lap|creampie|finishes?|pulls? out|slams?|join)/i;
+      if (/Both are fully nude; no clothing on either body/i.test(body)
+        && !/(?:strips? the last garment|completely nude|no clothing remains)/i.test(body)) {
+        const bodyNoNude = body.replace(/Both are fully nude;? no clothing on either body\.?/gi, '').trim();
+        if (!SEX_RE.test(bodyNoNude)) {
+          body = `He fucks her hard in the same position, hips snapping. ${body}`.trim();
+          issues.push('sex-gap');
+        }
+      }
       // 只有台词没有画面的镜头：补一句承接动作，避免 H3 生成静止空镜。
       const visual = body
         .replace(/\(S[12]\):\s*<d>[\s\S]*?<\/d>/g, '')
