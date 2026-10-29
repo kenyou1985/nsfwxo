@@ -1156,7 +1156,7 @@ function deriveSceneAnchor(text: string): string {
   // 地点完全来自“剧本 Location 字段 + 主题正文”，不维护主题→场景硬编码表。
   const locs = collapseLocations(extractScriptLocations(t));
   if (locs.length > 1) {
-    const finalLoc = locs[locs.length - 1];
+    const finalLoc = locs[locs.length - 1].replace(/^the\s+/i, '');
     return `Scene: the theme's location progression is ${locs.join(' → ')}; the walk and the following happen only in the earlier locations, and all binding and sexual acts happen only at the final location (${finalLoc}); follow only these locations in order, and do not add any location not listed.`;
   }
   if (locs.length === 1) {
@@ -1233,7 +1233,9 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
   if (isModelRefusal(script)) return '';
   script = unifySingleMale(sanitizeAgeTerms(script));
   // 场景检测同时看“剧本 + 用户主题”，避免 LLM 漏写小黑屋/室内导致场景只停在巷子。
-  const sceneText = `${script}\n${themeHint}`;
+  // 主题优先：主题本身给出 ≥2 个地点时，场景链只用主题，避免剧本里的 street/road 抢走“最终地点”。
+  const _themeLocs = collapseLocations(extractScriptLocations(themeHint));
+  const sceneText = _themeLocs.length >= 2 ? themeHint : `${script}\n${themeHint}`;
   const shots = normalizeH3Script(script, {
     hasMan,
     coercive: false,

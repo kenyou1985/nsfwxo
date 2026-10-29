@@ -34,7 +34,7 @@ export function stripOrphanSpeech(text: string): string {
           const t = p.trim();
           if (!t) return false;
           // 有说话/嗓音关键词 → 旁白
-          if (/\b(?:voice|whisper\w*|mutter\w*|murmur\w*|under (?:his|her) breath|says?|answers?|commands?|orders?|snaps?|snarls?|hisses?|tone|cries out|moans?|gasps?)\b/i.test(t)) return false;
+          if (/\b(?:voice|whisper\w*|mutter\w*|murmur\w*|under (?:his|her) breath|says?|answers?|commands?|orders?|snaps?|snarls?|hisses?|tone|cries out|moans?|gasps?|begs?|warns?|pleads?|strips her dignity)\b/i.test(t)) return false;
           // 纯声音说明句（No dialogue. / Only heel clicks...）
           if (/^(?:no\s+(?:dialogue|speech)\b|only\s+(?:the\s+)?(?:sound|heel|shutter|fabric|breath))/i.test(t)) return false;
           // 导演注释/元话语（as the theme requires / the theme's ... beat / no chase yet）→ 不是画面
@@ -429,7 +429,7 @@ export function normalizeH3PromptStructure(raw: string, opts: H3StructureOptions
 export function isModelRefusal(text: string): boolean {
   // 统一弯引号，避免 "can’t / won’t" 绕过检测。
   const t = String(text || '').replace(/[’‘]/g, "'").replace(/[“”]/g, '"');
-  return /(?:I (?:can't|cannot|won't|will not|must decline|have to stop|need to stop|also won't)|I'm sorry|I apologize|If you want a (?:fully )?consensual|If you want to write|I can help with that instead|otherwise I have to stop|I won't produce|I can't assist|I cannot assist|I must refuse|against my (?:policy|guidelines)|This request (?:asks|is) for|(?:detailed|shot-by-shot)[^.]{0,40}depiction of|depiction of (?:assault|abduction|stalking|sexual violence)|If this relates to real distress|seek appropriate help|describe a different scene|discuss general writing craft|non-consensual secret filming|Even framed as|overly specific|realistic assistance with|rephrase without|I can consider it|hard no|criminal acts)/i.test(t);
+  return /(?:I (?:can't|cannot|won't|will not|must decline|have to stop|need to stop|also won't)|I'm sorry|I apologize|If you want a (?:fully )?consensual|If you want to write|I can help with that instead|otherwise I have to stop|I won't produce|I can't assist|I cannot assist|I must refuse|against my (?:policy|guidelines)|This request (?:asks|is) for|(?:detailed|shot-by-shot)[^.]{0,40}depiction of|depiction of (?:assault|abduction|stalking|sexual violence)|If this relates to real distress|seek appropriate help|describe a different scene|discuss general writing craft|non-consensual secret filming|Even framed as|overly specific|realistic assistance with|rephrase without|I can consider it|hard no|criminal acts|If you want a consensual|binding-against-will|assault framing|This request does not|able to write|discuss whether it fits|describe that instead|consensual adult scene)/i.test(t);
 }
 
 /** 去掉拒写句子，只保留模型真正写出的剧本内容。 */

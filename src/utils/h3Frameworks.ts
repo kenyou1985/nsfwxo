@@ -128,7 +128,7 @@ export function enforceH3Speakers(text: string): string {
     const dm = line.match(/<d>([\s\S]*?)<\/d>/);
     const raw = (dm ? dm[1] : line).replace(/^\s*\[(?:Chinese|Mandarin|中文|汉语)\]\s*/i, '').trim();
     if (/^(?:他|男|马库斯|MARCUS)$/i.test(raw)) return line;
-    if ((MALE_COMMAND.test(raw) && !FEMALE_PLEA.test(raw)) || /^(?:别动|别躲|躲开|别挣|别乱动|别回头|别叫|别跑|站住|不许跑|别出声|别哭|闭嘴|安静|继续走|往前走|继续站着|站好|张嘴|接好|夹紧|站稳|转过来|腿抬好|自己动|含深点|脱掉|裙子|内裤|蹲下|用舌头|喷得)/.test(raw)) {
+    if ((MALE_COMMAND.test(raw) && !FEMALE_PLEA.test(raw)) || /^(?:别动|别躲|躲开|别挣|别乱动|别停|别回头|别叫|别跑|站住|不许跑|别出声|别哭|闭嘴|安静|继续走|往前走|继续站着|站好|张嘴|接好|夹紧|站稳|转过来|腿抬好|自己动|含深点|脱掉|裙子|内裤|蹲下|用舌头|喷得)/.test(raw)) {
       return line.replace(/^\(S[12]\):/, '(S2):');
     }
     if (FEMALE_PLEA.test(raw) || /^(?:你|我|他蹲|这里|有人|会看到)/.test(raw)) {
@@ -439,7 +439,8 @@ export function ensureCoerciveArc(shots: string[], context = '', targetShots = 1
   const finalLoc = locs.length ? locs[locs.length - 1] : '';
   const headText = head.join(' ');
   const esc = finalLoc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const headHasLoc = finalLoc ? new RegExp(esc, 'i').test(headText) : true;
+  // 工地场景下，scaffold 已表示“到达最终地点”，不再补“moves her into…”这种重复转场。
+  const headHasLoc = finalLoc ? (new RegExp(esc, 'i').test(headText) || (/construction site/i.test(finalLoc) && /scaffold/i.test(headText))) : true;
   const needsBind = /捆绑|绑住|绑|绳索|绳|rope|bind|tie/i.test(context);
   const headHasBind = /\bbind\w*\b|\btied\b|\btying\b|\brope\b|\bzip[- ]?tie\b|\bstrap\b|\bcuffs?\b|捆绑|绑住|绑在/i.test(headText);
   if (needsBind && !headHasBind) {

@@ -78,8 +78,15 @@ export function selfCheckH3Prompt(raw: string): SelfCheckResult {
     const finalLoc = locs[locs.length - 1] || '';
     if (finalLoc) {
       const before = text;
-      text = text.replace(/(?<!→\s)(?<!the\s)\b(?:abandoned construction yard|construction yard|abandoned yard|open yard|abandoned lot|vacant lot|open lot|construction site|abandoned site|the lot|the yard|the site)\b/gi, `the ${finalLoc}`);
+      text = text.replace(/\bthe\s+(?:abandoned\s+|empty\s+|open\s+|vacant\s+)?(?:lot|yard|site|worksite)\b/gi, `the ${finalLoc}`);
+      text = text.replace(/(?<!→\s)(?<!the\s)\b(?:abandoned construction yard|construction yard|abandoned yard|open yard|abandoned lot|vacant lot|open lot|construction site|abandoned site|worksite|the lot|the yard|the site)\b/gi, `the ${finalLoc}`);
       text = text.replace(/\b(?:for|against|on|onto|across|into|through|at)\s+(?:the\s+)?(?:broken|grey|gray|dusty|abandoned|empty|open)?\s*(?:concrete|gravel|rubble)\b/gi, `$1 the ${finalLoc}`);
+      // 主题没有的地点（street/road/sidewalk）不作为独立地点留在镜头里 → 归到最终地点
+      for (const _w of ['street', 'road', 'sidewalk']) {
+        if (!locs.some((l) => new RegExp('\\b' + _w + '\\b', 'i').test(l))) {
+          text = text.replace(new RegExp('\\bthe\\s+' + _w + '\\b', 'gi'), `the ${finalLoc}`);
+        }
+      }
       text = text.replace(/\bthe\s+the\s+/gi, 'the ');
       text = text.replace(new RegExp('\\b(?:abandoned|broken|empty|grey|gray|dusty|derelict|dark|wet|open|vacant)\\s+the\\s+' + finalLoc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), `the ${finalLoc}`);
       if (text !== before) issues.push('scene-pinned');
@@ -181,6 +188,8 @@ export function selfCheckH3Prompt(raw: string): SelfCheckResult {
   // 7a) 单一男性：Black man → the man，并清理 the <adj> the man
   text = text
     .replace(/\*{2,}/g, '')
+    .replace(/\bthe man man\b/gi, 'the man')
+    .replace(/\.\s+\./g, '.')
     .replace(/\b(?:the\s+)?(?:adult\s+|tall\s+|big\s+)?Black\s+man\b/gi, 'the man')
     .replace(/\b(a|an)\s+((?:\w+\s+){0,2})the man\b/gi, '$1 $2man')
     .replace(/\bthe\s+(\w+)\s+the man\b/gi, 'the $1 man')
