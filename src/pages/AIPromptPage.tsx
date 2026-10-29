@@ -3875,6 +3875,19 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         if (data.status === 'SUCCESS') {
           videoUrl = data.video_url || data.output?.video_url || data.url || data.images?.[0] || data.output?.images?.[0];
           videoUrls = data.videos || data.output?.videos || (data.segments || []).map(s => s.url).filter(Boolean);
+          // 后端偶尔只回最终视频：按最终视频目录探测 route_*.mp4，补齐分段预览。
+          if (!videoUrls.length && videoUrl && /\/media\/[^/]+\//.test(videoUrl)) {
+            const base = videoUrl.replace(/\/[^/]+$/, '');
+            const found: string[] = [];
+            for (let ri = 1; ri <= 16; ri++) {
+              const u = `${base}/route_${ri}.mp4`;
+              try {
+                const hr = await fetch(u, { method: 'HEAD' });
+                if (hr.ok) found.push(u);
+              } catch { /* ignore */ }
+            }
+            if (found.length) videoUrls = found;
+          }
           break;
         }
         if (data.status === 'FAILED') throw new Error(data.message || '视频生成失败');
