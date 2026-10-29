@@ -846,6 +846,24 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   const hasScriptShots = normalizedScriptShots.length >= 8 && !scriptMismatch;
   if (hasScriptShots) {
     shots = normalizedScriptShots;
+    // 叙事顺序硬约束：主题若有多个地点，最终地点之前的“绑/插入/口交/脱衣”镜头
+    // 一律后移到首次到达最终地点之后，并把残留的旧地点词替换为最终地点。
+    const _nlocs = collapseLocations(extractScriptLocations(`${themeText} ${scriptJoined}`));
+    if (_nlocs.length > 1) {
+      const _finalLoc = _nlocs[_nlocs.length - 1];
+      const _locRe = new RegExp('\\b' + _finalLoc.split(/\s+/).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+') + '\\b', 'i');
+      const _actRe = /(bind|bound|tied|tying|strap|rope|cuff|thrust|penetrat|oral|blowjob|fuck|pound|insert|creampie|nude|strips)/i;
+      const _firstFinal = shots.findIndex((x) => _locRe.test(x));
+      if (_firstFinal > 0) {
+        const _before = shots.slice(0, _firstFinal);
+        const _after = shots.slice(_firstFinal);
+        const _moved = _before.filter((x) => _actRe.test(x))
+          .map((x) => x.replace(/\b(?:the\s+)?(?:alley|street|lane|corridor)\b/gi, _finalLoc));
+        if (_moved.length) {
+          shots = [..._before.filter((x) => !_actRe.test(x)), ..._after, ..._moved];
+        }
+      }
+    }
   }
   // 男性服装状态锚点：H3 很容易把 Subject 2 直接画成全裸；在男性第一次脱衣之前逐镜强调衣着。
   let maleUndressIdx = hasMan ? shots.findIndex((s) => /(?:drops? (?:his )?(?:jeans|pants|trousers|boxers)|shoves? (?:his )?(?:jeans|pants|trousers|boxers) (?:down|off)|strips? (?:off )?his|he is (?:now )?(?:fully )?nude|his (?:pants|jeans|trousers) (?:down|off)|kicks? off (?:his |the )?(?:remaining )?clothes)/i.test(s)) : -1;
