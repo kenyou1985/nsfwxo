@@ -156,6 +156,15 @@ RATIO_MAP = {
 # 修复：提交前对提示词做净化（去台词引语/去 BGM 描述/去 speaker_mapping）+ 追加本硬约束块。
 _AUDIO_BLOCK = "\n\n=== AUDIO CONSTRAINTS (HARD RULES, MUST FOLLOW) ===\n1. NO background music, NO BGM, NO soundtrack, NO cinematic score, NO instrumental — ABSOLUTELY ZERO music in the final audio.\n2. NO narration, NO voice-over, NO commentary, NO inner monologue — characters do not speak to the audience.\n3. NO singing, NO humming, NO vocal melody, NO synthesized vocal tracks, NO choir — no sung vocals of any kind.\n4. Audio must be diegetic ONLY — only sounds that exist within the scene world (footsteps, wind, objects, character grunts/breathing if natural); the spoken lines inside <d> tags are the only speech.\n=== END AUDIO CONSTRAINTS ===\n\nnon_diegetic_music: None. No background music, no narration, no singing, no extra vocal tracks; only the natural sounds described in overall_soundscape."
 
+
+def _strip_audio_blocks(t):
+    """去除已有的 AUDIO CONSTRAINTS 块与 non_diegetic_music 行，避免分段时重复叠加。"""
+    if not t:
+        return t
+    t = re.sub(r'(?is)\s*=== AUDIO CONSTRAINTS.*?=== END AUDIO CONSTRAINTS ===\s*', '\n', t)
+    t = re.sub(r'(?im)^\s*non_diegetic_music\s*:.*$', '', t)
+    return t
+
 def _sanitize_audio(text):
     """提交前音频净化：移除角色台词引语、BGM/非配乐描述、speaker_mapping 与 <d> 台词，
     末尾追加 AUDIO CONSTRAINTS 硬约束块（对齐凌晨版 500/199 内嵌形态）。
@@ -494,6 +503,7 @@ def _seg_text_global_full(prompt, lo, hi, dur=None):
     _rest = prompt[_m.end():] if _m else ''
     _m2 = re.search(r'(?:overall_soundscape|整体音效|soundscape)\s*[:：]', _rest, re.I)
     after = _rest[_m2.start():].strip() if _m2 else ''
+    after = _strip_audio_blocks(after)
     # speaker_mapping 保留：H3 模型依据 Sx→音色映射选择音色；摘除会回退默认音色。
     # （summary 已在 tags/body 摘除，speaker_mapping 仅含映射无叙事，不会引发旁白）
     # 分镜切分（复用智能切分）
@@ -557,6 +567,7 @@ def _seg_text_det16(prompt, lo, hi):
     _rest = prompt[_m.end():] if _m else ''
     _m2 = re.search(r'(?:overall_soundscape|整体音效|soundscape)\s*[:：]', _rest, re.I)
     after = _rest[_m2.start():].strip() if _m2 else ''
+    after = _strip_audio_blocks(after)
     pat, _n = _best_shot_pattern(zone)
     if pat:
         parts = re.split(pat, zone)
@@ -641,6 +652,7 @@ def _seg_text_list_full(prompt, lo, hi, n_segs=2):
     _rest = prompt[_m.end():] if _m else ''
     _m2 = re.search(r'(?:overall_soundscape|整体音效|soundscape)\s*[:：]', _rest, re.I)
     after = _rest[_m2.start():].strip() if _m2 else ''
+    after = _strip_audio_blocks(after)
     pat, _n = _best_shot_pattern(zone)
     if pat:
         parts = re.split(pat, zone)

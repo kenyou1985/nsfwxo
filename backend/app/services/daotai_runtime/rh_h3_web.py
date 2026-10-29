@@ -593,6 +593,7 @@ def _seg_text_global_full(prompt, lo, hi, dur=None):
     _rest = prompt[_m.end():] if _m else ''
     _m2 = re.search(r'(?:overall_soundscape|整体音效|soundscape)\s*[:：]', _rest, re.I)
     after = _rest[_m2.start():].strip() if _m2 else ''
+    after = _strip_audio_blocks(after)
     # speaker_mapping 保留：H3 模型依据 Sx→音色映射选择音色；摘除会回退默认音色。
     # （summary 已在 tags/body 摘除，speaker_mapping 仅含映射无叙事，不会引发旁白）
     # 分镜切分（复用智能切分）
@@ -674,6 +675,7 @@ def _seg_text_det16(prompt, lo, hi):
     _rest = prompt[_m.end():] if _m else ''
     _m2 = re.search(r'(?:overall_soundscape|整体音效|soundscape)\s*[:：]', _rest, re.I)
     after = _rest[_m2.start():].strip() if _m2 else ''
+    after = _strip_audio_blocks(after)
     pat, _n = _best_shot_pattern(zone)
     if pat:
         parts = re.split(pat, zone)
@@ -758,6 +760,7 @@ def _seg_text_list_full(prompt, lo, hi, n_segs=2):
     _rest = prompt[_m.end():] if _m else ''
     _m2 = re.search(r'(?:overall_soundscape|整体音效|soundscape)\s*[:：]', _rest, re.I)
     after = _rest[_m2.start():].strip() if _m2 else ''
+    after = _strip_audio_blocks(after)
     pat, _n = _best_shot_pattern(zone)
     if pat:
         parts = re.split(pat, zone)
@@ -5340,3 +5343,12 @@ def run_job_serial(job):
     """串行执行视频 Job：同一时间只让一个 H3 任务占用 WS/分段运行态。"""
     with VIDEO_JOB_LOCK:
         return run_job(job)
+
+def _strip_audio_blocks(t):
+    """去除已有的 AUDIO CONSTRAINTS 块与 non_diegetic_music 行，避免分段时重复叠加。"""
+    if not t:
+        return t
+    t = re.sub(r'(?is)\s*=== AUDIO CONSTRAINTS.*?=== END AUDIO CONSTRAINTS ===\s*', '\n', t)
+    t = re.sub(r'(?im)^\s*non_diegetic_music\s*:.*$', '', t)
+    return t
+
