@@ -34,7 +34,7 @@ export function stripOrphanSpeech(text: string): string {
           const t = p.trim();
           if (!t) return false;
           // 有说话/嗓音关键词 → 旁白
-          if (/\b(?:voice|whisper\w*|mutter\w*|murmur\w*|under (?:his|her) breath|says?|answers?|commands?|orders?|snaps?|snarls?|hisses?|tone|cries out|moans?|gasps?|begs?|warns?|pleads?|strips her dignity)\b/i.test(t)) return false;
+          if (/\b(?:voice|whisper\w*|mutter\w*|murmur\w*|under (?:his|her) breath|says?|answers?|commands?|orders?|snaps?|snarls?|hisses?|tone|cries out|moans?|gasps?|begs?|warns?|pleads?|whimpers?|sobs?|tells?|yells?|shouts?|strips her dignity)\b/i.test(t)) return false;
           // 纯声音说明句（No dialogue. / Only heel clicks...）
           if (/^(?:no\s+(?:dialogue|speech)\b|only\s+(?:the\s+)?(?:sound|heel|shutter|fabric|breath))/i.test(t)) return false;
           // 导演注释/元话语（as the theme requires / the theme's ... beat / no chase yet）→ 不是画面

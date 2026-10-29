@@ -442,9 +442,9 @@ export function ensureCoerciveArc(shots: string[], context = '', targetShots = 1
   // 工地场景下，scaffold 已表示“到达最终地点”，不再补“moves her into…”这种重复转场。
   const headHasLoc = finalLoc ? (new RegExp(esc, 'i').test(headText) || (/construction site/i.test(finalLoc) && /scaffold/i.test(headText))) : true;
   const needsBind = /捆绑|绑住|绑|绳索|绳|rope|bind|tie/i.test(context);
-  const headHasBind = /\bbind\w*\b|\btied\b|\btying\b|\brope\b|\bzip[- ]?tie\b|\bstrap\b|\bcuffs?\b|捆绑|绑住|绑在/i.test(headText);
+  const headHasBind = /\bbind\w*\b|\btied\b|\btying\b|\brope\b|\bzip[- ]?tie\b|\bstrap\b|\bcuffs?\b|\bcinch\w*|\blash\w*|\bcable\s*tie|捆绑|绑住|绑在/i.test(headText);
   if (needsBind && !headHasBind) {
-    const dest = finalLoc ? (/^(?:the|a|an)\s/i.test(finalLoc) ? finalLoc : `the ${finalLoc}`) : 'the nearest support';
+    const dest = finalLoc ? (/construction site/i.test(finalLoc) && /scaffold/i.test(headText) ? 'the scaffolding' : (/^(?:the|a|an)\s/i.test(finalLoc) ? finalLoc : `the ${finalLoc}`)) : 'the nearest support';
     head.push(`He forces her against ${dest} and binds her wrists with rope; she is still clothed and struggling.`);
   } else if (finalLoc && !headHasLoc) {
     head.push(`He moves her into ${finalLoc ? (/^(?:the|a|an)\s/i.test(finalLoc) ? finalLoc : `the ${finalLoc}`) : 'the final location'}; she is still clothed and struggling.`);

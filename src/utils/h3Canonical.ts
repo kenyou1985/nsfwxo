@@ -37,6 +37,7 @@ const SECTION_ORDER = [
 ];
 
 const SEX_RE = /\b(?:thrust\w*|penetrat\w*|oral|blowjob|deepthroat|fuck\w*|pound\w*|insert\w*|creampie|cock|pussy|missionary|cowgirl|doggy)\b/i;
+const STRONG_SEX_RE = /\b(?:thrust\w*|penetrat\w*|blowjob|deepthroat|fuck\w*|pound\w*|creampie|cock|pussy|missionary|cowgirl|doggy)\b/i;
 const STRIP_RE = /\b(?:strips? the last garment|completely nude|fully nude|no clothing remains)\b/i;
 const DRESS_RE = /\b(?:still clothed|shirt (?:still )?on|skirt (?:still )?on|still dressed|clothed at the waist)\b/i;
 const ORPHAN_TAIL_RE = /\b(?:begs?|warns?|pleads?|says?|answers?|commands?|orders?|snaps?|snarls?|hisses?|whispers?|murmurs?|mutters?|voice|tone|bargain\w*|strips her dignity)\b/i;
@@ -60,7 +61,8 @@ function cosmetic(line: string): string {
     .replace(/\b(\w+)\s+\1\b/gi, '$1')
     .replace(/\bthe\s+the\s+/gi, 'the ')
     .replace(/\b(?:spinning|spins?)\s+(her|him)\b/gi, 'moves $1')
-    .replace(/\bsilhouette\b/gi, 'him');
+    .replace(/\bsilhouette\b/gi, 'him')
+    .replace(/\bno restoration\b/gi, 'never reset');
 }
 
 function normalizeLocations(line: string, ctx: H3CanonicalCtx): string {
@@ -130,7 +132,9 @@ export function canonicalizeH3(text: string, ctx: H3CanonicalCtx): H3CanonicalRe
   // 1) 场景句统一重写（subject_definitions / summary 两处）
   const scene = sceneLine(ctx);
   if (scene) {
-    t = t.replace(/Scene:\s*[^;\n]+;/gi, `${scene};`);
+    // 旧场景句可能含多个分号/重复尾巴：整段吞到 "Only one man" 或行尾，避免只换第一句。
+    t = t.replace(/Scene:[\s\S]*?(?=Only one man)/gi, `${scene} `);
+    t = t.replace(/Scene:[^\n]*/gi, `${scene}`);
     if (!/Scene:\s*the theme's location progression/i.test(t)) issues.push('scene-missing');
   }
 
@@ -155,11 +159,19 @@ export function canonicalizeH3(text: string, ctx: H3CanonicalCtx): H3CanonicalRe
     const stripIdx = shots.findIndex((x) => STRIP_RE.test(x.line));
     if (stripIdx >= 0) {
       for (let k = stripIdx + 1; k < shots.length; k++) {
-        const fixed = shots[k].line.replace(DRESS_RE, 'fully nude');
+        let fixed = shots[k].line.replace(DRESS_RE, 'fully nude');
+        if (/Fully clothed/i.test(fixed)) {
+          fixed = fixed.replace(/Fully clothed\.?/gi, 'Both are fully nude; no clothing on either body.');
+          issues.push('wardrobe-reset-fixed');
+        }
         if (fixed !== shots[k].line) {
           lines[shots[k].i] = fixed;
           shots[k].line = fixed;
-          issues.push('wardrobe-reset-fixed');
+        }
+        // 脱衣后仍出现纯跟踪/偷拍镜头（无性行为）→ 叙事回归，直接丢弃
+        if (!STRONG_SEX_RE.test(fixed) && /\b(?:phone|stalking|follow\w*|alley|filming)\b/i.test(fixed)) {
+          lines[shots[k].i] = '';
+          issues.push('post-nude-regression-dropped');
         }
       }
     }
@@ -200,6 +212,11 @@ export function canonicalizeH3(text: string, ctx: H3CanonicalCtx): H3CanonicalRe
     }
     t = t.slice(0, ddStart) + lines.join('\n') + t.slice(ddEnd);
   }
+
+  // 4b) 分区标签前强制换行（防最后一镜吞掉 overall_soundscape）
+  t = t.replace(/([^\n])(overall_soundscape\s*:)/gi, '$1\n$2');
+  t = t.replace(/([^\n])(non_diegetic_music\s*:)/gi, '$1\n$2');
+  t = t.replace(/([^\n])(speaker_mapping\s*:)/gi, '$1\n$2');
 
   // 5) 去重音频块/speaker_mapping
   const _beforeBlocks = t;
