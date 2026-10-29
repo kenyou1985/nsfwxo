@@ -3882,8 +3882,8 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
             for (let ri = 1; ri <= 16; ri++) {
               const u = `${base}/route_${ri}.mp4`;
               try {
-                const hr = await fetch(u, { method: 'HEAD' });
-                if (hr.ok) found.push(u);
+                const hr = await fetch(u, { method: 'GET', headers: { Range: 'bytes=0-0' } });
+                if (hr.ok || hr.status === 206) found.push(u);
               } catch { /* ignore */ }
             }
             if (found.length) videoUrls = found;
