@@ -94,6 +94,12 @@ function cleanBeat(raw: string): string {
     .replace(/\bSplit\s*:\s*/gi, '')
     // 克隆人/多男性词：silhouette / dark figure / second figure → him
     .replace(/\b(?:his|the)\s+silhouette\b/gi, 'him')
+    .replace(/\b(?:is|as|like)?\s*a\s+silhouette\b/gi, 'him')
+    .replace(/\bsilhouette\b/gi, 'him')
+    // 单镜头内禁止身体旋转（H3 解剖协议）：spinning/turns her → walking/takes her
+    .replace(/\bspinning\s+(her|him)\b/gi, 'walking $1')
+    .replace(/\bspins?\s+(her|him)\s+around\b/gi, 'moves $1')
+    .replace(/\bturns\s+her\s+into\s+another\s+position\s*[:：]/gi, 'takes her in another position:')
     .replace(/\ba\s+dark\s+(?:figure|shape)\b/gi, 'him')
     .replace(/\ba?\s*second\s+(?:figure|man|person|shadow)\b[^.;\n]*/gi, ' him ')
     // 避免“second figure/second man”诱导 H3 生成克隆人

@@ -128,7 +128,7 @@ export function enforceH3Speakers(text: string): string {
     const dm = line.match(/<d>([\s\S]*?)<\/d>/);
     const raw = (dm ? dm[1] : line).replace(/^\s*\[(?:Chinese|Mandarin|中文|汉语)\]\s*/i, '').trim();
     if (/^(?:他|男|马库斯|MARCUS)$/i.test(raw)) return line;
-    if ((MALE_COMMAND.test(raw) && !FEMALE_PLEA.test(raw)) || /^(?:别动|别回头|别叫|别跑|站住|不许跑|别出声|别哭|闭嘴|安静|继续走|往前走|继续站着|站好|张嘴|接好|夹紧|站稳|转过来|腿抬好|自己动|含深点|脱掉|裙子|内裤|蹲下|用舌头|喷得)/.test(raw)) {
+    if ((MALE_COMMAND.test(raw) && !FEMALE_PLEA.test(raw)) || /^(?:别动|别躲|躲开|别挣|别乱动|别回头|别叫|别跑|站住|不许跑|别出声|别哭|闭嘴|安静|继续走|往前走|继续站着|站好|张嘴|接好|夹紧|站稳|转过来|腿抬好|自己动|含深点|脱掉|裙子|内裤|蹲下|用舌头|喷得)/.test(raw)) {
       return line.replace(/^\(S[12]\):/, '(S2):');
     }
     if (FEMALE_PLEA.test(raw) || /^(?:你|我|他蹲|这里|有人|会看到)/.test(raw)) {
@@ -233,6 +233,7 @@ function translateCn(text: string, map: Record<string, string>): string {
 // 地点的“中心名词”：只用于把 brick alley / alley bend / alley mouth 归成 alley，
 // 不属于主题→场景映射，任何主题都走同一套。
 const PLACE_HEAD_NOUNS = ['alley','street','road','lane','lot','yard','site','worksite','scaffold','scaffolding','bay','platform','room','bedroom','kitchen','bathroom','office','classroom','corridor','stairwell','elevator','escalator','subway','train','bus','mall','store','hotel','apartment','house','park','garden','woods','forest','beach','pool','rooftop','playground','garage','warehouse','factory','building','dock','pier','bridge','tunnel','cave','cell','basement','attic','fence','gate','doorway','hall','lobby','balcony'];
+const SITE_COMPOUND_RE = /\b(?:construction|building|work|demolition)\s+(?:site|yard)\b/i;
 const SUBPART_WORDS = ['bay','platform','upright','tower','crossbar','cross','bar','bars','pole','poles','pipe','rail','level','midlevel','landing','corner','bend','mouth','edge','end','side','top','bottom','middle','foreground','background','passage','path','walkway','height','chest','gate','fence','yard','site','lot','vertical','horizontal','mid','lower','upper'];
 function placeHeadNoun(loc: string): string {
   const t = String(loc || '').toLowerCase();
@@ -255,10 +256,19 @@ function isSubpartOnly(loc: string): boolean {
 export function collapseLocations(items: string[]): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
+  let hasSite = false;
   for (const raw of items) {
     const v = String(raw || '').trim();
     if (!v) continue;
     if (/^(?:same(?:\s+(?:as above|location|place))?|同上|同一地点|原地)$/i.test(v)) continue;
+    const _site = v.match(SITE_COMPOUND_RE);
+    if (_site) {
+      const _name = _site[0].toLowerCase();
+      hasSite = true;
+      if (!seen.has(_name)) { seen.add(_name); out.push(_name); }
+      continue;
+    }
+    if (hasSite && /^scaffold(?:ing)?$/i.test(v)) continue;
     const head = placeHeadNoun(v);
     if (!head && isSubpartOnly(v)) continue;
     const display = head ? (head === 'scaffold' ? 'scaffolding' : head) : v;
@@ -278,6 +288,15 @@ export function translateChineseTerms(text: string): string {
   return out;
 }
 
+function _sortByDoc(items: string[], raw: string): string[] {
+  const low = raw.toLowerCase();
+  return items.slice().sort((a, b) => {
+    const ia = low.indexOf(a.toLowerCase());
+    const ib = low.indexOf(b.toLowerCase());
+    return (ia < 0 ? 1e9 : ia) - (ib < 0 ? 1e9 : ib);
+  });
+}
+
 export function extractScriptLocations(text: string): string[] {
   const raw = String(text || '');
   const out: string[] = [];
@@ -292,6 +311,12 @@ export function extractScriptLocations(text: string): string[] {
     if (!v) return;
     // "same / same location / 同上" 不是地点，直接丢弃。
     if (/^(?:same(?:\s+(?:as above|location|place))?|同上|同一地点|原地)$/i.test(v)) return;
+    const _site = v.match(SITE_COMPOUND_RE);
+    if (_site) {
+      const _name = _site[0].toLowerCase();
+      if (!seen.has(_name)) { seen.add(_name); out.push(_name); }
+      return;
+    }
     const key = v.toLowerCase();
     if (seen.has(key)) return;
     // 合并同一地点的变体：按中心名词归一（brick alley / alley bend → alley；scaffold bay / upright → scaffolding）。
@@ -302,6 +327,9 @@ export function extractScriptLocations(text: string): string[] {
     seen.add(key);
     out.push(head ? (head === 'scaffold' ? 'scaffolding' : head) : v);
   };
+  // 0) 正文里的复合地点（construction site / building yard…）优先保留，避免被 site/yard 子区域词吞掉。
+  const _siteHit = raw.match(SITE_COMPOUND_RE);
+  if (_siteHit) push(_siteHit[0]);
   // 1) 剧本字段：Location: ...
   for (const line of raw.split(/\n+/)) {
     const m = line.match(/\bLocation\s*[:：]\s*([^.;\n]+)/i);
@@ -318,7 +346,7 @@ export function extractScriptLocations(text: string): string[] {
       seenHeads.add(head);
       push(head === 'scaffold' ? 'scaffolding' : head);
     }
-    return out;
+    return _sortByDoc(out, raw);
   }
   // 2) 中文地点短语：在/到/绑在/拖进 + 地点 + 方位词
   const cnRe = /(?:在|到|进入|走进|来到|退到|按在|绑在|趴在|靠在|坐在|躺在|拖进|拖到|拽进|拽到)([\u4e00-\u9fff]{2,10}?)(?:上|里|中|内|下|边|旁|前|后|处|着)/g;
@@ -327,26 +355,26 @@ export function extractScriptLocations(text: string): string[] {
     const en = translateCn(cm[1], CN_PLACE_MAP);
     if (en) push(en);
   }
-  if (out.length) return out;
+  if (out.length) return _sortByDoc(out, raw);
   // 2b) 没有介词的裸地点名词（如主题“小巷子 脚手架”）：按出现顺序扫描。
   const bare = Object.keys(CN_PLACE_MAP)
     .map((k) => ({ k, i: raw.indexOf(k) }))
     .filter((x) => x.i >= 0)
     .sort((a, b) => a.i - b.i);
   for (const { k } of bare) push(CN_PLACE_MAP[k]);
-  if (out.length) return out;
+  if (out.length) return _sortByDoc(out, raw);
   // 3) 英文地点介词短语：in/at/on/inside the X
   const re = /\b(?:in|at|on|inside|through|into)\s+the\s+([a-z][a-z\s-]{2,30})/gi;
   let mm: RegExpExecArray | null;
   while ((mm = re.exec(raw))) push(mm[1]);
-  if (out.length) return out;
+  if (out.length) return _sortByDoc(out, raw);
   // 4) 正文里的英文主地点名词（无介词，如 alley / scaffolding）：按出现顺序补全。
   const words = raw.toLowerCase().replace(/-/g, ' ').split(/[^a-z]+/).filter(Boolean);
   for (const w of words) {
     if (!PLACE_HEAD_NOUNS.includes(w) || SUBPART_WORDS.includes(w)) continue;
     push(w === 'scaffolding' ? 'scaffolding' : w);
   }
-  return out;
+  return _sortByDoc(out, raw);
 }
 
 /** 从地点短语里取一个可倚靠/可趴的支撑物名词；没有就返回空，由调用方用通用词。 */

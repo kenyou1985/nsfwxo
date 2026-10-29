@@ -179,7 +179,11 @@ export function selfCheckH3Prompt(raw: string): SelfCheckResult {
   text = text
     .replace(/\b(?:the\s+)?(?:adult\s+|tall\s+|big\s+)?Black\s+man\b/gi, 'the man')
     .replace(/\b(a|an)\s+((?:\w+\s+){0,2})the man\b/gi, '$1 $2man')
-    .replace(/\bthe\s+(\w+)\s+the man\b/gi, 'the $1 man');
+    .replace(/\bthe\s+(\w+)\s+the man\b/gi, 'the $1 man')
+    .replace(/\b(?:is|as|like)?\s*a\s+silhouette\b/gi, 'him')
+    .replace(/\bsilhouette\b/gi, 'him')
+    .replace(/\bspinning\s+(her|him)\b/gi, 'walking $1')
+    .replace(/\bturns\s+her\s+into\s+another\s+position\s*[:：]/gi, 'takes her in another position,');
 
   // 7) 说话人标签归一
   const t2 = text;
