@@ -1251,7 +1251,7 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
   const headPlaceholder = headShots.filter(isHeadPlaceholder).length;
   if (headShots.length >= 4 && headPlaceholder >= Math.ceil(headShots.length * 0.6)) return '';
   const detected = detectFramework(script, hasMan);
-  const sceneAnchor = `${deriveSceneAnchor(sceneText)} Only one man exists in the entire video: Subject 2; never show a second male, a reflection, a silhouette of another man, or a clone.`;
+  const sceneAnchor = `${deriveSceneAnchor(sceneText)} Only one man exists in the entire video: Subject 2. Never duplicate him; never add a second male body, reflection, or shadow figure.`;
   const wardrobeRule = 'Clothing comes from the current theme description. If the theme does not specify an item, use the clothing visible in Picture 1. Do not invent colors or garments.';
   // 从当前主题/剧本提取一次服装锚点（不是硬编码锁），只写在 Subject/summary，防止 H3 中途换色。
   const wardrobeAnchorItems = extractWardrobe(`${script}\n${themeHint}`);
