@@ -145,6 +145,12 @@ export function selfCheckH3Prompt(raw: string): SelfCheckResult {
     }
   }
 
+  // 7a) 单一男性：Black man → the man，并清理 the <adj> the man
+  text = text
+    .replace(/\b(?:the\s+)?(?:adult\s+|tall\s+|big\s+)?Black\s+man\b/gi, 'the man')
+    .replace(/\b(a|an)\s+((?:\w+\s+){0,2})the man\b/gi, '$1 $2man')
+    .replace(/\bthe\s+(\w+)\s+the man\b/gi, 'the $1 man');
+
   // 7) 说话人标签归一
   const t2 = text;
   text = enforceH3Speakers(text);

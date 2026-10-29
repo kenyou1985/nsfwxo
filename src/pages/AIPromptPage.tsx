@@ -1255,9 +1255,17 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
   // 裸体状态持久化：从“全部脱光”那一镜开始，后续每镜都显式标注两人全裸，
   // 防止 H3 在分段边界把衣服“穿回去”。
   let nudeFrom = -1;
+  const SEX_VERB = /(?:fucks?|thrusts?|drives?|enters?|pounds?|penetrat\w*|strokes?|hips|takes her|pins her|bends her|knees?|mouth|gags?|sucks?|licks?|spanks?|slaps?|fingers?|rubs?|throat|oral|rides?|lap|creampie|finishes?|pulls? out|slams?|join)/i;
   framedShots = framedShots.map((s, i) => {
     if (nudeFrom < 0 && /(?:strips? the last garment|completely nude|no clothing remains|fully nude too)/i.test(s)) nudeFrom = i;
-    if (nudeFrom >= 0 && i > nudeFrom) return `${s} Both are fully nude; no clothing on either body.`;
+    if (nudeFrom >= 0 && i > nudeFrom) {
+      // 脱光之后的每一镜必须真的有性行为画面；只有台词/中性占位时补一句，避免静止空镜。
+      const bodyNoD = s.replace(/<d>[\s\S]*?<\/d>/g, '').replace(/Both are fully nude;? no clothing on either body\.?/gi, '').trim();
+      const fixed = bodyNoD.length < 15 || !SEX_VERB.test(bodyNoD)
+        ? `He fucks her hard without changing position, hips snapping, both bodies fully nude. ${s}`
+        : s;
+      return `${fixed} Both are fully nude; no clothing on either body.`;
+    }
     return s;
   });
 
