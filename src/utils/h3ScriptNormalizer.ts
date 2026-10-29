@@ -92,6 +92,10 @@ function cleanBeat(raw: string): string {
     .replace(/(?:[,;.]\s*)?then\s+(?:a\s+)?(?:rack(?:[- ]?focus)?\s*to|pull\s*to|push\s*(?:onto|through)|low tracking|low angle|macro|close on|medium on|wide on|tight on)\b[^.;\n]*/gi, '')
     .replace(/(?:[,;]\s*)?(?:hard\s+)?cut\s+(?:back\s+)?to\b[^.;\n]*/gi, '')
     .replace(/\bSplit\s*:\s*/gi, '')
+    // 克隆人/多男性词：silhouette / dark figure / second figure → him
+    .replace(/\b(?:his|the)\s+silhouette\b/gi, 'him')
+    .replace(/\ba\s+dark\s+(?:figure|shape)\b/gi, 'him')
+    .replace(/\ba?\s*second\s+(?:figure|man|person|shadow)\b[^.;\n]*/gi, ' him ')
     // 避免“second figure/second man”诱导 H3 生成克隆人
     .replace(/\b(?:then\s+)?a?\s*second\s+(?:figure|man|person|shadow)\b[^.;\n]*/gi, ' the man ')
     // 清掉句子被截断后的 "then a ." / "then a," 残片
@@ -105,7 +109,7 @@ function cleanBeat(raw: string): string {
     .replace(/\b(?:LOCATION|BODY|CLOTHING|ACTION|POSITIONS?|EMOTIONAL(?:\s+BEAT)?)\s*[:：]\s*/g, ' ')
     .replace(/\b(?:EMOTIONAL|Emotional)\b\s*[:：]?\s*/g, ' ')
     // 首字母大写的内联字段标签（Location: / Body positions: / Clothing state: / Physical action:）
-    .replace(/\b(?:Body positions?|Clothing state|Physical action|Location)\s*[:：]\s*/g, ' ')
+    .replace(/\b(?:Body positions?|Clothing state|Physical action|Location|Body|Action|Clothing|Position)\s*[:：]\s*/g, ' ')
     // 正文里被当作主语用的 (S1)/(S2) 不是台词标签，去掉；保留 (S1): <d>。
     .replace(/\(S[12]\)(?!\s*:\s*<d>)/g, ' ')
     // 正文自带的单时间戳一律去掉，由模板统一重建，避免 01:06.000 01:00.000。

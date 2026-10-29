@@ -59,7 +59,8 @@ export function selfCheckH3Prompt(raw: string): SelfCheckResult {
     .replace(/^[ \t]*(?:Body positions?|Physical action|Clothing state|Emotional beat|Positions?)\s*[:：]\s*/gmi, '')
     .replace(/^[ \t]*(?:Location|Camera|Body|Action|Clothing)\s*[:：]\s*/gmi, '')
     .replace(/\b(?:LOCATION|BODY|CLOTHING|ACTION|POSITIONS?|EMOTIONAL(?:\s+BEAT)?)\s*[:：]\s*/g, ' ')
-    .replace(/\b(?:EMOTIONAL|Emotional)\b\s*[:：]?\s*/g, ' ');
+    .replace(/\b(?:EMOTIONAL|Emotional)\b\s*[:：]?\s*/g, ' ')
+    .replace(/\b(?:Body|Action|Clothing|Position)\s*[:：]\s*/g, ' ');
   if (text !== t1) issues.push('labels');
 
   // 4) Scene 地点列表按中心名词归一

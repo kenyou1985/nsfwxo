@@ -4424,10 +4424,20 @@ def _recent_video_history(limit=8):
                 hits.append((os.path.getmtime(v), d))
         hits.sort(reverse=True)
         for _, d in hits[:limit]:
+            # 历史记录也要带每一段/每一路的视频，前端才能显示“分段预览”。
+            _fp = os.path.join(VIDEOS_DIR, d)
+            _segs = {}
+            try:
+                for _f in sorted(os.listdir(_fp)):
+                    if _f.endswith('.mp4') and (_f.startswith('route_') or _f.startswith('seg_')):
+                        _key = _f.rsplit('.', 1)[0]
+                        _segs[_key] = {'status': 'success', 'url': '/media/%s/%s' % (d, _f), 'file': _f}
+            except Exception:
+                pass
             out.append({
                 'id': d, 'status': 'finished',
                 'cfg': {'mode': 'global'},
-                'segments': {},
+                'segments': _segs,
                 'final_url': '/media/%s/最终视频.mp4' % d,
                 'final_name': '最终视频.mp4', 'log_len': 0,
             })
