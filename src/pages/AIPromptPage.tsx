@@ -1331,7 +1331,7 @@ Scene and action: fully_preserved from the current theme; only the written shot 
 detailed_description:
 ${body}
 
-overall_soundscape: Location ambience, fabric friction, breathing and the physical sounds implied by the written actions; dialogue only from the <d> tags; no music.
+overall_soundscape: Location ambience, fabric friction, breathing and the physical sounds implied by the written actions; dialogue only from the <d> tags; NO music, NO BGM, NO soundtrack, NO score, NO instrumental, no gibberish, no narration.
 non_diegetic_music: None
 speaker_mapping: ${speakerMap}`;
 
@@ -2259,7 +2259,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         resolution: videoClarity,
         aspect_ratio: '9:16',
         // 12 分镜 / 4 段 = 每段 3 分镜，对齐 16 段合成工作流
-        shots_per_seg: 3,
+        shots_per_seg: Math.max(1, Math.ceil((videoShotCount || 12) / Math.max(1, videoSegments))),
         target_segs: videoSegments,
         loop_routes: videoRoutes,
         instance: 'plus',
@@ -2992,12 +2992,19 @@ function ExpandResultCard({ result, r18Mode, isCopied, genState, videoState, onC
 
         {videoState?.url && (
           <div className="mt-3 pt-3 border-t border-border/50">
+            <div className="mb-1 text-[11px] font-medium text-foreground/70">最终合成视频</div>
             <video src={videoState.url} controls playsInline className="w-full rounded-xl border border-border bg-black max-h-[420px] object-contain" />
-            {videoState.urls && videoState.urls.length > 1 && (
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                {videoState.urls.map((u, i) => (
-                  <video key={u + i} src={u} controls playsInline className="w-full rounded-lg border border-border bg-black" />
-                ))}
+            {videoState.urls && videoState.urls.length > 0 && (
+              <div className="mt-3">
+                <div className="mb-1 text-[11px] font-medium text-foreground/70">分段预览（{videoState.urls.length} 段）</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {videoState.urls.map((u, i) => (
+                    <div key={u + i} className="relative">
+                      <video src={u} controls playsInline preload="metadata" className="w-full rounded-lg border border-border bg-black" />
+                      <span className="absolute left-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white">第 {i + 1} 段</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -3834,7 +3841,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         duration: 15,
         resolution: videoClarity,
         aspect_ratio: '9:16',
-        shots_per_seg: videoSegments,
+        shots_per_seg: Math.max(1, Math.ceil((getH3ShotCount() || 12) / Math.max(1, videoSegments))),
         target_segs: videoSegments,
         loop_routes: videoRoutes,
         instance: 'plus',
@@ -4420,12 +4427,19 @@ function RandomResultCard({ index, result, isExpanded, isCopied, tagsVisible, r1
 
           {videoState?.url && (
             <div className="mb-3 rounded-xl overflow-hidden border border-border bg-black">
+              <div className="px-3 pt-2 text-[11px] font-medium text-white/80">最终合成视频</div>
               <video src={videoState.url} controls playsInline className="w-full max-h-[420px] object-contain" />
-              {videoState.urls && videoState.urls.length > 1 && (
-                <div className="grid grid-cols-2 gap-2 p-2">
-                  {videoState.urls.map((u, i) => (
-                    <video key={u + i} src={u} controls playsInline className="w-full rounded-lg border border-border bg-black" />
-                  ))}
+              {videoState.urls && videoState.urls.length > 0 && (
+                <div className="p-2">
+                  <div className="mb-1 text-[11px] font-medium text-white/80">分段预览（{videoState.urls.length} 段）</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {videoState.urls.map((u, i) => (
+                      <div key={u + i} className="relative">
+                        <video src={u} controls playsInline preload="metadata" className="w-full rounded-lg border border-border bg-black" />
+                        <span className="absolute left-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white">第 {i + 1} 段</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

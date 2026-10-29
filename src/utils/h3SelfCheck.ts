@@ -63,6 +63,18 @@ export function selfCheckH3Prompt(raw: string): SelfCheckResult {
     return `${pre}${collapsed.join(' → ')}${post}`;
   });
 
+  // 4b) 场景固定化：把宽泛的场地词归到锚定最后地点，减少 H3 场景漂移。
+  const sceneM = text.match(/Scene:\s*the theme's location progression is\s*([^;\n]+);/i);
+  if (sceneM) {
+    const locs = sceneM[1].split(/→|->/).map((x) => x.trim()).filter(Boolean);
+    const finalLoc = locs[locs.length - 1] || '';
+    if (finalLoc) {
+      const before = text;
+      text = text.replace(/\b(?:abandoned construction yard|construction yard|abandoned yard|open yard|abandoned lot|vacant lot|open lot|construction site|abandoned site|gravel|concrete)\b/gi, `the ${finalLoc}`);
+      if (text !== before) issues.push('scene-pinned');
+    }
+  }
+
   // 5) 逐镜清理、去重、重建时间戳
   if (/^\[Shot\s+\d+\]/im.test(text)) {
     const blocks = text.split(/(?=^\[Shot\s+\d+\])/im);
