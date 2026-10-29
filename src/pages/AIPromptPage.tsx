@@ -1303,7 +1303,7 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
   const framework = detectFramework(script, hasMan);
   const frameworkMeta = H3_FRAMEWORKS[framework];
   const frameworkHint = framework === 'coercive'
-    ? 'Coercive action framework: use restraint, slaps, hair-pulling, spanking, forced stripping, forced oral and forced penetration where the theme allows; the female starts resisting and gradually weakens into submission; actions carry the scene, dialogue stays sparse. Include creampie, facial or ass cum when the written ending reaches that beat.'
+    ? 'Coercive action framework: actions follow only the written shot list, beat by beat; the female starts resisting and gradually weakens into submission only where the shots describe it; never add an act that is not written. Dialogue stays sparse.'
     : framework === 'consensual'
       ? 'Consensual framework: mutual response, oral/penetration/climax allowed, balanced dialogue.'
       : framework === 'solo'

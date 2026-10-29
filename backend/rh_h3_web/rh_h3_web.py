@@ -154,7 +154,7 @@ RATIO_MAP = {
 # 当前模板 500 自带角色台词（引号内）+"non_diegetic_music: 电子氛围音乐"+speaker_mapping → 502=false
 # 确定性切分原样直通 → H3 塞入说话声与背景音乐（"莫名其妙的说话声/背景音"根因，与 #51 同源）。
 # 修复：提交前对提示词做净化（去台词引语/去 BGM 描述/去 speaker_mapping）+ 追加本硬约束块。
-_AUDIO_BLOCK = "\n\n=== AUDIO CONSTRAINTS (HARD RULES, MUST FOLLOW) ===\n1. NO background music, NO BGM, NO soundtrack, NO cinematic score, NO instrumental — ABSOLUTELY ZERO music in the final audio.\n2. NO narration, NO voice-over, NO commentary, NO inner monologue — characters do not speak to the audience.\n3. NO singing, NO humming, NO vocal melody, NO synthesized vocal tracks, NO choir, NO vocals of any kind.\n4. Audio must be diegetic ONLY — only sounds that exist within the scene world (footsteps, wind, objects, character grunts/breathing if natural).\n=== END AUDIO CONSTRAINTS ===\n\nnon_diegetic_music: None. No background music, no narration, no singing, no extra vocal tracks; only the natural sounds described in overall_soundscape."
+_AUDIO_BLOCK = "\n\n=== AUDIO CONSTRAINTS (HARD RULES, MUST FOLLOW) ===\n1. NO background music, NO BGM, NO soundtrack, NO cinematic score, NO instrumental — ABSOLUTELY ZERO music in the final audio.\n2. NO narration, NO voice-over, NO commentary, NO inner monologue — characters do not speak to the audience.\n3. NO singing, NO humming, NO vocal melody, NO synthesized vocal tracks, NO choir — no sung vocals of any kind.\n4. Audio must be diegetic ONLY — only sounds that exist within the scene world (footsteps, wind, objects, character grunts/breathing if natural); the spoken lines inside <d> tags are the only speech.\n=== END AUDIO CONSTRAINTS ===\n\nnon_diegetic_music: None. No background music, no narration, no singing, no extra vocal tracks; only the natural sounds described in overall_soundscape."
 
 def _sanitize_audio(text):
     """提交前音频净化：移除角色台词引语、BGM/非配乐描述、speaker_mapping 与 <d> 台词，
@@ -167,8 +167,7 @@ def _sanitize_audio(text):
     t = re.sub(r'(?im)^\s*non_diegetic_music\s*:.*(?:\n|$)', '', t)
     # 2) 移除 speaker_mapping 行（音色指派；凌晨版活动提示词无此字段）
     t = re.sub(r'(?im)^\s*speaker_mapping\s*:.*(?:\n|$)', '', t)
-    # 3) 移除 <d>...</d> 台词块
-    t = re.sub(r'<d>\s*(?:\[[^\]]+\]\s*)?.*?</d>', '', t, flags=re.S)
+    # 3) 保留 <d>...</d> 台词块（H3 只朗读 <d> 内文本；删除台词=火星语根因）
     # 4) 移除中文/英文引号内的直接台词（"……" / “……”；长度上限防误删整段）
     t = re.sub(r'"[^"\n]{1,80}"', '', t)
     t = re.sub(r'\u201c[^\u201d\n]{1,80}\u201d', '', t)
@@ -193,7 +192,10 @@ def _sanitize_audio(text):
     #    先移除提示词中可能损坏的 AUDIO_CONSTRAINTS 块（防重复/格式错误）
     t = re.sub(r'(?i)\s*=== AUDIO CONSTRAINTS.*?=== END AUDIO CONSTRAINTS ===\s*', '\n', t, flags=re.S)
     t = re.sub(r'(?i)^\s*non_diegetic_music\s*:.*$', '', t, flags=re.M)
-    return (t.strip() + _AUDIO_BLOCK).strip()
+    t = (t.strip() + _AUDIO_BLOCK).strip()
+    if 'speaker_mapping' not in t:
+        t += '\n\nspeaker_mapping: {"S1":"Chinese (Mandarin)_Adult_Female_Soft","S2":"Chinese (Mandarin)_Adult_Male_Low"}'
+    return t
 
 # MiniMax 开放平台官方系统音色（T2A Pro / speech-02-hd / H3 视频配音均可锚定）。
 # 中文普通话：青年男 / 中年男 / 青年女 / 中年女；英文：青年男 / 中年男 / 青年女 / 中年老年女。
@@ -872,6 +874,8 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
         # v11 的 502=false 走确定性切分时，H3 内部默认行为会塞入背景音乐/说话声。
         _wf['502']['inputs']['value'] = wfc.get('llm_value', True)    # LLM 开（对齐画布手动，音频由 LLM 描述驱动）
         _wf['503']['inputs']['value'] = _N_det    # 总段数（504 = 503-1 = N-1 轮循环 + 首段 = N 段）
+        if '1269' in _wf:
+            _wf['1269']['inputs']['value'] = 2    # 每段分镜数 M 必须与 _M_det=2 对齐（模板默认3会错位）
         _wf['159']['inputs']['value'] = int(cfg.get('duration', 15))   # 159→9 帧数→93/95 length→127.length
         _wf['25']['inputs']['value'] = cfg.get('resolution', 0.2)      # 像素清晰度
         _emit('  [路%d] M. #501=true(全局) #502=%s(LLM%s) #503=%d → 画布内循环 %d 轮 + 首段 = %d 段'

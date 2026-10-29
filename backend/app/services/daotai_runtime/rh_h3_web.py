@@ -719,7 +719,7 @@ def _seg_text_det16(prompt, lo, hi):
     _out += '\n\n=== AUDIO CONSTRAINTS (HARD RULES, MUST FOLLOW) ==='
     _out += '\n1. NO background music, NO BGM, NO soundtrack, NO cinematic score, NO instrumental — ABSOLUTELY ZERO music in the final audio.'
     _out += '\n2. NO narration, NO voice-over, NO commentary, NO inner monologue — characters do not speak to the audience.'
-    _out += '\n3. NO singing, NO humming, NO vocal melody, NO synthesized vocal tracks, NO choir, NO vocals of any kind.'
+    _out += '\n3. NO singing, NO humming, NO vocal melody, NO synthesized vocal tracks, NO choir — no sung vocals of any kind.'
     _out += '\n4. Audio must be diegetic ONLY — only sounds that exist within the scene world (footsteps, wind, objects, character grunts/breathing if natural).'
     _out += '\n=== END AUDIO CONSTRAINTS ==='
     _out += '\n\nnon_diegetic_music: None. No background music, no narration, no singing, no extra vocal tracks; only the natural sounds described in overall_soundscape.'
@@ -828,7 +828,7 @@ def _seg_text_list_full(prompt, lo, hi, n_segs=2):
         _out += '\n\n=== AUDIO CONSTRAINTS (HARD RULES, MUST FOLLOW) ==='
         _out += '\n1. NO background music, NO BGM, NO soundtrack, NO cinematic score, NO instrumental — ABSOLUTELY ZERO music in the final audio.'
         _out += '\n2. NO narration, NO voice-over, NO commentary, NO inner monologue — characters do not speak to the audience.'
-        _out += '\n3. NO singing, NO humming, NO vocal melody, NO synthesized vocal tracks, NO choir, NO vocals of any kind.'
+        _out += '\n3. NO singing, NO humming, NO vocal melody, NO synthesized vocal tracks, NO choir — no sung vocals of any kind.'
         _out += '\n4. Audio must be diegetic ONLY — only sounds that exist within the scene world (footsteps, wind, objects, character grunts/breathing if natural, and character dialogue inside <d> tags).'
         _out += '\n=== END AUDIO CONSTRAINTS ==='
         _out += '\n\nnon_diegetic_music: None. No background music, no narration, no singing, no extra vocal tracks; only the natural sounds described in overall_soundscape and dialogue inside <d> tags.'
@@ -1014,6 +1014,8 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
         if '1269' in _wf:
             _wf['1269']['inputs']['value'] = _M_det   # 每段分镜数：4 段 × 3 = 12，覆盖 11 个 Shot
         _wf['503']['inputs']['value'] = _N_det    # 总段数（504 = 503-1 = N-1 轮循环 + 首段 = N 段）
+        if '1269' in _wf:
+            _wf['1269']['inputs']['value'] = 2    # 每段分镜数 M 必须与 _M_det=2 对齐（模板默认3会错位）
         _wf['159']['inputs']['value'] = 15   # 159→9 帧数→93/95 length→127.length
         _wf['25']['inputs']['value'] = cfg.get('resolution', 0.2)      # 像素清晰度
         # ===== 2026-10-22 同步 nsfwxo 节点级优化（环境变量可回退）=====
