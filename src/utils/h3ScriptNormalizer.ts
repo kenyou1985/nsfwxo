@@ -39,6 +39,7 @@ export function stripOrphanSpeech(text: string): string {
           if (/^(?:no\s+(?:dialogue|speech)\b|only\s+(?:the\s+)?(?:sound|heel|shutter|fabric|breath))/i.test(t)) return false;
           // 导演注释/元话语（as the theme requires / the theme's ... beat / no chase yet）→ 不是画面
           if (/\bthemes?\b|\bas the theme\b|\bno chase yet\b|\btheme action\b|\bthe lock-in\b/i.test(t)) return false;
+          if (/\b(?:bargain\w*|prepares? the bind|preparing the bind)\b/i.test(t)) return false;
           // 只有“语气形容词 + 短句”，没有谁+动作 → 语气残片
           if (t.length < 60 && !/\b(?:she|he|her|his)\b\s+\w+/i.test(t)
             && /^(?:soft|flat|sharp|breaking|uncertain|quiet|low|cold|high|thin|hoarse|strained|greedy|hungry|calm|uneasy|panicked|desperate|shrill|broken|small|tight|easy|wet|trembling|tearful|breathless|furious|scared|terrified|trying|almost|not yet)\b/i.test(t)) return false;
@@ -94,11 +95,13 @@ function cleanBeat(raw: string): string {
     .replace(/\bSplit\s*:\s*/gi, '')
     // 克隆人/多男性词：silhouette / dark figure / second figure → him
     .replace(/\b(?:his|the)\s+silhouette\b/gi, 'him')
+    .replace(/\*{2,}/g, '')
     .replace(/\b(?:is|as|like)?\s*a\s+silhouette\b/gi, 'him')
     .replace(/\bsilhouette\b/gi, 'him')
     // 单镜头内禁止身体旋转（H3 解剖协议）：spinning/turns her → walking/takes her
     .replace(/\bspinning\s+(her|him)\b/gi, 'walking $1')
     .replace(/\bspins?\s+(her|him)\s+around\b/gi, 'moves $1')
+    .replace(/\bspins?\s+(her|him)\b/gi, 'moves $1')
     .replace(/\bturns\s+her\s+into\s+another\s+position\s*[:：]/gi, 'takes her in another position:')
     .replace(/\ba\s+dark\s+(?:figure|shape)\b/gi, 'him')
     .replace(/\ba?\s*second\s+(?:figure|man|person|shadow)\b[^.;\n]*/gi, ' him ')
