@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { extractVideoPromptFromImagePrompt } from '../utils/videoPromptExtractor';
 import { normalizeKrea2Prompt } from '../utils/krea2Prompt';
+import { canonicalizeH3 } from '../utils/h3Canonical';
 import { normalizeH3Script, normalizeDialogueSpeakers, normalizeH3PromptStructure, isModelRefusal, stripModelRefusal, stripOrphanSpeech } from '../utils/h3ScriptNormalizer';
 import { selfCheckH3Prompt } from '../utils/h3SelfCheck';
 
@@ -1372,8 +1373,13 @@ speaker_mapping: ${speakerMap}`;
   if (checked.issues.length) {
     console.info('[h3-selfcheck]', checked.issues.join(', '));
   }
-  H3_LAST_SELF_CHECK = checked.issues;
-  return checked.prompt;
+  // 最终门禁层：统一场景句、地点归并、性行为顺序、脱衣回穿、旁白尾巴、块去重。
+  const _canonLocs = collapseLocations(extractScriptLocations(sceneText));
+  const _canonFinal = _canonLocs.length ? _canonLocs[_canonLocs.length - 1].replace(/^the\s+/i, '') : '';
+  const _canon = canonicalizeH3(checked.prompt, { locs: _canonLocs, finalLoc: _canonFinal, wardrobe: wardrobeAnchor });
+  if (_canon.issues.length) console.info('[h3-canonical]', _canon.issues.join(', '));
+  H3_LAST_SELF_CHECK = [...checked.issues, ..._canon.issues];
+  return _canon.text;
 }
 
 export let H3_LAST_SELF_CHECK: string[] = [];
