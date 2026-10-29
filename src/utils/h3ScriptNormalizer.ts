@@ -38,7 +38,7 @@ export function stripOrphanSpeech(text: string): string {
           // 纯声音说明句（No dialogue. / Only heel clicks...）
           if (/^(?:no\s+(?:dialogue|speech)\b|only\s+(?:the\s+)?(?:sound|heel|shutter|fabric|breath))/i.test(t)) return false;
           // 导演注释/元话语（as the theme requires / the theme's ... beat / no chase yet）→ 不是画面
-          if (/\bthemes?\b|\bas the theme\b|\bno chase yet\b|\btheme action\b/i.test(t)) return false;
+          if (/\bthemes?\b|\bas the theme\b|\bno chase yet\b|\btheme action\b|\bthe lock-in\b/i.test(t)) return false;
           // 只有“语气形容词 + 短句”，没有谁+动作 → 语气残片
           if (t.length < 60 && !/\b(?:she|he|her|his)\b\s+\w+/i.test(t)
             && /^(?:soft|flat|sharp|breaking|uncertain|quiet|low|cold|high|thin|hoarse|strained|greedy|hungry|calm|uneasy|panicked|desperate|shrill|broken|small|tight|easy|wet|trembling|tearful|breathless|furious|scared|terrified|trying|almost|not yet)\b/i.test(t)) return false;
@@ -89,7 +89,7 @@ function cleanBeat(raw: string): string {
     .replace(/(?:[,;]\s*)?then\s+(?:cut|whip|rack[- ]?focus|tilt|track(?:ing)?|push[- ]?in|punch[- ]?in|reverse|pan|zoom|dolly|pull[- ]?back|snap)\b[^.;\n]*/gi, '')
     .replace(/(?:[,;]\s*)?then\s+(?:a\s+)?(?:low angle|tight two-shot|tight shot|tight on|medium shot|medium on|wide shot|wide on|close[- ]up|close up|close on|extreme close|ECU|CU|overhead|side angle|reverse angle|reverse shot|handheld|steadicam|two-shot|insert|tracking|dolly|push in|pull back)\b[^.;\n]*/gi, '')
     .replace(/(?:[,;.]\s*)?then\s+a\s+(?:whip[- ]?pan|cut|tilt|pan|zoom|push[- ]?in|rack[- ]?focus|dolly|reverse|macro)\b[^.;\n]*/gi, '')
-    .replace(/(?:[,;.]\s*)?then\s+(?:a\s+)?(?:rack(?:[- ]?focus)?\s*to|pull\s*to|push\s*onto|low tracking|low angle|macro|close on|medium on|wide on|tight on)\b[^.;\n]*/gi, '')
+    .replace(/(?:[,;.]\s*)?then\s+(?:a\s+)?(?:rack(?:[- ]?focus)?\s*to|pull\s*to|push\s*(?:onto|through)|low tracking|low angle|macro|close on|medium on|wide on|tight on)\b[^.;\n]*/gi, '')
     .replace(/(?:[,;]\s*)?(?:hard\s+)?cut\s+(?:back\s+)?to\b[^.;\n]*/gi, '')
     .replace(/\bSplit\s*:\s*/gi, '')
     // 避免“second figure/second man”诱导 H3 生成克隆人
