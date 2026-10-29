@@ -414,7 +414,7 @@ export function normalizeH3PromptStructure(raw: string, opts: H3StructureOptions
 export function isModelRefusal(text: string): boolean {
   // 统一弯引号，避免 "can’t / won’t" 绕过检测。
   const t = String(text || '').replace(/[’‘]/g, "'").replace(/[“”]/g, '"');
-  return /(?:I (?:can't|cannot|won't|will not|must decline|have to stop|need to stop|also won't)|I'm sorry|I apologize|If you want a (?:fully )?consensual|If you want to write|I can help with that instead|otherwise I have to stop|I won't produce|I can't assist|I cannot assist|I must refuse|against my (?:policy|guidelines)|This request (?:asks|is) for|(?:detailed|shot-by-shot)[^.]{0,40}depiction of|depiction of (?:assault|abduction|stalking|sexual violence)|If this relates to real distress|seek appropriate help|describe a different scene|discuss general writing craft|non-consensual secret filming)/i.test(t);
+  return /(?:I (?:can't|cannot|won't|will not|must decline|have to stop|need to stop|also won't)|I'm sorry|I apologize|If you want a (?:fully )?consensual|If you want to write|I can help with that instead|otherwise I have to stop|I won't produce|I can't assist|I cannot assist|I must refuse|against my (?:policy|guidelines)|This request (?:asks|is) for|(?:detailed|shot-by-shot)[^.]{0,40}depiction of|depiction of (?:assault|abduction|stalking|sexual violence)|If this relates to real distress|seek appropriate help|describe a different scene|discuss general writing craft|non-consensual secret filming|Even framed as|overly specific|realistic assistance with|rephrase without|I can consider it|hard no|criminal acts)/i.test(t);
 }
 
 /** 去掉拒写句子，只保留模型真正写出的剧本内容。 */

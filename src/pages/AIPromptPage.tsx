@@ -1201,11 +1201,9 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
   hasMan = hasMan || /\b(he|his|him)\b|\b(man|male)\b|黑人|黑男|男人|男性|男子|男/i.test(script);
   // 所有入口统一处理 LLM 拒写：只允许 LLM 正常审核输出的剧本。
   // 拒写时不做兜底、不生成占位分镜，直接返回空串，由上层给出“模型拒绝”提示。
-  if (isModelRefusal(script)) {
-    const cleaned = stripModelRefusal(script);
-    if (cleaned.length < 200) return '';
-    script = cleaned;
-  }
+  // 任何拒写（含“混合拒写”：一部分拒写 + 一部分占位）都整体判失败，
+  // 不再剥离后继续输出，避免拒写/占位文本混进最终提示词。
+  if (isModelRefusal(script)) return '';
   script = unifySingleMale(sanitizeAgeTerms(script));
   // 场景检测同时看“剧本 + 用户主题”，避免 LLM 漏写小黑屋/室内导致场景只停在巷子。
   const sceneText = `${script}\n${themeHint}`;
