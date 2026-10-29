@@ -12,6 +12,13 @@
 import { collapseLocations, translateChineseTerms, enforceH3Speakers } from './h3Frameworks';
 import { stripOrphanSpeech } from './h3ScriptNormalizer';
 
+const SEX_FILL = [
+  'He fucks her hard in the same position, hips snapping.',
+  'He drives into her from behind, one hand in her hair.',
+  'He pins her to the pole and thrusts deep, breathing at her ear.',
+  'He holds her hips and pounds into her, the steel creaking under them.',
+];
+
 const PROTECT_RE = /(<d>[\s\S]*?<\/d>|河北彩花|马库斯)/g;
 
 function stripChineseOutside(text: string): { text: string; hit: boolean } {
@@ -100,7 +107,7 @@ export function selfCheckH3Prompt(raw: string): SelfCheckResult {
         && !/(?:strips? the last garment|completely nude|no clothing remains)/i.test(body)) {
         const bodyNoNude = body.replace(/Both are fully nude;? no clothing on either body\.?/gi, '').trim();
         if (!SEX_RE.test(bodyNoNude)) {
-          body = `He fucks her hard in the same position, hips snapping. ${body}`.trim();
+          body = `${SEX_FILL[shots.length % SEX_FILL.length]} ${body}`.trim();
           issues.push('sex-gap');
         }
       }

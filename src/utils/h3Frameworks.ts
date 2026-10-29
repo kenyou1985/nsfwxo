@@ -339,6 +339,13 @@ export function extractScriptLocations(text: string): string[] {
   const re = /\b(?:in|at|on|inside|through|into)\s+the\s+([a-z][a-z\s-]{2,30})/gi;
   let mm: RegExpExecArray | null;
   while ((mm = re.exec(raw))) push(mm[1]);
+  if (out.length) return out;
+  // 4) 正文里的英文主地点名词（无介词，如 alley / scaffolding）：按出现顺序补全。
+  const words = raw.toLowerCase().replace(/-/g, ' ').split(/[^a-z]+/).filter(Boolean);
+  for (const w of words) {
+    if (!PLACE_HEAD_NOUNS.includes(w) || SUBPART_WORDS.includes(w)) continue;
+    push(w === 'scaffolding' ? 'scaffolding' : w);
+  }
   return out;
 }
 

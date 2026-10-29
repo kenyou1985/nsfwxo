@@ -3,6 +3,14 @@ import { extractVideoPromptFromImagePrompt } from '../utils/videoPromptExtractor
 import { normalizeKrea2Prompt } from '../utils/krea2Prompt';
 import { normalizeH3Script, normalizeDialogueSpeakers, normalizeH3PromptStructure, isModelRefusal, stripModelRefusal, stripOrphanSpeech } from '../utils/h3ScriptNormalizer';
 import { selfCheckH3Prompt } from '../utils/h3SelfCheck';
+
+const H3_SEX_FILLERS = [
+  'He fucks her hard in the same position, hips snapping.',
+  'He drives into her from behind, one hand in her hair.',
+  'He pins her to the pole and thrusts deep, breathing at her ear.',
+  'He holds her hips and pounds into her, the steel creaking under them.',
+  'He takes her hard against the metal, her body jolting with each thrust.',
+];
 import { applyFramework, detectFramework, ensureCoerciveArc, H3_FRAMEWORKS, enforceH3Speakers, cleanSpeakerProse, extractScriptLocations } from '../utils/h3Frameworks';
 import { makeThumbnailForStorage, makePreviewForStorage } from '../utils/imageThumbnail';
 import { AspectAwareImage } from '../components/AspectAwareImage';
@@ -1264,7 +1272,7 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
       // 脱光之后的每一镜必须真的有性行为画面；只有台词/中性占位时补一句，避免静止空镜。
       const bodyNoD = s.replace(/<d>[\s\S]*?<\/d>/g, '').replace(/Both are fully nude;? no clothing on either body\.?/gi, '').trim();
       const fixed = bodyNoD.length < 15 || !SEX_VERB.test(bodyNoD)
-        ? `He fucks her hard without changing position, hips snapping, both bodies fully nude. ${s}`
+        ? `${H3_SEX_FILLERS[i % H3_SEX_FILLERS.length]} ${s}`
         : s;
       return `${fixed} Both are fully nude; no clothing on either body.`;
     }
