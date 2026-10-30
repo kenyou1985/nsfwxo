@@ -78,17 +78,23 @@ export function selfCheckH3Prompt(raw: string): SelfCheckResult {
     const finalLoc = locs[locs.length - 1] || '';
     if (finalLoc) {
       const before = text;
-      text = text.replace(/\bthe\s+(?:abandoned\s+|empty\s+|open\s+|vacant\s+)?(?:lot|yard|site|worksite)\b/gi, `the ${finalLoc}`);
-      text = text.replace(/(?<!→\s)(?<!the\s)\b(?:abandoned construction yard|construction yard|abandoned yard|open yard|abandoned lot|vacant lot|open lot|construction site|abandoned site|worksite|the lot|the yard|the site)\b/gi, `the ${finalLoc}`);
-      text = text.replace(/\b(?:for|against|on|onto|across|into|through|at)\s+(?:the\s+)?(?:broken|grey|gray|dusty|abandoned|empty|open)?\s*(?:concrete|gravel|rubble)\b/gi, `$1 the ${finalLoc}`);
-      // 主题没有的地点（street/road/sidewalk）不作为独立地点留在镜头里 → 归到最终地点
+      // 保护 <d> 台词：场景钉住绝不能改台词里的中文/英文地点。
+      const _dBlocks: string[] = [];
+      let _t = text.replace(/<d>[\s\S]*?<\/d>/g, (m) => {
+        _dBlocks.push(m);
+        return `\u0000D${_dBlocks.length - 1}\u0000`;
+      });
+      _t = _t.replace(/\bthe\s+(?:abandoned\s+|empty\s+|open\s+|vacant\s+)?(?:lot|yard|site|worksite)\b/gi, `the ${finalLoc}`);
+      _t = _t.replace(/(?<!→\s)(?<!the\s)\b(?:abandoned construction yard|construction yard|abandoned yard|open yard|abandoned lot|vacant lot|open lot|construction site|abandoned site|worksite|the lot|the yard|the site)\b/gi, `the ${finalLoc}`);
+      _t = _t.replace(/\b(?:for|against|on|onto|across|into|through|at)\s+(?:the\s+)?(?:broken|grey|gray|dusty|abandoned|empty|open)?\s*(?:concrete|gravel|rubble)\b/gi, `$1 the ${finalLoc}`);
       for (const _w of ['street', 'road', 'sidewalk']) {
         if (!locs.some((l) => new RegExp('\\b' + _w + '\\b', 'i').test(l))) {
-          text = text.replace(new RegExp('\\bthe\\s+' + _w + '\\b', 'gi'), `the ${finalLoc}`);
+          _t = _t.replace(new RegExp('\\bthe\\s+' + _w + '\\b', 'gi'), `the ${finalLoc}`);
         }
       }
-      text = text.replace(/\bthe\s+the\s+/gi, 'the ');
-      text = text.replace(new RegExp('\\b(?:abandoned|broken|empty|grey|gray|dusty|derelict|dark|wet|open|vacant)\\s+the\\s+' + finalLoc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), `the ${finalLoc}`);
+      _t = _t.replace(/\bthe\s+the\s+/gi, 'the ');
+      _t = _t.replace(new RegExp('\\b(?:abandoned|broken|empty|grey|gray|dusty|derelict|dark|wet|open|vacant)\\s+the\\s+' + finalLoc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), `the ${finalLoc}`);
+      text = _t.replace(/\u0000D(\d+)\u0000/g, (_, i) => _dBlocks[Number(i)]);
       if (text !== before) issues.push('scene-pinned');
     }
   }

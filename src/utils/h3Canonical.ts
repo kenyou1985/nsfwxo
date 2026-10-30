@@ -154,8 +154,9 @@ export function canonicalizeH3(text: string, ctx: H3CanonicalCtx): H3CanonicalRe
     const shots: Array<{ line: string; i: number }> = [];
     for (let i = 0; i < lines.length; i++) {
       if (!/^\[Shot\s+\d+\]/.test(lines[i].trim())) continue;
-      let s = cosmetic(lines[i]);
-      s = normalizeLocations(s, ctx);
+      // 只在 <d> 外做清理；台词内部保持原样（防止把中文地点翻成英文/改台词）。
+      let s = lines[i].split(/(<d>[\s\S]*?<\/d>)/g).map((part) => (/^<d>/.test(part) ? part : cosmetic(part))).join('');
+      s = s.split(/(<d>[\s\S]*?<\/d>)/g).map((part) => (/^<d>/.test(part) ? part : normalizeLocations(part, ctx))).join('');
       s = s.replace(/\bthe\s+the\s+/gi, 'the ');
       s = dropOrphanTail(s);
       lines[i] = s;
