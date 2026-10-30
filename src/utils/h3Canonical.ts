@@ -86,6 +86,20 @@ function normalizeLocations(line: string, ctx: H3CanonicalCtx): string {
   return s;
 }
 
+function normalizeWardrobe(line: string, ctx: H3CanonicalCtx): string {
+  const w = String(ctx.wardrobe || '').toLowerCase();
+  let s = line;
+  if (/red low-cut shirt/.test(w)) {
+    s = s.replace(/\bred\s+(?:low-cut\s+)?(?:blouse|shirt|top)\b/gi, 'red low-cut shirt');
+  }
+  if (/white ultra-mini skirt/.test(w)) {
+    s = s.replace(/\bwhite\s+(?:ultra[-\s]?)?(?:mini|micro|super[-\s]?mini)(?:[-\s]?skirt)?\b/gi, 'white ultra-mini skirt')
+      .replace(/\bwhite\s+mini\b/gi, 'white ultra-mini skirt')
+      .replace(/\bthe\s+mini\b/gi, 'the white ultra-mini skirt');
+  }
+  return s;
+}
+
 function dropOrphanTail(line: string): string {
   const idx = line.lastIndexOf('</d>');
   if (idx < 0) return line;
@@ -157,6 +171,7 @@ export function canonicalizeH3(text: string, ctx: H3CanonicalCtx): H3CanonicalRe
       // 只在 <d> 外做清理；台词内部保持原样（防止把中文地点翻成英文/改台词）。
       let s = lines[i].split(/(<d>[\s\S]*?<\/d>)/g).map((part) => (/^<d>/.test(part) ? part : cosmetic(part))).join('');
       s = s.split(/(<d>[\s\S]*?<\/d>)/g).map((part) => (/^<d>/.test(part) ? part : normalizeLocations(part, ctx))).join('');
+      s = s.split(/(<d>[\s\S]*?<\/d>)/g).map((part) => (/^<d>/.test(part) ? part : normalizeWardrobe(part, ctx))).join('');
       s = s.replace(/\bthe\s+the\s+/gi, 'the ');
       s = dropOrphanTail(s);
       lines[i] = s;
@@ -207,6 +222,25 @@ export function canonicalizeH3(text: string, ctx: H3CanonicalCtx): H3CanonicalRe
       issues.push('placeholder-replaced');
     }
 
+    // 3c) 到达最终地点后，后续镜头不得再出现更早的地点词（场景回归）
+    if (ctx.finalLoc && ctx.locs.length > 1) {
+      const f = ctx.finalLoc.replace(/^the\s+/i, '');
+      const finalRe = new RegExp(`\\b${f.split(/\s+/).join('\\s+')}\\b`, 'i');
+      let reached = false;
+      for (let k = 0; k < shots.length; k++) {
+        if (finalRe.test(shots[k].line) || (/construction site/i.test(f) && /scaffold/i.test(shots[k].line))) {
+          reached = true;
+          continue;
+        }
+        if (reached && /\b(?:alley|street|road|sidewalk)\b/i.test(shots[k].line)) {
+          const fixed = shots[k].line.replace(/\b(?:the\s+)?(?:alley|street|road|sidewalk)\b/gi, `the ${f}`);
+          lines[shots[k].i] = fixed;
+          shots[k].line = fixed;
+          issues.push('post-arrival-location-fixed');
+        }
+      }
+    }
+
     // 4) 绑定/性行为不得早于最终地点：把早于最终地点的这类镜头后移
     if (ctx.finalLoc && ctx.locs.length > 1) {
       const f = ctx.finalLoc.replace(/^the\s+/i, '');
@@ -253,6 +287,12 @@ export function canonicalizeH3(text: string, ctx: H3CanonicalCtx): H3CanonicalRe
   const _beforeBlocks = t;
   t = dedupeBlocks(t);
   if (t !== _beforeBlocks) issues.push('blocks-deduped');
+
+  // 5b) <d> 内混入英文 → 丢弃该台词块（中文台词才朗读，英文会变火星语）
+  t = t.replace(/<d>([\s\S]*?)<\/d>/g, (m, inner) => {
+    const txt = String(inner).replace(/^\s*\[[^\]]+\]\s*/, '');
+    return /[A-Za-z]/.test(txt) ? '' : m;
+  });
 
   // 6) speaker_mapping 固定在末尾
   const spkMatch = t.match(/^speaker_mapping\s*:\s*(\{.*\})$/im);

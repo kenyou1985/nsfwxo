@@ -635,6 +635,7 @@ def _seg_text_global_full(prompt, lo, hi, dur=None):
     # （已实测：移除标记 + 移除 speaker_mapping 后 summary 仍被读）→ summary 仅在 500 全局提示词保留，127 段文本不再携带
     tags = re.sub(r'\n*\s*summary\s*:.*?(?=\n\s*(?:retention_analysis|retention\b|subject_definitions|detailed_description|overall_soundscape|soundscape\b|non_diegetic_music|speaker_mapping)\s*[:：])', '\n', tags, flags=re.I | re.S)
     tags = re.sub(r'\n*\s*summary\s*:.*$', '\n', tags, flags=re.I | re.S)
+    tags = re.sub(r'\n*\s*retention_analysis\s*:.*?(?=\n\s*(?:detailed_description|详细画面描述)\s*[:：])', '\n', tags, flags=re.I | re.S)
     out = (tags + '\n' + body + ('\n\n' + after if after else '')).strip()
     # 保留 speaker_mapping（音色映射）：H3 模型依据 Sx→音色选择配音音色，
     # 摘除会回退默认音色（实测少女音）；summary 已摘除，此处仅含映射不会引发旁白
