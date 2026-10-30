@@ -55,15 +55,20 @@ function sceneLine(ctx: H3CanonicalCtx): string {
 }
 
 function cosmetic(line: string): string {
-  return line
+  let out = line
+    .replace(/\bOtherwise I have to\b[^.]*\.?/gi, '')
+    .replace(/\bSHOT\s+\d+\s+\d{2}:\d{2}\s*[-–]\s*\d{2}:\d{2}\s*\|[^.]*\.?/gi, '')
+    .replace(/\bSHOT\s+\d+\s*[:：][^.]*\.?/gi, '');
+  out = out
     .replace(/\*{2,}/g, '')
-    .replace(/\.\s+\./g, '.')
+    .replace(/\.\s*\./g, '.')
     .replace(/\b(\w+)\s+\1\b/gi, '$1')
     .replace(/\bthe\s+the\s+/gi, 'the ')
     .replace(/\b(?:spinning|spins?)\s+(her|him)\b/gi, 'moves $1')
     .replace(/\bsilhouette\b/gi, 'him')
     .replace(/[\u201c\u201d]/g, '')
     .replace(/\bno restoration\b/gi, 'never reset');
+  return out;
 }
 
 function normalizeLocations(line: string, ctx: H3CanonicalCtx): string {
@@ -134,9 +139,9 @@ export function canonicalizeH3(text: string, ctx: H3CanonicalCtx): H3CanonicalRe
   const scene = sceneLine(ctx);
   if (scene) {
     // 只替换 Scene 这一句（到句号为止），绝不吞掉后面的 Only one man / Clothing 规则。
-    t = t.replace(/Scene:[\s\S]*?\.(?=\s*(?:Only one man|Clothing, undressing|Never reset|\n|$))/gi, `${scene}.`);
+    t = t.replace(/Scene:[\s\S]*?\.(?=\s*(?:Only one man|Clothing, undressing|Never reset|\n|$))/gi, `${scene.replace(/\.$/, '')}.`);
     // 没有句号的 Scene 行：只到行尾，不跨行。
-    t = t.replace(/Scene:[^\n.]*(?=\n|$)/gi, `${scene}`);
+    t = t.replace(/Scene:[^\n.]*(?=\n|$)/gi, `${scene.replace(/\.$/, '')}`);
     if (!/Scene:\s*the theme's location progression/i.test(t)) issues.push('scene-missing');
   }
 
@@ -189,7 +194,7 @@ export function canonicalizeH3(text: string, ctx: H3CanonicalCtx): H3CanonicalRe
       'He shifts his grip and pulls her closer without slowing.',
       'He presses deeper, holding her steady against him.',
     ];
-    const PH_RE = /Camera\s+(?:low angle|medium shot|close-up|wide|side angle)[;,]\s*(?:the\s+)?(?:two bodies|pose|faces)[^.]*\./i;
+    const PH_RE = /Camera\s+(?:handheld close-up|medium tracking shot|medium two-shot|low angle|medium shot|close-up|wide|side angle)[;,]\s*(?:they move|the action continues|clothing and bodies|the two bodies|the pose|holds her pose|stays in frame|faces|hands and faces)[^.]*\./i;
     for (let k = 0; k < shots.length; k++) {
       if (!PH_RE.test(shots[k].line)) continue;
       const isPost = stripIdx >= 0 && k > stripIdx;

@@ -444,7 +444,7 @@ export function ensureCoerciveArc(shots: string[], context = '', targetShots = 1
   const needsBind = /捆绑|绑住|绑|绳索|绳|rope|bind|tie/i.test(context);
   const headHasBind = /\bbind\w*\b|\btied\b|\btying\b|\brope\b|\bzip[- ]?tie\b|\bstrap\b|\bcuffs?\b|\bcinch\w*|\blash\w*|\bcable\s*tie|捆绑|绑住|绑在/i.test(headText);
   if (needsBind && !headHasBind) {
-    const dest = finalLoc ? (/construction site/i.test(finalLoc) && /scaffold/i.test(headText) ? 'the scaffolding' : (/^(?:the|a|an)\s/i.test(finalLoc) ? finalLoc : `the ${finalLoc}`)) : 'the nearest support';
+    const dest = finalLoc ? (/construction site/i.test(finalLoc) ? 'the scaffolding' : (/^(?:the|a|an)\s/i.test(finalLoc) ? finalLoc : `the ${finalLoc}`)) : 'the nearest support';
     head.push(`He forces her against ${dest} and binds her wrists with rope; she is still clothed and struggling.`);
   } else if (finalLoc && !headHasLoc) {
     head.push(`He moves her into ${finalLoc ? (/^(?:the|a|an)\s/i.test(finalLoc) ? finalLoc : `the ${finalLoc}`) : 'the final location'}; she is still clothed and struggling.`);
