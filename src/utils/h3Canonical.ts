@@ -62,6 +62,7 @@ function cosmetic(line: string): string {
     .replace(/\bthe\s+the\s+/gi, 'the ')
     .replace(/\b(?:spinning|spins?)\s+(her|him)\b/gi, 'moves $1')
     .replace(/\bsilhouette\b/gi, 'him')
+    .replace(/[\u201c\u201d]/g, '')
     .replace(/\bno restoration\b/gi, 'never reset');
 }
 
@@ -132,9 +133,10 @@ export function canonicalizeH3(text: string, ctx: H3CanonicalCtx): H3CanonicalRe
   // 1) 场景句统一重写（subject_definitions / summary 两处）
   const scene = sceneLine(ctx);
   if (scene) {
-    // 旧场景句可能含多个分号/重复尾巴：整段吞到 "Only one man" 或行尾，避免只换第一句。
-    t = t.replace(/Scene:[\s\S]*?(?=Only one man)/gi, `${scene} `);
-    t = t.replace(/Scene:[^\n]*/gi, `${scene}`);
+    // 只替换 Scene 这一句（到句号为止），绝不吞掉后面的 Only one man / Clothing 规则。
+    t = t.replace(/Scene:[\s\S]*?\.(?=\s*(?:Only one man|Clothing, undressing|Never reset|\n|$))/gi, `${scene}.`);
+    // 没有句号的 Scene 行：只到行尾，不跨行。
+    t = t.replace(/Scene:[^\n.]*(?=\n|$)/gi, `${scene}`);
     if (!/Scene:\s*the theme's location progression/i.test(t)) issues.push('scene-missing');
   }
 
@@ -174,6 +176,29 @@ export function canonicalizeH3(text: string, ctx: H3CanonicalCtx): H3CanonicalRe
           issues.push('post-nude-regression-dropped');
         }
       }
+    }
+
+    // 3b) 通用占位镜头（Camera low angle; the two bodies...）→ 替换为可执行的连贯动作
+    const PRE_FILL = [
+      'He closes the gap behind her, eyes on her hips; she keeps walking, still clothed.',
+      'She glances back once, uneasy, and keeps moving; he stays on her tail, still clothed.',
+      'He shadows her through the turn, phone low; her clothes stay on.',
+    ];
+    const POST_FILL = [
+      'He keeps the same rhythm, hips driving into her.',
+      'He shifts his grip and pulls her closer without slowing.',
+      'He presses deeper, holding her steady against him.',
+    ];
+    const PH_RE = /Camera\s+(?:low angle|medium shot|close-up|wide|side angle)[;,]\s*(?:the\s+)?(?:two bodies|pose|faces)[^.]*\./i;
+    for (let k = 0; k < shots.length; k++) {
+      if (!PH_RE.test(shots[k].line)) continue;
+      const isPost = stripIdx >= 0 && k > stripIdx;
+      const fill = isPost ? POST_FILL[k % POST_FILL.length] : PRE_FILL[k % PRE_FILL.length];
+      const hasNude = /\b(?:nude|no clothing remains)\b/i.test(shots[k].line);
+      const replaced = shots[k].line.replace(PH_RE, isPost && !hasNude ? `${fill} Both are fully nude; no clothing on either body.` : fill);
+      lines[shots[k].i] = replaced;
+      shots[k].line = replaced;
+      issues.push('placeholder-replaced');
     }
 
     // 4) 绑定/性行为不得早于最终地点：把早于最终地点的这类镜头后移
