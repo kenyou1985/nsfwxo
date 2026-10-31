@@ -154,16 +154,7 @@ RATIO_MAP = {
 # 当前模板 500 自带角色台词（引号内）+"non_diegetic_music: 电子氛围音乐"+speaker_mapping → 502=false
 # 确定性切分原样直通 → H3 塞入说话声与背景音乐（"莫名其妙的说话声/背景音"根因，与 #51 同源）。
 # 修复：提交前对提示词做净化（去台词引语/去 BGM 描述/去 speaker_mapping）+ 追加本硬约束块。
-_AUDIO_BLOCK = "\n\n=== AUDIO CONSTRAINTS (HARD RULES, MUST FOLLOW) ===\n1. NO background music, NO BGM, NO soundtrack, NO cinematic score, NO instrumental — ABSOLUTELY ZERO music in the final audio.\n2. NO narration, NO voice-over, NO commentary, NO inner monologue — characters do not speak to the audience.\n3. NO singing, NO humming, NO vocal melody, NO synthesized vocal tracks, NO choir — no sung vocals of any kind.\n4. Audio must be diegetic ONLY — only sounds that exist within the scene world (footsteps, wind, objects, character grunts/breathing if natural); the spoken lines inside <d> tags are the only speech.\n=== END AUDIO CONSTRAINTS ===\n\nnon_diegetic_music: None. No background music, no narration, no singing, no extra vocal tracks; only the natural sounds described in overall_soundscape."
-
-
-def _strip_audio_blocks(t):
-    """去除已有的 AUDIO CONSTRAINTS 块与 non_diegetic_music 行，避免分段时重复叠加。"""
-    if not t:
-        return t
-    t = re.sub(r'(?is)\s*=== AUDIO CONSTRAINTS.*?=== END AUDIO CONSTRAINTS ===\s*', '\n', t)
-    t = re.sub(r'(?im)^\s*non_diegetic_music\s*:.*$', '', t)
-    return t
+_AUDIO_BLOCK = "\n\n=== AUDIO CONSTRAINTS (HARD RULES, MUST FOLLOW) ===\n1. NO background music, NO BGM, NO soundtrack, NO cinematic score, NO instrumental — ABSOLUTELY ZERO music in the final audio.\n2. NO narration, NO voice-over, NO commentary, NO inner monologue — characters do not speak to the audience.\n3. NO singing, NO humming, NO vocal melody, NO synthesized vocal tracks, NO choir, NO vocals of any kind.\n4. Audio must be diegetic ONLY — only sounds that exist within the scene world (footsteps, wind, objects, character grunts/breathing if natural).\n=== END AUDIO CONSTRAINTS ===\n\nnon_diegetic_music: None. No background music, no narration, no singing, no extra vocal tracks; only the natural sounds described in overall_soundscape."
 
 def _sanitize_audio(text):
     """提交前音频净化：移除角色台词引语、BGM/非配乐描述、speaker_mapping 与 <d> 台词，
@@ -176,7 +167,8 @@ def _sanitize_audio(text):
     t = re.sub(r'(?im)^\s*non_diegetic_music\s*:.*(?:\n|$)', '', t)
     # 2) 移除 speaker_mapping 行（音色指派；凌晨版活动提示词无此字段）
     t = re.sub(r'(?im)^\s*speaker_mapping\s*:.*(?:\n|$)', '', t)
-    # 3) 保留 <d>...</d> 台词块（H3 只朗读 <d> 内文本；删除台词=火星语根因）
+    # 3) 移除 <d>...</d> 台词块
+    t = re.sub(r'<d>\s*(?:\[[^\]]+\]\s*)?.*?</d>', '', t, flags=re.S)
     # 4) 移除中文/英文引号内的直接台词（"……" / “……”；长度上限防误删整段）
     t = re.sub(r'"[^"\n]{1,80}"', '', t)
     t = re.sub(r'\u201c[^\u201d\n]{1,80}\u201d', '', t)
@@ -201,10 +193,7 @@ def _sanitize_audio(text):
     #    先移除提示词中可能损坏的 AUDIO_CONSTRAINTS 块（防重复/格式错误）
     t = re.sub(r'(?i)\s*=== AUDIO CONSTRAINTS.*?=== END AUDIO CONSTRAINTS ===\s*', '\n', t, flags=re.S)
     t = re.sub(r'(?i)^\s*non_diegetic_music\s*:.*$', '', t, flags=re.M)
-    t = (t.strip() + _AUDIO_BLOCK).strip()
-    if 'speaker_mapping' not in t:
-        t += '\n\nspeaker_mapping: {"S1":"Chinese (Mandarin)_Adult_Female_Soft","S2":"Chinese (Mandarin)_Adult_Male_Low"}'
-    return t
+    return (t.strip() + _AUDIO_BLOCK).strip()
 
 # MiniMax 开放平台官方系统音色（T2A Pro / speech-02-hd / H3 视频配音均可锚定）。
 # 中文普通话：青年男 / 中年男 / 青年女 / 中年女；英文：青年男 / 中年男 / 青年女 / 中年老年女。
@@ -503,7 +492,6 @@ def _seg_text_global_full(prompt, lo, hi, dur=None):
     _rest = prompt[_m.end():] if _m else ''
     _m2 = re.search(r'(?:overall_soundscape|整体音效|soundscape)\s*[:：]', _rest, re.I)
     after = _rest[_m2.start():].strip() if _m2 else ''
-    after = _strip_audio_blocks(after)
     # speaker_mapping 保留：H3 模型依据 Sx→音色映射选择音色；摘除会回退默认音色。
     # （summary 已在 tags/body 摘除，speaker_mapping 仅含映射无叙事，不会引发旁白）
     # 分镜切分（复用智能切分）
@@ -567,7 +555,6 @@ def _seg_text_det16(prompt, lo, hi):
     _rest = prompt[_m.end():] if _m else ''
     _m2 = re.search(r'(?:overall_soundscape|整体音效|soundscape)\s*[:：]', _rest, re.I)
     after = _rest[_m2.start():].strip() if _m2 else ''
-    after = _strip_audio_blocks(after)
     pat, _n = _best_shot_pattern(zone)
     if pat:
         parts = re.split(pat, zone)
@@ -652,7 +639,6 @@ def _seg_text_list_full(prompt, lo, hi, n_segs=2):
     _rest = prompt[_m.end():] if _m else ''
     _m2 = re.search(r'(?:overall_soundscape|整体音效|soundscape)\s*[:：]', _rest, re.I)
     after = _rest[_m2.start():].strip() if _m2 else ''
-    after = _strip_audio_blocks(after)
     pat, _n = _best_shot_pattern(zone)
     if pat:
         parts = re.split(pat, zone)
@@ -886,8 +872,6 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
         # v11 的 502=false 走确定性切分时，H3 内部默认行为会塞入背景音乐/说话声。
         _wf['502']['inputs']['value'] = wfc.get('llm_value', True)    # LLM 开（对齐画布手动，音频由 LLM 描述驱动）
         _wf['503']['inputs']['value'] = _N_det    # 总段数（504 = 503-1 = N-1 轮循环 + 首段 = N 段）
-        if '1269' in _wf:
-            _wf['1269']['inputs']['value'] = max(1, int(cfg.get('shots_per_seg') or 2))    # 由前端按 总镜数/段数 计算
         _wf['159']['inputs']['value'] = int(cfg.get('duration', 15))   # 159→9 帧数→93/95 length→127.length
         _wf['25']['inputs']['value'] = cfg.get('resolution', 0.2)      # 像素清晰度
         _emit('  [路%d] M. #501=true(全局) #502=%s(LLM%s) #503=%d → 画布内循环 %d 轮 + 首段 = %d 段'
@@ -1278,15 +1262,12 @@ def submit(job, node_info_list):
         payload = json.dumps({'apiKey': cfg['api_key'], 'workflowId': cfg['workflow_id'],
                               'nodeInfoList': node_info_list,
                               'instanceType': cfg.get('instance', 'plus')})
-    for attempt in range(1, 7):
+    for attempt in range(1, 6):
         try:
             conn = _conn()
             conn.request('POST', '/task/openapi/create', payload,
                          {'Host': HOST, 'Content-Type': 'application/json'})
-            try:
-                j = json.loads(conn.getresponse().read().decode())
-            finally:
-                conn.close()
+            j = json.loads(conn.getresponse().read().decode())
             if not isinstance(j, dict):
                 raise RuntimeError('提交失败: 平台返回非 JSON 对象（%s）'
                                    % (j if j is None else str(j)[:200]))
@@ -1294,16 +1275,12 @@ def submit(job, node_info_list):
                 raise RuntimeError('提交失败: ' + json.dumps(j)[:300])
             return j['data']['taskId']
         except Exception as e:
-            try:
-                conn.close()
-            except Exception:
-                pass
-            if attempt == 6:
+            if attempt == 5:
                 raise
-            wait = 5 * attempt
-            _emit('  提交异常(%s)，%d 秒后重试 (第%d/6次)...' % (e, wait, attempt))
+            wait = 4 * attempt
+            _emit('  提交异常(%s)，%d 秒后重试 (第%d/5次)...' % (e, wait, attempt))
             time.sleep(wait)
-    raise RuntimeError('提交失败（重试6次仍连接不上）')
+    raise RuntimeError('提交失败（重试5次仍连接不上）')
 
 # ---------- WS 实时下载（cos_url 直链 / CDN 拼接） ----------
 WS_LISTENERS = {}
@@ -1902,7 +1879,7 @@ def run_job(job):
                 _emit('⚠ 未检测到 [Shot N] 分镜标记，确定性切分需要 [Shot 1]..[Shot N] 锚点，拒绝提交')
                 job.set_status('failed')
                 return
-            _M_det = max(1, int(cfg.get('shots_per_seg') or 2))   # 每段分镜数：按 总镜数/目标段数
+            _M_det = 2   # 1269 每段分镜数（画布默认 2，不注入）
             cfg['total_segs'] = _N_det
             # 全局修复：20 镜 / 8 段 / 2 路时每路仅 10 镜，8 段每段至少 2 镜需 16 镜；
             # 保留 20 镜和 8 段，自动降为 1 路，禁止在 8765 桥接端拒绝提交。
@@ -1958,9 +1935,6 @@ def run_job(job):
                 def _run_route_det16(plan):
                     r_no, _a, _b, sp = plan
                     try:
-                        # 多路错峰 3 秒，避免同时建连被平台重置（SSL EOF）
-                        if r_no > 1:
-                            time.sleep(3)
                         nid = build_node_info_list(job, (r_no, _a, _b), seg_prompt=sp)
                         tid = submit(job, nid)
                         _emit('  路%d 已提交: %s（503=%d 段，完整工作流执行）' % (r_no, tid, _N_det))

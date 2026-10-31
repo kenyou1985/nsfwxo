@@ -87,6 +87,12 @@ class Job:
             self.logs.append(msg)
             if len(self.logs) > 4000:
                 self.logs = self.logs[-2500:]
+        try:
+            if getattr(self, 'run_dir', ''):
+                with open(os.path.join(self.run_dir, 'job.log'), 'a', encoding='utf-8') as _f:
+                    _f.write(str(msg) + '\n')
+        except Exception:
+            pass
     def set_status(self, s):
         with self.lock:
             self.status = s
@@ -1006,7 +1012,7 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
                       % (rng[0], len(_gp), _N_det, _gp[:80].replace('\n', ' ')))
         # 每段分镜数：优先用前端值；若容量装不下该路分镜，自动提高到能装下的最小值。
         _M_cfg = max(1, int(cfg.get('shots_per_seg') or 1))
-        _ns_m = count_shots(global_prompt)
+        _ns_m = count_shots((cfg.get('global_prompt') or seg_prompt or ''))
         _per_m = max(1, -(-_ns_m // max(1, int(cfg.get('loop_routes') or 1))))
         _M_need = max(1, -(-_per_m // max(1, _N_det)))
         _M_det = _M_cfg if _M_cfg * _N_det >= _per_m else _M_need
