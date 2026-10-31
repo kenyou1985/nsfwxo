@@ -67,7 +67,8 @@ function cosmetic(line: string): string {
     .replace(/\b(?:spinning|spins?)\s+(her|him)\b/gi, 'moves $1')
     .replace(/\bsilhouette\b/gi, 'him')
     .replace(/[\u201c\u201d]/g, '')
-    .replace(/\bno restoration\b/gi, 'never reset');
+    .replace(/\bno restoration\b/gi, 'never reset')
+    .replace(/\bskirt-skirted\b/gi, 'skirted')
   return out;
 }
 
@@ -93,7 +94,7 @@ function normalizeWardrobe(line: string, ctx: H3CanonicalCtx): string {
     s = s.replace(/\bred\s+(?:low-cut\s+)?(?:blouse|shirt|top)\b/gi, 'red low-cut shirt');
   }
   if (/white ultra-mini skirt/.test(w)) {
-    s = s.replace(/\bwhite\s+(?:ultra[-\s]?)?(?:mini|micro|super[-\s]?mini)(?:[-\s]?skirt)?\b/gi, 'white ultra-mini skirt')
+    s = s.replace(/\bwhite\s+(?:ultra[-\s]?)?(?:mini|micro|super[-\s]?mini)(?:[-\s]?skirt)?(?![- ]?skirted)\b/gi, 'white ultra-mini skirt')
       .replace(/\bwhite\s+mini\b/gi, 'white ultra-mini skirt')
       .replace(/\bthe\s+mini\b/gi, 'the white ultra-mini skirt');
   }
@@ -164,124 +165,68 @@ export function canonicalizeH3(text: string, ctx: H3CanonicalCtx): H3CanonicalRe
   const ddEnd = t.indexOf('overall_soundscape:');
   if (ddStart >= 0 && ddEnd > ddStart) {
     const dd = t.slice(ddStart, ddEnd);
-    const lines = dd.split('\n');
-    const shots: Array<{ line: string; i: number }> = [];
-    for (let i = 0; i < lines.length; i++) {
-      if (!/^\[Shot\s+\d+\]/.test(lines[i].trim())) continue;
-      // 只在 <d> 外做清理；台词内部保持原样（防止把中文地点翻成英文/改台词）。
-      let s = lines[i].split(/(<d>[\s\S]*?<\/d>)/g).map((part) => (/^<d>/.test(part) ? part : cosmetic(part))).join('');
-      s = s.split(/(<d>[\s\S]*?<\/d>)/g).map((part) => (/^<d>/.test(part) ? part : normalizeLocations(part, ctx))).join('');
-      s = s.split(/(<d>[\s\S]*?<\/d>)/g).map((part) => (/^<d>/.test(part) ? part : normalizeWardrobe(part, ctx))).join('');
-      s = s.replace(/\bthe\s+the\s+/gi, 'the ');
-      s = dropOrphanTail(s);
-      lines[i] = s;
-      shots.push({ line: s, i });
-    }
+    const rawShots = dd.split('\n').filter((l) => /^\[Shot\s+\d+\]/.test(l.trim()));
+    const protect = (line: string, fn: (x: string) => string) =>
+      line.split(/(<d>[\s\S]*?<\/d>)/g).map((p) => (/^<d>/.test(p) ? p : fn(p))).join('');
 
-    // 3) 脱衣后不得回穿
-    const stripIdx = shots.findIndex((x) => STRIP_RE.test(x.line));
+    let cleaned = rawShots.map((line) => {
+      let s2 = protect(line, cosmetic);
+      s2 = protect(s2, (x) => normalizeLocations(x, ctx));
+      s2 = protect(s2, (x) => normalizeWardrobe(x, ctx));
+      s2 = s2.replace(/\bthe\s+the\s+/gi, 'the ');
+      s2 = dropOrphanTail(s2);
+      return s2;
+    });
+
+    // 3) 脱衣后：不得回穿；纯跟踪镜头丢弃
+    const stripIdx = cleaned.findIndex((s2) => STRIP_RE.test(s2));
     if (stripIdx >= 0) {
-      for (let k = stripIdx + 1; k < shots.length; k++) {
-        let fixed = shots[k].line.replace(DRESS_RE, 'fully nude');
-        if (/Fully clothed/i.test(fixed)) {
-          fixed = fixed.replace(/Fully clothed\.?/gi, 'Both are fully nude; no clothing on either body.');
-          issues.push('wardrobe-reset-fixed');
-        }
-        if (fixed !== shots[k].line) {
-          lines[shots[k].i] = fixed;
-          shots[k].line = fixed;
-        }
-        // 脱衣后仍出现纯跟踪/偷拍镜头（无性行为）→ 叙事回归，直接丢弃
+      cleaned = cleaned.map((s2, k) => {
+        if (k <= stripIdx) return s2;
+        const fixed = s2.replace(DRESS_RE, 'fully nude').replace(/Fully clothed\.?/gi, 'Both are fully nude; no clothing on either body.');
         if (!STRONG_SEX_RE.test(fixed) && /\b(?:phone|stalking|follow\w*|alley|filming)\b/i.test(fixed)) {
-          lines[shots[k].i] = '';
           issues.push('post-nude-regression-dropped');
+          return '';
         }
-      }
+        return fixed;
+      }).filter(Boolean);
     }
 
-    // 3b) 通用占位镜头（Camera low angle; the two bodies...）→ 替换为可执行的连贯动作
-    const PRE_FILL = [
-      'He closes the gap behind her, eyes on her hips; she keeps walking, still clothed.',
-      'She glances back once, uneasy, and keeps moving; he stays on her tail, still clothed.',
-      'He shadows her through the turn, phone low; her clothes stay on.',
-    ];
-    const POST_FILL = [
-      'He keeps the same rhythm, hips driving into her.',
-      'He shifts his grip and pulls her closer without slowing.',
-      'He presses deeper, holding her steady against him.',
-    ];
-    const PH_RE = /Camera\s+(?:handheld close-up|medium tracking shot|medium two-shot|low angle|medium shot|close-up|wide|side angle)[;,]\s*(?:they move|the action continues|clothing and bodies|the two bodies|the pose|holds her pose|stays in frame|faces|hands and faces)[^.]*\./i;
-    for (let k = 0; k < shots.length; k++) {
-      if (!PH_RE.test(shots[k].line)) continue;
-      const isPost = stripIdx >= 0 && k > stripIdx;
-      const fill = isPost ? POST_FILL[k % POST_FILL.length] : PRE_FILL[k % PRE_FILL.length];
-      const hasNude = /\b(?:nude|no clothing remains)\b/i.test(shots[k].line);
-      const replaced = shots[k].line.replace(PH_RE, isPost && !hasNude ? `${fill} Both are fully nude; no clothing on either body.` : fill);
-      lines[shots[k].i] = replaced;
-      shots[k].line = replaced;
-      issues.push('placeholder-replaced');
-    }
-
-    // 3c) 到达最终地点后，后续镜头不得再出现更早的地点词（场景回归）
+    // 4) 绑定/性行为不得早于最终地点
     if (ctx.finalLoc && ctx.locs.length > 1) {
       const f = ctx.finalLoc.replace(/^the\s+/i, '');
       const finalRe = new RegExp(`\\b${f.split(/\s+/).join('\\s+')}\\b`, 'i');
-      let reached = false;
-      for (let k = 0; k < shots.length; k++) {
-        if (finalRe.test(shots[k].line) || (/construction site/i.test(f) && /scaffold/i.test(shots[k].line))) {
-          reached = true;
-          continue;
-        }
-        if (reached && /\b(?:alley|street|road|sidewalk)\b/i.test(shots[k].line)) {
-          const fixed = shots[k].line.replace(/\b(?:the\s+)?(?:alley|street|road|sidewalk)\b/gi, `the ${f}`);
-          lines[shots[k].i] = fixed;
-          shots[k].line = fixed;
-          issues.push('post-arrival-location-fixed');
-        }
-      }
-    }
-
-    // 4) 绑定/性行为不得早于最终地点：把早于最终地点的这类镜头后移
-    if (ctx.finalLoc && ctx.locs.length > 1) {
-      const f = ctx.finalLoc.replace(/^the\s+/i, '');
-      const finalRe = new RegExp(`\\b${f.split(/\s+/).join('\\s+')}\\b`, 'i');
-      const finalAt = shots.findIndex((x) => finalRe.test(x.line) || (/construction site/i.test(f) && /scaffold/i.test(x.line)));
+      const finalAt = cleaned.findIndex((s2) => finalRe.test(s2) || (/construction site/i.test(f) && /scaffold/i.test(s2)));
       if (finalAt > 0) {
-        const before = shots.slice(0, finalAt);
-        const after = shots.slice(finalAt);
-        const moved = before.filter((x) => SEX_RE.test(x.line));
+        const before = cleaned.slice(0, finalAt);
+        const after = cleaned.slice(finalAt);
+        const moved = before.filter((s2) => STRONG_SEX_RE.test(s2));
         if (moved.length) {
-          const kept = before.filter((x) => !SEX_RE.test(x.line));
-          // 重建分镜序列（分镜号与时间戳最后统一重排）
-          const ordered = [...kept, ...after, ...moved];
-          const start = lines.findIndex((l) => /^\[Shot\s+\d+\]/.test(l.trim()));
-          const end = lines.length;
-          const head = lines.slice(0, start);
-          const tail = lines.slice(end);
-          const rebuilt = ordered.map((x) => x.line);
-          lines.splice(0, lines.length, ...head, ...rebuilt, ...tail);
+          cleaned = [...before.filter((s2) => !STRONG_SEX_RE.test(s2)), ...after, ...moved];
           issues.push('sex-before-final-moved');
         }
       }
+      // 3c) 到达最终地点后不得再出现旧地点
+      let reached = false;
+      cleaned = cleaned.map((s2) => {
+        if (finalRe.test(s2) || (/construction site/i.test(f) && /scaffold/i.test(s2))) { reached = true; return s2; }
+        if (reached && /\b(?:alley|street|road|sidewalk)\b/i.test(s2)) {
+          issues.push('post-arrival-location-fixed');
+          return s2.replace(/\b(?:the\s+)?(?:alley|street|road|sidewalk)\b/gi, `the ${f}`);
+        }
+        return s2;
+      });
     }
 
-    // 重排后统一重编分镜号与 6 秒时间戳，避免移动镜头后时间倒流
-    let _n = 0;
-    for (let i = 0; i < lines.length; i++) {
-      if (!/^\[Shot\s+\d+\]/.test(lines[i].trim())) continue;
-      const rest = lines[i].replace(/^\[Shot\s+\d+\]\s*/, '').replace(/^\d{2}:\d{2}\.\d{3}\s*/, '');
-      const sec = _n * 6;
+    // 重编分镜号 + 6 秒时间戳
+    const body = cleaned.map((s2, i) => {
+      const rest = s2.replace(/^\[Shot\s+\d+\]\s*/, '').replace(/^\d{2}:\d{2}\.\d{3}\s*/, '');
+      const sec = i * 6;
       const stamp = `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}.000`;
-      lines[i] = `[Shot ${_n + 1}] ${stamp} ${rest}`;
-      _n++;
-    }
-    t = t.slice(0, ddStart) + lines.join('\n') + t.slice(ddEnd);
+      return `[Shot ${i + 1}] ${stamp} ${rest}`;
+    }).join('\n');
+    t = t.slice(0, ddStart) + `detailed_description:\n${body}\n\n` + t.slice(ddEnd);
   }
-
-  // 4b) 分区标签前强制换行（防最后一镜吞掉 overall_soundscape）
-  t = t.replace(/([^\n])(overall_soundscape\s*:)/gi, '$1\n$2');
-  t = t.replace(/([^\n])(non_diegetic_music\s*:)/gi, '$1\n$2');
-  t = t.replace(/([^\n])(speaker_mapping\s*:)/gi, '$1\n$2');
 
   // 5) 去重音频块/speaker_mapping
   const _beforeBlocks = t;

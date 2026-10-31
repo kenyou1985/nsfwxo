@@ -42,7 +42,7 @@ export function stripOrphanSpeech(text: string): string {
           if (/\b(?:bargain\w*|prepares? the bind|preparing the bind)\b/i.test(t)) return false;
           // 只有“语气形容词 + 短句”，没有谁+动作 → 语气残片
           if (t.length < 60 && !/\b(?:she|he|her|his)\b\s+\w+/i.test(t)
-            && /^(?:soft|flat|sharp|breaking|uncertain|quiet|low|cold|high|thin|hoarse|strained|greedy|hungry|calm|uneasy|panicked|desperate|shrill|broken|small|tight|easy|wet|trembling|tearful|breathless|furious|scared|terrified|trying|almost|not yet|raw|bored|satisfied|pleading|delighted|cruel|breathy|husky|steady)\b/i.test(t)) return false;
+            && /^(?:soft|flat|sharp|breaking|uncertain|quiet|low|cold|high|thin|hoarse|strained|greedy|hungry|calm|uneasy|panicked|desperate|shrill|broken|small|tight|easy|wet|trembling|tearful|breathless|furious|scared|terrified|trying|almost|not yet|raw|bored|satisfied|pleading|delighted|cruel|breathy|husky|steady|shrinking|close to her ear)\b/i.test(t)) return false;
           return true;
         })
         .join(' ');
