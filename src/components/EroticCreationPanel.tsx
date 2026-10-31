@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Sparkles, Loader2, Play, Copy, Check, X, ChevronDown, ChevronUp, Video, Wand2, Settings2, Clock, Hash, Brain, Film, ListOrdered, Image as ImageIcon, Layers } from 'lucide-react';
 import { streamGenerateH3DnaPrompt, type ImageDnaResult } from '../services/promptApi';
 import { ImageDnaPanel } from './ImageDnaPanel';
@@ -171,7 +171,12 @@ export function normalizeEroticPrompt(raw: string): string {
       .replace(/\bturns?\s+to\b/gi, 'repositions toward')
       .replace(/\bspins?\b/gi, 'moves')
       // 去掉“then”后的第二个动作（保留第一个动作 + 状态句）
-      .replace(/\s*(?:;|,)?\s*(?:and\s+)?then\s+[^.]*\./gi, '.');
+      .replace(/\b(?:He|She|The man|The woman)\s+then\s+[^.]*\./gi, '')
+      .replace(/\s*(?:;|,)?\s*(?:and\s+)?then\s+[^.]*\./gi, '.')
+      // 去掉元叙述（不是画面）
+      .replace(/\bThis is the (?:single|only) ejaculation[^.]*\./gi, '')
+      .replace(/\bFirst insertion of[^.]*\./gi, '')
+      .replace(/\bNo change of position[^.]*\./gi, '');
     return s2.replace(/[ \t]{2,}/g, ' ').replace(/\.\s*\./g, '.');
   }).join('\n');
 
@@ -199,6 +204,8 @@ function EroticPromptCard({
   const [copied, setCopied] = useState(false);
   const [collapsed, setCollapsed] = useState(true);
   const [videoUrl, setVideoUrl] = useState<string>('');
+  const [generating, setGenerating] = useState(false);
+  const genTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!isEditing) setEditingPrompt(prompt);
@@ -251,11 +258,33 @@ function EroticPromptCard({
       const d = (e as CustomEvent).detail || {};
       if (typeof d.prompt === 'string' && d.prompt.trim() === prompt.trim() && d.videoUrl) {
         setVideoUrl(d.videoUrl);
+        setGenerating(false);
+        if (genTimerRef.current) { window.clearTimeout(genTimerRef.current); genTimerRef.current = null; }
+      }
+    };
+    const failHandler = (e: Event) => {
+      const d = (e as CustomEvent).detail || {};
+      if (typeof d.prompt === 'string' && d.prompt.trim() === prompt.trim()) {
+        setGenerating(false);
+        if (genTimerRef.current) { window.clearTimeout(genTimerRef.current); genTimerRef.current = null; }
       }
     };
     window.addEventListener('nsfwxo:daotai-finished', handler);
-    return () => window.removeEventListener('nsfwxo:daotai-finished', handler);
+    window.addEventListener('nsfwxo:daotai-failed', failHandler);
+    return () => {
+      window.removeEventListener('nsfwxo:daotai-finished', handler);
+      window.removeEventListener('nsfwxo:daotai-failed', failHandler);
+      if (genTimerRef.current) window.clearTimeout(genTimerRef.current);
+    };
   }, [prompt]);
+
+  const handleGenerateVideo = () => {
+    if (generating) return;
+    setGenerating(true);
+    onGenerateVideo(editingPrompt);
+    // 兜底：10 分钟未返回结果则恢复按钮
+    genTimerRef.current = window.setTimeout(() => setGenerating(false), 10 * 60 * 1000);
+  };
 
   return (
     <div className="rounded-xl border border-pink-200 bg-white overflow-hidden">
@@ -303,12 +332,15 @@ function EroticPromptCard({
             应用
           </button>
           <button
-            onClick={() => onGenerateVideo(editingPrompt)}
+            onClick={handleGenerateVideo}
+            disabled={generating}
             title="一键生成视频"
-            className="flex items-center gap-0.5 px-2 py-1 rounded-lg bg-gradient-to-r from-rose-500 to-pink-500 text-white text-[10px] font-bold hover:opacity-90 transition-opacity shadow-sm"
+            className={`flex items-center gap-0.5 px-2 py-1 rounded-lg text-white text-[10px] font-bold transition-opacity shadow-sm ${
+              generating ? 'bg-pink-300 cursor-wait' : 'bg-gradient-to-r from-rose-500 to-pink-500 hover:opacity-90'
+            }`}
           >
-            <Play size={10} />
-            生成视频
+            {generating ? <Loader2 size={10} className="animate-spin" /> : <Play size={10} />}
+            {generating ? '生视频中...' : '生成视频'}
           </button>
           <button
             onClick={handleCopy}

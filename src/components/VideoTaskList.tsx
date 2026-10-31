@@ -649,6 +649,9 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
           setTasks((prev) =>
             prev.map((t) => (t.id === task.id ? { ...t, status: 'FAILED', error: msg } : t)),
           );
+          window.dispatchEvent(new CustomEvent('nsfwxo:daotai-failed', {
+            detail: { prompt: task.prompt, error: msg },
+          }));
           onErrorRef.current?.(msg);
         } else {
           // PROCESSING / QUEUEING → 8 秒后继续（工作流自动切分 + 自杀式免扣分）
