@@ -1719,12 +1719,15 @@ def submit(job, node_info_list):
         payload = json.dumps({'apiKey': cfg['api_key'], 'workflowId': cfg['workflow_id'],
                               'nodeInfoList': node_info_list,
                               'instanceType': cfg.get('instance', 'plus')})
-    for attempt in range(1, 6):
+    for attempt in range(1, 7):
         try:
             conn = _conn()
             conn.request('POST', '/task/openapi/create', payload,
                          {'Host': HOST, 'Content-Type': 'application/json'})
-            j = json.loads(conn.getresponse().read().decode())
+            try:
+                j = json.loads(conn.getresponse().read().decode())
+            finally:
+                conn.close()
             if not isinstance(j, dict):
                 raise RuntimeError('提交失败: 平台返回非 JSON 对象（%s）'
                                    % (j if j is None else str(j)[:200]))
@@ -1732,12 +1735,16 @@ def submit(job, node_info_list):
                 raise RuntimeError('提交失败: ' + json.dumps(j)[:300])
             return j['data']['taskId']
         except Exception as e:
-            if attempt == 5:
+            try:
+                conn.close()
+            except Exception:
+                pass
+            if attempt == 6:
                 raise
-            wait = 4 * attempt
-            _emit('  提交异常(%s)，%d 秒后重试 (第%d/5次)...' % (e, wait, attempt))
+            wait = 5 * attempt
+            _emit('  提交异常(%s)，%d 秒后重试 (第%d/6次)...' % (e, wait, attempt))
             time.sleep(wait)
-    raise RuntimeError('提交失败（重试5次仍连接不上）')
+    raise RuntimeError('提交失败（重试6次仍连接不上）')
 
 # ---------- WS 实时下载（cos_url 直链 / CDN 拼接） ----------
 WS_LISTENERS = {}
@@ -2808,6 +2815,9 @@ def run_job(job):
                 def _run_route_det16(plan):
                     r_no, _a, _b, sp = plan
                     try:
+                        # 多路错峰 3 秒，避免同时建连被平台重置（SSL EOF）
+                        if r_no > 1:
+                            time.sleep(3)
                         nid = build_node_info_list(job, (r_no, _a, _b), seg_prompt=sp)
                         tid = submit(job, nid)
                         _emit('  路%d 已提交: %s（503=%d 段，完整工作流执行）' % (r_no, tid, _N_det))
