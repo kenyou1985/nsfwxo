@@ -1152,6 +1152,17 @@ function sanitizeAgeTerms(text: string): string {
     .replace(/\bThe the adult man\b/g, 'The adult man');
 }
 
+
+/** 智能每段分镜数：总镜数 → 并发路 → 每路段 → 每段镜数（余数优先，向上取整）。 */
+function computePerSegShots(prompt: string, segments: number, routes: number, fallback = 12): number {
+  const shots = (String(prompt || '').match(/\[Shot\s+\d+\]/g) || []).length || fallback;
+  const r = Math.max(1, routes);
+  const s = Math.max(1, segments);
+  const perRoute = Math.ceil(shots / r);
+  const segsPerRoute = Math.ceil(s / r);
+  return Math.max(1, Math.ceil(perRoute / segsPerRoute));
+}
+
 function deriveSceneAnchor(text: string): string {
   const t = String(text || '');
   // 地点完全来自“剧本 Location 字段 + 主题正文”，不维护主题→场景硬编码表。
@@ -2296,7 +2307,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         resolution: videoClarity,
         aspect_ratio: '9:16',
         // 12 分镜 / 4 段 = 每段 3 分镜，对齐 16 段合成工作流
-        shots_per_seg: Math.max(1, Math.ceil((videoShotCount || 12) / Math.max(1, videoSegments))),
+        shots_per_seg: computePerSegShots(videoText, videoSegments, videoRoutes, videoShotCount || 12),
         target_segs: videoSegments,
         loop_routes: videoRoutes,
         instance: 'plus',
@@ -3878,7 +3889,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         duration: 15,
         resolution: videoClarity,
         aspect_ratio: '9:16',
-        shots_per_seg: Math.max(1, Math.ceil((getH3ShotCount() || 12) / Math.max(1, videoSegments))),
+        shots_per_seg: computePerSegShots(h3, videoSegments, videoRoutes, getH3ShotCount() || 12),
         target_segs: videoSegments,
         loop_routes: videoRoutes,
         instance: 'plus',
