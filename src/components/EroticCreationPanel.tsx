@@ -151,6 +151,30 @@ export function normalizeEroticPrompt(raw: string): string {
     const who = isMale ? 'S2' : isFemale ? 'S1' : (existing ? existing.slice(1, -1) : 'S1');
     return `(${who}): <d>${body}</d>`;
   });
+  // 一镜一说话人：同一镜头内多句台词只保留一句（优先男命令 S2）
+  p = p.replace(/(\[Shot\s+\d+\][\s\S]*?)(?=\n\[Shot\s+\d+\]|\noverall_soundscape|$)/g, (block) => {
+    const ds = [...block.matchAll(/\(S[12]\):\s*<d>[\s\S]*?<\/d>/g)];
+    if (ds.length <= 1) return block;
+    const keep = ds.find((d) => /^\(S2\)/.test(d[0])) || ds[0];
+    let out = block;
+    for (const d of ds) if (d[0] !== keep[0]) out = out.replace(d[0], '');
+    return out.replace(/[ \t]{2,}/g, ' ').replace(/\s+\n/g, '\n');
+  });
+
+  // 一镜一主动作 + 禁止转身：去掉 then 链，turns/spins 改为 repositions/moves
+  p = p.split('\n').map((line) => {
+    if (!/^\[Shot\s+\d+\]/.test(line.trim())) return line;
+    let s2 = line
+      .replace(/\bturns?\s+her\s+back\s+to\b/gi, 'repositions with her back to')
+      .replace(/\bturns?\s+her\s+to\s+face\b/gi, 'repositions her to face')
+      .replace(/\bturns?\s+around\b/gi, 'repositions')
+      .replace(/\bturns?\s+to\b/gi, 'repositions toward')
+      .replace(/\bspins?\b/gi, 'moves')
+      // 去掉“then”后的第二个动作（保留第一个动作 + 状态句）
+      .replace(/\s*(?:;|,)?\s*(?:and\s+)?then\s+[^.]*\./gi, '.');
+    return s2.replace(/[ \t]{2,}/g, ' ').replace(/\.\s*\./g, '.');
+  }).join('\n');
+
   if (!/^speaker_mapping\s*:/m.test(p)) {
     p = `${p.trimEnd()}\n\nspeaker_mapping: {"S1":"Chinese (Mandarin)_Adult_Female_Soft","S2":"Chinese (Mandarin)_Adult_Male_Low"}`;
   }
