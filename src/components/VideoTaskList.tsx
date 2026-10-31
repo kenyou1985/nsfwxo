@@ -635,7 +635,14 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
           setTasks((prev) => prev.map((t) => (t.id === task.id ? updatedTask : t)));
           // 写入历史记录，便于 HistoryPage 回溯
           saveToHistoryRef.current(updatedTask);
-          if (videoUrl) { onSuccessRef.current?.('视频生成完成'); void cacheVideo(videoUrl); }
+          if (videoUrl) {
+            onSuccessRef.current?.('视频生成完成');
+            void cacheVideo(videoUrl);
+            // 通知提示词卡片显示该条提示词对应的预览视频
+            window.dispatchEvent(new CustomEvent('nsfwxo:daotai-finished', {
+              detail: { prompt: task.prompt, videoUrl },
+            }));
+          }
           onTaskComplete?.({ task: updatedTask, results: [] });
         } else if (data.status === 'FAILED') {
           const msg = data.message || '生成失败';

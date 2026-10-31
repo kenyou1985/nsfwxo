@@ -129,6 +129,29 @@ export interface EroticPromptCardProps {
   onSendToLongVideo?: (prompt: string) => void;
   onSendToLongVideoV2?: (prompt: string) => void;
   onGenerateVideo: (prompt: string) => void;
+  onSuccess?: (msg: string) => void;
+  onError?: (msg: string) => void;
+}
+
+
+// 情色创作生成的 H3 提示词缺少说话人标签与 speaker_mapping → 统一补齐，避免火星语。
+const _MALE_CMD = /(?:不要出声|乖乖含住|乖乖坐上去|夹紧|张嘴|别动|站好|继续含|含住|含深|转过来|腿抬好|别停)/;
+const _FEMALE_PLEA = /(?:求求你|放过|不要|疼|轻点|停|别这样|别插|我怕|别碰)/;
+function normalizeEroticPrompt(raw: string): string {
+  let p = String(raw || '');
+  if (!p) return p;
+  p = p.replace(/(?:\(S[12]\):\s*)?<d>([\s\S]*?)<\/d>/g, (m, inner) => {
+    if (/^\(S[12]\):/.test(m)) return m;
+    let body = String(inner);
+    if (!/^\s*\[/.test(body)) body = `[Chinese] ${body}`;
+    const txt = body.replace(/^\s*\[[^\]]+\]\s*/, '').trim();
+    const who = _MALE_CMD.test(txt) && !_FEMALE_PLEA.test(txt) ? 'S2' : 'S1';
+    return `(${who}): <d>${body}</d>`;
+  });
+  if (!/^speaker_mapping\s*:/m.test(p)) {
+    p = `${p.trimEnd()}\n\nspeaker_mapping: {"S1":"Chinese (Mandarin)_Adult_Female_Soft","S2":"Chinese (Mandarin)_Adult_Male_Low"}`;
+  }
+  return p;
 }
 
 function EroticPromptCard({
@@ -141,11 +164,14 @@ function EroticPromptCard({
   onSendToLongVideo,
   onSendToLongVideoV2,
   onGenerateVideo,
+  onSuccess,
+  onError,
 }: EroticPromptCardProps) {
   const [editingPrompt, setEditingPrompt] = useState(prompt);
   const [isEditing, setIsEditing] = useState(false);
   const [copied, setCopied] = useState(false);
   const [collapsed, setCollapsed] = useState(true);
+  const [videoUrl, setVideoUrl] = useState<string>('');
 
   useEffect(() => {
     if (!isEditing) setEditingPrompt(prompt);
@@ -154,25 +180,55 @@ function EroticPromptCard({
 
   const handleCopy = async () => {
     const textToCopy = editingPrompt || prompt;
-    try {
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(textToCopy);
-      } else {
+    const fallback = () => {
+      try {
         const ta = document.createElement('textarea');
         ta.value = textToCopy;
         ta.style.position = 'fixed';
         ta.style.opacity = '0';
         document.body.appendChild(ta);
+        ta.focus();
         ta.select();
-        document.execCommand('copy');
+        const ok = document.execCommand('copy');
         document.body.removeChild(ta);
+        return ok;
+      } catch {
+        return false;
       }
+    };
+    try {
+      let ok = false;
+      if (navigator.clipboard && window.isSecureContext) {
+        try {
+          await navigator.clipboard.writeText(textToCopy);
+          ok = true;
+        } catch {
+          ok = fallback();
+        }
+      } else {
+        ok = fallback();
+      }
+      if (!ok) throw new Error('copy failed');
       setCopied(true);
+      onSuccess?.('提示词已复制');
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error('[EroticPromptCard] 复制失败', err);
+      onError?.('复制失败，请手动选择文本复制');
     }
   };
+
+  // 生成完成后，任务列表广播结果，卡片按提示词匹配显示预览视频
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const d = (e as CustomEvent).detail || {};
+      if (typeof d.prompt === 'string' && d.prompt.trim() === prompt.trim() && d.videoUrl) {
+        setVideoUrl(d.videoUrl);
+      }
+    };
+    window.addEventListener('nsfwxo:daotai-finished', handler);
+    return () => window.removeEventListener('nsfwxo:daotai-finished', handler);
+  }, [prompt]);
 
   return (
     <div className="rounded-xl border border-pink-200 bg-white overflow-hidden">
@@ -322,6 +378,12 @@ function EroticPromptCard({
               </div>
             )}
           </div>
+          {videoUrl && (
+            <div className="px-3 pb-3">
+              <video src={videoUrl} controls className="w-full rounded-lg border border-pink-200 bg-black" />
+              <div className="mt-1 text-[9px] text-pink-500">已生成视频预览</div>
+            </div>
+          )}
         </>
       )}
     </div>
@@ -623,11 +685,12 @@ export function EroticCreationPanel({
           });
         },
         onEnd: ({ index, prompt: p }) => {
-          accumulated[index] = p;
+          const fixed = normalizeEroticPrompt(p);
+          accumulated[index] = fixed;
           setEroticPrompts(prev => {
             const updated = [...prev];
             while (updated.length <= index) updated.push('');
-            updated[index] = p;
+            updated[index] = fixed;
             return updated;
           });
         },
@@ -643,7 +706,7 @@ export function EroticCreationPanel({
         },
         onDone: ({ successful, total }) => {
           setEroticAnalyzing(false);
-          const first = Object.values(accumulated).find(p => p && !p.startsWith('[生成失败'));
+          const first = Object.values(accumulated).map(normalizeEroticPrompt).find(p => p && !p.startsWith('[生成失败'));
           if (first) onUsePrompt(first, 0);
           const elapsedMs = Math.round(performance.now() - t0);
           if (successful > 0) {
@@ -924,6 +987,8 @@ export function EroticCreationPanel({
                     onSendToLongVideo={onSendToLongVideo}
                     onSendToLongVideoV2={onSendToLongVideoV2}
                     onGenerateVideo={(promptText) => onGenerateVideo(promptText, idx)}
+                    onSuccess={onSuccess}
+                    onError={onError}
                   />
                 ))}
               </div>
