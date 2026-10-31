@@ -348,6 +348,11 @@ export function DaotaiH3Panel({ apiKey, onError, onSuccess, taskListRef, initial
       }
       setSubmitting(true);
       try {
+        // 智能分段：每段分镜数 = ceil(总镜数 / 目标段数)；手动 >1 时尊重手动值。
+        const _shotCount = (trimmedPrompt.match(/\[Shot\s+\d+\]/g) || []).length;
+        const _segs = Math.max(1, Number(targetSegs) || 4);
+        const _autoPerSeg = Math.max(1, Math.ceil(_shotCount / _segs));
+        const _perSeg = shotsPerSeg > 1 ? shotsPerSeg : _autoPerSeg;
         const body: Record<string, unknown> = {
           prompt: trimmedPrompt,
           media: refList.map((r) => ({ type: 'reference_image', url: r.url })),
@@ -355,7 +360,7 @@ export function DaotaiH3Panel({ apiKey, onError, onSuccess, taskListRef, initial
           duration,
           resolution,
           aspect_ratio: aspectRatio,
-          shots_per_seg: shotsPerSeg,
+          shots_per_seg: _perSeg,
           loop_routes: loopRoutes,
           instance: 'plus',
         };
