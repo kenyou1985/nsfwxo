@@ -135,17 +135,20 @@ export interface EroticPromptCardProps {
 
 
 // 情色创作生成的 H3 提示词缺少说话人标签与 speaker_mapping → 统一补齐，避免火星语。
-const _MALE_CMD = /(?:不要出声|乖乖含住|乖乖坐上去|夹紧|张嘴|别动|站好|继续含|含住|含深|转过来|腿抬好|别停)/;
+const _MALE_CMD = /(?:不要出声|乖乖听话|乖乖含住|乖乖坐上去|夹紧|张嘴|别动|站好|继续含|含住|含深|转过来|腿抬好|别停|坐上去|含住)/;
 const _FEMALE_PLEA = /(?:求求你|放过|不要|疼|轻点|停|别这样|别插|我怕|别碰)/;
-function normalizeEroticPrompt(raw: string): string {
+export function normalizeEroticPrompt(raw: string): string {
   let p = String(raw || '');
   if (!p) return p;
   p = p.replace(/(?:\(S[12]\):\s*)?<d>([\s\S]*?)<\/d>/g, (m, inner) => {
-    if (/^\(S[12]\):/.test(m)) return m;
     let body = String(inner);
     if (!/^\s*\[/.test(body)) body = `[Chinese] ${body}`;
     const txt = body.replace(/^\s*\[[^\]]+\]\s*/, '').trim();
-    const who = _MALE_CMD.test(txt) && !_FEMALE_PLEA.test(txt) ? 'S2' : 'S1';
+    // 男命令优先：明确命令词 → S2，即使句子里含“不要”（不要出声/不要动）。
+    const isMale = _MALE_CMD.test(txt);
+    const isFemale = !isMale && _FEMALE_PLEA.test(txt);
+    const existing = m.match(/\(S[12]\)/)?.[0];
+    const who = isMale ? 'S2' : isFemale ? 'S1' : (existing ? existing.slice(1, -1) : 'S1');
     return `(${who}): <d>${body}</d>`;
   });
   if (!/^speaker_mapping\s*:/m.test(p)) {
