@@ -135,7 +135,7 @@ export interface EroticPromptCardProps {
 
 
 // 情色创作生成的 H3 提示词缺少说话人标签与 speaker_mapping → 统一补齐，避免火星语。
-const _MALE_CMD = /(?:不要出声|乖乖听话|乖乖含住|乖乖坐上去|夹紧|张嘴|别动|站好|继续含|含住|含深|转过来|腿抬好|别停|坐上去|含住)/;
+const _MALE_CMD = /(?:不要出声|乖乖听话|乖乖含住|乖乖坐上去|夹紧|张嘴|别动|站好|继续含|含住|含深|转过来|腿抬好|别停|坐上去|我操死你|操死你|小骚货|骚货)/;
 const _FEMALE_PLEA = /(?:求求你|放过|不要|疼|轻点|停|别这样|别插|我怕|别碰)/;
 
 /** 一镜一主动作：只保留最后一个“人物+动作”句 + 状态句 + 台词句。 */
@@ -159,6 +159,8 @@ export function normalizeEroticPrompt(raw: string): string {
   p = p.replace(/(?:\(S[12]\):\s*)?<d>([\s\S]*?)<\/d>/g, (m, inner) => {
     let body = String(inner);
     if (!/^\s*\[/.test(body)) body = `[Chinese] ${body}`;
+    // 男性脏话统一成指定台词
+    body = body.replace(/我操死你(?!，小骚货)/g, '我操死你，小骚货');
     const txt = body.replace(/^\s*\[[^\]]+\]\s*/, '').trim();
     // 男命令优先：明确命令词 → S2，即使句子里含“不要”（不要出声/不要动）。
     const isMale = _MALE_CMD.test(txt);

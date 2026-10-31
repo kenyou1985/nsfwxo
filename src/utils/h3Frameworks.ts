@@ -128,7 +128,7 @@ export function enforceH3Speakers(text: string): string {
     const dm = line.match(/<d>([\s\S]*?)<\/d>/);
     const raw = (dm ? dm[1] : line).replace(/^\s*\[(?:Chinese|Mandarin|中文|汉语)\]\s*/i, '').trim();
     if (/^(?:他|男|马库斯|MARCUS)$/i.test(raw)) return line;
-    if ((MALE_COMMAND.test(raw) && !FEMALE_PLEA.test(raw)) || /^(?:别动|别躲|躲开|别挣|别乱动|别停|别回头|别叫|别跑|站住|不许跑|别出声|别哭|闭嘴|安静|继续走|往前走|继续站着|站好|张嘴|接好|夹紧|站稳|转过来|腿抬好|自己动|含深点|脱掉|裙子|内裤|蹲下|用舌头|喷得)/.test(raw) || (/(?:别停|夹紧|张嘴|含深点|转过来|腿抬好|继续走|站好|别躲)/.test(raw) && !FEMALE_PLEA.test(raw))) {
+    if ((MALE_COMMAND.test(raw) && !FEMALE_PLEA.test(raw)) || /^(?:别动|别躲|躲开|别挣|别乱动|别停|别回头|别叫|别跑|站住|不许跑|别出声|别哭|闭嘴|安静|继续走|往前走|继续站着|站好|张嘴|接好|夹紧|站稳|转过来|腿抬好|自己动|含深点|脱掉|裙子|内裤|蹲下|用舌头|喷得|我操死你|操死你|小骚货|骚货)/.test(raw) || (/(?:别停|夹紧|张嘴|含深点|转过来|腿抬好|继续走|站好|别躲)/.test(raw) && !FEMALE_PLEA.test(raw))) {
       return line.replace(/^\(S[12]\):/, '(S2):');
     }
     if (FEMALE_PLEA.test(raw) || /^(?:你|我|他蹲|这里|有人|会看到)/.test(raw)) {
