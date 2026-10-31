@@ -86,7 +86,7 @@ export function selfCheckH3Prompt(raw: string): SelfCheckResult {
       });
       _t = _t.replace(/\bthe\s+(?:abandoned\s+|empty\s+|open\s+|vacant\s+)?(?:lot|yard|site|worksite)\b/gi, `the ${finalLoc}`);
       _t = _t.replace(/(?<!→\s)(?<!the\s)\b(?:abandoned construction yard|construction yard|abandoned yard|open yard|abandoned lot|vacant lot|open lot|construction site|abandoned site|worksite|the lot|the yard|the site)\b/gi, `the ${finalLoc}`);
-      _t = _t.replace(/\b(?:for|against|on|onto|across|into|through|at)\s+(?:the\s+)?(?:broken|grey|gray|dusty|abandoned|empty|open)?\s*(?:concrete|gravel|rubble)\b/gi, `$1 the ${finalLoc}`);
+      _t = _t.replace(/\b(for|against|on|onto|across|into|through|at)\s+(?:the\s+)?(?:broken|grey|gray|dusty|abandoned|empty|open)?\s*(?:concrete|gravel|rubble)\b/gi, `$1 the ${finalLoc}`);
       for (const _w of ['street', 'road', 'sidewalk']) {
         if (!locs.some((l) => new RegExp('\\b' + _w + '\\b', 'i').test(l))) {
           _t = _t.replace(new RegExp('\\bthe\\s+' + _w + '\\b', 'gi'), `the ${finalLoc}`);

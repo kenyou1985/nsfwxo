@@ -69,6 +69,9 @@ function cosmetic(line: string): string {
     .replace(/[\u201c\u201d]/g, '')
     .replace(/\bno restoration\b/gi, 'never reset')
     .replace(/\bskirt-skirted\b/gi, 'skirted')
+    .replace(/\bskirt\s+skirt\b/gi, 'skirt')
+    .replace(/\bMuffled\s*:\s*He\s*:\s*/gi, '')
+    .replace(/\bHe,\s*close to her ear\s*:\s*/gi, '')
   return out;
 }
 
