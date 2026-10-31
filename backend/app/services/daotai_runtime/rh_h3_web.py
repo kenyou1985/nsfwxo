@@ -1004,8 +1004,12 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
                 # 单路：500 = 完整全局提示词原样（画布内确定性切分）
                 _emit('  [路%d] P. #500.text 注入完整全局提示词（%d 字，503=%d 段，画布内确定性切分；音频净化: 无）: %s…'
                       % (rng[0], len(_gp), _N_det, _gp[:80].replace('\n', ' ')))
-        # 12 分镜 / 4 段 = 每段 3 分镜；16 段工作流支持该密度
-        _M_det = 3
+        # 每段分镜数：优先用前端值；若容量装不下该路分镜，自动提高到能装下的最小值。
+        _M_cfg = max(1, int(cfg.get('shots_per_seg') or 1))
+        _ns_m = count_shots(global_prompt)
+        _per_m = max(1, -(-_ns_m // max(1, int(cfg.get('loop_routes') or 1))))
+        _M_need = max(1, -(-_per_m // max(1, _N_det)))
+        _M_det = _M_cfg if _M_cfg * _N_det >= _per_m else _M_need
         _wf['501']['inputs']['value'] = True      # 全局模式（501=true → 505.tt=504=15 轮循环）
         # 2026-10-19 修复（第3轮，符合用户铁律"导演台原有逻辑禁止修改"）：
         #   502 取值完全恢复 wfc 默认（wfc.llm_value，6098=True → 导演台 /api/start 原有 502=true 逻辑逐字不变，
@@ -1018,8 +1022,6 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
         if '1269' in _wf:
             _wf['1269']['inputs']['value'] = _M_det   # 每段分镜数：4 段 × 3 = 12，覆盖 11 个 Shot
         _wf['503']['inputs']['value'] = _N_det    # 总段数（504 = 503-1 = N-1 轮循环 + 首段 = N 段）
-        if '1269' in _wf:
-            _wf['1269']['inputs']['value'] = 2    # 每段分镜数 M 必须与 _M_det=2 对齐（模板默认3会错位）
         _wf['159']['inputs']['value'] = 15   # 159→9 帧数→93/95 length→127.length
         _wf['25']['inputs']['value'] = cfg.get('resolution', 0.2)      # 像素清晰度
         # ===== 2026-10-22 同步 nsfwxo 节点级优化（环境变量可回退）=====

@@ -887,7 +887,7 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
         _wf['502']['inputs']['value'] = wfc.get('llm_value', True)    # LLM 开（对齐画布手动，音频由 LLM 描述驱动）
         _wf['503']['inputs']['value'] = _N_det    # 总段数（504 = 503-1 = N-1 轮循环 + 首段 = N 段）
         if '1269' in _wf:
-            _wf['1269']['inputs']['value'] = 2    # 每段分镜数 M 必须与 _M_det=2 对齐（模板默认3会错位）
+            _wf['1269']['inputs']['value'] = max(1, int(cfg.get('shots_per_seg') or 2))    # 由前端按 总镜数/段数 计算
         _wf['159']['inputs']['value'] = int(cfg.get('duration', 15))   # 159→9 帧数→93/95 length→127.length
         _wf['25']['inputs']['value'] = cfg.get('resolution', 0.2)      # 像素清晰度
         _emit('  [路%d] M. #501=true(全局) #502=%s(LLM%s) #503=%d → 画布内循环 %d 轮 + 首段 = %d 段'
@@ -1895,7 +1895,7 @@ def run_job(job):
                 _emit('⚠ 未检测到 [Shot N] 分镜标记，确定性切分需要 [Shot 1]..[Shot N] 锚点，拒绝提交')
                 job.set_status('failed')
                 return
-            _M_det = 2   # 1269 每段分镜数（画布默认 2，不注入）
+            _M_det = max(1, int(cfg.get('shots_per_seg') or 2))   # 每段分镜数：按 总镜数/目标段数
             cfg['total_segs'] = _N_det
             # 全局修复：20 镜 / 8 段 / 2 路时每路仅 10 镜，8 段每段至少 2 镜需 16 镜；
             # 保留 20 镜和 8 段，自动降为 1 路，禁止在 8765 桥接端拒绝提交。
