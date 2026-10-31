@@ -137,6 +137,22 @@ export interface EroticPromptCardProps {
 // 情色创作生成的 H3 提示词缺少说话人标签与 speaker_mapping → 统一补齐，避免火星语。
 const _MALE_CMD = /(?:不要出声|乖乖听话|乖乖含住|乖乖坐上去|夹紧|张嘴|别动|站好|继续含|含住|含深|转过来|腿抬好|别停|坐上去|含住)/;
 const _FEMALE_PLEA = /(?:求求你|放过|不要|疼|轻点|停|别这样|别插|我怕|别碰)/;
+
+/** 一镜一主动作：只保留最后一个“人物+动作”句 + 状态句 + 台词句。 */
+function oneActionShot(line: string): string {
+  const pm = line.match(/^(\[Shot\s+\d+\]\s*\d{2}:\d{2}\.\d{3})\s*/);
+  const prefix = pm ? pm[1] : '';
+  const body = prefix ? line.slice(pm![0].length) : line;
+  const parts = body.split(/(?<=[.!?])\s+/).filter(Boolean);
+  if (parts.length <= 2) return line;
+  const isAction = (x: string) => /\b(?:he|she|his|her|man|woman)\b/i.test(x) && /\b\w+(?:s|ed|ing)\b/.test(x);
+  const isState = (x: string) => /^(?:Fully clothed|Both are fully nude|Clothing|No clothing|She is|He is fully)/i.test(x);
+  let last = -1;
+  for (let i = 0; i < parts.length; i++) if (isAction(parts[i])) last = i;
+  if (last < 0) return line;
+  return `${prefix} ${parts.filter((x, i) => i === last || isState(x) || /<d>/.test(x)).join(' ')}`.trim();
+}
+
 export function normalizeEroticPrompt(raw: string): string {
   let p = String(raw || '');
   if (!p) return p;
@@ -177,7 +193,8 @@ export function normalizeEroticPrompt(raw: string): string {
       .replace(/\bThis is the (?:single|only) ejaculation[^.]*\./gi, '')
       .replace(/\bFirst insertion of[^.]*\./gi, '')
       .replace(/\bNo change of position[^.]*\./gi, '');
-    return s2.replace(/[ \t]{2,}/g, ' ').replace(/\.\s*\./g, '.');
+    s2 = s2.replace(/[ \t]{2,}/g, ' ').replace(/\.\s*\./g, '.');
+    return oneActionShot(s2);
   }).join('\n');
 
   if (!/^speaker_mapping\s*:/m.test(p)) {

@@ -2760,11 +2760,11 @@ def run_job(job):
             _per_route_det = -(-int(_ns_det) // max(1, _routes_det))
             _M_det = max(2, -(-_per_route_det // max(2, _N_det)))
             _cap_det = _M_det * _N_det
-            if _ns_det > _cap_det:
-                _emit('  ⚠ 提示词有 %d 个分镜，但 503=%d 段 × 1269=%d 分镜/段 只覆盖前 %d 个 → '
-                      '最后 %d 个分镜不会出现；建议段数提到 %d（或减少分镜）'
-                      % (_ns_det, _N_det, _M_det, _cap_det, _ns_det - _cap_det,
-                         -(-_ns_det // _M_det)))
+            if _per_route_det > _cap_det:
+                _emit('  ⚠ 每路 %d 个分镜，但 503=%d 段 × 1269=%d 分镜/段 只覆盖 %d 个 → '
+                      '每路会丢 %d 个分镜；建议每路段数提到 %d（或减少分镜）'
+                      % (_per_route_det, _N_det, _M_det, _cap_det, _per_route_det - _cap_det,
+                         -(-_per_route_det // _M_det)))
             cfg['total_segs'] = _N_det
             # 全局修复：并发路数不能把每路分镜数压到少于 2 段所需。
             # 例：20 镜 / 8 段 / 2 路 → 每路只有 10 镜，8 段每段至少 2 镜需要 16 镜，必然失败。
@@ -2918,7 +2918,7 @@ def run_job(job):
                           % _ns_det)
                     return
                 _emit('⚠ 全局 %d 分镜 < 目标 %d 段（画布切分需 %d）→ v11段直注自动降为 %d 段（每段 %d 分镜，不依赖画布切分链）'
-                      % (_ns_det, _N_old, _need1, _N_det, 1))
+                      % (_ns_det, _N_old, _need1, _N_det, -(-_ns_det // max(1, _N_det))))
             ranges = [(1, 1, _ns_det)]
             # ===== 2026-10-21 音频污染全局修复（导演台+火宝双入口实锤）：单路改回 v11 段直注 =====
             # 画布原生切分链（1290-1350）用 `[\s\S]*(\[Shot N\]...)` 整段正则替换，会把 detailed_description
