@@ -13,6 +13,7 @@ const H3_SEX_FILLERS = [
   'He takes her hard against the metal, her body jolting with each thrust.',
 ];
 import { applyFramework, detectFramework, ensureCoerciveArc, H3_FRAMEWORKS, enforceH3Speakers, cleanSpeakerProse, extractScriptLocations, collapseLocations } from '../utils/h3Frameworks';
+import { clampOneAction } from '../utils/oneAction';
 import { makeThumbnailForStorage, makePreviewForStorage } from '../utils/imageThumbnail';
 import { AspectAwareImage } from '../components/AspectAwareImage';
 import { OneClickProduce } from '../components/OneClickProduce';
@@ -1356,7 +1357,8 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
   // 主题优先：主题本身给出 ≥2 个地点时，场景链只用主题，避免剧本里的 street/road 抢走“最终地点”。
   const _themeLocs = collapseLocations(extractScriptLocations(themeHint));
   const sceneText = _themeLocs.length >= 2 ? themeHint : `${script}\n${themeHint}`;
-  const _imageSrc = isImageLikePrompt(script) ? script : (isImageLikePrompt(themeHint) ? themeHint : '');
+  const _imageRaw = isImageLikePrompt(script) ? script : (isImageLikePrompt(themeHint) ? themeHint : '');
+  const _imageSrc = _imageRaw ? clampOneAction(_imageRaw) : '';
   const _imageLike0 = !!_imageSrc;
   const shots = _imageSrc
     ? expandImagePromptToShots(_imageSrc, shotCount, hasMan)
@@ -3561,7 +3563,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
               next[index] = {
                 ...next[index],
                 theme_label: derivedLabel,
-                prompt: normalizeKrea2Prompt(prompt),
+                prompt: normalizeKrea2Prompt(clampOneAction(prompt)),
               };
               return next;
             });
