@@ -1307,7 +1307,7 @@ function expandImagePromptToShots(imagePrompt: string, shotCount: number, hasMan
     for (const [name, re] of pairs) if (re.test(lower)) return name;
     return '';
   };
-  const isPen = /\b(?:thrust|penetrat|fuck|insert|cock|penis|riding|from behind|enters? her|pounds?)\b/i.test(lower);
+  const isPen = /\b(?:thrust\w*|penetrat\w*|fuck\w*|insert\w*|cock|penis|riding|from behind|enters? her|pounds?)\b/i.test(lower);
   const pose = pick([
     ['piledriver', /pile[- ]?driver|knees folded toward her shoulders|legs (?:are )?raised and folded/],
     ['reverse_cowgirl', /reverse cowgirl/],
@@ -1353,6 +1353,39 @@ function expandImagePromptToShots(imagePrompt: string, shotCount: number, hasMan
   const shortLine = secondShort[pose] || (isPen
     ? `A second continuous penetration position on the same ${_loc}.`
     : `A second continuous manual position on the same ${_loc}.`);
+
+  // 男女 + 性爱主题：固定包含 口交 → 第二个插入姿势 → 第三个插入姿势 → 交合特写
+  const _isSexual = /(?:\bsex\b|nude|naked|penetrat|thrust|oral|blowjob|cock|penis|vagina|pussy|bra|panties|lingerie|cum|fuck)/i.test(lower);
+  if (hasMan && _isSexual) {
+    const _surface = /subway|train/i.test(lower) ? 'bench seat'
+      : /office/i.test(lower) ? 'desk'
+      : /kitchen/i.test(lower) ? 'counter'
+      : /terrace|balcony/i.test(lower) ? 'stone ledge'
+      : 'bed';
+    const _align = ' Both bodies fully in frame, hips aligned, no overlapping limbs.';
+    const _r1 = `He keeps the starting ${pose || 'sex'} rhythm; her body jolts on every stroke.${_align}${_cloth}`;
+    const _oral = `He pulls out and she sinks to her knees on the same ${_loc}, taking him in her mouth, lips sealed around the shaft.${_align}${_cloth}`;
+    const _oralCu = `Oral close-up: her mouth stretched around the shaft, tongue on the glans, saliva stringing from her lips.${_align}`;
+    const _p2enter = `He pulls her up and bends her over the ${_surface}, entering her from behind in one push.${_align}${_cloth}`;
+    const _p2cu = `Insertion close-up from behind: the shaft sliding into her wet opening, her rim stretched around it.${_align}`;
+    const _p2r = `He keeps a hard rhythm from behind, hips slapping her, her hands braced on the ${_surface}.${_align}${_cloth}`;
+    const _p3enter = `He turns her onto her back and lifts both legs, entering her in legs-up missionary at the same ${_loc}.${_align}${_cloth}`;
+    const _p3cu = `Third insertion close-up: the shaft pumping into her from the front, wetness coating the base.${_align}`;
+    const _p3r = `He keeps the legs-up rhythm, her ankles on his shoulders, breasts moving with each thrust.${_align}${_cloth}`;
+    const _finish = `Same ${_loc}, same pose. His rhythm shortens and deepens; her body tightens, breath breaking, one continuous penetration to the finish.${_align}`;
+    const _after = 'Afterglow in the exact same location and position: both bodies still, breathing slowing, sweat cooling on skin; no new act, no reset.';
+    const fixed = [src + _align, _r1, _oral, _oralCu, _p2enter, _p2cu, _p2r, _p3enter, _p3cu];
+    const tail = [_finish, _after];
+    const body = [...fixed];
+    let flip = false;
+    while (body.length + tail.length < n) {
+      body.push(flip ? _p3r : _p2r);
+      flip = !flip;
+    }
+    return body.slice(0, Math.max(1, n - tail.length)).concat(tail).slice(0, n);
+  }
+
+
   for (let i = 0; i < n; i++) {
     const align = ' Both bodies fully in frame, hips aligned, no overlapping limbs.';
     if (i === 0) out.push(src + align);
