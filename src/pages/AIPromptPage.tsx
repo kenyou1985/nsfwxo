@@ -1232,7 +1232,7 @@ function extractWardrobe(text: string): string {
     if (!/^(?:bra|panties|thong)$/i.test(garment)) push(`${color} ${garment}`.trim());
   }
   // 英文：red low-cut shirt / white miniskirt
-  for (const m of _wtext.matchAll(/\b(red|yellow|white|black|blue|grey|pink|purple|green)\s+(?:low-cut\s+)?(?:lace\s+|silk\s+|cotton\s+|sheer\s+)?(shirt|blouse|miniskirt|mini(?:-skirt)?|skirt|bra|panties|thong|jeans|heels)\b/gi)) {
+  for (const m of _wtext.matchAll(/\b(red|yellow|white|black|blue|grey|pink|purple|green)\s+(?:low-cut\s+)?(?:lace\s+|silk\s+|cotton\s+|sheer\s+)?(shirt|blouse|miniskirt|mini(?:-skirt)?|skirt|dress|gown|lingerie|bodysuit|leotard|corset|stockings|tights|garter|uniform|qipao|hanfu|kimono|robe|towel|bikini|swimsuit|coat|jacket|hoodie|sweater|bra|panties|thong|jeans|pants|shorts|leggings|heels|boots|socks)\b/gi)) {
     push(`${m[1].toLowerCase()} ${m[2].toLowerCase()}`.replace('miniskirt', 'ultra-mini skirt'));
   }
   // matching panties / 无颜色内裤
@@ -1250,7 +1250,7 @@ function extractWardrobe(text: string): string {
 /** 图片提示词 → 视频分镜：保留图片姿势/场景，追加一个连贯的第二种插入姿势。 */
 function isImageLikePrompt(t: string): boolean {
   const x = String(t || '');
-  return !/\[Shot\s+\d+\]/i.test(x) && x.length > 200 && /(?:camera|lens|photorealistic|depth of field|8K)/i.test(x);
+  return !/\[Shot\s+\d+\]/i.test(x) && x.length > 80 && /(?:camera|lens|photorealistic|depth of field|8K)/i.test(x);
 }
 
 function expandImagePromptToShots(imagePrompt: string, shotCount: number, hasMan = true): string[] {
@@ -1259,11 +1259,8 @@ function expandImagePromptToShots(imagePrompt: string, shotCount: number, hasMan
   const hasManInText = /\b(?:man|he|his|him|cock|penis)\b/i.test(lower);
   const twoWomen = /\b(?:two women|another woman|her girlfriend|lesbian|she and her|both women)\b/i.test(lower);
   const solo = !twoWomen && !hasManInText && !hasMan;
-  const _loc = /\boffice\b/i.test(lower) ? 'office'
-    : /\bsubway\b/i.test(lower) ? 'subway car'
-    : /\btrain\b/i.test(lower) ? 'train car'
-    : /\b(?:bedroom|bed)\b/i.test(lower) ? 'bed'
-    : 'room';
+  // 全局：地点取图片文本里第一个合法地点名词，不再硬编码 office/bed
+  const _loc = (extractScriptLocations(src)[0] || 'room').replace(/^(?:the|a|an)\s+/i, '').trim();
 
   const n = Math.max(6, shotCount);
   const cut1 = Math.max(2, Math.round(n * 0.25));
@@ -1393,7 +1390,7 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
   const headPlaceholder = headShots.filter(isHeadPlaceholder).length;
   if (headShots.length >= 4 && headPlaceholder >= Math.ceil(headShots.length * 0.6)) return '';
   const detected = detectFramework(script, hasMan);
-  const sceneAnchor = `${deriveSceneAnchor(sceneText)} Only one man exists in the entire video: Subject 2. Never duplicate him; never add a second male body, reflection, or shadow figure.`;
+  const sceneAnchor = hasMan ? `${deriveSceneAnchor(sceneText)} Only one man exists in the entire video: Subject 2. Never duplicate him; never add a second male body, reflection, or shadow figure.` : deriveSceneAnchor(sceneText);
   const wardrobeRule = 'Clothing comes from the current theme description. If the theme does not specify an item, use the clothing visible in Picture 1. Do not invent colors or garments.';
   // 从当前主题/剧本提取一次服装锚点（不是硬编码锁），只写在 Subject/summary，防止 H3 中途换色。
   const wardrobeAnchorItems = extractWardrobe(`${script}\n${themeHint}`);

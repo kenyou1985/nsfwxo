@@ -232,7 +232,7 @@ function translateCn(text: string, map: Record<string, string>): string {
 
 // 地点的“中心名词”：只用于把 brick alley / alley bend / alley mouth 归成 alley，
 // 不属于主题→场景映射，任何主题都走同一套。
-const PLACE_HEAD_NOUNS = ['alley','street','road','lane','lot','yard','site','worksite','scaffold','scaffolding','bay','platform','room','bedroom','kitchen','bathroom','office','classroom','corridor','stairwell','elevator','escalator','subway','train','bus','mall','store','hotel','apartment','house','park','garden','woods','forest','beach','pool','rooftop','playground','garage','warehouse','factory','building','dock','pier','bridge','tunnel','cave','cell','basement','attic','fence','gate','doorway','hall','lobby','balcony'];
+const PLACE_HEAD_NOUNS = ['alley','street','road','lane','lot','yard','site','worksite','scaffold','scaffolding','bay','platform','room','bed','bedroom','kitchen','bathroom','shower','sauna','spa','office','classroom','library','corridor','hallway','stairwell','elevator','escalator','subway','train','bus','car','plane','mall','store','shop','market','boutique','hotel','motel','inn','hostel','apartment','house','cabin','tent','park','garden','greenhouse','courtyard','woods','forest','beach','desert','field','meadow','cliff','pool','rooftop','terrace','balcony','playground','garage','parking','warehouse','factory','building','dock','pier','bridge','tunnel','cave','cell','cage','basement','attic','hall','lobby','gym','locker','studio','dungeon','stage','backstage','bar','club','restaurant','cafe','hospital','clinic','lab','laboratory','morgue','temple','church','shrine','vault','laundry','pantry','storage'];
 const SITE_COMPOUND_RE = /\b(?:construction|building|work|demolition)\s+(?:site|yard)\b/i;
 const SUBPART_WORDS = ['bay','platform','upright','tower','crossbar','cross','bar','bars','pole','poles','pipe','rail','level','midlevel','landing','corner','bend','mouth','edge','end','side','top','bottom','middle','foreground','background','passage','path','walkway','height','chest','gate','fence','yard','site','lot','vertical','horizontal','mid','lower','upper'];
 function placeHeadNoun(loc: string): string {
@@ -270,8 +270,8 @@ export function collapseLocations(items: string[]): string[] {
     }
     if (hasSite && /^scaffold(?:ing)?$/i.test(v)) continue;
     const head = placeHeadNoun(v);
-    if (!head && isSubpartOnly(v)) continue;
-    const display = head ? (head === 'scaffold' ? 'scaffolding' : head) : v;
+    if (!head) continue;
+    const display = head === 'scaffold' ? 'scaffolding' : head;
     const key = (head || v).toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
@@ -329,8 +329,9 @@ export function extractScriptLocations(text: string): string[] {
     if (seen.has(key)) return;
     // 合并同一地点的变体：按中心名词归一（brick alley / alley bend → alley；scaffold bay / upright → scaffolding）。
     const head = placeHeadNoun(v);
-    if (!head && isSubpartOnly(v)) return;
-    if (head && out.some((e) => placeHeadNoun(e) === head)) return;
+    // 全局门禁：没有地点中心名词的短语一律不是地点（air/crowd/droplets/time 等）
+    if (!head) return;
+    if (out.some((e) => placeHeadNoun(e) === head)) return;
     if (out.some((e) => e.toLowerCase().includes(key) || key.includes(e.toLowerCase()) || (e.split(/\s+/).pop() === key.split(/\s+/).pop()))) return;
     seen.add(key);
     out.push(head ? (head === 'scaffold' ? 'scaffolding' : head) : v);

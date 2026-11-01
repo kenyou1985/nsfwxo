@@ -77,7 +77,11 @@ function cosmetic(line: string): string {
     .replace(/\bMuffled\s*:\s*He\s*:\s*/gi, '')
     .replace(/\bHe,\s*close to her ear\s*:\s*/gi, '')
     // 模型复写元指令残留（会变成火星语）
-    .replace(/\[Y\]\s*rewriting prompt as\s*DZao\s*/gi, '')
+    .replace(/^\s*\[\/?[A-Z]{2,}\]\s*/gim, '')
+    .replace(/<<?\/?SYS>>|\[\/?INST\]/gi, '')
+    .replace(/^\s*(?:Here is|Sure|Certainly|Note|Prompt|Output|Response)\s*[:：].*$/gim, '')
+    .replace(/\[Y\]\s*rewriting prompt as\s*\w+\s*/gi, '')
+    .replace(/\brewriting prompt as\s*\w+\s*/gi, '')
     .replace(/\brewriting prompt as\s*DZao\s*/gi, '')
     .replace(/\bDZao\b/gi, '')
     .replace(/\.,/g, '.')
@@ -239,9 +243,7 @@ export function canonicalizeH3(text: string, ctx: H3CanonicalCtx): H3CanonicalRe
     // 重编分镜号 + 6 秒时间戳
     const body = cleaned.map((s2, i) => {
       const rest = s2.replace(/^\[Shot\s+\d+\]\s*/, '').replace(/^\d{2}:\d{2}\.\d{3}\s*/, '')
-        .replace(/[,，]?\s*natural skin texture with visible pores[\s\S]*$/i, '')
-        .replace(/,\s*anatomically correct proportions[\s\S]*$/i, '')
-        .replace(/,\s*cinematic lighting[\s\S]*$/i, '')
+        .replace(/[,，]?\s*(?:natural skin texture|anatomically correct|50mm lens|shallow depth of field|cinematic lighting|photorealistic|8K|ultra-detailed)[\s\S]*$/i, '')
         .replace(/\.,/g, '.');
       const sec = i * 6;
       const stamp = `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}.000`;
