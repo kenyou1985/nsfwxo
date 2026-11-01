@@ -80,8 +80,10 @@ function cosmetic(line: string): string {
     .replace(/^\s*\[\/?[A-Z]{2,}\]\s*/gim, '')
     .replace(/<<?\/?SYS>>|\[\/?INST\]/gi, '')
     .replace(/^\s*(?:Here is|Sure|Certainly|Note|Prompt|Output|Response)\s*[:：].*$/gim, '')
-    .replace(/\[Y\]\s*rewriting prompt as\s*\w+\s*/gi, '')
-    .replace(/\brewriting prompt as\s*\w+\s*/gi, '')
+    .replace(/\[\s*Y\s*\][^\n]*?DZao\.?\s*/gi, '')
+    .replace(/\brewriting prompt[^\n]*?DZao\.?\s*/gi, '')
+    .replace(/\[\s*Y\s*\]\s*/gi, '')
+    .replace(/\bDZao\b\.?\s*/gi, '')
     .replace(/\brewriting prompt as\s*DZao\s*/gi, '')
     .replace(/\bDZao\b/gi, '')
     .replace(/\.,/g, '.')
@@ -171,6 +173,8 @@ export function canonicalizeH3(text: string, ctx: H3CanonicalCtx): H3CanonicalRe
   let t = String(text || '').trim();
   if (!t) return { text: '', issues: ['empty'] };
   if (isModelRefusal(t)) return { text: '', issues: ['refusal'] };
+  // 全局逐行清理模型元指令/复写残留，避免只清 Scene 行
+  t = t.split('\n').map((ln) => cosmetic(ln)).join('\n');
 
   // 1) 场景句统一重写（subject_definitions / summary 两处）
   const scene = sceneLine(ctx);

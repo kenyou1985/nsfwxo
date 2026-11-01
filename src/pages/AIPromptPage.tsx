@@ -1167,7 +1167,8 @@ function computePerSegShots(prompt: string, segments: number, routes: number, fa
 function deriveSceneAnchor(text: string): string {
   const t = String(text || '');
   // 地点完全来自“剧本 Location 字段 + 主题正文”，不维护主题→场景硬编码表。
-  const locs = collapseLocations(extractScriptLocations(t)).map((l) => l.replace(/\s+(?:in|with|on|at|beside|near)\s+[a-z].*$/i, '').trim()).filter(Boolean);
+  const _allLocs = collapseLocations(extractScriptLocations(t)).map((l) => l.replace(/\s+(?:in|with|on|at|beside|near)\s+[a-z].*$/i, '').trim()).filter(Boolean);
+  const locs = isImageLikePrompt(t) ? _allLocs.slice(0, 1) : _allLocs;
   if (locs.length > 1) {
     const finalLoc = locs[locs.length - 1].replace(/^the\s+/i, '');
     return `Scene: the theme's location progression is ${locs.join(' → ')}; the walk and the following happen only in the earlier locations, and all binding and sexual acts happen only at the final location (${finalLoc}); follow only these locations in order, and do not add any location not listed.`;
@@ -1319,7 +1320,7 @@ function expandImagePromptToShots(imagePrompt: string, shotCount: number, hasMan
   const rhythm = [
     `He keeps the hard downward rhythm of the ${pose || 'penetration'}; her knees stay folded, body jolting on every stroke.`,
     `His hips snap faster in the same ${pose || 'position'}; her abdomen tightens and softens with each thrust.`,
-    `He drives deeper without changing the pose; her hands fist the ivory linen and her breath breaks.`,
+    `He drives deeper without changing the pose; her hands fist the surface beneath her and her breath breaks.`,
   ];
   const secondShort: Record<string, string> = {
     piledriver: 'Missionary at the bed edge, her ankles on his shoulders.',
@@ -1390,7 +1391,10 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
   const headPlaceholder = headShots.filter(isHeadPlaceholder).length;
   if (headShots.length >= 4 && headPlaceholder >= Math.ceil(headShots.length * 0.6)) return '';
   const detected = detectFramework(script, hasMan);
-  const sceneAnchor = hasMan ? `${deriveSceneAnchor(sceneText)} Only one man exists in the entire video: Subject 2. Never duplicate him; never add a second male body, reflection, or shadow figure.` : deriveSceneAnchor(sceneText);
+  const _multiMan = /(?:bukkake|multiple men|other (?:frozen )?men|two men|group of men|other men)/i.test(script);
+  const sceneAnchor = hasMan
+    ? `${deriveSceneAnchor(sceneText)} ${_multiMan ? 'Subject 2 is the only man who moves; every other man stays frozen and motionless in the background, fully clothed, never touching her.' : 'Only one man exists in the entire video: Subject 2. Never duplicate him; never add a second male body, reflection, or shadow figure.'}`
+    : deriveSceneAnchor(sceneText);
   const wardrobeRule = 'Clothing comes from the current theme description. If the theme does not specify an item, use the clothing visible in Picture 1. Do not invent colors or garments.';
   // 从当前主题/剧本提取一次服装锚点（不是硬编码锁），只写在 Subject/summary，防止 H3 中途换色。
   const wardrobeAnchorItems = extractWardrobe(`${script}\n${themeHint}`);
@@ -1491,7 +1495,8 @@ speaker_mapping: ${speakerMap}`;
     console.info('[h3-selfcheck]', checked.issues.join(', '));
   }
   // 最终门禁层：统一场景句、地点归并、性行为顺序、脱衣回穿、旁白尾巴、块去重。
-  const _canonLocs = collapseLocations(extractScriptLocations(sceneText));
+  const _canonLocsAll = collapseLocations(extractScriptLocations(sceneText));
+  const _canonLocs = _imageLike0 ? _canonLocsAll.slice(0, 1) : _canonLocsAll;
   const _canonFinal = _canonLocs.length ? _canonLocs[_canonLocs.length - 1].replace(/^the\s+/i, '') : '';
   const _canon = canonicalizeH3(checked.prompt, { locs: _canonLocs, finalLoc: _canonFinal, wardrobe: wardrobeAnchor });
   if (_canon.issues.length) console.info('[h3-canonical]', _canon.issues.join(', '));

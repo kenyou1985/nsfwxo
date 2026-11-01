@@ -303,7 +303,8 @@ function _sortByDoc(items: string[], raw: string): string[] {
 }
 
 export function extractScriptLocations(text: string): string[] {
-  const raw = String(text || '');
+  // 全局：风格词组不是地点（depth of field / field of view）
+  const raw = String(text || '').replace(/\bdepth of field\b/gi, '').replace(/\bfield of view\b/gi, '');
   const out: string[] = [];
   const seen = new Set<string>();
   const push = (loc: string) => {
