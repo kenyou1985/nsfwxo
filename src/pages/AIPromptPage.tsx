@@ -1307,6 +1307,7 @@ function expandImagePromptToShots(imagePrompt: string, shotCount: number, hasMan
     for (const [name, re] of pairs) if (re.test(lower)) return name;
     return '';
   };
+  const isPen = /\b(?:thrust|penetrat|fuck|insert|cock|penis|riding|from behind|enters? her|pounds?)\b/i.test(lower);
   const pose = pick([
     ['piledriver', /pile[- ]?driver|knees folded toward her shoulders|legs (?:are )?raised and folded/],
     ['reverse_cowgirl', /reverse cowgirl/],
@@ -1314,6 +1315,8 @@ function expandImagePromptToShots(imagePrompt: string, shotCount: number, hasMan
     ['prone', /prone bone|face down|flat on her stomach/],
     ['doggy', /doggy|from behind|all fours|kneeling/],
     ['missionary', /missionary|on her back/],
+    ['standing', /pinned against|against the (?:pole|wall)|standing pressed|chest to chest/],
+    ['manual', /hand (?:slides|between)|fingers? (?:her|between)|stroke between her thighs/],
   ]);
   const second: Record<string, string> = {
     piledriver: `He lowers her legs from the piledriver and takes her in missionary at the same ${_loc} edge, her ankles on his shoulders, his hips between her thighs; both bodies fully in frame.`,
@@ -1322,12 +1325,22 @@ function expandImagePromptToShots(imagePrompt: string, shotCount: number, hasMan
     prone: `He pulls her up onto all fours and takes her in kneeling doggy on the same ${_loc}.`,
     doggy: `He presses her flat onto her stomach and takes her in prone doggy on the same ${_loc}.`,
     missionary: `He lifts both her legs higher and takes her in legs-up missionary at the same ${_loc} edge.`,
+    standing: isPen
+      ? `He turns her to face the ${_loc === 'subway' ? 'steel pole' : 'wall'}, lifts one leg and enters her standing, her back against it.`
+      : `He turns her to face the ${_loc === 'subway' ? 'steel pole' : 'wall'} and slides his hand between her thighs from behind, pressing her hips back.`,
+    manual: `He presses her front to the ${_loc === 'subway' ? 'steel pole' : 'wall'} and works his hand between her thighs from behind.`,
   };
-  const secondLine = second[pose] || `He shifts her into a second continuous penetration position on the same ${_loc}.`;
-  const rhythm = [
+  const secondLine = second[pose] || (isPen
+    ? `He shifts her into a second continuous penetration position on the same ${_loc}.`
+    : `He shifts her into a second continuous manual position on the same ${_loc}.`);
+  const rhythm = isPen ? [
     `He keeps the hard ${pose || 'penetration'} rhythm; her body jolts on every stroke.`,
     `His hips snap faster in the same ${pose || 'position'}; her abdomen tightens and softens with each thrust.`,
     `He drives deeper without changing the pose; her hands fist the surface beneath her and her breath breaks.`,
+  ] : [
+    `He keeps a slow manual rhythm between her thighs; her hips shift and her breath catches.`,
+    `His fingers move faster in the same place; her thighs tremble and she braces against the surface.`,
+    `He works deeper with his hand without changing the pose; her head drops back and her breath breaks.`,
   ];
   const secondShort: Record<string, string> = {
     piledriver: `Missionary at the ${_loc} edge, her ankles on his shoulders.`,
@@ -1337,14 +1350,16 @@ function expandImagePromptToShots(imagePrompt: string, shotCount: number, hasMan
     doggy: `Prone doggy flat on the same ${_loc}.`,
     missionary: `Legs-up missionary at the same ${_loc} edge.`,
   };
-  const shortLine = secondShort[pose] || `A second continuous penetration position on the same ${_loc}.`;
+  const shortLine = secondShort[pose] || (isPen
+    ? `A second continuous penetration position on the same ${_loc}.`
+    : `A second continuous manual position on the same ${_loc}.`);
   for (let i = 0; i < n; i++) {
     const align = ' Both bodies fully in frame, hips aligned, no overlapping limbs.';
     if (i === 0) out.push(src + align);
     else if (i < cut1) out.push(`${rhythm[(i - 1) % rhythm.length]} Same ${_loc}, same people, clothing state unchanged.${align}${_cloth}`);
     else if (i === cut1) out.push(`Same ${_loc} and same people. He slows for one beat, then ${secondLine.charAt(0).toLowerCase() + secondLine.slice(1)}${align}${_cloth}`);
-    else if (i < cut3) out.push(`${shortLine} He keeps a steady rhythm; her body moves with each thrust, sweat on her skin.${align}${_cloth}`);
-    else if (i === cut3) out.push(`Same ${_loc} and same position. His rhythm shortens and deepens; her body tightens, breath breaking, one continuous penetration to the finish. Both bodies fully in frame, hips aligned, no overlapping limbs.`);
+    else if (i < cut3) out.push(`${secondLine} He keeps a steady rhythm; her body moves with ${isPen ? 'each thrust' : 'each stroke'}, sweat on her skin.${align}${_cloth}`);
+    else if (i === cut3) out.push(`Same ${_loc} and same position. ${isPen ? 'His rhythm shortens and deepens; her body tightens, breath breaking, one continuous penetration to the finish.' : 'His hand speeds up; her thighs clamp, breath breaking, one continuous manual act to the finish.'} Both bodies fully in frame, hips aligned, no overlapping limbs.`);
     else out.push('Afterglow in the exact same location and position: both bodies still, breathing slowing, sweat cooling on skin; no new act, no reset.');
   }
   return out.map((x) => x.replace(/\bbed\b/gi, _loc));
