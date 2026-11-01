@@ -1245,6 +1245,11 @@ function extractWardrobe(text: string): string {
  */
 
 /** 图片提示词 → 视频分镜：保留图片姿势/场景，追加一个连贯的第二种插入姿势。 */
+function isImageLikePrompt(t: string): boolean {
+  const x = String(t || '');
+  return !/\[Shot\s+\d+\]/i.test(x) && x.length > 200 && /(?:camera|lens|photorealistic|depth of field|8K)/i.test(x);
+}
+
 function expandImagePromptToShots(imagePrompt: string, shotCount: number, hasMan = true): string[] {
   const src = String(imagePrompt || '').trim();
   const lower = src.toLowerCase();
@@ -1291,7 +1296,7 @@ function expandImagePromptToShots(imagePrompt: string, shotCount: number, hasMan
     return '';
   };
   const pose = pick([
-    ['piledriver', /piledriver|knees folded toward her shoulders/],
+    ['piledriver', /pile[- ]?driver|knees folded toward her shoulders|legs (?:are )?raised and folded/],
     ['reverse_cowgirl', /reverse cowgirl/],
     ['cowgirl', /cowgirl|rides him|straddles him/],
     ['prone', /prone bone|face down|flat on her stomach/],
@@ -1299,7 +1304,7 @@ function expandImagePromptToShots(imagePrompt: string, shotCount: number, hasMan
     ['missionary', /missionary|on her back/],
   ]);
   const second: Record<string, string> = {
-    piledriver: 'He lowers her legs from the piledriver and takes her in missionary at the same bed edge, her ankles on his shoulders.',
+    piledriver: 'He lowers her legs from the piledriver and takes her in missionary at the same bed edge, her ankles on his shoulders, his hips between her thighs; both bodies fully in frame.',
     reverse_cowgirl: 'He lifts her off and turns her to face him, taking her in cowgirl on the same bed edge.',
     cowgirl: 'He holds her hips and turns her around into reverse cowgirl on the same bed edge.',
     prone: 'He pulls her up onto all fours and takes her in kneeling doggy on the same bed.',
@@ -1322,11 +1327,12 @@ function expandImagePromptToShots(imagePrompt: string, shotCount: number, hasMan
   };
   const shortLine = secondShort[pose] || 'A second continuous penetration position on the same bed.';
   for (let i = 0; i < n; i++) {
-    if (i === 0) out.push(src);
-    else if (i < cut1) out.push(`${rhythm[(i - 1) % rhythm.length]} Same bed, same people, clothing state unchanged.`);
-    else if (i === cut1) out.push(`Same bed and same people. He slows for one beat, then ${secondLine.charAt(0).toLowerCase() + secondLine.slice(1)}`);
-    else if (i < cut3) out.push(`${shortLine} He keeps a steady rhythm; her body moves with each thrust, sweat on her skin.`);
-    else if (i === cut3) out.push('Same bed and same position. His rhythm shortens and deepens; her body tightens, breath breaking, one continuous penetration to the finish.');
+    const align = ' Both bodies fully in frame, hips aligned, no overlapping limbs.';
+    if (i === 0) out.push(src + align);
+    else if (i < cut1) out.push(`${rhythm[(i - 1) % rhythm.length]} Same bed, same people, clothing state unchanged.${align}`);
+    else if (i === cut1) out.push(`Same bed and same people. He slows for one beat, then ${secondLine.charAt(0).toLowerCase() + secondLine.slice(1)}${align}`);
+    else if (i < cut3) out.push(`${shortLine} He keeps a steady rhythm; her body moves with each thrust, sweat on her skin.${align}`);
+    else if (i === cut3) out.push('Same bed and same position. His rhythm shortens and deepens; her body tightens, breath breaking, one continuous penetration to the finish. Both bodies fully in frame, hips aligned, no overlapping limbs.');
     else out.push('Afterglow in the exact same location and position: both bodies still, breathing slowing, sweat cooling on skin; no new act, no reset.');
   }
   return out;
@@ -1340,14 +1346,15 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
   // 任何拒写（含“混合拒写”：一部分拒写 + 一部分占位）都整体判失败，
   // 不再剥离后继续输出，避免拒写/占位文本混进最终提示词。
   if (isModelRefusal(script)) return '';
-  script = unifySingleMale(sanitizeAgeTerms(script));
+  script = unifySingleMale(sanitizeAgeTerms(script)).replace(/\bAn man\b/g, 'A man');
   // 场景检测同时看“剧本 + 用户主题”，避免 LLM 漏写小黑屋/室内导致场景只停在巷子。
   // 主题优先：主题本身给出 ≥2 个地点时，场景链只用主题，避免剧本里的 street/road 抢走“最终地点”。
   const _themeLocs = collapseLocations(extractScriptLocations(themeHint));
   const sceneText = _themeLocs.length >= 2 ? themeHint : `${script}\n${themeHint}`;
-  const _imageLike0 = !/\[Shot\s+\d+\]/i.test(script) && /(?:camera|lens|photorealistic|depth of field|8K)/i.test(script);
-  const shots = _imageLike0
-    ? expandImagePromptToShots(script, shotCount, hasMan)
+  const _imageSrc = isImageLikePrompt(script) ? script : (isImageLikePrompt(themeHint) ? themeHint : '');
+  const _imageLike0 = !!_imageSrc;
+  const shots = _imageSrc
+    ? expandImagePromptToShots(_imageSrc, shotCount, hasMan)
     : normalizeH3Script(script, { hasMan, coercive: false, theme: script, shotCount });
   // 只要有一点点主题内容就能靠 coercive/consensual 框架补齐到 12/20/30 镜，不能因为剧本偏短就整卡失败。
   if (shots.length < 2) return '';
@@ -1384,7 +1391,7 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
   // 从当前主题/剧本提取一次服装锚点（不是硬编码锁），只写在 Subject/summary，防止 H3 中途换色。
   const wardrobeAnchorItems = extractWardrobe(`${script}\n${themeHint}`);
   const wardrobeAnchor = wardrobeAnchorItems ? `Wardrobe from the current theme: ${wardrobeAnchorItems}; keep these colors and pieces consistent until they are removed.` : '';
-  const shotRule = 'One shot = one continuous camera setup and one continuous action. Never combine two camera angles, an internal cut, or two locations inside one shot. Each shot fixes one camera position and one facing direction per person; do not describe a body part the camera cannot see from that position; this prevents overlapping bodies and broken anatomy.';
+  const shotRule = 'One shot = one continuous camera setup and one continuous action. Never combine two camera angles, an internal cut, or two locations inside one shot. Each shot fixes one camera position and one facing direction per person; keep both bodies hips aligned and both bodies fully visible in frame; do not describe a body part the camera cannot see from that position; this prevents overlapping bodies and broken anatomy.';
   let framedShots = _imageLike0 ? shots : (detected === 'coercive' && hasMan ? ensureCoerciveArc(shots, sceneText, shotCount) : shots);
   // 裸体状态持久化：从“全部脱光”那一镜开始，后续每镜都显式标注两人全裸，
   // 防止 H3 在分段边界把衣服“穿回去”。
