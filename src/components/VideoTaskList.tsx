@@ -901,6 +901,7 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
         throw new Error('提交成功但未返回 taskId');
       }
       const taskWithId: VideoTask = { ...newTask, taskId, status: 'RUNNING', engine: 'daotai' };
+      window.dispatchEvent(new CustomEvent('nsfwxo:daotai-started', { detail: { prompt: body.prompt, taskId } }));
       setTasks((prev) => prev.map((t) => (t.id === id ? taskWithId : t)));
       onSuccess(`已提交到导演台 H3（det16）生成队列，任务 ${taskId}`);
       pollDaotaiTask(taskWithId);
@@ -912,6 +913,14 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
   }, [apiKey, tasks.length, maxTasks, onError, onSuccess, pollDaotaiTask]);
 
   const cancelTask = useCallback((id: string) => {
+    const t = tasks.find((x) => x.id === id);
+    if (t?.taskId) {
+      fetch('/api/daotai/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId: t.taskId }),
+      }).catch(() => {});
+    }
     if (pollingRef.current[id]) {
       clearTimeout(pollingRef.current[id]);
       delete pollingRef.current[id];

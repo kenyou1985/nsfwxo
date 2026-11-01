@@ -486,6 +486,37 @@ async def query_task(request: Request):
     return {'status': 'PROCESSING', 'taskId': tid}
 
 
+
+@router.post('/cancel')
+async def cancel_video(request: Request):
+    """取消正在提交/轮询的视频任务：按 taskId 或 prompt 匹配，置 stop_flag。"""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    tid = str(body.get('taskId') or body.get('task_id') or '')
+    prompt = str(body.get('prompt') or '')
+    job = None
+    if tid and tid in rh.RH_OPENAPI:
+        ent = rh.RH_OPENAPI.get(tid) or {}
+        job = rh.JOBS.get(ent.get('job_id'))
+    if job is None:
+        for j in list(rh.JOBS.values()):
+            if not prompt:
+                continue
+            gp = str((getattr(j, 'cfg', {}) or {}).get('global_prompt') or '')
+            if prompt[:120] and prompt[:120] in gp:
+                job = j
+                break
+    if job is None:
+        return {'ok': False, 'error': '未找到运行中的任务'}
+    try:
+        job.stop_flag = True
+        job.set_status('cancelled')
+    except Exception as e:
+        return {'ok': False, 'error': str(e)}
+    return {'ok': True, 'jobId': getattr(job, 'id', '')}
+
 @router.post('/video/logs')
 async def video_logs(request: Request):
     """返回视频任务完整日志（排查用：失败时第一时间看真正原因，不靠前端 alert）。

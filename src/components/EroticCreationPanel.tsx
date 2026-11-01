@@ -224,6 +224,7 @@ function EroticPromptCard({
   const [collapsed, setCollapsed] = useState(true);
   const [videoUrl, setVideoUrl] = useState<string>('');
   const [generating, setGenerating] = useState(false);
+  const [activeTaskId, setActiveTaskId] = useState('');
   const genTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -288,14 +289,35 @@ function EroticPromptCard({
         if (genTimerRef.current) { window.clearTimeout(genTimerRef.current); genTimerRef.current = null; }
       }
     };
+    const startedHandler = (e: Event) => {
+      const d = (e as CustomEvent).detail || {};
+      if (typeof d.prompt === 'string' && d.prompt.trim() === prompt.trim() && d.taskId) setActiveTaskId(String(d.taskId));
+    };
+    window.addEventListener('nsfwxo:daotai-started', startedHandler);
     window.addEventListener('nsfwxo:daotai-finished', handler);
     window.addEventListener('nsfwxo:daotai-failed', failHandler);
     return () => {
+      window.removeEventListener('nsfwxo:daotai-started', startedHandler);
       window.removeEventListener('nsfwxo:daotai-finished', handler);
       window.removeEventListener('nsfwxo:daotai-failed', failHandler);
       if (genTimerRef.current) window.clearTimeout(genTimerRef.current);
     };
   }, [prompt]);
+
+  const handleCancelVideo = async () => {
+    try {
+      await fetch('/api/daotai/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId: activeTaskId, prompt: editingPrompt }),
+      });
+    } catch {
+      // ignore
+    }
+    setGenerating(false);
+    setActiveTaskId('');
+    if (genTimerRef.current) { window.clearTimeout(genTimerRef.current); genTimerRef.current = null; }
+  };
 
   const handleGenerateVideo = () => {
     if (generating) return;
@@ -351,15 +373,14 @@ function EroticPromptCard({
             应用
           </button>
           <button
-            onClick={handleGenerateVideo}
-            disabled={generating}
-            title="一键生成视频"
+            onClick={generating ? handleCancelVideo : handleGenerateVideo}
+            title={generating ? '取消本次生视频任务' : '一键生成视频'}
             className={`flex items-center gap-0.5 px-2 py-1 rounded-lg text-white text-[10px] font-bold transition-opacity shadow-sm ${
-              generating ? 'bg-pink-300 cursor-wait' : 'bg-gradient-to-r from-rose-500 to-pink-500 hover:opacity-90'
+              generating ? 'bg-rose-600 hover:bg-rose-700' : 'bg-gradient-to-r from-rose-500 to-pink-500 hover:opacity-90'
             }`}
           >
-            {generating ? <Loader2 size={10} className="animate-spin" /> : <Play size={10} />}
-            {generating ? '生视频中...' : '生成视频'}
+            {generating ? <X size={10} /> : <Play size={10} />}
+            {generating ? '取消' : '生成视频'}
           </button>
           <button
             onClick={handleCopy}
