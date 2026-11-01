@@ -835,7 +835,7 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
   // 如果上游传入的是 900-1100 词完整剧本（SHOT 1..11），走通用 H3 状态机规范化。
   const _imageLike = !/\[Shot\s+\d+\]/i.test(imagePrompt) && /(?:camera|lens|photorealistic|depth of field|8K)/i.test(imagePrompt);
   const normalizedScriptShots = _imageLike
-    ? expandImagePromptToShots(imagePrompt, shotCount)
+    ? expandImagePromptToShots(imagePrompt, shotCount, hasMan)
     : normalizeH3Script(imagePrompt, { hasMan, coercive, theme: themeText, shotCount });
   // 剧本必须和主题角色/行为一致；模型偶尔会把“地铁猥亵”扩写成单人自慰，
   // 这种剧本即使有 12 镜也必须丢弃，回到主题分支，不能覆盖正确主题。
@@ -1245,9 +1245,47 @@ function extractWardrobe(text: string): string {
  */
 
 /** 图片提示词 → 视频分镜：保留图片姿势/场景，追加一个连贯的第二种插入姿势。 */
-function expandImagePromptToShots(imagePrompt: string, shotCount: number): string[] {
+function expandImagePromptToShots(imagePrompt: string, shotCount: number, hasMan = true): string[] {
   const src = String(imagePrompt || '').trim();
   const lower = src.toLowerCase();
+  const hasManInText = /\b(?:man|he|his|him|cock|penis)\b/i.test(lower);
+  const twoWomen = /\b(?:two women|another woman|her girlfriend|lesbian|she and her|both women)\b/i.test(lower);
+  const soloHint = /(?:masturbat|fingers herself|vibrator|dildo|solo|alone|self-pleasure)/i.test(lower);
+  const solo = !twoWomen && (!hasMan || (!hasManInText && soloHint));
+
+  const n = Math.max(6, shotCount);
+  const cut1 = Math.max(2, Math.round(n * 0.25));
+  const cut2 = Math.max(cut1 + 1, Math.round(n * 0.45));
+  const cut3 = Math.max(cut2 + 1, Math.round(n * 0.85));
+  const out: string[] = [];
+
+  if (solo || twoWomen) {
+    const soloPoses = [
+      'She lies back on the same bed, legs spread wide, one hand sliding between her thighs, fingers circling her clit.',
+      'She turns onto all fours on the same bed, reaching back between her legs, hips rocking against her hand.',
+      'She sits back on her heels, thighs open, working two fingers inside while her other hand palms her breast.',
+      'She straddles the pillow at the same bed edge and grinds down, back arched, moaning into the sheets.',
+    ];
+    const lesbianPoses = [
+      'The other woman kneels between her thighs on the same bed and licks her, hands holding her hips down.',
+      'They scissor on the same bed, hips grinding together, fingers laced, mouths open.',
+      "She sits on the other woman's face at the same bed edge, thighs trembling, gripping the headboard.",
+      'One woman takes the strap-on and enters her from behind on the same bed, both still nude.',
+    ];
+    const poses = twoWomen ? lesbianPoses : soloPoses;
+    for (let i = 0; i < n; i++) {
+      if (i === 0) out.push(src);
+      else if (i < cut1) out.push(`${poses[0]} Same bed, same woman, same lighting; her hand keeps the same rhythm.`);
+      else if (i === cut1) out.push(`Same bed and same woman. She shifts without stopping: ${poses[1]}`);
+      else if (i < cut2) out.push(`${poses[1]} Her hips roll into her hand, breath breaking.`);
+      else if (i === cut2) out.push(`Same bed. She changes again: ${poses[2]}`);
+      else if (i < cut3) out.push(`${poses[2]} Her thighs shake, fingers moving faster.`);
+      else if (i === cut3) out.push(`Same bed. She pushes over the edge: ${poses[3]}`);
+      else out.push('Afterglow in the exact same place: she lies still, chest heaving, hand resting on her thigh, no new act.');
+    }
+    return out;
+  }
+
   const pick = (pairs: Array<[string, RegExp]>): string => {
     for (const [name, re] of pairs) if (re.test(lower)) return name;
     return '';
@@ -1269,9 +1307,6 @@ function expandImagePromptToShots(imagePrompt: string, shotCount: number): strin
     missionary: 'He lifts both her legs higher and takes her in legs-up missionary at the same bed edge.',
   };
   const secondLine = second[pose] || 'He shifts her into a second continuous penetration position on the same bed.';
-  const n = Math.max(6, shotCount);
-  const cut1 = Math.max(2, Math.round(n * 0.3));
-  const cut3 = Math.max(cut1 + 1, Math.round(n * 0.85));
   const rhythm = [
     `He keeps the hard downward rhythm of the ${pose || 'penetration'}; her knees stay folded, body jolting on every stroke.`,
     `His hips snap faster in the same ${pose || 'position'}; her abdomen tightens and softens with each thrust.`,
@@ -1286,7 +1321,6 @@ function expandImagePromptToShots(imagePrompt: string, shotCount: number): strin
     missionary: 'Legs-up missionary at the same bed edge.',
   };
   const shortLine = secondShort[pose] || 'A second continuous penetration position on the same bed.';
-  const out: string[] = [];
   for (let i = 0; i < n; i++) {
     if (i === 0) out.push(src);
     else if (i < cut1) out.push(`${rhythm[(i - 1) % rhythm.length]} Same bed, same people, clothing state unchanged.`);
@@ -1313,7 +1347,7 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
   const sceneText = _themeLocs.length >= 2 ? themeHint : `${script}\n${themeHint}`;
   const _imageLike0 = !/\[Shot\s+\d+\]/i.test(script) && /(?:camera|lens|photorealistic|depth of field|8K)/i.test(script);
   const shots = _imageLike0
-    ? expandImagePromptToShots(script, shotCount)
+    ? expandImagePromptToShots(script, shotCount, hasMan)
     : normalizeH3Script(script, { hasMan, coercive: false, theme: script, shotCount });
   // 只要有一点点主题内容就能靠 coercive/consensual 框架补齐到 12/20/30 镜，不能因为剧本偏短就整卡失败。
   if (shots.length < 2) return '';
