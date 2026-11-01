@@ -1167,7 +1167,7 @@ function computePerSegShots(prompt: string, segments: number, routes: number, fa
 function deriveSceneAnchor(text: string): string {
   const t = String(text || '');
   // 地点完全来自“剧本 Location 字段 + 主题正文”，不维护主题→场景硬编码表。
-  const locs = collapseLocations(extractScriptLocations(t));
+  const locs = collapseLocations(extractScriptLocations(t)).map((l) => l.replace(/\s+(?:in|with|on|at|beside|near)\s+[a-z].*$/i, '').trim()).filter(Boolean);
   if (locs.length > 1) {
     const finalLoc = locs[locs.length - 1].replace(/^the\s+/i, '');
     return `Scene: the theme's location progression is ${locs.join(' → ')}; the walk and the following happen only in the earlier locations, and all binding and sexual acts happen only at the final location (${finalLoc}); follow only these locations in order, and do not add any location not listed.`;

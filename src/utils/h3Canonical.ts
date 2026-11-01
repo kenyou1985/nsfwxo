@@ -43,7 +43,7 @@ const DRESS_RE = /\b(?:still clothed|shirt (?:still )?on|skirt (?:still )?on|sti
 const ORPHAN_TAIL_RE = /\b(?:begs?|warns?|pleads?|says?|answers?|commands?|orders?|snaps?|snarls?|hisses?|whispers?|murmurs?|mutters?|voice|tone|bargain\w*|strips her dignity)\b/i;
 
 function sceneLine(ctx: H3CanonicalCtx): string {
-  const locs = (ctx.locs || []).map((l) => l.replace(/^the\s+/i, '')).filter(Boolean);
+  const locs = (ctx.locs || []).map((l) => l.replace(/\s+(?:in|with|on|at|beside|near)\s+[a-z].*$/i, '').replace(/^the\s+/i, '').trim()).filter(Boolean);
   if (locs.length > 1) {
     const finalLoc = (ctx.finalLoc || locs[locs.length - 1]).replace(/^the\s+/i, '');
     return `Scene: the theme's location progression is ${locs.join(' → ')}; the walk and the following happen only in the earlier locations, and all binding and sexual acts happen only at the final location (${finalLoc}); follow only these locations in order, and do not add any location not listed.`;
