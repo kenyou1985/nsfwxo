@@ -1204,7 +1204,10 @@ function extractWardrobe(text: string): string {
   const push = (v: string) => {
     if (!v) return;
     const key = wardrobeKey(v);
-    const existing = found.findIndex((x) => wardrobeKey(x) === key);
+    const existing = found.findIndex((x) => {
+      const k = wardrobeKey(x);
+      return k === key || k.endsWith(' ' + key) || key.endsWith(' ' + k);
+    });
     if (existing >= 0) {
       if (v.length > found[existing].length) found[existing] = v;
       return;

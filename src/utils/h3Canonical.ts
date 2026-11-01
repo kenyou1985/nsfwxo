@@ -80,6 +80,8 @@ function cosmetic(line: string): string {
     .replace(/\[Y\]\s*rewriting prompt as\s*DZao\s*/gi, '')
     .replace(/\brewriting prompt as\s*DZao\s*/gi, '')
     .replace(/\bDZao\b/gi, '')
+    .replace(/\.,/g, '.')
+    .replace(/,\s*\./g, '.')
   return out;
 }
 
@@ -236,7 +238,11 @@ export function canonicalizeH3(text: string, ctx: H3CanonicalCtx): H3CanonicalRe
 
     // 重编分镜号 + 6 秒时间戳
     const body = cleaned.map((s2, i) => {
-      const rest = s2.replace(/^\[Shot\s+\d+\]\s*/, '').replace(/^\d{2}:\d{2}\.\d{3}\s*/, '');
+      const rest = s2.replace(/^\[Shot\s+\d+\]\s*/, '').replace(/^\d{2}:\d{2}\.\d{3}\s*/, '')
+        .replace(/[,，]?\s*natural skin texture with visible pores[\s\S]*$/i, '')
+        .replace(/,\s*anatomically correct proportions[\s\S]*$/i, '')
+        .replace(/,\s*cinematic lighting[\s\S]*$/i, '')
+        .replace(/\.,/g, '.');
       const sec = i * 6;
       const stamp = `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}.000`;
       return `[Shot ${i + 1}] ${stamp} ${rest}`;
