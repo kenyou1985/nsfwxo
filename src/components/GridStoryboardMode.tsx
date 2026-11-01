@@ -1777,7 +1777,8 @@ export function GridStoryboardMode({
 
     // Submit image generation tasks (may produce multiple images)
     // We submit one task per expected image (usually 1-2)
-    const imageCount = 2; // Request 2 images by default
+    // 多主题时每个主题只出 1 张（2 主题 = 2 张）；单主题出 2 张候选
+    const imageCount = selectedThemes.length > 1 ? 1 : 2;
 
     // ── Determine the effective generation mode ────────────────────────────
     // digitalHumanMode always uses separate-per-panel tasks (character anchor).
@@ -2016,7 +2017,7 @@ export function GridStoryboardMode({
       onError(err instanceof Error ? err.message : '生成失败');
       setIsGenerating(false);
     }
-  }, [fullPrompt, panels, taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, r18Mode, selectedTemplates, generateSeparatePanels]);
+  }, [fullPrompt, panels, taskManager, onError, onSuccess, digitalHumanMode, selectedGirlfriend, apiKey, r18Mode, selectedTemplates, generateSeparatePanels, selectedThemes]);
 
   // ── Regenerate handler ──
 
