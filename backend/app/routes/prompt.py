@@ -5280,7 +5280,7 @@ Arc: {arc}
 
 Output a JSON object ONLY (no markdown, no commentary) with this exact schema:
 {{
-  "scene_description": "<Chinese: 2-4 sentences describing what happens in THIS panel — set IN a ★ SCENARIO, characters wearing ★ COSTUMES, advance the arc by exactly one beat. End with a full stop (。). NEVER end with '...', '…, …省略号' or any ellipsis — write the COMPLETE 2-4 sentences every time.>",
+  "scene_description": "<Chinese: 2-4 sentences describing what happens in THIS panel — set IN a ★ SCENARIO, characters wearing ★ COSTUMES, advance the arc by exactly one beat. Panel 1 MUST state the COLOR of every garment (e.g. 黑色蕾丝内衣/深紫色长裙). Later panels MUST repeat the same color for the same garment. End with a full stop (。). NEVER end with '...', '…, …省略号' or any ellipsis — write the COMPLETE 2-4 sentences every time.>",
   "image_prompt": "<English: a detailed image-prompt starting with a [ANCHOR: ...] line that locks the characters' ethnicity, hair, eyes, skin, primary outfit color, primary outfit item, footwear, and key props. Then describe pose, action, lighting, and camera angle in this scene.>"
 }}
 
