@@ -833,9 +833,10 @@ function buildAnchoredH3(imagePrompt: string, variant = 0, malePicture = false, 
     ];
   }
   // 如果上游传入的是 900-1100 词完整剧本（SHOT 1..11），走通用 H3 状态机规范化。
-  const normalizedScriptShots = normalizeH3Script(imagePrompt, {
-    hasMan, coercive, theme: themeText, shotCount,
-  });
+  const _imageLike = !/\[Shot\s+\d+\]/i.test(imagePrompt) && /(?:camera|lens|photorealistic|depth of field|8K)/i.test(imagePrompt);
+  const normalizedScriptShots = _imageLike
+    ? expandImagePromptToShots(imagePrompt, shotCount)
+    : normalizeH3Script(imagePrompt, { hasMan, coercive, theme: themeText, shotCount });
   // 剧本必须和主题角色/行为一致；模型偶尔会把“地铁猥亵”扩写成单人自慰，
   // 这种剧本即使有 12 镜也必须丢弃，回到主题分支，不能覆盖正确主题。
   const scriptJoined = normalizedScriptShots.join(' ');
@@ -1210,8 +1211,11 @@ function extractWardrobe(text: string): string {
     }
     found.push(v);
   };
+  // 只取女性服装段，避免把男性的 white shirt 当成女方 wardrobe
+  const _femaleOnly = String(text || '').split(/\b(?:an (?:adult )?man|the (?:adult )?man|a man|his\b)/i)[0] || '';
+  const _wtext = _femaleOnly.trim().length > 20 ? _femaleOnly : String(text || '');
   // 中文：红色低胸衬衫 / 白色超短裙
-  for (const m of text.matchAll(/(红色|黄色|白色|黑色|蓝色|灰色|粉色|紫色|绿色|棕色|米色|橙色|金色|银色|深蓝|酒红)\s*([\u4e00-\u9fff]{0,8}?)(衬衫|上衣|裙|bra|内衣|内裤|panties|thong|blouse|shirt|skirt|jeans|heels|高跟鞋)/gi)) {
+  for (const m of _wtext.matchAll(/(红色|黄色|白色|黑色|蓝色|灰色|粉色|紫色|绿色|棕色|米色|橙色|金色|银色|深蓝|酒红)\s*([\u4e00-\u9fff]{0,8}?)(衬衫|上衣|裙|bra|内衣|内裤|panties|thong|blouse|shirt|skirt|jeans|heels|高跟鞋)/gi)) {
     const color = colors[m[1]] || m[1];
     const raw = (m[2] || '') + (m[3] || '');
     const garment = /衬衫|blouse|shirt/i.test(raw) ? 'low-cut shirt'
@@ -1225,8 +1229,12 @@ function extractWardrobe(text: string): string {
     if (!/^(?:bra|panties|thong)$/i.test(garment)) push(`${color} ${garment}`.trim());
   }
   // 英文：red low-cut shirt / white miniskirt
-  for (const m of text.matchAll(/\b(red|yellow|white|black|blue|grey|pink|purple|green)\s+(?:low-cut\s+)?(shirt|blouse|miniskirt|mini(?:-skirt)?|skirt|bra|panties|thong|jeans|heels)\b/gi)) {
+  for (const m of _wtext.matchAll(/\b(red|yellow|white|black|blue|grey|pink|purple|green)\s+(?:low-cut\s+)?(?:lace\s+|silk\s+|cotton\s+|sheer\s+)?(shirt|blouse|miniskirt|mini(?:-skirt)?|skirt|bra|panties|thong|jeans|heels)\b/gi)) {
     push(`${m[1].toLowerCase()} ${m[2].toLowerCase()}`.replace('miniskirt', 'ultra-mini skirt'));
+  }
+  // matching panties / 无颜色内裤
+  for (const m of _wtext.matchAll(/\b(?:matching\s+)?(?:lace\s+)?(panties|thong)\b/gi)) {
+    push(m[1].toLowerCase());
   }
   return found.join(', ');
 }
@@ -1235,6 +1243,61 @@ function extractWardrobe(text: string): string {
  * 剧本直出：不经过任何动作模板/分支，只把当前主题的 12 镜剧本格式化为 H3。
  * 动作、场景、服装、对白全部来自 script；模板只负责 H3 六段结构。
  */
+
+/** 图片提示词 → 视频分镜：保留图片姿势/场景，追加一个连贯的第二种插入姿势。 */
+function expandImagePromptToShots(imagePrompt: string, shotCount: number): string[] {
+  const src = String(imagePrompt || '').trim();
+  const lower = src.toLowerCase();
+  const pick = (pairs: Array<[string, RegExp]>): string => {
+    for (const [name, re] of pairs) if (re.test(lower)) return name;
+    return '';
+  };
+  const pose = pick([
+    ['piledriver', /piledriver|knees folded toward her shoulders/],
+    ['reverse_cowgirl', /reverse cowgirl/],
+    ['cowgirl', /cowgirl|rides him|straddles him/],
+    ['prone', /prone bone|face down|flat on her stomach/],
+    ['doggy', /doggy|from behind|all fours|kneeling/],
+    ['missionary', /missionary|on her back/],
+  ]);
+  const second: Record<string, string> = {
+    piledriver: 'He lowers her legs from the piledriver and takes her in missionary at the same bed edge, her ankles on his shoulders.',
+    reverse_cowgirl: 'He lifts her off and turns her to face him, taking her in cowgirl on the same bed edge.',
+    cowgirl: 'He holds her hips and turns her around into reverse cowgirl on the same bed edge.',
+    prone: 'He pulls her up onto all fours and takes her in kneeling doggy on the same bed.',
+    doggy: 'He presses her flat onto her stomach and takes her in prone doggy on the same bed.',
+    missionary: 'He lifts both her legs higher and takes her in legs-up missionary at the same bed edge.',
+  };
+  const secondLine = second[pose] || 'He shifts her into a second continuous penetration position on the same bed.';
+  const n = Math.max(6, shotCount);
+  const cut1 = Math.max(2, Math.round(n * 0.3));
+  const cut3 = Math.max(cut1 + 1, Math.round(n * 0.85));
+  const rhythm = [
+    `He keeps the hard downward rhythm of the ${pose || 'penetration'}; her knees stay folded, body jolting on every stroke.`,
+    `His hips snap faster in the same ${pose || 'position'}; her abdomen tightens and softens with each thrust.`,
+    `He drives deeper without changing the pose; her hands fist the ivory linen and her breath breaks.`,
+  ];
+  const secondShort: Record<string, string> = {
+    piledriver: 'Missionary at the bed edge, her ankles on his shoulders.',
+    reverse_cowgirl: 'Reverse cowgirl on the same bed edge.',
+    cowgirl: 'Reverse cowgirl on the same bed edge.',
+    prone: 'Kneeling doggy on the same bed.',
+    doggy: 'Prone doggy flat on the same bed.',
+    missionary: 'Legs-up missionary at the same bed edge.',
+  };
+  const shortLine = secondShort[pose] || 'A second continuous penetration position on the same bed.';
+  const out: string[] = [];
+  for (let i = 0; i < n; i++) {
+    if (i === 0) out.push(src);
+    else if (i < cut1) out.push(`${rhythm[(i - 1) % rhythm.length]} Same bed, same people, clothing state unchanged.`);
+    else if (i === cut1) out.push(`Same bed and same people. He slows for one beat, then ${secondLine.charAt(0).toLowerCase() + secondLine.slice(1)}`);
+    else if (i < cut3) out.push(`${shortLine} He keeps a steady rhythm; her body moves with each thrust, sweat on her skin.`);
+    else if (i === cut3) out.push('Same bed and same position. His rhythm shortens and deepens; her body tightens, breath breaking, one continuous penetration to the finish.');
+    else out.push('Afterglow in the exact same location and position: both bodies still, breathing slowing, sweat cooling on skin; no new act, no reset.');
+  }
+  return out;
+}
+
 export function buildH3FromScript(script: string, hasMan: boolean, malePicture: boolean, shotCount = 12, themeHint = ''): string {
   // 剧本里出现 he/his/him 也证明有男性；否则会被误判 solo，导致男声缺失。
   hasMan = hasMan || /\b(he|his|him)\b|\b(man|male)\b|黑人|黑男|男人|男性|男子|男/i.test(script);
@@ -1248,12 +1311,10 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
   // 主题优先：主题本身给出 ≥2 个地点时，场景链只用主题，避免剧本里的 street/road 抢走“最终地点”。
   const _themeLocs = collapseLocations(extractScriptLocations(themeHint));
   const sceneText = _themeLocs.length >= 2 ? themeHint : `${script}\n${themeHint}`;
-  const shots = normalizeH3Script(script, {
-    hasMan,
-    coercive: false,
-    theme: script,
-    shotCount,
-  });
+  const _imageLike0 = !/\[Shot\s+\d+\]/i.test(script) && /(?:camera|lens|photorealistic|depth of field|8K)/i.test(script);
+  const shots = _imageLike0
+    ? expandImagePromptToShots(script, shotCount)
+    : normalizeH3Script(script, { hasMan, coercive: false, theme: script, shotCount });
   // 只要有一点点主题内容就能靠 coercive/consensual 框架补齐到 12/20/30 镜，不能因为剧本偏短就整卡失败。
   if (shots.length < 2) return '';
 
@@ -1290,7 +1351,7 @@ export function buildH3FromScript(script: string, hasMan: boolean, malePicture: 
   const wardrobeAnchorItems = extractWardrobe(`${script}\n${themeHint}`);
   const wardrobeAnchor = wardrobeAnchorItems ? `Wardrobe from the current theme: ${wardrobeAnchorItems}; keep these colors and pieces consistent until they are removed.` : '';
   const shotRule = 'One shot = one continuous camera setup and one continuous action. Never combine two camera angles, an internal cut, or two locations inside one shot. Each shot fixes one camera position and one facing direction per person; do not describe a body part the camera cannot see from that position; this prevents overlapping bodies and broken anatomy.';
-  let framedShots = detected === 'coercive' && hasMan ? ensureCoerciveArc(shots, sceneText, shotCount) : shots;
+  let framedShots = _imageLike0 ? shots : (detected === 'coercive' && hasMan ? ensureCoerciveArc(shots, sceneText, shotCount) : shots);
   // 裸体状态持久化：从“全部脱光”那一镜开始，后续每镜都显式标注两人全裸，
   // 防止 H3 在分段边界把衣服“穿回去”。
   let nudeFrom = -1;
