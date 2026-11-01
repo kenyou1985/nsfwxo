@@ -1664,6 +1664,10 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     return sessionStorage.getItem('sb_latest_history_id');
   });
   const [batchLoading, setBatchLoading] = useState(false);
+  // 数字人锚定关闭时清空角色，防止残留 selectedGirlfriend 继续被当作参考图
+  useEffect(() => {
+    if (!digitalHumanMode && selectedGirlfriend) setSelectedGirlfriend(null);
+  }, [digitalHumanMode, selectedGirlfriend, setSelectedGirlfriend]);
   const [batchVideoLoading, setBatchVideoLoading] = useState(false);
   const [outputPrompts, setOutputPrompts] = useState<string[]>(savedExpand?.outputPrompts || []);
   const [selectedOutputIdx, setSelectedOutputIdx] = useState(savedExpand?.selectedOutputIdx || 0);
@@ -2012,9 +2016,9 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         r18Mode,
         count,
         0,
-        digitalHumanMode ? selectedGirlfriend?.portraitUrl : undefined,
+        (digitalHumanMode && selectedGirlfriend) ? selectedGirlfriend.portraitUrl : undefined,
         digitalHumanMode,
-        digitalHumanMode ? selectedGirlfriend?.characterPrompt : undefined,
+        (digitalHumanMode && selectedGirlfriend) ? selectedGirlfriend.characterPrompt : undefined,
         {
           onStart: ({ index, original }) => {
             setResults((prev) => {
@@ -2794,6 +2798,12 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
             </button>
             </div>
           </div>
+          {(batchLoading || batchVideoLoading) && (
+            <div className="flex items-center gap-2 rounded-lg bg-blue-50 border border-blue-200 px-3 py-2 text-xs text-blue-600">
+              <Loader2 size={12} className="animate-spin" />
+              {batchVideoLoading ? '批量生视频中…' : '批量生图中…'}已提交 {results.length} 条，完成后自动显示结果
+            </div>
+          )}
           {results.map((result) => (
             <ExpandResultCard
               key={result.id}
@@ -3382,9 +3392,9 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
     try {
       await streamRandomPrompt(
         type, r18Mode, count, theme,
-        digitalHumanMode,
-        digitalHumanMode ? selectedGirlfriend?.portraitUrl : undefined,
-        digitalHumanMode ? selectedGirlfriend?.characterPrompt : undefined,
+        digitalHumanMode && !!selectedGirlfriend,
+        (digitalHumanMode && selectedGirlfriend) ? selectedGirlfriend.portraitUrl : undefined,
+        (digitalHumanMode && selectedGirlfriend) ? selectedGirlfriend.characterPrompt : undefined,
         {
           onStart: ({ index, theme: presetLabel, tags_used }) => {
             setResults((prev) => {
@@ -3624,9 +3634,9 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
       // and have the in-flight stream cancel-and-replace.
       await streamRandomPrompt(
         type, r18Mode, count, theme,
-        digitalHumanMode,
-        digitalHumanMode ? selectedGirlfriend?.portraitUrl : undefined,
-        digitalHumanMode ? selectedGirlfriend?.characterPrompt : undefined,
+        digitalHumanMode && !!selectedGirlfriend,
+        (digitalHumanMode && selectedGirlfriend) ? selectedGirlfriend.portraitUrl : undefined,
+        (digitalHumanMode && selectedGirlfriend) ? selectedGirlfriend.characterPrompt : undefined,
         {
           onStart: ({ index, theme: presetLabel, tags_used }) => {
             // Only write to slots that are still empty (i.e. stuck) so we
