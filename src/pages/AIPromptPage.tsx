@@ -6039,6 +6039,8 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
   // Image selection and video generation state
   const [selectedPanelImages, setSelectedPanelImages] = useState<Record<string, { index: number; url: string }>>({});
   const [videoGenLoading, setVideoGenLoading] = useState<Record<string, boolean>>({});
+  const [panelVideoUrls, setPanelVideoUrls] = useState<Record<string, string>>({});
+  const videoTaskIdsRef = useRef<Record<string, string>>({});
   // Per-panel "智能扩写" spinner state for the video prompt editor.
   const [promptEditLoading, setPromptEditLoading] = useState<Record<number, boolean>>({});
   // Per-panel "重新生成图片提示词" spinner state for the image prompt editor.
@@ -7001,14 +7003,33 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
         console.warn('[handleDirectGenerateVideo] localStorage notify failed (non-fatal):', storageErr);
       }
 
-      await taskManager.addTask('img2vid', nodes, finalVideoPrompt, WORKFLOW.MINIMAX_H3);
+      const _vid = await taskManager.addTask('img2vid', nodes, finalVideoPrompt, WORKFLOW.MINIMAX_H3);
+      videoTaskIdsRef.current[panelKey] = _vid;
       onSuccess('视频生成任务已提交');
     } catch (err) {
       onError(err instanceof Error ? err.message : '视频生成失败');
-    } finally {
       setVideoGenLoading(prev => { const next = { ...prev }; delete next[panelKey]; return next; });
     }
   }, [apiKey, taskManager, onError, onSuccess, r18Mode]);
+
+  // 生视频状态保持到任务真正完成，并回填预览
+  useEffect(() => {
+    const ids = videoTaskIdsRef.current;
+    for (const key of Object.keys(ids)) {
+      const tid = ids[key];
+      const t = taskManager.tasks.find((x) => x.id === tid);
+      if (!t) continue;
+      const url = (t.images || []).find((u) => /\.(mp4|webm)(\?|$)/i.test(u)) || (t as { videoUrl?: string }).videoUrl;
+      if (t.status === 'FINISHED') {
+        if (url) setPanelVideoUrls((prev) => ({ ...prev, [key]: url }));
+        setVideoGenLoading((prev) => { const next = { ...prev }; delete next[key]; return next; });
+        delete ids[key];
+      } else if (t.status === 'FAILED') {
+        setVideoGenLoading((prev) => { const next = { ...prev }; delete next[key]; return next; });
+        delete ids[key];
+      }
+    }
+  }, [taskManager.tasks]);
 
   // ── H3 提示词引擎 ─────────────────────────────────────────────────────────
   /** 单个分镜：生成 H3 视频提示词（仅生成 [Shot N] 提示词，共享部分按需缓存）
@@ -8933,6 +8954,7 @@ function StoryboardMode({ onError, onSuccess, loading, setLoading, r18Mode, task
                 hasGeneratedImages={hasGenerated}
                 onPreviewImage={handlePreviewImage}
                 videoGenLoading={videoGenLoading[selKey]}
+                videoUrl={panelVideoUrls[selKey]}
                 onDirectGenerateVideo={(imageUrl, prompt) => handleDirectGenerateVideo(selKey, imageUrl, prompt)}
                 themeTitle={activeThemeInfo?.title || plot}
                 onRegenerateVideoPrompt={() => handleRegenerateVideoPrompt(idx)}
@@ -9286,7 +9308,7 @@ function FavoritesList({ favorites, r18Mode, onRemove, onClear }: {
   );
 }
 
-function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onToggle, onCopyPanel, genState, onGenerateImage, onFavorited, onDownload, taskManager, digitalHumanMode, selectedGirlfriend, selectedImageIndex, onSelectImage, onGenerateVideo, videoPrompt, hasGeneratedImages, onPreviewImage, videoGenLoading, onDirectGenerateVideo, themeTitle, onRegenerateVideoPrompt, promptEditLoading, onVideoPromptChange, historyId, panelH3Prompt, panelH3Duration, panelH3Loading, onGeneratePanelH3, onGotoLongVideoWithH3, onGotoLongVideoV2, onImagePromptChange, onRegenerateImagePrompt, imagePromptRegenLoading, onPanelH3PromptChange, panelH3ConstraintEnabled, onTogglePanelH3Constraint }: {
+function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onToggle, onCopyPanel, genState, onGenerateImage, onFavorited, onDownload, taskManager, digitalHumanMode, selectedGirlfriend, selectedImageIndex, onSelectImage, onGenerateVideo, videoPrompt, hasGeneratedImages, onPreviewImage, videoGenLoading, videoUrl, onDirectGenerateVideo, themeTitle, onRegenerateVideoPrompt, promptEditLoading, onVideoPromptChange, historyId, panelH3Prompt, panelH3Duration, panelH3Loading, onGeneratePanelH3, onGotoLongVideoWithH3, onGotoLongVideoV2, onImagePromptChange, onRegenerateImagePrompt, imagePromptRegenLoading, onPanelH3PromptChange, panelH3ConstraintEnabled, onTogglePanelH3Constraint }: {
   panel: { panel_number: number; scene_description: string; image_prompt: string };
   idx: number; isExpanded: boolean; r18Mode: boolean; copiedPanel: number | null;
   onToggle: () => void; onCopyPanel: () => void;
@@ -9303,6 +9325,7 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
   hasGeneratedImages?: boolean;
   onPreviewImage?: (images: string[], currentIndex: number, prompt?: string) => void;
   videoGenLoading?: boolean;
+  videoUrl?: string;
   onDirectGenerateVideo?: (imageUrl: string, prompt: string) => void;
   themeTitle?: string;
   /** Trigger a single-panel video-prompt "智能扩写" via backend grok-4.6 → grok-4.3 */
@@ -9531,6 +9554,17 @@ function StoryboardPanelCard({ panel, idx, isExpanded, r18Mode, copiedPanel, onT
                     ? <><Loader2 size={11} className="animate-spin" />图片生成中…</>
                     : <><RefreshCw size={11} />重新生成图片</>}
                 </button>
+              </div>
+            )}
+
+            {/* Generated video preview */}
+            {videoUrl && (
+              <div className="mt-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-text-tertiary font-medium">生成视频</span>
+                  <a href={videoUrl} target="_blank" rel="noreferrer" className="text-[10px] text-purple-600 hover:underline">打开原视频</a>
+                </div>
+                <video src={videoUrl} controls playsInline className="w-full max-h-64 rounded-lg bg-black" />
               </div>
             )}
 
