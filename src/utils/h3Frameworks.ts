@@ -316,6 +316,9 @@ export function extractScriptLocations(text: string): string[] {
     if (!v) return;
     // "same / same location / 同上" 不是地点，直接丢弃。
     if (/^(?:same(?:\s+(?:as above|location|place))?|同上|同一地点|原地)$/i.test(v)) return;
+    // 非地点词：air / water droplets / frozen crowd 不是场景，不能进地点链
+    if (/^(?:air|mid-?air|open air|water(?:\s+droplets?)?|droplets?|frozen crowd|silent crowd|crowd|darkness|nothing|motion|time|space)$/i.test(v)) return;
+    if (/\b(?:air|droplets?|frozen crowd|silent crowd)\b/i.test(v) && !/office|subway|train|room|bedroom|street|alley|warehouse|car|station/i.test(v)) return;
     const _site = v.match(SITE_COMPOUND_RE);
     if (_site) {
       const _name = _site[0].toLowerCase();

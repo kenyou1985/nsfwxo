@@ -1255,8 +1255,12 @@ function expandImagePromptToShots(imagePrompt: string, shotCount: number, hasMan
   const lower = src.toLowerCase();
   const hasManInText = /\b(?:man|he|his|him|cock|penis)\b/i.test(lower);
   const twoWomen = /\b(?:two women|another woman|her girlfriend|lesbian|she and her|both women)\b/i.test(lower);
-  const soloHint = /(?:masturbat|fingers herself|vibrator|dildo|solo|alone|self-pleasure)/i.test(lower);
-  const solo = !twoWomen && (!hasMan || (!hasManInText && soloHint));
+  const solo = !twoWomen && !hasManInText && !hasMan;
+  const _loc = /\boffice\b/i.test(lower) ? 'office'
+    : /\bsubway\b/i.test(lower) ? 'subway car'
+    : /\btrain\b/i.test(lower) ? 'train car'
+    : /\b(?:bedroom|bed)\b/i.test(lower) ? 'bed'
+    : 'room';
 
   const n = Math.max(6, shotCount);
   const cut1 = Math.max(2, Math.round(n * 0.25));
@@ -1288,7 +1292,7 @@ function expandImagePromptToShots(imagePrompt: string, shotCount: number, hasMan
       else if (i === cut3) out.push(`Same bed. She pushes over the edge: ${poses[3]}`);
       else out.push('Afterglow in the exact same place: she lies still, chest heaving, hand resting on her thigh, no new act.');
     }
-    return out;
+    return out.map((x) => x.replace(/\bbed\b/gi, _loc).replace(/\bbed\b/gi, _loc));
   }
 
   const pick = (pairs: Array<[string, RegExp]>): string => {
@@ -1335,7 +1339,7 @@ function expandImagePromptToShots(imagePrompt: string, shotCount: number, hasMan
     else if (i === cut3) out.push('Same bed and same position. His rhythm shortens and deepens; her body tightens, breath breaking, one continuous penetration to the finish. Both bodies fully in frame, hips aligned, no overlapping limbs.');
     else out.push('Afterglow in the exact same location and position: both bodies still, breathing slowing, sweat cooling on skin; no new act, no reset.');
   }
-  return out;
+  return out.map((x) => x.replace(/\bbed\b/gi, _loc));
 }
 
 export function buildH3FromScript(script: string, hasMan: boolean, malePicture: boolean, shotCount = 12, themeHint = ''): string {

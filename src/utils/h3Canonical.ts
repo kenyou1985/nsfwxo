@@ -76,6 +76,10 @@ function cosmetic(line: string): string {
     .replace(/\bskirt\s+skirt\b/gi, 'skirt')
     .replace(/\bMuffled\s*:\s*He\s*:\s*/gi, '')
     .replace(/\bHe,\s*close to her ear\s*:\s*/gi, '')
+    // 模型复写元指令残留（会变成火星语）
+    .replace(/\[Y\]\s*rewriting prompt as\s*DZao\s*/gi, '')
+    .replace(/\brewriting prompt as\s*DZao\s*/gi, '')
+    .replace(/\bDZao\b/gi, '')
   return out;
 }
 
@@ -125,6 +129,11 @@ function dropOrphanTail(line: string): string {
 /** 重建 speaker_mapping 与音频块，保证唯一且在末尾。 */
 function dedupeBlocks(text: string): string {
   let t = text;
+  // 整份 H3 被重复拼接：只保留第一份
+  const _starts = [...t.matchAll(/^subject_definitions\s*:\s*$/gim)].map(m => m.index || 0);
+  if (_starts.length > 1) {
+    t = t.slice(0, _starts[1]).trim();
+  }
   // AUDIO CONSTRAINTS 只保留最后一块
   const blocks = [...t.matchAll(/=== AUDIO CONSTRAINTS[\s\S]*?=== END AUDIO CONSTRAINTS ===/gi)];
   if (blocks.length > 1) {
@@ -246,11 +255,17 @@ export function canonicalizeH3(text: string, ctx: H3CanonicalCtx): H3CanonicalRe
     return /[A-Za-z]/.test(txt) ? '' : m;
   });
 
-  // 6) speaker_mapping 固定在末尾
-  const spkMatch = t.match(/^speaker_mapping\s*:\s*(\{.*\})$/im);
-  const spk = spkMatch ? spkMatch[1] : '{"S1":"Chinese (Mandarin)_Adult_Female_Soft","S2":"Chinese (Mandarin)_Adult_Male_Low"}';
-  t = t.replace(/^speaker_mapping\s*:.*$/gim, '').trim();
-  t = `${t}\n\nspeaker_mapping: ${spk}`;
+  // 6) speaker_mapping：有台词才保留；无 <d> 时移除，避免 H3 无台词仍发声/火星语
+  const _hasDialogue = /<d>[\s\S]*?<\/d>/.test(t);
+  if (_hasDialogue) {
+    const spkMatch = t.match(/^speaker_mapping\s*:\s*(\{.*\})$/im);
+    const spk = spkMatch ? spkMatch[1] : '{"S1":"Chinese (Mandarin)_Adult_Female_Soft","S2":"Chinese (Mandarin)_Adult_Male_Low"}';
+    t = t.replace(/^speaker_mapping\s*:.*$/gim, '').trim();
+    t = `${t}\n\nspeaker_mapping: ${spk}`;
+  } else {
+    t = t.replace(/^speaker_mapping\s*:.*$/gim, '').trim();
+    issues.push('no-dialogue:mapping-removed');
+  }
 
   // 7) 结构门禁
   for (const sec of SECTION_ORDER) {
