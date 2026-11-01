@@ -8,8 +8,15 @@ const ACT_GROUPS: Array<[string, RegExp]> = [
 const EXTRA_PARTNER = /\b(?:another man|other men|other frozen men|one of the other|multiple men|second man|bukkake|group of men)\b/i;
 
 export function clampOneAction(text: string): string {
-  const src = String(text || '');
+  let src = String(text || '');
   if (!src.trim()) return src;
+  src = src
+    .replace(/<\s*(?:thinking|reasoning|analysis|scratchpad)\s*>[\s\S]*?<\s*\/\s*(?:thinking|reasoning|analysis|scratchpad)\s*>/gi, '')
+    .replace(/\[\s*Y\s*\][^\n]*?DZao\.?/gi, '')
+    .replace(/^\s*(?:I'm|I am|Sure|Certainly|Here is|Okay|Alright)\b[^\n]*$/gim, '')
+    .replace(/DZao/gi, '')
+    .replace(/^[\s,.;:]+/, '')
+    .trim();
   const parts = src.split(/(?<=[.!?])\s+|,\s+/).filter(Boolean);
   const groups = ACT_GROUPS.map(([name, re]) => [name, re] as const)
     .filter(([, re]) => parts.some((p) => re.test(p)));

@@ -6468,6 +6468,17 @@ def get_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)) -
     return credentials.credentials
 
 
+
+def _strip_llm_wrappers(text: str) -> str:
+    """剥离模型思考/复写包装，避免 I'm<thinking>...DZao 进入提示词。"""
+    t = str(text or '')
+    t = re.sub(r'(?is)<\s*(?:thinking|reasoning|analysis|scratchpad)\s*>.*?<\s*/\s*(?:thinking|reasoning|analysis|scratchpad)\s*>', '', t)
+    t = re.sub(r'(?is)\[\s*Y\s*\][^\n]*?DZao\.?', '', t)
+    t = re.sub(r"(?im)^\s*(?:I'm|I am|Sure|Certainly|Here is|Okay|Alright)\b[^\n]*$", '', t)
+    t = t.replace('DZao', '')
+    t = re.sub(r'^\s*[,\.;:]+\s*', '', t)
+    return re.sub(r'\s{2,}', ' ', t).strip()
+
 def _map_llm_error(e: Exception) -> HTTPException:
     """将 LLM 相关异常映射为精确的 HTTP 错误状态码和消息。"""
     if isinstance(e, OpenLuxAuthError):
@@ -7085,7 +7096,7 @@ async def _stream_single_expand(
                         break
                     collected.append(piece)
                     yield _ndjson_event({"event": "delta", "index": index, "text": piece})
-                result_clean = "".join(collected).strip()
+                result_clean = _strip_llm_wrappers("".join(collected).strip())
                 check_prompt_safety(result_clean)
                 conflicts = detect_prompt_conflicts(result_clean)
                 # 剧本必须保留多镜头/多姿态结构，不能按单张图片冲突规则重写成一段
@@ -9614,7 +9625,7 @@ async def _generate_single_prompt(
     for attempt in range(MAX_RETRIES):
         try:
             result = await call_grok(api_key, system_for_random, user_prompt)
-            result_clean = result.strip()
+            result_clean = _strip_llm_wrappers(result.strip())
 
             check_prompt_safety(result_clean)
 
