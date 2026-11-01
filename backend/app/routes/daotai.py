@@ -12,6 +12,7 @@ import re
 import threading
 import urllib.parse
 import urllib.request
+import hashlib
 import base64
 import io
 import asyncio
@@ -548,6 +549,35 @@ async def job_log(jid: str):
         return {'error': 'no job', 'jid': jid}
     return {'jid': jid, 'status': getattr(job, 'status', ''), 'logs': (getattr(job, 'logs', []) or [])[-150:]}
 
+
+
+_CACHE_DIR = os.path.join(rh.IMAGES_DIR, 'cache')
+
+@router.get('/cache-image')
+def cache_image(url: str = ''):
+    """把 RunningHub 临时 CDN 图片落地到本地，返回长期可用的本地 URL。"""
+    if not url or not url.startswith(('http://', 'https://')):
+        return {'url': url}
+    os.makedirs(_CACHE_DIR, exist_ok=True)
+    h = hashlib.md5(url.encode('utf-8')).hexdigest()
+    ext = '.png'
+    m = re.search(r'\.(png|jpg|jpeg|webp)(?:\?|$)', url, re.I)
+    if m:
+        ext = '.' + m.group(1).lower().replace('jpeg', 'jpg')
+    name = h + ext
+    path = os.path.join(_CACHE_DIR, name)
+    if not os.path.exists(path) or os.path.getsize(path) == 0:
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=30) as r, open(path, 'wb') as f:
+            f.write(r.read())
+    return {'url': '/api/daotai/cache/' + name}
+
+@router.get('/cache/{name}')
+def serve_cache(name: str):
+    path = os.path.join(_CACHE_DIR, os.path.basename(name))
+    if not os.path.exists(path):
+        return JSONResponse(status_code=404, content={'error': 'not found'})
+    return FileResponse(path)
 
 @router.get('/media/{jobdir}/{filename}')
 async def media(jobdir: str, filename: str):

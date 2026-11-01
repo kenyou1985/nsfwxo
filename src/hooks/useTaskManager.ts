@@ -252,7 +252,18 @@ export function useTaskManager({
           );
           if (imageResults.length > 0) {
             console.log(`[extractFinishedTaskImages] found ${imageResults.length} direct image URLs`);
-            directImageUrls = imageResults.map((r) => r.url).filter(Boolean) as string[];
+            directImageUrls = await Promise.all(
+              imageResults.map((r) => r.url).filter(Boolean).map(async (u) => {
+                if (!/^https?:/i.test(u)) return u as string;
+                try {
+                  const resp = await fetch('/api/daotai/cache-image?url=' + encodeURIComponent(u as string));
+                  const j = await resp.json();
+                  return (j && j.url) ? String(j.url) : (u as string);
+                } catch {
+                  return u as string;
+                }
+              }),
+            ) as string[];
           }
         }
       }
