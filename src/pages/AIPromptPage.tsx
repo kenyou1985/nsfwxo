@@ -1169,7 +1169,9 @@ function deriveSceneAnchor(text: string): string {
   const t = String(text || '');
   // 地点完全来自“剧本 Location 字段 + 主题正文”，不维护主题→场景硬编码表。
   const _allLocs = collapseLocations(extractScriptLocations(t)).map((l) => l.replace(/\s+(?:in|with|on|at|beside|near)\s+[a-z].*$/i, '').trim()).filter(Boolean);
-  const locs = isImageLikePrompt(t) ? _allLocs.slice(0, 1) : _allLocs;
+  const _compound = /\bdining room\b/i.test(t) ? 'dining room' : (/\bliving room\b/i.test(t) ? 'living room' : '');
+  const _pickLocs = _compound ? [_compound] : _allLocs;
+  const locs = isImageLikePrompt(t) ? _pickLocs.slice(0, 1) : _pickLocs;
   if (locs.length > 1) {
     const finalLoc = locs[locs.length - 1].replace(/^the\s+/i, '');
     return `Scene: the theme's location progression is ${locs.join(' → ')}; the walk and the following happen only in the earlier locations, and all binding and sexual acts happen only at the final location (${finalLoc}); follow only these locations in order, and do not add any location not listed.`;
@@ -1234,7 +1236,7 @@ function extractWardrobe(text: string): string {
     if (!/^(?:bra|panties|thong)$/i.test(garment)) push(`${color} ${garment}`.trim());
   }
   // 英文：red low-cut shirt / white miniskirt
-  for (const m of _wtext.matchAll(/\b(red|yellow|white|black|blue|grey|pink|purple|green)\s+(?:low-cut\s+)?(?:lace\s+|silk\s+|cotton\s+|sheer\s+)?(shirt|blouse|miniskirt|mini(?:-skirt)?|skirt|dress|gown|lingerie|bodysuit|leotard|corset|stockings|tights|garter|uniform|qipao|hanfu|kimono|robe|towel|bikini|swimsuit|coat|jacket|hoodie|sweater|bra|panties|thong|jeans|pants|shorts|leggings|heels|boots|socks)\b/gi)) {
+  for (const m of _wtext.matchAll(/\b(red|yellow|white|black|blue|grey|pink|purple|green)\s+(?:low-cut\s+)?(?:lace\s+|silk\s+|cotton\s+|sheer\s+|maid\s+|satin\s+|leather\s+)*(shirt|blouse|miniskirt|mini(?:-skirt)?|skirt|dress|gown|apron|suit|waistcoat|vest|lingerie|bodysuit|leotard|corset|stockings|tights|garter|uniform|qipao|hanfu|kimono|robe|towel|bikini|swimsuit|coat|jacket|hoodie|sweater|bra|panties|thong|jeans|pants|shorts|leggings|heels|boots|socks)\b/gi)) {
     push(`${m[1].toLowerCase()} ${m[2].toLowerCase()}`.replace('miniskirt', 'ultra-mini skirt'));
   }
   // matching panties / 无颜色内裤
@@ -1262,7 +1264,11 @@ function expandImagePromptToShots(imagePrompt: string, shotCount: number, hasMan
   const twoWomen = /\b(?:two women|another woman|her girlfriend|lesbian|she and her|both women)\b/i.test(lower);
   const solo = !twoWomen && !hasManInText && !hasMan;
   // 全局：地点取图片文本里第一个合法地点名词，不再硬编码 office/bed
-  const _loc = (extractScriptLocations(src)[0] || 'room').replace(/^(?:the|a|an)\s+/i, '').trim();
+  const _loc = (/\bdining room\b/i.test(lower) ? 'dining room'
+    : /\bliving room\b/i.test(lower) ? 'living room'
+    : (extractScriptLocations(src)[0] || 'room')).replace(/^(?:the|a|an)\s+/i, '').trim();
+  const _wardrobe = extractWardrobe(src);
+  const _cloth = _wardrobe ? ` She still wears ${_wardrobe}; clothing state unchanged until an explicit undress beat.` : '';
 
   const n = Math.max(6, shotCount);
   const cut1 = Math.max(2, Math.round(n * 0.25));
@@ -1310,35 +1316,35 @@ function expandImagePromptToShots(imagePrompt: string, shotCount: number, hasMan
     ['missionary', /missionary|on her back/],
   ]);
   const second: Record<string, string> = {
-    piledriver: 'He lowers her legs from the piledriver and takes her in missionary at the same bed edge, her ankles on his shoulders, his hips between her thighs; both bodies fully in frame.',
-    reverse_cowgirl: 'He lifts her off and turns her to face him, taking her in cowgirl on the same bed edge.',
-    cowgirl: 'He holds her hips and turns her around into reverse cowgirl on the same bed edge.',
-    prone: 'He pulls her up onto all fours and takes her in kneeling doggy on the same bed.',
-    doggy: 'He presses her flat onto her stomach and takes her in prone doggy on the same bed.',
-    missionary: 'He lifts both her legs higher and takes her in legs-up missionary at the same bed edge.',
+    piledriver: `He lowers her legs from the piledriver and takes her in missionary at the same ${_loc} edge, her ankles on his shoulders, his hips between her thighs; both bodies fully in frame.`,
+    reverse_cowgirl: `He lifts her off and turns her to face him, taking her in cowgirl on the same ${_loc} edge.`,
+    cowgirl: `He holds her hips and turns her around into reverse cowgirl on the same ${_loc} edge.`,
+    prone: `He pulls her up onto all fours and takes her in kneeling doggy on the same ${_loc}.`,
+    doggy: `He presses her flat onto her stomach and takes her in prone doggy on the same ${_loc}.`,
+    missionary: `He lifts both her legs higher and takes her in legs-up missionary at the same ${_loc} edge.`,
   };
-  const secondLine = second[pose] || 'He shifts her into a second continuous penetration position on the same bed.';
+  const secondLine = second[pose] || `He shifts her into a second continuous penetration position on the same ${_loc}.`;
   const rhythm = [
     `He keeps the hard ${pose || 'penetration'} rhythm; her body jolts on every stroke.`,
     `His hips snap faster in the same ${pose || 'position'}; her abdomen tightens and softens with each thrust.`,
     `He drives deeper without changing the pose; her hands fist the surface beneath her and her breath breaks.`,
   ];
   const secondShort: Record<string, string> = {
-    piledriver: 'Missionary at the bed edge, her ankles on his shoulders.',
-    reverse_cowgirl: 'Reverse cowgirl on the same bed edge.',
-    cowgirl: 'Reverse cowgirl on the same bed edge.',
-    prone: 'Kneeling doggy on the same bed.',
-    doggy: 'Prone doggy flat on the same bed.',
-    missionary: 'Legs-up missionary at the same bed edge.',
+    piledriver: `Missionary at the ${_loc} edge, her ankles on his shoulders.`,
+    reverse_cowgirl: `Reverse cowgirl on the same ${_loc} edge.`,
+    cowgirl: `Reverse cowgirl on the same ${_loc} edge.`,
+    prone: `Kneeling doggy on the same ${_loc}.`,
+    doggy: `Prone doggy flat on the same ${_loc}.`,
+    missionary: `Legs-up missionary at the same ${_loc} edge.`,
   };
-  const shortLine = secondShort[pose] || 'A second continuous penetration position on the same bed.';
+  const shortLine = secondShort[pose] || `A second continuous penetration position on the same ${_loc}.`;
   for (let i = 0; i < n; i++) {
     const align = ' Both bodies fully in frame, hips aligned, no overlapping limbs.';
     if (i === 0) out.push(src + align);
-    else if (i < cut1) out.push(`${rhythm[(i - 1) % rhythm.length]} Same bed, same people, clothing state unchanged.${align}`);
-    else if (i === cut1) out.push(`Same bed and same people. He slows for one beat, then ${secondLine.charAt(0).toLowerCase() + secondLine.slice(1)}${align}`);
-    else if (i < cut3) out.push(`${shortLine} He keeps a steady rhythm; her body moves with each thrust, sweat on her skin.${align}`);
-    else if (i === cut3) out.push('Same bed and same position. His rhythm shortens and deepens; her body tightens, breath breaking, one continuous penetration to the finish. Both bodies fully in frame, hips aligned, no overlapping limbs.');
+    else if (i < cut1) out.push(`${rhythm[(i - 1) % rhythm.length]} Same ${_loc}, same people, clothing state unchanged.${align}${_cloth}`);
+    else if (i === cut1) out.push(`Same ${_loc} and same people. He slows for one beat, then ${secondLine.charAt(0).toLowerCase() + secondLine.slice(1)}${align}${_cloth}`);
+    else if (i < cut3) out.push(`${shortLine} He keeps a steady rhythm; her body moves with each thrust, sweat on her skin.${align}${_cloth}`);
+    else if (i === cut3) out.push(`Same ${_loc} and same position. His rhythm shortens and deepens; her body tightens, breath breaking, one continuous penetration to the finish. Both bodies fully in frame, hips aligned, no overlapping limbs.`);
     else out.push('Afterglow in the exact same location and position: both bodies still, breathing slowing, sweat cooling on skin; no new act, no reset.');
   }
   return out.map((x) => x.replace(/\bbed\b/gi, _loc));
@@ -1497,7 +1503,8 @@ speaker_mapping: ${speakerMap}`;
     console.info('[h3-selfcheck]', checked.issues.join(', '));
   }
   // 最终门禁层：统一场景句、地点归并、性行为顺序、脱衣回穿、旁白尾巴、块去重。
-  const _canonLocsAll = collapseLocations(extractScriptLocations(sceneText));
+  const _canonCompound = /\bdining room\b/i.test(sceneText) ? 'dining room' : (/\bliving room\b/i.test(sceneText) ? 'living room' : '');
+  const _canonLocsAll = _canonCompound ? [_canonCompound] : collapseLocations(extractScriptLocations(sceneText));
   const _canonLocs = _imageLike0 ? _canonLocsAll.slice(0, 1) : _canonLocsAll;
   const _canonFinal = _canonLocs.length ? _canonLocs[_canonLocs.length - 1].replace(/^the\s+/i, '') : '';
   const _canon = canonicalizeH3(checked.prompt, { locs: _canonLocs, finalLoc: _canonFinal, wardrobe: wardrobeAnchor });
