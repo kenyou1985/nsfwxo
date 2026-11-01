@@ -1319,7 +1319,7 @@ function expandImagePromptToShots(imagePrompt: string, shotCount: number, hasMan
   };
   const secondLine = second[pose] || 'He shifts her into a second continuous penetration position on the same bed.';
   const rhythm = [
-    `He keeps the hard downward rhythm of the ${pose || 'penetration'}; her knees stay folded, body jolting on every stroke.`,
+    `He keeps the hard ${pose || 'penetration'} rhythm; her body jolts on every stroke.`,
     `His hips snap faster in the same ${pose || 'position'}; her abdomen tightens and softens with each thrust.`,
     `He drives deeper without changing the pose; her hands fist the surface beneath her and her breath breaks.`,
   ];
