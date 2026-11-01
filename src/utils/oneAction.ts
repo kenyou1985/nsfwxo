@@ -22,5 +22,7 @@ export function clampOneAction(text: string): string {
     const hit = ACT_GROUPS.find(([, re]) => re.test(p));
     return !hit || hit[0] === chosen;
   });
-  return keep.join(', ').replace(/,\s*,/g, ',').replace(/\s{2,}/g, ' ').trim();
+  return keep.join(', ')
+    .replace(/[, ]+with (?:her|his) (?:foot|feet|toes|leg|knee|calf)[^,.]*/gi, '')
+    .replace(/,\s*,/g, ',').replace(/\s{2,}/g, ' ').trim();
 }
