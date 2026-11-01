@@ -9529,8 +9529,9 @@ async def _generate_single_prompt(
             _preset["system_prompt"] = sp + KREA2_BLOCK
 
     # Select theme preset - if theme is empty or unknown, use "完全随机"
+    _theme_locked = bool(req.theme and str(req.theme).strip() and req.theme != "完全随机")
     theme_key = req.theme if req.theme in _RANDOM_THEME_PRESETS else "完全随机"
-    if theme_key == "完全随机":
+    if theme_key == "完全随机" and not _theme_locked:
         _random_keys = [k for k, v in _RANDOM_THEME_PRESETS.items() if k != "完全随机" and v.get("system_prompt")]
         if _random_keys:
             theme_key = random.choice(_random_keys)
@@ -9579,11 +9580,14 @@ async def _generate_single_prompt(
                 "The reference image defines the character. Only describe pose, outfit, setting, lighting, mood."
             )
 
-    # Build user prompt
+    # Build user prompt（选定主题时强制围绕该主题裂变）
+    _theme_line = (f"Theme: {req.theme}" if _theme_locked else f"Theme: {preset['label']} - {preset['description']}")
+    _focus_line = (f"Variation of 「{req.theme}」: change camera angle, lens, framing, lighting, body pose intensity and surrounding details, but keep the SAME theme and the SAME act. Never switch to another theme or scene."
+                   if _theme_locked else diversity_variant)
     user_prompt = (
         f"Tags: {tags_str}{img2img_context}\n\n"
-        f"Theme: {preset['label']} - {preset['description']}\n\n"
-        f"Creative focus: {diversity_variant}\n\n"
+        f"{_theme_line}\n\n"
+        f"Creative focus: {_focus_line}\n\n"
         f"Generate ONE cohesive image prompt following the theme and focus above. "
         f"Output format: a single flowing paragraph in Krea2 style — concrete scene description, NOT a comma-separated tag list. "
         f"The `Tags:` line above is scene content reference only (props, environment, action cues). DO NOT copy them as raw Danbooru tags. "
@@ -9596,8 +9600,16 @@ async def _generate_single_prompt(
         f"Use vivid, active English prose. 80-180 words."
     )
 
+    # 用户选定主题 → 只在该主题内裂变，禁止随机换主题
+    if _theme_locked:
+        _lock = (f"\n\n【主题锁定】本轮所有提示词必须围绕「{req.theme}」裂变："
+                 f"只改变镜头、角度、细节、光线、姿势强度，"
+                 f"禁止切换成其他主题、其他场景或其他行为。")
+        if _lock not in system_for_random:
+            system_for_random += _lock
+
     # Apply diversity labels for history
-    final_theme_label = preset["label"]
+    final_theme_label = req.theme if _theme_locked else preset["label"]
 
     for attempt in range(MAX_RETRIES):
         try:
@@ -9622,6 +9634,8 @@ async def _generate_single_prompt(
                     theme_label = preset["label"]
             except Exception:
                 theme_label = preset["label"]
+            if _theme_locked:
+                theme_label = req.theme
 
             # Inject an English identity anchor; never prepend the raw Chinese character text
             if use_character_anchor:
@@ -10657,6 +10671,7 @@ async def _stream_single_random_prompt(
     The caller (StreamingResponse) must NOT further encode this text.
     """
     try:
+        _theme_locked = bool(req.theme and str(req.theme).strip() and req.theme != "完全随机")
         (
             system_for_random,
             user_prompt,
@@ -10672,7 +10687,7 @@ async def _stream_single_random_prompt(
         yield _ndjson_event({
             "event": "start",
             "index": index,
-            "theme": preset["label"],
+            "theme": req.theme if _theme_locked else preset["label"],
             "tags_used": tags_by_category,
             "img2img": getattr(req, "img2img", False),
         })
@@ -10711,6 +10726,8 @@ async def _stream_single_random_prompt(
                         theme_label = preset["label"]
                 except Exception:
                     theme_label = preset["label"]
+                if _theme_locked:
+                    theme_label = req.theme
 
                 if use_character_anchor and character_prompt:
                     result_clean = f"same face, same hair, same body proportions and identity as the provided character reference, {result_clean}"
