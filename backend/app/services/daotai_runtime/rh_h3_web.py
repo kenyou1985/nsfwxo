@@ -112,6 +112,11 @@ UPLOAD_LOCK = threading.Lock()   # 多路并发提交时保护参考图上传缓
 #   mode='plain'  纯注入版：提示词原样进 prompt_node（如 339），不做切分/改写
 #   ref_nodes: 参考图注入节点；delay_nodes: easy sleep 节点；suicide: 自杀 SaveImage 节点
 VIDEO_WFS = {
+    '2117221178451431425': {'name': 'Chain多段拼接·每段30s', 'mode': 'chain_light',
+                            'wf_file': 'wf_json_local/2117221178451431425.json',
+                            'plan_node': '2001', 'duration_node': '132',
+                            'ref_nodes': ['137', '139', '167', '173', '172', '171'],
+                            'suicide': '903', 'delay_nodes': ['901']},
     '2106729712572071938': {'name': '32路并发·动漫文戏二采', 'mode': 'global',
                             'ref_nodes': ['28', '273', '285', '420', '406', '9001', '9002'],
                             'prompt_node': '127', 'delay_nodes': ['438', '441'], 'suicide': '443',
@@ -2517,11 +2522,79 @@ def _normalize_audio(job, path):
 
 
 # ---------- 任务执行 ----------
+
+def _build_chain_plan_light(prompt, cfg, seg_duration=30):
+    text = str(prompt or '')
+    lines = text.split('\n')
+    header, shots, cur = [], [], None
+    for ln in lines:
+        if re.match(r'^\[Shot\s+\d+\]', ln.strip()):
+            if cur is not None:
+                shots.append(cur)
+            cur = [ln]
+        elif cur is not None:
+            cur.append(ln)
+        else:
+            header.append(ln)
+    if cur is not None:
+        shots.append(cur)
+    if not shots:
+        shots = [lines]
+    k = max(1, int(cfg.get('target_segs') or 2))
+    k = min(k, len(shots))
+    per = [len(shots) // k + (1 if i < len(shots) % k else 0) for i in range(k)]
+    out, idx = [], 0
+    for i, cnt in enumerate(per):
+        seg = shots[idx:idx + cnt]; idx += cnt
+        out.append({'id': 'seg_%d' % (i + 1), 'prompt': header + [x for sh in seg for x in sh], 'duration_seconds': seg_duration})
+    return {'shots': out, 'defaults': {}, 'prompt_prefix': ['']}
+
+def _run_chain_light(job):
+    cfg = job.cfg
+    wfc = VIDEO_WFS.get(str(cfg.get('workflow_id') or '')) or {}
+    path = os.path.join(BASE, wfc.get('wf_file') or '')
+    with open(path, 'r', encoding='utf-8') as f:
+        wf = json.load(f)
+    for i, nid in enumerate(wfc.get('ref_nodes') or []):
+        refs = cfg.get('refs') or []
+        if i >= len(refs) or not refs[i]:
+            continue
+        p = refs[i]
+        if p not in job.uploaded:
+            job.uploaded[p] = upload_file(job, p) if os.path.exists(p) else p
+        if nid in wf and 'image' in (wf[nid].get('inputs') or {}):
+            wf[nid]['inputs']['image'] = job.uploaded[p]
+    plan = _build_chain_plan_light(cfg.get('global_prompt') or '', cfg, 30)
+    wf['2001']['inputs']['plan_json'] = json.dumps(plan, ensure_ascii=False)
+    wf['132']['inputs']['value'] = 30
+    if '903' in wf:
+        wf['903']['inputs']['filename_prefix'] = '../x'
+    _emit('Chain: %d 段 plan_json 已注入（含完整 LoRA 链）' % len(plan['shots']))
+    tid = submit(job, ('WF_JSON', wf))
+    _emit('Chain 已提交: %s' % tid)
+    out = poll(job, tid, 1)
+    dest = os.path.join(job.run_dir, '最终视频.mp4')
+    if out:
+        for k, u in enumerate(out):
+            download(u, dest if k == 0 else os.path.join(job.run_dir, 'route_1_%d.mp4' % (k + 1)))
+    if os.path.exists(dest) and os.path.getsize(dest) > 0:
+        job.final_path = dest
+        job.final_url = '/media/%s/最终视频.mp4' % os.path.basename(job.run_dir)
+        job.set_status('finished')
+        _emit('完成: %s' % dest)
+    else:
+        job.set_status('failed')
+        _emit('失败：无返回产物')
+
 def run_job(job):
     _tls.job = job
     try:
         cfg = job.cfg
         mode = cfg.get('mode', 'global')
+        _wfc_c = VIDEO_WFS.get(str(cfg.get('workflow_id') or '')) or {}
+        if _wfc_c.get('mode') == 'chain_light':
+            _run_chain_light(job)
+            return
         if mode == 'seg':
             mode = 'manual'      # 前端历史 bug 遗留值归一为手动
         global_prompt = cfg.get('global_prompt', '')
