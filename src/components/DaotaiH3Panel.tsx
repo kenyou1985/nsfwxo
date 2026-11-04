@@ -4,8 +4,8 @@ import { uploadImage } from '../services/runninghub';
 import { GirlfriendSelector } from './GirlfriendSelector';
 import { PosePresetSelector } from './PosePresetSelector';
 import { EroticCreationPanel, EroticImageRef, EroticDuration, EroticLevel, SupplementaryMode } from './EroticCreationPanel';
-import ThemeLibraryPanel from './ThemeLibraryPanel';
-import { 主题转视频提示词 } from '../data/themeLibrary';
+const ThemeLibraryPanel = React.lazy(() => import('./ThemeLibraryPanel'));
+
 import { extractImageDna, ImageDnaResult } from '../services/promptApi';
 import { compressDataUrlIfNeeded, isHeicDataUrl } from '../utils/imagePreprocess';
 import type { GirlfriendPreset } from '../data/girlfriendPresets';
@@ -473,7 +473,7 @@ export function DaotaiH3Panel({ apiKey, onError, onSuccess, taskListRef, initial
       // 主题库支持 15/30/60/120/180s，det16 按段数（≤16）自动切分，时长仅用于提示词节奏
       const d: 15 | 30 | 60 | 120 | 180 = themeDuration;
       for (let i = 0; i < themes.length; i++) {
-        const promptText = 主题转视频提示词(themes[i], d);
+        const promptText = (await import('../data/themeLibrary')).主题转视频提示词(themes[i], d);
         onSuccess(`主题「${themes[i].title}」开始生成（${i + 1}/${themes.length}）`);
         await runSubmit(promptText, refList);
         // det16 任务逐个提交，避免同一时刻并发过多
@@ -761,11 +761,13 @@ export function DaotaiH3Panel({ apiKey, onError, onSuccess, taskListRef, initial
             从主题生成 H3 提示词 → 应用填词 / 生成直接提交 det16
           </span>
         </h3>
+        <React.Suspense fallback={<div className="text-xs text-text-tertiary py-2">主题库加载中…</div>}>
         <ThemeLibraryPanel
           on应用提示词={(p) => setPrompt(p)}
           on批量生成={handleThemeGenerate}
           multiRefMode={false}
         />
+        </React.Suspense>
       </div>
     </div>
   );

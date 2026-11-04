@@ -23,13 +23,12 @@ import type { NodeInfo } from '../types';
 import type { GirlfriendPreset } from '../data/girlfriendPresets';
 import { PosePresetSelector } from '../components/PosePresetSelector';
 import { RunningHubModelPicker } from '../components/RunningHubModelPicker';
-import ThemeLibraryPanel from '../components/ThemeLibraryPanel';
-import { THEME_LIBRARY, THEME_CATEGORIES, 主题转视频提示词 } from '../data/themeLibrary';
+const ThemeLibraryPanel = React.lazy(() => import('../components/ThemeLibraryPanel'));
 import type { ThemeEntry } from '../data/themeLibrary';
 import type { RunningHubModelEntry } from '../services/runninghubModelsService';
 import { DaotaiH3Panel } from '../components/DaotaiH3Panel';
 import { DAOTAI_WORKFLOWS, getDefaultDaotaiWorkflow, setDefaultDaotaiWorkflow } from '../utils/daotaiWorkflow';
-import { MiniMaxLongVideoV2Page } from './MiniMaxLongVideoV2Page';
+const MiniMaxLongVideoV2Page = React.lazy(() => import('./MiniMaxLongVideoV2Page').then(m => ({ default: m.MiniMaxLongVideoV2Page })));
 import { generateH3Prompt } from '../services/h3PromptService';
 import { resolveImageRef } from '../services/imageCacheService';
 import { ImageDnaPanel } from '../components/ImageDnaPanel';
@@ -1331,7 +1330,7 @@ function MiniMaxH3Panel({
     onBatchProgress?.({ current: 0, total: themes.length });
     for (let i = 0; i < themes.length; i++) {
       const theme = themes[i];
-      const prompt = 主题转视频提示词(theme, duration);
+      const prompt = (await import('../data/themeLibrary')).主题转视频提示词(theme, duration);
       const nodeList = buildMiniMaxNodeListWithPrompt(prompt);
       const preview = mmImages[0]?.preview || '';
       taskListRef.current?.submitTask(prompt, mmImages[0]?.path, preview, nodeList, WORKFLOW.MINIMAX_H3);
@@ -1601,7 +1600,7 @@ function MiniMaxH3Panel({
             <Layers size={16} className="text-violet-500" />
             <span className="text-sm font-semibold text-text-primary">主题库</span>
             <span className="px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 text-[10px] font-medium">
-              {THEME_LIBRARY.length} 个专业主题
+              470 个专业主题
             </span>
             {themeBatchProgress && (
               <span className="px-1.5 py-0.5 rounded-full bg-violet-600 text-white text-[10px] font-medium animate-pulse">
@@ -1614,10 +1613,12 @@ function MiniMaxH3Panel({
           </div>
         </div>
         <div className="px-4 pb-4 pt-2">
-          <ThemeLibraryPanel
-            on应用提示词={(提示词) => { setMmPrompt(提示词); onSuccess?.('已应用主题提示词'); }}
-            on批量生成={handleThemeBatchGenerate}
-          />
+          <React.Suspense fallback={<div className="text-xs text-text-tertiary py-3">主题库加载中…</div>}>
+            <ThemeLibraryPanel
+              on应用提示词={(提示词) => { setMmPrompt(提示词); onSuccess?.('已应用主题提示词'); }}
+              on批量生成={handleThemeBatchGenerate}
+            />
+          </React.Suspense>
         </div>
       </div>
 
@@ -1870,7 +1871,7 @@ function MiniMaxH3T2VPanel({
     onBatchProgress?.({ current: 0, total: themes.length });
     for (let i = 0; i < themes.length; i++) {
       const theme = themes[i];
-      const prompt = 主题转视频提示词(theme, duration);
+      const prompt = (await import('../data/themeLibrary')).主题转视频提示词(theme, duration);
       const nodeList = buildNodeListWithPrompt(prompt);
       taskListRef.current?.submitTask(prompt, '', '', nodeList, WORKFLOW.MINIMAX_H3_T2V);
       setThemeBatchProgress({ current: i + 1, total: themes.length });
@@ -1904,8 +1905,9 @@ function MiniMaxH3T2VPanel({
   };
 
   // 单独填入：收到多个主题，初始化标签切换状态，默认显示第一个主题提示词
-  const handleTheme单独填入 = useCallback((themes: ThemeEntry[], duration: 15 | 30 | 60 | 120 | 180) => {
-    const prompts = themes.map(t => 主题转视频提示词(t, duration));
+  const handleTheme单独填入 = useCallback(async (themes: ThemeEntry[], duration: 15 | 30 | 60 | 120 | 180) => {
+    const mod = await import('../data/themeLibrary');
+    const prompts = themes.map(t => mod.主题转视频提示词(t, duration));
     setMh3ThemeTabs(themes);
     setMh3ThemeTabIndex(0);
     setMh3ThemePrompts(prompts);
@@ -1979,7 +1981,7 @@ function MiniMaxH3T2VPanel({
                 <span className="text-[10px] text-amber-600 font-semibold">主题：</span>
                 {mh3ThemeTabs.map((theme, idx) => {
                   const isActive = idx === mh3ThemeTabIndex;
-                  const catDef = THEME_CATEGORIES.find(c => c.key === theme.category);
+                  const catDef = { label: theme.category };
                   return (
                     <button
                       key={theme.id}
@@ -1993,7 +1995,7 @@ function MiniMaxH3T2VPanel({
                     >
                       {theme.title.length > 6 ? theme.title.slice(0, 6) + '…' : theme.title}
                       {catDef && (
-                        <span className="ml-1 text-[9px] opacity-80">{catDef.japanese[0]}</span>
+                        <span className="ml-1 text-[9px] opacity-80">{theme.category?.[0] || ''}</span>
                       )}
                     </button>
                   );
@@ -2049,7 +2051,7 @@ function MiniMaxH3T2VPanel({
             <Layers size={16} className="text-violet-500" />
             <span className="text-sm font-semibold text-text-primary">主题库</span>
             <span className="px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 text-[10px] font-medium">
-              {THEME_LIBRARY.length} 个专业主题
+              470 个专业主题
             </span>
             {themeBatchProgress && (
               <span className="px-1.5 py-0.5 rounded-full bg-violet-600 text-white text-[10px] font-medium animate-pulse">
@@ -2062,18 +2064,20 @@ function MiniMaxH3T2VPanel({
           </div>
         </div>
         <div className="px-4 pb-4 pt-2">
-          <ThemeLibraryPanel
-            on应用提示词={(提示词) => {
-              // 单个主题应用：直接填入，清空主题标签状态
-              setMh3ThemeTabs([]);
-              setMh3ThemeTabIndex(0);
-              setMh3ThemePrompts([]);
-              setMh3Prompt(提示词);
-              onSuccess?.('已应用主题提示词');
-            }}
-            on批量生成={handleThemeBatchGenerate}
-            on单独填入={handleTheme单独填入}
-          />
+          <React.Suspense fallback={<div className="text-xs text-text-tertiary py-3">主题库加载中…</div>}>
+            <ThemeLibraryPanel
+              on应用提示词={(提示词) => {
+                // 单个主题应用：直接填入，清空主题标签状态
+                setMh3ThemeTabs([]);
+                setMh3ThemeTabIndex(0);
+                setMh3ThemePrompts([]);
+                setMh3Prompt(提示词);
+                onSuccess?.('已应用主题提示词');
+              }}
+              on批量生成={handleThemeBatchGenerate}
+              on单独填入={handleTheme单独填入}
+            />
+          </React.Suspense>
         </div>
       </div>
 
@@ -3034,6 +3038,7 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
 
       {/* MiniMax 长视频 V2 UI */}
       {videoModel === 'minimaxlongv2' && (
+        <React.Suspense fallback={<div className="p-6 text-xs text-text-tertiary">长视频工作台加载中…</div>}>
         <MiniMaxLongVideoV2Page
           apiKey={apiKey}
           onError={onError}
@@ -3042,6 +3047,7 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
           initialPrompt={nlInitialPrompt}
           submitTask={sharedSubmitTask}
         />
+        </React.Suspense>
       )}
 
 

@@ -7,7 +7,7 @@ import type { NodeInfo } from '../types';
 import type { GirlfriendPreset } from '../data/girlfriendPresets';
 import { GirlfriendSelector } from '../components/GirlfriendSelector';
 import { PosePresetSelector } from '../components/PosePresetSelector';
-import ThemeLibraryPanel from '../components/ThemeLibraryPanel';
+const ThemeLibraryPanel = React.lazy(() => import('../components/ThemeLibraryPanel'));
 import { THEME_LIBRARY, 主题转视频提示词 } from '../data/themeLibrary';
 import type { ThemeEntry } from '../data/themeLibrary';
 import { RunningHubModelPicker } from '../components/RunningHubModelPicker';
@@ -1041,6 +1041,7 @@ export function MiniMaxLongVideoV2Page({
       </div>
 
       {/* 主题库批量生成 */}
+      <React.Suspense fallback={<div className="text-xs text-text-tertiary py-2">主题库加载中…</div>}>
       <ThemeLibraryPanel
         on应用提示词={(提示词) => {
           // 去掉 subject_definitions / overall_soundscape / non_diegetic_music 段落
@@ -1055,6 +1056,7 @@ export function MiniMaxLongVideoV2Page({
         }}
         on批量生成={handleThemeBatchGenerate}
       />
+      </React.Suspense>
     </div>
   );
 }
