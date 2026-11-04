@@ -1,3 +1,4 @@
+import { getDefaultDaotaiWorkflow } from '../utils/daotaiWorkflow';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertCircle, Check, Clapperboard, Loader2, Maximize2, Video } from 'lucide-react';
 import { uploadImage } from '../services/runninghub';
@@ -207,7 +208,7 @@ export function OneClickProduce({ panels, images, h3Prompts, apiKey, themeTitle,
           const res = await withTimeout(submitDaotaiVideo(apiKey, prompt, {
             firstFrameUrl,
             media: [{ type: 'reference_image', url: firstFrameUrl }],
-            workflow_id: WORKFLOW_DET16,
+            workflow_id: getDefaultDaotaiWorkflow(),
             target_segs: 2,
             no_llm: true,
             use_bridge: false,

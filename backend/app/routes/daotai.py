@@ -185,10 +185,11 @@ async def submit_video(request: Request):
             'media': _media,
             'workflow_id': str(body.get('workflow_id') or '2110330160000516098'),
             'target_segs': int(body.get('target_segs') or 2),
-            'duration': int(body.get('duration') or 15),
-            'resolution': float(body.get('resolution') or 0.4),
+            'duration': int(body.get('duration') or (30 if str(body.get('workflow_id')) == '2117221178451431425' else 15)),
+            'resolution': float(body.get('resolution') or 0.3),
             'shots_per_segment': int(body.get('shots_per_seg') or 1),
-            'generate_audio': False,
+            'loop_routes': max(1, int(body.get('loop_routes') or 1)),
+            'generate_audio': True,
         }
         try:
             _req = urllib.request.Request(
@@ -230,7 +231,7 @@ async def submit_video(request: Request):
     prompt = _normalize_shot_marks(prompt)
     # det16 工作流：500 需要完整全局提示词（画布按 503 目标段数确定性切分，forLoop 合并），
     # shots_per_seg 对 det16 无意义，裁剪会丢剧情 → 仅非 det16 走裁剪
-    if rh.VIDEO_WFS.get(_wfid, {}).get('mode') != 'det16':
+    if rh.VIDEO_WFS.get(_wfid, {}).get('mode') not in ('det16', 'h3_chain', 'chain', 'chain_light'):
         prompt = _clip_shots(prompt, shots_per_seg)
 
     # 参数锁定：开启时跟随导演台参数

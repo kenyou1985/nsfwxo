@@ -135,7 +135,7 @@ export interface EroticPromptCardProps {
 
 
 // 情色创作生成的 H3 提示词缺少说话人标签与 speaker_mapping → 统一补齐，避免火星语。
-const _MALE_CMD = /(?:不要出声|乖乖听话|乖乖含住|乖乖坐上去|夹紧|张嘴|别动|站好|继续含|含住|含深|转过来|腿抬好|别停|坐上去|我操死你|操死你|小骚货|骚货)/;
+const _MALE_CMD = /(?:不要出声|不许出声|乖乖听话|乖乖含住|乖乖坐上去|夹紧|张嘴|把嘴张开|跪下|含住|含深|含到底|吞进去|别动|站好|继续含|转过来|腿抬好|别停|坐上去|抬头|看镜头|我操死你|操死你|小骚货|骚货)/;
 const _FEMALE_PLEA = /(?:求求你|放过|不要|疼|轻点|停|别这样|别插|我怕|别碰)/;
 
 /** 一镜一主动作：只保留最后一个“人物+动作”句 + 状态句 + 台词句。 */
@@ -153,10 +153,183 @@ function oneActionShot(line: string): string {
   return `${prefix} ${parts.filter((x, i) => i === last || isState(x) || /<d>/.test(x)).join(' ')}`.trim();
 }
 
+
+/** 逐镜状态：不用 [State] 元标签，直接把状态写成 shot 正文的一句自然语言。 */
+function addShotStateLines(text: string): string {
+  const chunks = text.split(/(?=\[Shot\s+\d+\])/);
+  let female = 'dressed';
+  let male = 'dressed';
+  let inserted = false;
+  return chunks.map((chunk) => {
+    if (!/^\[Shot\s+\d+\]/.test(chunk)) return chunk;
+    const body = chunk;
+    // 性别必须分开判定，避免 “he is fully nude” 把女性也标成全裸
+    const femaleFully = /她[^。]{0,30}(全裸|赤裸|裸体)|<Picture 1>[^.\n]{0,30}(fully nude|completely nude|naked|top naked)|she[^.\n]{0,30}(fully nude|completely nude|naked)|her[^.\n]{0,20}(nude|bare body)|下身(完全)?裸|泳裤[^。]{0,12}(褪|膝弯)|panties[^.]{0,12}(down|knees)|dress[^.]{0,12}ankles/i.test(body);
+    const femalePartial = /乳房[^。]{0,20}(裸露|露出)|上身赤裸|her[^.\n]{0,20}bare breasts|breasts[^.]{0,12}(bare|exposed)|topless|dress[^.]{0,12}(waist|knees|ankles)|skirt[^.]{0,12}(waist|knees)|straps?[^.]{0,12}(down|off)/i.test(body);
+    if (/still (?:fully )?dressed|pants still on|shirt still on|top still on/i.test(body) && !/fully nude/i.test(body)) female = '初始着装';
+    else if (/pants (?:at the|around the) (?:knees|ankles)|shirt (?:at|around) the waist/i.test(body)) female = '半裸';
+    else if (femaleFully) female = '全裸';
+    else if (femalePartial) female = '半裸';
+    const maleFully = /男性[^。]{0,12}全裸|他[^。]{0,12}全裸|男性全裸|<Picture 2>[^.\n]{0,24}(fully nude|completely nude|naked)|(?:fully nude|completely nude|naked)[^.\n]{0,20}<Picture 2>|(?:strips?|stripped|gets?|is)[^.\n]{0,40}until fully nude|\bhe\b[^.\n]{0,20}(fully nude|completely nude|naked)|his[^.\n]{0,15}(erect penis|hard cock)|(?:erect|hard|throbbing)[^.\n]{0,12}(?:penis|cock)/i.test(body);
+    if (maleFully) male = '全裸';
+    // 只有“阴茎插入”才算 intercourse；手指/道具插入不算
+    if (/(?:penis|cock|阴茎)[^.]{0,24}(?:insert|penetrat|enter|插入)|(?:insert|penetrat|插入)[^.]{0,24}(?:penis|cock|阴茎)|inside her vagina|buried[^.]{0,20}(?:cock|penis)|骑乘|后入|传教士|cowgirl|missionary|doggy/i.test(body)) {
+      inserted = true;
+      // 已插入即视为性交状态，避免后续镜头再出现“still dressed”触发重复脱衣
+      female = '全裸';
+      male = '全裸';
+    }
+    if (/口交|深喉|含住[^。]{0,10}阴茎|oral/i.test(body)) {
+      if (female === 'dressed') female = '半裸';
+    }
+    // 只用英文状态句，且每个 shot 只保留一条；中文提示词也统一英文状态，避免中英各一份
+    const state = `Current state at this shot: she is ${female === '全裸' ? 'fully nude' : female === '半裸' ? 'partially nude (topless / lower clothing may remain)' : 'still dressed'}; he is ${male === '全裸' ? 'fully nude' : 'still dressed'}${inserted ? '; intercourse is already in progress' : ''}.`;
+    const cleaned = body
+      .replace(/\[State\][^\n]*\n?/g, '')
+      .replace(/Current state at this shot:[^\n]*\n?/gi, '')
+      .replace(/当前状态：[^\n]*\n?/g, '');
+    return cleaned.replace(/^(\[Shot\s+\d+\]\s*\d{2}:\d{2}\.\d{3}\s*)\n?/, `$1\n${state}\n`);
+  }).join('');
+}
+
+
+/** 插入姿势连续性 + 数量要求 + 高潮潮水特写。
+ * 允许多个姿势，但禁止 A→B→A 来回跳；姿势变化必须是转身/起身即可完成的连贯切换。
+ * <=60s 至少 2 个插入姿势；60-120s 至少 3 个。 */
+function enforcePositionContinuity(text: string): string {
+  const posDefs: Array<[RegExp, string]> = [
+    [/reverse cowgirl/i, 'reverse cowgirl'],
+    [/cowgirl/i, 'cowgirl'],
+    [/missionary/i, 'missionary'],
+    [/doggy|from behind/i, 'doggy'],
+    [/standing/i, 'standing'],
+    [/spoon/i, 'spoon'],
+    [/lotus/i, 'lotus'],
+  ];
+  const chunks = text.split(/(?=\[Shot\s+\d+\])/);
+  // 总时长：取最后一个时间戳
+  const stamps = [...text.matchAll(/\[Shot\s+\d+\]\s*(\d{2}):(\d{2})\.(\d{3})/g)];
+  const totalSec = stamps.length ? Number(stamps[stamps.length - 1][1]) * 60 + Number(stamps[stamps.length - 1][2]) : 120;
+  const needPos = totalSec > 60 ? 3 : 2;
+
+  const insertIdx: number[] = [];
+  const seq: string[] = [];
+  chunks.forEach((c, i) => {
+    if (!/^\[Shot\s+\d+\]/.test(c)) return;
+    if (/插入|penetrat|inside her|buried|impale|fuck/i.test(c)) {
+      insertIdx.push(i);
+      const hit = posDefs.find(([re]) => re.test(c));
+      seq.push(hit ? hit[1] : '');
+    }
+  });
+  // 去 A→B→A：出现过的姿势若与上一个不同但之前出现过，强制保持上一个
+  for (let i = 1; i < seq.length; i++) {
+    if (seq[i] && seq[i] !== seq[i - 1] && seq.slice(0, i).includes(seq[i])) {
+      seq[i] = seq[i - 1];
+    }
+  }
+  // 只有镜头正文明确写“转身/换姿势”才允许改变；否则沿用上一姿势，避免反骑乘里突然写 doggy
+  for (let i = 1; i < seq.length; i++) {
+    const c = chunks[insertIdx[i]] || '';
+    const transition = /reposition|turns? (?:over|around|onto)|switches?|changes? position|moves? (?:into|onto)|起身|转身|翻身|换姿势|改成/i.test(c);
+    if (seq[i] && seq[i] !== seq[i - 1] && !transition) seq[i] = seq[i - 1];
+  }
+  const distinct = [...new Set(seq.filter(Boolean))];
+  const out = [...chunks];
+  insertIdx.forEach((ci, k) => {
+    let c = out[ci];
+    const target = seq[k];
+    if (target) {
+      for (const [re, name] of posDefs) {
+        if (name !== target && re.test(c)) c = c.replace(re, target);
+      }
+      if (!new RegExp(target.replace(' ', '\\s+'), 'i').test(c)) {
+        c = c.replace(/^(\[Shot\s+\d+\]\s*\d{2}:\d{2}\.\d{3}\s*)/, `$1\nShe repositions smoothly into ${target} without breaking the action. `);
+      }
+    }
+    out[ci] = c;
+  });
+  const insertBeforeSoundscape = (chunk: string, sentence: string) => {
+    const idx = chunk.search(/overall_soundscape\s*:/i);
+    if (idx >= 0) return chunk.slice(0, idx) + sentence + '\n' + chunk.slice(idx);
+    return chunk.replace(/\s*$/, ' ' + sentence);
+  };
+  // 潮吹只保留 2 处：中段一次 + 收尾高潮一次，避免每个镜头都喷
+  const shotIdx = out.map((c, i) => (/^\[Shot\s+\d+\]/.test(c) ? i : -1)).filter(i => i >= 0);
+  const orgasmIdx = shotIdx.filter(i => /orgasm|climax|高潮/i.test(out[i]));
+  const picked: number[] = [];
+  if (orgasmIdx.length) {
+    const last = orgasmIdx[orgasmIdx.length - 1];
+    const mid = orgasmIdx.find(i => i !== last && shotIdx.indexOf(i) >= Math.floor(shotIdx.length * 0.35) && shotIdx.indexOf(last) - shotIdx.indexOf(i) >= 3);
+    if (mid !== undefined) picked.push(mid);
+    picked.push(last);
+  } else if (shotIdx.length >= 3) {
+    picked.push(shotIdx[shotIdx.length - 2]);
+  }
+  [...new Set(picked)].slice(0, 2).forEach((i) => {
+    out[i] = insertBeforeSoundscape(out[i], 'A clear jet of squirt sprays from her vulva, captured in an explicit close-up on the gushing fluid.');
+  });
+  return out.join('').replace(/reverse\s+reverse\s+cowgirl/gi, 'reverse cowgirl');
+}
+
+
+/** SM 逻辑：控制扇打次数；锁定第一次进入的孔道，避免肛门/阴道来回跳。 */
+function enforceSmConsistency(text: string): string {
+  const chunks = text.split(/(?=\[Shot\s+\d+\])/);
+  let impact = 0;
+  let orifice = '';
+  const analRe = /\b(anal|anus|肛)\b/i;
+  const vagRe = /\b(vagina|vaginal|阴道)\b/i;
+  return chunks.map((chunk) => {
+    if (!/^\[Shot\s+\d+\]/.test(chunk)) return chunk;
+    let out = chunk;
+    // 扇打/拍打最多 2 次，其余删除
+    const hit = /spank|slap|掌掴|扇脸|拍打[^。]*(臀|脸)|open[- ]palm/i.test(out);
+    if (hit) {
+      impact += 1;
+      if (impact > 2) {
+        out = out.replace(/[^.]*?(spank|slap|掌掴|扇脸|open[- ]palm)[^.]*\./gi, '');
+      }
+    }
+    // 插入镜头必须有身体接触，防止“对着空气抽插”
+    if (/thrust|penetrat|inside her|rear-entry|(?:missionary|cowgirl|doggy)[^.]{0,20}(?:position|pose|riding|fuck)|(?:penis|cock)[^.]{0,30}(?:inside|enter|buried)/i.test(out)) {
+      const hasContact = /(?:penis|cock)[^.\n]{0,60}(?:inside|in her|sheath|buried|stretch)|(?:vagina|anus)[^.\n]{0,40}(?:grip|clench|stretch|around)/i.test(out);
+      if (!hasContact) {
+        const hole = orifice === 'anal' ? 'anus' : 'vagina';
+        const sentence = ` His erect penis stays fully sheathed inside her ${hole}, pelvis flush to pelvis with no visible gap.`;
+        const si = out.search(/overall_soundscape\s*:/i);
+        out = si >= 0 ? out.slice(0, si) + sentence + '\n' + out.slice(si) : out.replace(/\s*$/, sentence);
+      }
+    }
+    // 孔道锁定：第一次 anal 后，后续 vagina 改成 anus；反之亦然
+    if (!orifice && analRe.test(out)) orifice = 'anal';
+    else if (!orifice && vagRe.test(out)) orifice = 'vaginal';
+    if (orifice === 'anal') out = out.replace(/\b(vagina|vaginal)\b/gi, 'anus').replace(/阴道/g, '肛门');
+    if (orifice === 'vaginal') out = out.replace(/\b(anal|anus)\b/gi, 'vagina').replace(/肛门/g, '阴道');
+    return out;
+  }).join('');
+}
+
+
+
+/** SM 道具必须在男主入场后才出现；入场前删除道具句。 */
+function enforcePropGating(text: string): string {
+  const chunks = text.split(/(?=\[Shot\s+\d+\])/);
+  let maleAt = -1;
+  chunks.forEach((c, i) => {
+    if (i === 0 || !/^\[Shot\s+\d+\]/.test(c)) return;
+    if (maleAt < 0 && /<Picture 2>|\bthe man\b|male partner|man enters|he enters/i.test(c)) maleAt = i;
+  });
+  if (maleAt < 1) return text;
+  const propRe = /[^.]*?(nipple clamp|shibari|rope harness|body harness|ball gag|blindfold|spreader bar|leather cuff|wrist cuff)[^.]*\./gi;
+  return chunks.map((c, i) => (i < maleAt ? c.replace(propRe, '') : c)).join('');
+}
+
+
 export function normalizeEroticPrompt(raw: string): string {
   let p = String(raw || '');
   if (!p) return p;
-  p = p.replace(/(?:\(S[12]\):\s*)?<d>([\s\S]*?)<\/d>/g, (m, inner) => {
+  p = p.replace(/(?:\(S[12]\):\s*)?<d>([\s\S]*?)<\/d>/g, (m, inner, offset) => {
     let body = String(inner);
     if (!/^\s*\[/.test(body)) body = `[Chinese] ${body}`;
     // 男性脏话统一成指定台词
@@ -165,8 +338,12 @@ export function normalizeEroticPrompt(raw: string): string {
     // 男命令优先：明确命令词 → S2，即使句子里含“不要”（不要出声/不要动）。
     const isMale = _MALE_CMD.test(txt);
     const isFemale = !isMale && _FEMALE_PLEA.test(txt);
+    // 句前主语优先：他/男性/男人 → S2；她/女性/女人 → S1
+    const before = String(p).slice(Math.max(0, Number(offset) - 30), Number(offset));
+    const subjMale = /(他|男性|男人)[^。！？\n]{0,12}[。：:]?\s*$/.test(before) || /他(?:说|道|命令|低吼|开口|问)/.test(before);
+    const subjFemale = /(她|女性|女人)[^。！？\n]{0,12}[。：:]?\s*$/.test(before) || /她(?:说|道|哀求|哭|开口|问)/.test(before);
     const existing = m.match(/\(S[12]\)/)?.[0];
-    const who = isMale ? 'S2' : isFemale ? 'S1' : (existing ? existing.slice(1, -1) : 'S1');
+    const who = subjMale ? 'S2' : subjFemale ? 'S1' : isMale ? 'S2' : isFemale ? 'S1' : (existing ? existing.slice(1, -1) : 'S1');
     return `(${who}): <d>${body}</d>`;
   });
   // 一镜一说话人：同一镜头内多句台词只保留一句（优先男命令 S2）
@@ -199,6 +376,63 @@ export function normalizeEroticPrompt(raw: string): string {
     return oneActionShot(s2);
   }).join('\n');
 
+  // 全局台词去重：同一句 <d> 只保留第一次，后续镜头删除，避免重复朗读
+  {
+    const seen = new Set<string>();
+    p = p.split('\n').map((line) => {
+      const mm = line.match(/\(S[12]\):\s*<d>([\s\S]*?)<\/d>/);
+      if (!mm) return line;
+      const key = mm[1].replace(/^\s*\[[^\]]+\]\s*/, '').trim();
+      if (!key) return line;
+      if (seen.has(key)) return line.replace(/\(S[12]\):\s*<d>[\s\S]*?<\/d>/, '').replace(/[ \t]{2,}/g, ' ').trim();
+      seen.add(key);
+      return line;
+    }).join('\n');
+  }
+  // 去掉模板套话与“承接上一镜”字样
+  p = p.replace(/^.*视频总时长[^\n]*分镜[^\n]*$/gm, '');
+  p = p.replace(/^视频采用真实感[^\n]*$/gm, '');
+  p = p.replace(/承接上一镜[^。\n]*[。，,]?/g, '');
+  p = p.replace(/Continuing from the previous shot,?\s*/gi, '');
+  p = p.replace(/Continuing (?:the|from the)[^.]*\.\s*/gi, '');
+  p = p.replace(/^\s*\d{2,3}\s*seconds,\s*\d+\s*shots[^\n]*$/gmi, '');
+  p = p.replace(/\[State\][^\n]*\n?/g, '');
+  // summary 里“only 单一姿势”会直接限制模型，改成允许连贯换位
+  p = p.replace(/Main insertive pose is ([^.]+?) only\./gi, 'Insertive sequence starts in $1, then transitions smoothly into another position with a clear body turn.');
+  p = p.replace(/main insertive pose is ([^.]+?) only/gi, 'insertive sequence starts in $1, then transitions smoothly into another position');
+  p = p.replace(/still only this one position[^.]*\.?/gi, '');
+  p = p.replace(/only this one position[^.]*\.?/gi, '');
+  p = enforcePropGating(p);
+  p = enforceSmConsistency(p);
+  p = enforcePositionContinuity(p);
+  // 收尾必须有明确射精：内射 / 颜射 / 口爆 / 臀部射精，四选一
+  {
+    const chunks = p.split(/(?=\[Shot\s+\d+\])/);
+    let lastShot = -1;
+    for (let i = 0; i < chunks.length; i++) if (/^\[Shot\s+\d+\]/.test(chunks[i])) lastShot = i;
+    if (lastShot >= 0) {
+      const hasCum = /creampie|facial|ejaculat|射精|颜射|口爆|体内射精|臀部射精|cumshot/i.test(chunks[lastShot]);
+      if (!hasCum) {
+        const body = chunks[lastShot];
+        const ending = /mouth|oral|throat|口|嘴/i.test(body)
+          ? ' He ejaculates thick semen into her open mouth and across her lips for the only cumshot of the film.'
+          : /vagina|inside her|penetrat/i.test(body)
+            ? ' He ejaculates deep inside her vagina for the only creampie of the film, thick semen overflowing the junction.'
+            : ' He ejaculates thick semen onto her buttocks for the only visible cumshot of the film.';
+        const _i = body.search(/overall_soundscape\s*:/i);
+        chunks[lastShot] = _i >= 0 ? body.slice(0, _i) + ending + '\n' + body.slice(_i) : body.replace(/\s*$/, ending);
+      }
+    }
+    p = chunks.join('');
+  }
+  p = addShotStateLines(p);
+
+  // 主体定义统一：若只有 <Picture 1> 没有 <Subject 1>，补成 <Subject 1> 是 <Picture 1>
+  if (/^subject_definitions\s*:/m.test(p) && !/<Subject\s+1>/.test(p)) {
+    p = p.replace(/^<Picture\s+1>\s*是/m, '<Subject 1> 是 <Picture 1>');
+  }
+  // speaker_mapping 统一为 S1/S2，避免中文键导致配音错位
+  p = p.replace(/speaker_mapping\s*:\s*\{[^}]*\}/, 'speaker_mapping: {"S1":"Chinese (Mandarin)_Adult_Female_Soft","S2":"Chinese (Mandarin)_Adult_Male_Low"}');
   if (!/^speaker_mapping\s*:/m.test(p)) {
     p = `${p.trimEnd()}\n\nspeaker_mapping: {"S1":"Chinese (Mandarin)_Adult_Female_Soft","S2":"Chinese (Mandarin)_Adult_Male_Low"}`;
   }
@@ -539,6 +773,7 @@ export interface EroticCreationPanelProps {
   onSendToLongVideoV2?: (prompt: string) => void;
   /** 「自定义主题」Skill 触发后，把用户输入的完整主题写回父页面的 prompt 输入框（可选） */
   onSetPrompt?: (prompt: string) => void;
+  onPromptsChange?: (prompts: string[]) => void;
 
   // ── 错误/成功反馈 ──────────────────────────────────────────────────────────
   onError: (msg: string) => void;
@@ -590,6 +825,7 @@ export function EroticCreationPanel({
   onSendToLongVideo,
   onSendToLongVideoV2,
   onSetPrompt,
+  onPromptsChange,
   onError,
   onSuccess,
   panelName = 'Erotic',
@@ -598,6 +834,10 @@ export function EroticCreationPanel({
   // ── 内部状态：分析中、结果列表 ────────────────────────────────────────────
   const [eroticAnalyzing, setEroticAnalyzing] = useState(false);
   const [eroticPrompts, setEroticPrompts] = useState<string[]>([]);
+  useEffect(() => {
+    const list = eroticPrompts.filter(p => p && !p.startsWith('[生成失败'));
+    if (list.length) onPromptsChange?.(list);
+  }, [eroticPrompts, onPromptsChange]);
   // ── 自定义主题文本 + 当前激活的 Skill ID ─────────────────────────────────
   const [customThemeText, setCustomThemeText] = useState<string>('');
   const [activeSkillId, setActiveSkillId] = useState<string | null>(null);
@@ -858,8 +1098,9 @@ export function EroticCreationPanel({
         </button>
       </div>
 
-      {eroticMode && (
+      {(eroticMode || eroticPrompts.length > 0) && (
         <div className="space-y-3 px-3 pb-3">
+          <div className={eroticMode ? 'space-y-3' : 'hidden'}>
           {/* ── 创作方向（3 个） ─────────────────────────────────────── */}
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[10px] text-text-tertiary flex-shrink-0 inline-flex items-center gap-1">
@@ -1063,7 +1304,8 @@ export function EroticCreationPanel({
             onAssetToRef={onAssetToRef}
           />
 
-          {/* ── 结果展示区 ──────────────────────────────────────────── */}
+          </div>
+          {/* ── 结果展示区（关闭情色模式后仍保留） ──────────────────── */}
           {eroticPrompts.length > 0 && (
             <div className="pt-3 border-t border-pink-200/40">
               <div className="flex items-center justify-between mb-2">

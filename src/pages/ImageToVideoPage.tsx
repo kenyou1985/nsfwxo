@@ -28,6 +28,7 @@ import { THEME_LIBRARY, THEME_CATEGORIES, 主题转视频提示词 } from '../da
 import type { ThemeEntry } from '../data/themeLibrary';
 import type { RunningHubModelEntry } from '../services/runninghubModelsService';
 import { DaotaiH3Panel } from '../components/DaotaiH3Panel';
+import { DAOTAI_WORKFLOWS, getDefaultDaotaiWorkflow, setDefaultDaotaiWorkflow } from '../utils/daotaiWorkflow';
 import { MiniMaxLongVideoV2Page } from './MiniMaxLongVideoV2Page';
 import { generateH3Prompt } from '../services/h3PromptService';
 import { resolveImageRef } from '../services/imageCacheService';
@@ -2129,6 +2130,9 @@ type VideoModel = 'minimaxlongv2' | 'daotai-h3';
 export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPageProps) {
   // Model selector（默认导演台 H3 (det16)）
   const [videoModel, setVideoModel] = useState<VideoModel>('daotai-h3');
+  // 导演台工作流切换 + 默认锚定（持久化到 localStorage）
+  const [daotaiWorkflow, setDaotaiWorkflow] = useState<string>(() => getDefaultDaotaiWorkflow());
+  const [defaultDaotaiWorkflow, setDefaultDaotaiWorkflowState] = useState<string>(() => getDefaultDaotaiWorkflow());
 
   // 长视频 v1.1 初始参考图（从历史记录跳转时设置，由 NinfiniteLongVideoPage 一次性消费）
   const [nlInitialImage, setNlInitialImage] = useState<{ path: string; preview: string } | null>(null);
@@ -2990,11 +2994,35 @@ export function ImageToVideoPage({ apiKey, onError, onSuccess }: ImageToVideoPag
             </button>
           </div>
         </div>
+        {videoModel === 'daotai-h3' && (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {DAOTAI_WORKFLOWS.map(w => (
+              <button
+                key={w.id}
+                onClick={() => setDaotaiWorkflow(w.id)}
+                className={`px-3 py-1.5 rounded-lg text-xs border transition-all ${
+                  daotaiWorkflow === w.id
+                    ? 'border-fuchsia-500 bg-fuchsia-500/10 text-fuchsia-600'
+                    : 'border-border text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                {w.label}
+                {defaultDaotaiWorkflow === w.id && <span className="ml-1 text-[10px]">默认</span>}
+              </button>
+            ))}
+            <button
+              onClick={() => { setDefaultDaotaiWorkflowState(daotaiWorkflow); setDefaultDaotaiWorkflow(daotaiWorkflow as any); onSuccess?.('已设为默认导演台工作流'); }}
+              className="px-3 py-1.5 rounded-lg text-xs border border-amber-400 text-amber-600 hover:bg-amber-500/10"
+            >★ 设为默认</button>
+            <span className="text-[11px] text-text-secondary">所有导演台生视频任务将使用默认工作流</span>
+          </div>
+        )}
       </div>
 
       {/* 导演台 H3 (det16) — 本地 /api/daotai，任务挂载顶部任务列表 */}
       {videoModel === 'daotai-h3' && (
         <DaotaiH3Panel
+          workflowId={daotaiWorkflow}
           apiKey={apiKey}
           onError={onError}
           onSuccess={onSuccess}

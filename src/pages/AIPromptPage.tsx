@@ -1,3 +1,4 @@
+import { getDefaultDaotaiWorkflow } from '../utils/daotaiWorkflow';
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { extractVideoPromptFromImagePrompt } from '../utils/videoPromptExtractor';
 import { normalizeKrea2Prompt } from '../utils/krea2Prompt';
@@ -2474,7 +2475,7 @@ function ExpandMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         firstFrameUrl: image,
         // firstFrameUrl 已经是 Picture 1；media 只放额外参考图，避免后端把同一张图重复算成 refs=3
         media: extraAnchorImages.map((u) => ({ type: 'reference_image', url: u })),
-        workflow_id: '2110330160000516098',
+        workflow_id: getDefaultDaotaiWorkflow(),
         duration: 15,
         resolution: videoClarity,
         aspect_ratio: '9:16',
@@ -4063,7 +4064,7 @@ function RandomMode({ onError, onSuccess, loading, setLoading, r18Mode, taskMana
         prompt: h3,
         firstFrameUrl: image,
         media: [{ type: 'reference_image', url: image }],
-        workflow_id: '2110330160000516098',
+        workflow_id: getDefaultDaotaiWorkflow(),
         duration: 15,
         resolution: videoClarity,
         aspect_ratio: '9:16',

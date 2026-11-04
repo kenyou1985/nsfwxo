@@ -16,7 +16,8 @@ import type { ThemeEntry } from '../data/themeLibrary';
 // 生视频能力。提交走 nsfwxo 后端 /api/daotai 同源代理（8765 停用也能独立运行），
 // 任务挂载到页面顶部 VideoTaskList（localStorage 持久化，刷新后继续轮询），
 // 产物为本地视频 URL。
-const DAOTAI_WORKFLOW_ID = '2110330160000516098';
+import { getDefaultDaotaiWorkflow, daotaiWorkflowMeta } from '../utils/daotaiWorkflow';
+import { H3PromptEditor } from './H3PromptEditor';
 
 interface DaotaiRefImage {
   path: string; // RunningHub 平台文件引用
@@ -36,6 +37,7 @@ interface DaotaiH3PanelProps {
   /** 从 GPT Image2 / 历史记录导入的图片，自动填入 ref_image_0 */
   initialImage?: { path: string; url?: string } | null;
   initialPrompt?: string;
+  workflowId?: string;
 }
 
 const DURATION_OPTIONS = [
@@ -63,11 +65,44 @@ const ASPECT_RATIO_OPTIONS = [
   { value: 'match', label: '跟随参考图' },
 ];
 
-const MAX_REFS = 5; // det16 ref_nodes = 5
+// MAX_REFS 由 workflowId 决定（det16=5 / Chain=6）
 
-export function DaotaiH3Panel({ apiKey, onError, onSuccess, taskListRef, initialImage, initialPrompt }: DaotaiH3PanelProps) {
+
+function sanitizeRefTags(text: string, refCount: number): string {
+  if (refCount >= 2) {
+    // 双参考图：强制女=Picture1、男=Picture2，防止性别/参考槽互换生成双男
+    return text
+      .replace(/<Subject\s+1>[^\n]{0,40}@Man/g, '<Subject 1> is @Woman')
+      .replace(/(<Subject\s+2>[^\n]{0,60}?)<Picture\s+1>/gi, '$1<Picture 2>');
+  }
+  return text
+    .replace(/<Subject\s+2>\s*is\s*@Man\s*<Picture\s+2>/gi, '<Subject 2> is @Man (not in the reference image)')
+    .replace(/<Picture\s+2>/g, '<Subject 2>');
+}
+
+export function DaotaiH3Panel({ apiKey, onError, onSuccess, taskListRef, initialImage, initialPrompt, workflowId }: DaotaiH3PanelProps) {
   // 5 固定槽参考图（与导演台一致；槽位索引与数字人锚定对齐）
+  const activeWorkflowId = workflowId || getDefaultDaotaiWorkflow();
+  const wfMeta = daotaiWorkflowMeta(activeWorkflowId);
+  const MAX_REFS = wfMeta.maxRefs;
   const [refs, setRefs] = useState<(DaotaiRefImage | null)[]>(Array(MAX_REFS).fill(null));
+  useEffect(() => {
+    if (activeWorkflowId === '2117221178451431425') {
+      setDuration(30);
+      setTargetSegs('2');
+      setLoopRoutes(1);
+    } else {
+      setDuration(15);
+      setTargetSegs('4');
+    }
+  }, [activeWorkflowId]);
+  useEffect(() => {
+    setRefs(prev => {
+      const next = Array(MAX_REFS).fill(null) as (DaotaiRefImage | null)[];
+      for (let i = 0; i < Math.min(prev.length, MAX_REFS); i++) next[i] = prev[i];
+      return next;
+    });
+  }, [MAX_REFS]);
   useEffect(() => {
     if (!initialImage?.path) return;
     setRefs(prev => {
@@ -83,6 +118,8 @@ export function DaotaiH3Panel({ apiKey, onError, onSuccess, taskListRef, initial
   }, [initialPrompt]);
   const [uploadingSlot, setUploadingSlot] = useState<number | null>(null);
   const [prompt, setPrompt] = useState('');
+  const [promptTabs, setPromptTabs] = useState<string[]>([]);
+  const [activePromptTab, setActivePromptTab] = useState(0);
   const [duration, setDuration] = useState(15);
   const [shotsPerSeg, setShotsPerSeg] = useState(1);
   const [targetSegs, setTargetSegs] = useState('4');
@@ -250,33 +287,51 @@ export function DaotaiH3Panel({ apiKey, onError, onSuccess, taskListRef, initial
 
     let cancelled = false;
     const doExtract = async () => {
-      const firstImage = uploaded[0];
       setDnaLoading(true);
       setDnaError(null);
       setImageDna(null);
       try {
-        let imageDataUrl = firstImage.url;
-        if (imageDataUrl.startsWith('blob:') || imageDataUrl.startsWith('http')) {
-          try {
-            const resp = await fetch(imageDataUrl);
-            const blob = await resp.blob();
-            imageDataUrl = await new Promise<string>((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onload = () => resolve(reader.result as string);
-              reader.onerror = reject;
-              reader.readAsDataURL(blob);
-            });
-          } catch { /* use original path */ }
+        // 逐张提取 DNA（最多 6 张），再合并；第二张起也会参与服装/场景/动作提取
+        const toDataUrl = async (url: string) => {
+          let dataUrl = url;
+          if (dataUrl.startsWith('blob:') || dataUrl.startsWith('http')) {
+            try {
+              const resp = await fetch(dataUrl);
+              const blob = await resp.blob();
+              dataUrl = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result as string);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+              });
+            } catch { /* use original */ }
+          }
+          dataUrl = await compressDataUrlIfNeeded(dataUrl);
+          if (isHeicDataUrl(dataUrl)) throw new Error('检测到 HEIC/HEIF 格式图片，请转换为 JPEG 后重新上传');
+          return dataUrl;
+        };
+        const results = await Promise.allSettled(
+          uploaded.slice(0, 6).map(async (r) => extractImageDna(await toDataUrl(r.url)))
+        );
+        const ok = results.filter((x): x is PromiseFulfilledResult<ImageDnaResult> => x.status === 'fulfilled').map((x) => x.value);
+        if (!ok.length) {
+          const firstErr = results.find((x) => x.status === 'rejected') as PromiseRejectedResult | undefined;
+          throw (firstErr?.reason || new Error('DNA 提取失败'));
+        }
+        const merged: ImageDnaResult = { ...ok[0] };
+        const extra = ok.slice(1);
+        if (extra.length) {
+          const descriptions = [merged.character_description, ...extra.map((x) => x.character_description)].filter(Boolean);
+          merged.character_description = [...new Set(descriptions)].join(' | ');
+          const clothes = [merged.clothing_list, ...extra.map((x) => x.clothing_list)].flat().filter(Boolean);
+          const seen = new Set<string>();
+          merged.clothing_list = clothes.filter((c) => { const k = `${c.name}|${c.color}|${c.type}`; if (seen.has(k)) return false; seen.add(k); return true; });
+          const actions = [merged.action_prediction, ...extra.map((x) => x.action_prediction)].filter(Boolean);
+          merged.action_prediction = [...new Set(actions)].join('；');
+          if (!merged.scene_description) merged.scene_description = extra.find((x) => x.scene_description)?.scene_description || '';
         }
         if (cancelled) return;
-        imageDataUrl = await compressDataUrlIfNeeded(imageDataUrl);
-        if (isHeicDataUrl(imageDataUrl)) {
-          throw new Error('检测到 HEIC/HEIF 格式图片，请转换为 JPEG 后重新上传');
-        }
-        if (cancelled) return;
-        const result = await extractImageDna(imageDataUrl);
-        if (cancelled) return;
-        setImageDna(result);
+        setImageDna(merged);
       } catch (err) {
         if (cancelled) return;
         setDnaError(err instanceof Error ? err.message : 'DNA 提取失败');
@@ -339,7 +394,7 @@ export function DaotaiH3Panel({ apiKey, onError, onSuccess, taskListRef, initial
     async (trimmedPrompt: string, refList: DaotaiRefImage[]) => {
       const segs = targetSegs.trim();
       if (segs && (Number(segs) < 1 || Number(segs) > 16)) {
-        onError('目标段数需在 1-16 之间（det16 工作流）');
+        onError('目标段数需在 1-16 之间');
         return;
       }
       if (!taskListRef?.current?.submitDaotaiTask) {
@@ -356,7 +411,7 @@ export function DaotaiH3Panel({ apiKey, onError, onSuccess, taskListRef, initial
         const body: Record<string, unknown> = {
           prompt: trimmedPrompt,
           media: refList.map((r) => ({ type: 'reference_image', url: r.url })),
-          workflow_id: DAOTAI_WORKFLOW_ID,
+          workflow_id: activeWorkflowId,
           duration,
           resolution,
           aspect_ratio: aspectRatio,
@@ -388,7 +443,7 @@ export function DaotaiH3Panel({ apiKey, onError, onSuccess, taskListRef, initial
       return;
     }
     if (submitting) return;
-    runSubmit(trimmedPrompt, refList);
+    runSubmit(sanitizeRefTags(trimmedPrompt, refList.length), refList);
   }, [prompt, refs, submitting, runSubmit, onError]);
 
   // 创作面板「一键生成」：提示词组装完成 → 写入当前提示词并直接提交
@@ -401,7 +456,7 @@ export function DaotaiH3Panel({ apiKey, onError, onSuccess, taskListRef, initial
         return;
       }
       if (submitting) return;
-      runSubmit(promptText, refList);
+      runSubmit(sanitizeRefTags(promptText, refList.length), refList);
     },
     [refs, submitting, runSubmit, onError],
   );
@@ -446,7 +501,7 @@ export function DaotaiH3Panel({ apiKey, onError, onSuccess, taskListRef, initial
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-medium text-text-primary flex items-center gap-2">
             <ImageIcon size={16} className="text-primary" />
-            参考图（det16 上限 5 张）
+            参考图（上限 {MAX_REFS} 张）
           </h3>
           <span className="text-[10px] text-text-tertiary">
             已选 {uploadedCount}/{MAX_REFS}
@@ -531,7 +586,8 @@ export function DaotaiH3Panel({ apiKey, onError, onSuccess, taskListRef, initial
         dnaError={dnaError}
         onReExtract={() => { setImageDna(null); setDnaError(null); }}
         onInsertClothingAsReference={handleInsertClothingAsReference}
-        onUsePrompt={(promptText: string) => { setPrompt(promptText); }}
+        onUsePrompt={(promptText: string) => { setPrompt(promptText); const _i = promptTabs.indexOf(promptText); if (_i >= 0) setActivePromptTab(_i); }}
+        onPromptsChange={(list) => { setPromptTabs(list); setActivePromptTab(0); }}
         onGenerateVideo={handlePanelGenerate}
         onAssetToRef={handleInsertAssetAsReference}
         onSetPrompt={(p: string) => { setPrompt(p); }}
@@ -566,13 +622,26 @@ export function DaotaiH3Panel({ apiKey, onError, onSuccess, taskListRef, initial
             </button>
           </div>
         </div>
-        <textarea
-          id="h3-video-prompt"
+        {promptTabs.length > 1 && (
+          <div className="flex flex-wrap gap-1 mb-2">
+            {promptTabs.map((t, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => { setActivePromptTab(i); setPrompt(t); }}
+                className={`px-2 py-0.5 rounded text-[10px] border ${activePromptTab === i ? 'bg-primary/20 border-primary/60 text-primary' : 'bg-bg-elevated border-border text-text-secondary hover:text-primary'}`}
+              >
+                提示词 {i + 1}
+              </button>
+            ))}
+          </div>
+        )}
+        <H3PromptEditor
           value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
+          onChange={setPrompt}
           rows={16}
-          placeholder={'支持 Minimax H3 提示词格式，例如：\n[Shot 1] subject_definitions: <Subject 1> is <Picture 1>…\nsummary: …\ndetailed_description with numbered [Shot N] entries…'}
-          className="w-full px-3 py-2 rounded-lg bg-bg-elevated border border-border text-xs text-text-primary placeholder-slate-600 focus:outline-none focus:border-primary/50 resize-y font-mono"
+          refNames={refs.filter(Boolean).map((r, i) => (r as any).name || `参考图${i + 1}`)}
+          refImages={refs.filter(Boolean).map((r, i) => ({ name: (r as any).name || `参考图${i + 1}`, url: (r as any).preview || (r as any).url || '' }))}
         />
         <p className="mt-2 text-[11px] text-text-tertiary">
           提示词中的 [Shot N] 分镜数量决定段内切分；无 [Shot N] 时会自动包裹为单个分镜。
@@ -678,7 +747,7 @@ export function DaotaiH3Panel({ apiKey, onError, onSuccess, taskListRef, initial
           {submitting ? (
             <><Loader2 size={15} className="animate-spin" /> 提交中...</>
           ) : (
-            <><Clapperboard size={15} /> 生成视频（导演台 det16）</>
+            <><Clapperboard size={15} /> 生成视频（{wfMeta.short === 'Chain30s' ? 'Chain 多段拼接' : '导演台 det16'}）</>
           )}
         </button>
       </div>

@@ -7782,9 +7782,10 @@ chains clinking, leather squeaking, ropes creaking, skin slapping (slap on butto
 - 严禁强迫、非自愿、暴力胁迫未成年人
 
 ━━━ OUTPUT FORMAT ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Write a SINGLE COHERENT Chinese paragraph. Narrative beats flow naturally with transition words (随后 / 接着 / 然后 / 最终). No bullet points. No tag lists. No markdown.
-CRITICAL: NEVER use "...." or "..." as sentence separators. Write complete sentences ending with a period.
-End with the standard quality suffix: 动作流畅，60fps，无肢体畸形，正确人体解剖，五指完整，双腿完整，面部特征一致，无抖动，无跳帧，流畅连续动作。""",
+OUTPUT LANGUAGE: English for all six sections (subject_definitions, summary, retention_analysis, detailed_description, overall_soundscape, non_diegetic_music). Only spoken dialogue inside <d>[Chinese] ...</d> may be Chinese.
+In detailed_description, always use <Picture 1> for the woman and <Picture 2> for the man instead of she/her/he/him. Never use third-person pronouns for the two main subjects.
+Write exactly six sections in the H3 order. No bullet points, no tag lists, no markdown.
+CRITICAL: NEVER use "...." or "..." as sentence separators.""",
 }
 
 
@@ -8862,7 +8863,7 @@ non_diegetic_music: N/A
 
     shot_frame_types_str = "、".join(SHOT_FRAME_TYPES)
 
-    return f"""Based on the DNA information extracted from the uploaded reference image, generate {count} creative and cinematic MiniMax H3 video prompts in Chinese.
+    return f"""Based on the DNA information extracted from the uploaded reference image, generate {count} creative and cinematic MiniMax H3 video prompts in ENGLISH.
 {hard_requirement_block}
 ━━━ DNA Reference ━━━━━━━━━━━━━━━━━━━
 - 人物类型: {dna.character_type}
@@ -8878,7 +8879,8 @@ non_diegetic_music: N/A
 
 ━━━ 🔒 姿势与服装状态强制约束（适用于所有 erotic_level）━━━━━━━━━━━━━━━
 【姿势数量与运镜要求】
-  - 一条 60 秒视频最多使用 2-3 种插入姿势，不要每个镜头换姿势。
+  - 60 秒视频至少 2 种插入姿势；120 秒视频至少 3 种插入姿势；姿势切换必须写清转身/起身/换位动作（如站立后入→跪地后入、正面骑乘→背面骑乘、跪姿→传教士），禁止 A→B→A 来回跳。
+  - 口交只允许出现在插入前的前戏或最后收尾；插入开始后禁止再切回口交。若安排口交，必须连续 2-3 个镜头沉浸呈现（含入→深喉→舔舐→吞咽），不要 1 个镜头几秒就切走。
   - 同一姿势要用不同机位/景别连续呈现：全景交代体位 → 中景看身体律动 → 交合处特写 → 面部反应特写。
   - 每个镜头至少 2-3 秒，禁止 1 秒换一个动作；用缓慢推近、环绕、手持轻晃增强沉浸感。
   - 插入动作不要反复写“整根插入/拔出”，多写身体贴合、皮肤颤动、呼吸、眼神和交合处细节。
@@ -8918,6 +8920,28 @@ non_diegetic_music: N/A
   - Shot 4 起（口交/插入/射精）：男性【必须全裸】+ 描写生殖器完全裸露
   - 严禁在 Shot 4 及之后的任何插入/口交/抽插/射精镜头上写「身穿XX衬衫/夹克的男性」
   - 严禁在 Shot 4 及之后写「男性穿着XX服装」
+
+【前戏与场景展示 — 加强】
+  - 120 秒视频前 4-5 个镜头（至少前 25%）只展示女性与场景：健身/拉伸/器械动作、展示臀部与身体曲线、性感姿态、与场景互动的单人镜头；男性在 Shot 4-6 才入场。
+  - 60 秒视频前 2-3 个镜头做同样的单人场景展示，男性不得在第一镜就贴身。
+  - 禁止开场即脱衣或插入；脱衣从男性入场后开始，性交不得早于全片 35%。
+  - 单人展示镜头要具体写场景动作（如深蹲、臀桥、拉伸、走位），不要只写“站着”。
+
+【唯一男主 / 禁止克隆】
+  - 全片只有一个女性 <Picture 1> 和一个男性 <Picture 2>；禁止出现第二个男人、双男、男主克隆。
+  - <Picture 1> 永远是女性主体，<Picture 2> 永远是男性主体，两者不得互换、不得把 <Picture 2> 复用到女性身上。
+  - 任何性行为只能发生在 <Picture 1> 与 <Picture 2> 之间；禁止 <Picture 2> 与另一个男性发生性行为。
+  - 若参考图 1 是女性、参考图 2 是男性，必须严格按此绑定，不能因为服装/场景相似而互换。
+
+【单人展示镜头 — 必须完全着装】
+  - 男性入场前的展示镜头，女性必须完整穿着初始服装；禁止露乳头、乳晕、阴唇、阴蒂、股沟或透视/骆驼趾。
+  - 瑜伽裤/紧身裤只能写“贴合曲线、布料拉伸”，禁止写阴部轮廓、下体暴露、湿痕透出。
+  - 展示动作限定为：深蹲、臀桥、拉伸、走位、摆胯、回眸；不得出现自慰或性暗示器官特写。
+
+【男性入场后的固定节奏】
+  1) 亲吻 → 2) 抚摸胸部与下体 → 3) 脱女性衣服 → 4) 脱男性衣服 → 5) 女给男口交 → 6) 插入。
+  - 口交只允许两次：插入前一次；插入中最多再穿插一次（女给男或男给女），不得反复切回。
+  - 脱衣顺序必须一次完成，禁止每段重新脱衣。
 
 【口交镜头强制细节】
 凡是描写口交/深喉的镜头，必须显式描写：
@@ -9015,7 +9039,14 @@ non_diegetic_music: N/A
 {reference_example}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Now generate the H3 video prompt(s) based on the DNA information above. {"Output ONLY the Chinese prompt(s) separated by =====, " if count > 1 else "Output ONLY the Chinese prompt, "}no explanations, no markdown, no bullet points. Each prompt MUST be in the H3 4-segment template format (subject_definitions / summary / retention_analysis / detailed_description / overall_soundscape)."""
+Now generate the H3 video prompt(s) based on the DNA information above.
+
+CRITICAL OUTPUT LANGUAGE — OVERRIDES EVERY CHINESE EXAMPLE ABOVE:
+- Write ALL six sections in ENGLISH: subject_definitions, summary, retention_analysis, detailed_description, overall_soundscape, non_diegetic_music.
+- The ONLY Chinese allowed is spoken dialogue inside <d>[Chinese] ...</d>.
+- In detailed_description use <Picture 1> for the woman and <Picture 2> for the man. Do NOT use she/her/he/him for the two main subjects.
+- Output ONLY the English prompt(s){" separated by =====, " if count > 1 else ", "}no explanations, no markdown, no bullet points.
+- Each prompt MUST use the six-section H3 template: subject_definitions / summary / retention_analysis / detailed_description / overall_soundscape / non_diegetic_music."""
 
 
 async def _generate_single_h3_prompt(api_key: str, system_prompt: str, user_prompt: str) -> str:

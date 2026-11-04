@@ -21054,9 +21054,24 @@ function 规范化分镜(
 }
 
 export function 主题转视频提示词(主题: ThemeEntry, 时长: 15 | 30 | 60 | 120 | 180): string {
-  const beats = 根据时长生成分镜(主题, 时长);
+  const isLesbianCategory = 主题.category === '女同情欲';
+  const isSoloCategory = 主题.category === '纯展示露出';
+  let beats = 根据时长生成分镜(主题, 时长);
+  if (isSoloCategory || isLesbianCategory) {
+    // 清理分镜里残留的男性动作/男性主体，避免单人/女同主题生成出男性甚至双男画面
+    beats = beats.map(b => ({
+      ...b,
+      prompt: b.prompt
+        .replace(/[，,；;]?[^，。；;]*?<Picture 2>[^，。；;]*/g, '')
+        .replace(/[，,；;]?[^，。；;]*?(男主|男性|阴茎|龟头|射精|男女双方)[^，。；;]*/g, '')
+        .replace(/；?男女双方全裸/g, '')
+        .replace(/；?全员全裸/g, '')
+        .replace(/；?两位女性全裸/g, isLesbianCategory ? '；两位女性全裸' : '；女性全裸'),
+    }));
+  }
   const needNudity = 主题是否需要显式裸体(主题);
-  const needMale = 主题是否需要显式男性主体(主题);
+  // 纯展示/女同主题绝不允许出现男性主体；旧逻辑只按分类判断，导致部分主题仍带“男主/男女双方全裸”
+  let needMale = 主题是否需要显式男性主体(主题) && !isSoloCategory && !isLesbianCategory;
   const 元素 = 提取主题元素(主题);
 
   // 主题本身没给出场景线索时，用分镜地点；与 summary/分镜保持一致

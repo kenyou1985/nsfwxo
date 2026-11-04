@@ -74,6 +74,7 @@ class Job:
         os.makedirs(self.run_dir, exist_ok=True)
         self.status = 'submitting'      # submitting / running / trimming / finished / failed / stopped
         self.segments = {}              # seg -> {status, task_id, file, url, error}
+        self.routes = {}                # Chain 多路状态
         self.logs = []
         self.lock = threading.Lock()
         self.stop_flag = False
@@ -112,11 +113,14 @@ UPLOAD_LOCK = threading.Lock()   # 多路并发提交时保护参考图上传缓
 #   mode='plain'  纯注入版：提示词原样进 prompt_node（如 339），不做切分/改写
 #   ref_nodes: 参考图注入节点；delay_nodes: easy sleep 节点；suicide: 自杀 SaveImage 节点
 VIDEO_WFS = {
-    '2117221178451431425': {'name': 'Chain多段拼接·每段30s', 'mode': 'chain_light',
+    '2117221178451431425': {'name': 'Chain多段拼接·每段30s', 'mode': 'h3_chain',
+                            '_graft_file': os.path.join(BASE, 'wf_json_local/2117221178451431425.json'),
                             'wf_file': 'wf_json_local/2117221178451431425.json',
-                            'plan_node': '2001', 'duration_node': '132',
+                            'plan_node': '2001', 'plan_field': 'plan_json',
+                            'assemble_node': '2009', 'ratio_node': '115', 'output_node': '2009',
+                            'duration_node': '132', 'seg_duration': 30,
                             'ref_nodes': ['137', '139', '167', '173', '172', '171'],
-                            'suicide': '903', 'delay_nodes': ['901']},
+                            'suicide': ['901', '902', '903'], 'delay_nodes': ['901']},
     '2106729712572071938': {'name': '32路并发·动漫文戏二采', 'mode': 'global',
                             'ref_nodes': ['28', '273', '285', '420', '406', '9001', '9002'],
                             'prompt_node': '127', 'delay_nodes': ['438', '441'], 'suicide': '443',
@@ -2586,12 +2590,768 @@ def _run_chain_light(job):
         job.set_status('failed')
         _emit('失败：无返回产物')
 
+        return path
+
+
+# ================= Chain 多段拼接 h3_chain（并列新增；独立提交链，不进入 build_node_info_list） =================
+_CHAIN_SHOT_RE = re.compile(
+    r'(?m)^\s*(?:\[\s*Shot\s*\d+\s*\]|\[\s*shot\s*\d+\s*\]'
+    r'|\[\s*镜头\s*\d+\s*\]|[\[「]镜头\s*\d+\s*[\]」])')
+
+
+def _chain_parse_common_shots(text):
+    """移植 split_shots_to_plan.py：返回 (common_lines, shot_blocks)。
+    common=首个 shot 标记前的非空行（角色定义/音色/声景等全局设定，每段 prompt 头部继承）；
+    shot_blocks=每个标记行到下一标记前的原文块；无标记时按空行段落兜底。"""
+    text = text or ''
+    ms = list(_CHAIN_SHOT_RE.finditer(text))
+    if not ms:
+        paras = [p.strip() for p in re.split(r'\n\s*\n', text) if p.strip()]
+        return [], paras
+    common = [ln for ln in text[:ms[0].start()].split('\n') if ln.strip()]
+    blocks = []
+    for i, m in enumerate(ms):
+        end = ms[i + 1].start() if i + 1 < len(ms) else len(text)
+        b = text[m.start():end].strip()
+        if b:
+            blocks.append(b)
+    return common, blocks
+
+
+def _chain_divmod_sizes(total, k):
+    """前段多、末段兜底的均分长度；total<k 返回 None（无法保证每段≥1，调用方拒绝提交）。"""
+    if k <= 0 or total < k:
+        return None
+    base, rem = divmod(total, k)
+    return [base + (1 if i < rem else 0) for i in range(k)]
+
+
+# ---- Chain 六段式完整继承（2026-11-02 修复：旧逻辑只把首个 [Shot] 之前行当公共部分，
+#      末镜之后的 overall_soundscape / non_diegetic_music / POSITIVE CONSTRAINTS(No extra limbs 等)
+#      只被最后一个 shot 块吸收；前面段与分到不含末段的并发路全部丢失 → 细节/解剖约束缺失。
+#      新逻辑按官方六段式分区，每段重复继承全局 head/tail/audio，仅 detailed_description 分镜体按段替换。） ----
+_CHAIN_DETAIL_HEAD_RE = re.compile(r'(?:detailed_description|详细画面描述|详细分镜描述)\s*[:：]', re.I)
+_CHAIN_AUDIO_HEAD_RE = re.compile(r'(?:overall_soundscape|整体音效|整体声景|soundscape)\s*[:：]', re.I)
+_CHAIN_MUSIC_HEAD_RE = re.compile(
+    r'(?:non_diegetic_music|非叙事音乐|背景音乐|配乐)\s*[:：]', re.I)
+# detailed_description 内最后一个分镜之后、整体声景之前的全局尾段：镜头使用表 + 画质/解剖硬约束。
+# 这些行属于全片通用条件，必须每段继承；不能只挂在最后一个 shot 块里。
+_CHAIN_TAIL_ANCHOR_RE = re.compile(
+    r'(?im)^\s*(?:Shots\s+used|POSITIVE\s+CONSTRAINTS|CONSTRAINTS\s*[:：]|'
+    r'==+\s*(?:AUDIO\s+)?CONSTRAINTS(?:\s*HARD RULES.*?)?\s*==+)')
+
+
+def _chain_split_zone(zone):
+    """分镜区 → (lead, blocks, tail)。
+    lead=首个分镜锚点前的风格/开场设定；blocks=每个锚点到下一锚点的原文块（保留锚点行）；
+    tail=最后一个锚点之后到分镜区结束的全局尾段（Shots used / POSITIVE CONSTRAINTS / No extra limbs 等）。
+    无括号/行首锚点时复用 _split_zone_shots 的时间戳、空行级联，保证 S 与前端 _splitShotsJS 口径对齐。"""
+    pat, _n = _best_shot_pattern(zone)
+    if pat:
+        ms = list(re.finditer(pat, zone))
+        if not ms:
+            return '', [zone.strip()], ''
+        lead = zone[:ms[0].start()].strip()
+        blocks = []
+        for i, m in enumerate(ms):
+            end = ms[i + 1].start() if i + 1 < len(ms) else len(zone)
+            b = zone[m.start():end].strip()
+            if b:
+                blocks.append(b)
+        tail = zone[ms[-1].end():].strip()
+        # 末镜后的“结束后/收尾”叙事段不是全局约束：并入最后一镜，
+        # 否则会被当作 tail 在每段重复（其中台词会重复生成）。
+        if tail and not _CHAIN_TAIL_ANCHOR_RE.search(tail):
+            # 末块本身已包含到 zone 末尾，tail 是它的后缀 → 不能再追加（会重复整段台词）
+            if blocks and not blocks[-1].rstrip().endswith(tail):
+                blocks[-1] = blocks[-1].rstrip() + '\n' + tail
+            tail = ''
+        return lead, blocks, tail
+    shots, _p, lead0 = _split_zone_shots(zone)
+    return (lead0 or '').strip(), [b.strip() for b in shots if b.strip()], ''
+
+
+def _chain_parse_full(text):
+    """整段官方六段式提示词 → 可重复继承的信封 dict：
+    head=subject_definitions/summary/retention_analysis（detailed_description 之前）；
+    lead=detailed_description 内首镜前的开场/风格句；blocks=各分镜块；
+    tail=末镜之后的质量/解剖约束；audio=overall_soundscape 到 non_diegetic_music/speaker_mapping 全块。
+    structured=False 表示缺少 detailed_description 分区头 → 退回旧 common+段落兜底，旧提示词行为不变。"""
+    text = text or ''
+    # 修复：分镜锚点可能出现在 detailed_description 之前（提示词把 Shot 1 写在头部），
+    # 不能让这些 shot 进入每段重复继承的 head（会重复台词）。
+    _first_shot = re.search(r'(?m)^\s*\[\s*(?:Shot|SHOT|分镜|镜头)\s*\d+\s*\]', text)
+    if _first_shot and (not re.search(r'(?im)^\s*detailed_description\s*[:：]', text[:max(0, _first_shot.start())]) if _first_shot.start() > 0 else True):
+        _audio_m = re.search(r'(?im)^\s*(?:overall_soundscape|整体音效|整体声景|soundscape)\s*[:：]', text)
+        _cut = _audio_m.start() if _audio_m else len(text)
+        head = text[:_first_shot.start()].strip()
+        zone = text[_first_shot.start():_cut].strip()
+        _lead, _blocks, _tail = _chain_split_zone(zone)
+        _audio = text[_cut:].strip()
+        head = re.sub(r'\[Shot\s+(\d+)\]', r'(Shot \1)', head, flags=re.I)
+        return {'structured': True, 'head': head, 'lead': _lead, 'blocks': _blocks, 'tail': _tail, 'audio': _audio}
+    head, zone = _extract_desc_zone(text)
+    if not zone:
+        common, blocks = _chain_parse_common_shots(text)
+        return {'structured': False, 'head': '\n'.join(common), 'lead': '',
+                'blocks': blocks, 'tail': '', 'audio': ''}
+    m = _CHAIN_DETAIL_HEAD_RE.search(text)
+    rest = text[m.end():] if m else ''
+    audio_starts = [mm.start() for mm in _CHAIN_AUDIO_HEAD_RE.finditer(rest)]
+    mm = _CHAIN_MUSIC_HEAD_RE.search(rest)
+    if mm:
+        audio_starts.append(mm.start())
+    audio = rest[min(audio_starts):].strip() if audio_starts else ''
+    tail_anchor = _CHAIN_TAIL_ANCHOR_RE.search(zone)
+    if tail_anchor:
+        shot_zone = zone[:tail_anchor.start()]
+        tail = zone[tail_anchor.start():].strip()
+        lead, blocks, _drop = _chain_split_zone(shot_zone)
+    else:
+        lead, blocks, tail = _chain_split_zone(zone)
+    # detailed_description 前置段里的行内 [Shot N]（如 retention_analysis 的 appears in [Shot 1]）
+    # 不参与锚点切分，统一改圆括号，避免后续锚点正则误命中导致块错位。
+    head = re.sub(r'\[Shot\s+(\d+)\]', r'(Shot \1)', head, flags=re.I)
+    head = re.sub(r'\[reference\s+generation\]\s*', '', head, flags=re.I)
+    return {'structured': True, 'head': head.strip(), 'lead': lead,
+            'blocks': blocks, 'tail': tail, 'audio': audio}
+
+
+def _chain_clean_shot(text):
+    """段内分镜块清洗：去掉与 30s 段时长不匹配的绝对时间戳；台词结束标签后断行；
+    只清理时间戳删空后挂在分镜标记后的悬空标点，不重排分镜号、不删描述、不改动正文英文标点。"""
+    if not text:
+        return ''
+    b = text.replace('她', '<Picture 1>').replace('他', '<Picture 2>')
+    b = re.sub(r'承接上一镜[^。\n]*[。，,]?', '', b)
+    b = re.sub(r'Continuing (?:from )?the[^.]*\.\s*', '', b, flags=re.I)
+    b = re.sub(r'Continuing from the previous shot,?\s*', '', b, flags=re.I)
+    b = re.sub(r'At\s*\d{1,2}[:.]\d{2}(?:\.\d+)?', '', b, flags=re.I)
+    b = re.sub(r'(?<=[，,、（(])\s*\d{1,2}[:.]\d{2}(?:\.\d+)?', '', b)
+    b = re.sub(r'(?m)^\s*\d{1,2}[:.]\d{2}(?:\.\d+)?', '', b)
+    b = b.replace('</d>', '</d>\n')
+    out = []
+    for line in b.split('\n'):
+        line = line.rstrip()
+        line = re.sub(r'^(\[(?:Shot|SHOT|分镜|镜头)\s*\d+\])\s*[，,、]?\s*',
+                      r'\1 ', line)
+        line = re.sub(r'[ \t]{2,}', ' ', line).strip()
+        if line:
+            out.append(line)
+    return '\n'.join(out)
+
+
+def _chain_lines_from_text(text):
+    return [ln.rstrip() for ln in (text or '').split('\n') if ln.strip()]
+
+
+def _chain_render_segment(env, seg_blocks):
+    """单段 30s 完整六段式提示词行数组：
+    head（主体定义/概要/保留分析）+ detailed_description 头 + lead + 本段各 shot + tail 约束 + audio 声景配乐。
+    每一段都重复继承全局 head/tail/audio，仅 detailed_description 分镜体按段不同。"""
+    lines = []
+    _head_lines = _chain_lines_from_text(env['head'])
+    try:
+        _all = env.get('blocks') or []
+        _start0 = _all.index(seg_blocks[0]) + 1 if seg_blocks and seg_blocks[0] in _all else 1
+        if _start0 > 1:
+            _joined = '\n'.join(_all[:_start0 - 1])
+            _st = []
+            if re.search(r'(she|her)[^.\n]{0,30}(fully nude|naked)|她[^。]{0,20}(全裸|赤裸)|dress[^.]{0,12}ankles', _joined, re.I):
+                _st.append('she is fully nude')
+            elif re.search(r'bare breasts|topless|dress[^.]{0,12}waist|乳房[^。]{0,12}裸露|straps?[^.]{0,12}down', _joined, re.I):
+                _st.append('she is partially nude (topless, lower clothing may remain)')
+            else:
+                _st.append('she is still dressed')
+            if re.search(r'(he|his)[^.\n]{0,20}(fully nude|naked|erect penis)|(fully nude|naked)[^.\n]{0,20}<Picture 2>|<Picture 2>[^.\n]{0,20}(fully nude|naked)|男性[^。]{0,8}全裸|他[^。]{0,8}全裸', _joined, re.I):
+                _st.append('he is fully nude')
+            else:
+                _st.append('he is still dressed')
+            if re.search(r'(?:penis|cock|阴茎)[^.]{0,24}(?:insert|penetrat|enter|插入)|(?:insert|penetrat|插入)[^.]{0,24}(?:penis|cock|阴茎)|inside her vagina|buried[^.]{0,20}(?:cock|penis)|cowgirl|missionary|doggy|后入|骑乘', _joined, re.I):
+                _st.append('intercourse is already in progress')
+            _new_head = []
+            _skip = False
+            for _ln in _head_lines:
+                if re.match(r'^summary\s*:', _ln, re.I):
+                    _new_head.append('summary:')
+                    _new_head.append('[segment continuation] At the start of this segment: ' + '; '.join(_st) + '. Continue from this exact state; do NOT undress again, do NOT reset the scene, do NOT return to the initial outfit.')
+                    _skip = True
+                    continue
+                if _skip and re.match(r'^retention_analysis\s*:', _ln, re.I):
+                    _skip = False
+                if not _skip and not re.search(r'starts? (?:fully )?dressed|initial (?:outfit|clothing)|开场完整穿着|初始服装', _ln, re.I):
+                    _new_head.append(_ln)
+            _head_lines = _new_head
+    except Exception:
+        pass
+    lines += _head_lines
+    if env.get('structured'):
+        if not any('detailed_description' in x.lower() for x in lines):
+            lines.append('detailed_description:')
+    _lead_lines = [x for x in _chain_lines_from_text(env['lead'])
+                   if not re.search(r'视频总时长|分为\s*\d+\s*个分镜|视频采用真实感|\d+\s*seconds,\s*\d+\s*shots|\d+\s*shots,\s*about', x, re.I)]
+    lines += _lead_lines
+    # 段级连续性锚点：明确本段覆盖第几镜，要求承接上一镜姿势/服装，避免模型重置肢体
+    try:
+        _all = env.get('blocks') or []
+        _start = _all.index(seg_blocks[0]) + 1 if seg_blocks and seg_blocks[0] in _all else 1
+        _end = _start + len(seg_blocks) - 1
+        # 状态已写入每个 Shot 正文，不再插入 [State] 元标签
+    except Exception:
+        pass
+    for b in seg_blocks:
+        lines += _chain_lines_from_text(_chain_clean_shot(b))
+    lines += _chain_lines_from_text(env['tail'])
+    lines += _chain_lines_from_text(env['audio'])
+    return lines
+
+
+def _chain_plan_for_route(env, route_seg_blocks, duration):
+    """把某一路负责的段（每段=若干 shot 块）组成本路 #2001 plan_json 的 dict；
+    plan.shots[*].prompt 行数组形状与历史 demo 保持一致，仅内容变为完整六段式。"""
+    shots = []
+    _seen_dlg = set()
+    for si, seg_blocks in enumerate(route_seg_blocks, 1):
+        prompt = _chain_render_segment(env, seg_blocks)
+        _clean = []
+        for ln in prompt:
+            _ds = re.findall(r'<d>(.*?)</d>', ln, flags=re.S)
+            if _ds and all(x.strip() in _seen_dlg for x in _ds):
+                continue
+            for x in _ds:
+                _seen_dlg.add(x.strip())
+            _clean.append(ln)
+        shots.append({'id': 'seg_%d' % si, 'prompt': _clean,
+                      'duration_seconds': duration})
+    return {'shots': shots, 'defaults': {}, 'prompt_prefix': ['']}
+
+
+
+def _balance_lora(wf, plan_text):
+    """LoRA 自动配平：166+904+905 总强度≤1.0；无器官特写时关闭 905。"""
+    try:
+        nodes = []
+        for nid in ('166', '904', '905'):
+            if nid in wf and isinstance(wf[nid].get('inputs'), dict):
+                nodes.append((nid, float(wf[nid]['inputs'].get('strength_model') or 0)))
+        total = sum(v for _, v in nodes if _ != '905')
+        closeup = bool(re.search(r'特写|close[- ]?up|插入|结合处|器官', plan_text or '', re.I))
+        for nid, val in nodes:
+            if nid == '905':
+                wf[nid]['inputs']['strength_model'] = min(val, 0.2) if closeup else 0.0
+        if total > 1.0:
+            k = 1.0 / total
+            for nid, val in nodes:
+                if nid != '905':
+                    wf[nid]['inputs']['strength_model'] = round(val * k, 3)
+    except Exception:
+        pass
+
+
+def _probe_mp4(path):
+    """只读 ffprobe：返回 (duration_sec, has_audio, size_bytes)。"""
+    size = 0
+    try:
+        if path and os.path.exists(path):
+            size = os.path.getsize(path)
+    except Exception:
+        size = 0
+    dur, audio = 0.0, False
+    try:
+        rp = subprocess.run(['ffprobe', '-v', 'error',
+                             '-show_entries', 'format=duration:stream=codec_type',
+                             '-of', 'default=noprint_wrappers=1:nokey=1', str(path)],
+                            capture_output=True, text=True, timeout=30)
+        for line in (rp.stdout or '').splitlines():
+            s = (line or '').strip()
+            if s == 'audio':
+                audio = True
+                continue
+            if s in ('video', 'data', 'subtitle'):
+                continue
+            try:
+                dur = max(dur, float(s))
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return dur, audio, size
+
+
+def _extract_last_frame(video, out):
+    try:
+        subprocess.run(['ffmpeg','-y','-sseof','-0.15','-i',video,'-frames:v','1','-q:v','2',out],
+                       capture_output=True, timeout=60)
+        return os.path.exists(out) and os.path.getsize(out) > 0
+    except Exception:
+        return False
+
+
+def _face_crop_ref(job, ref_path):
+    """把参考图裁成上中部人脸/上半身，保留身份但不把服装带进后续段首帧。"""
+    try:
+        out = os.path.join(job.run_dir, 'ref_face_%s.jpg' % abs(hash(ref_path)))
+        if os.path.exists(out) and os.path.getsize(out) > 0:
+            return out
+        subprocess.run(['ffmpeg','-y','-i',ref_path,'-vf',
+                        'crop=iw*0.62:ih*0.55:iw*0.19:ih*0.06,scale=768:-2',
+                        '-q:v','2', out], capture_output=True, timeout=60)
+        return out if os.path.exists(out) and os.path.getsize(out) > 0 else ref_path
+    except Exception:
+        return ref_path
+
+def _run_chain_sequential(job, env, blocks, wf_path, DUR, K):
+    """多段顺序生成：第 2 段起用上一段最后一帧作为 ref_image_0，
+    不再用穿着衣服的参考图当首帧，彻底避免每段重复脱衣。"""
+    sizes = _chain_divmod_sizes(len(blocks), K)
+    if not sizes:
+        return False
+    chunks, cur = [], 0
+    for n in sizes:
+        chunks.append(blocks[cur:cur+n]); cur += n
+    files, prev = [], None
+    for i, chunk in enumerate(chunks, 1):
+        try:
+            wf = copy.deepcopy(job.wf_json) if job.wf_json else json.load(open(wf_path, encoding='utf-8'))
+            plan = _chain_plan_for_route(env, [chunk], DUR)
+            wf['2001']['inputs']['plan_json'] = json.dumps(plan, ensure_ascii=False)
+            if '2009' in wf:
+                wf['2009']['inputs']['copy_to_output'] = True
+                wf['2009']['inputs']['audio_source'] = 'plan'
+            for j, nid in enumerate(('139','167','173','172','171'), 2):
+                refs = job.cfg.get('refs') or []
+                if j-1 < len(refs) and refs[j-1] and nid in wf:
+                    if refs[j-1] not in job.uploaded:
+                        job.uploaded[refs[j-1]] = upload_file(job, refs[j-1]) if os.path.exists(refs[j-1]) else refs[j-1]
+                    wf[nid]['inputs']['image'] = job.uploaded[refs[j-1]]
+            if prev:
+                fr = os.path.join(job.run_dir, 'last_%d.jpg' % i)
+                if _extract_last_frame(prev, fr):
+                    if fr not in job.uploaded:
+                        job.uploaded[fr] = upload_file(job, fr)
+                    wf['137']['inputs']['image'] = job.uploaded[fr]
+                    _emit('  段%d 首帧改用上一段尾帧: %s' % (i, os.path.basename(fr)))
+            tid = submit(job, ('WF_JSON', wf))
+            _emit('  段%d 已提交: %s' % (i, tid))
+            out = poll(job, tid, 1)
+            if not out:
+                _emit('  段%d 无产物，顺序链失败' % i); return False
+            seg_path = os.path.join(job.run_dir, 'seq_%02d.mp4' % i)
+            download(out[0], seg_path)
+            if not (os.path.exists(seg_path) and os.path.getsize(seg_path) > 100000):
+                _emit('  段%d 落盘无效' % i); return False
+            files.append(seg_path); prev = seg_path
+        except Exception as e:
+            _emit('  段%d 异常: %s' % (i, e)); return False
+    final = os.path.join(job.run_dir, '最终视频.mp4')
+    if _concat_videos(job, files, final):
+        job.final_path = final
+        job.final_url = '/media/%s/最终视频.mp4' % os.path.basename(job.run_dir)
+        job.set_status('finished')
+        _emit('✅ 顺序链成片: %s（%d 段，首帧逐段继承上一段尾帧）' % (final, len(files)))
+        return True
+    return False
+
+def _run_chain(job):
+    """h3_chain：S shot / K 段均分（每段≈S/K，前段多末段兜底，每段≥1 shot）；
+    R 路并行子链（每路一部分段）-> 各出子片 -> 本地 concat 成整片；固定每段 30s。"""
+    cfg = job.cfg
+    wfc = VIDEO_WFS.get(str(cfg.get('workflow_id') or '')) or {}
+    gf = wfc.get('_graft_file')
+    _wf_platform = copy.deepcopy(job.wf_json or {})
+    if not _wf_platform and not (gf and os.path.exists(gf)):
+        _emit('⚠ Chain 本地提交模板缺失(%s)，拒绝提交' % gf)
+        job.set_status('failed')
+        return
+    K = max(1, int(cfg.get('target_segs') or 20))
+    R = max(1, int(cfg.get('loop_routes') or 1))
+    DUR = int(wfc.get('seg_duration') or 30)
+
+    env = _chain_parse_full(cfg.get('global_prompt') or '')
+    blocks = env['blocks']
+    S = len(blocks)
+    if S <= 0:
+        _emit('⚠ Chain 需要 [Shot 1]..[Shot N]（或时间戳）分镜锚点，未检测到任何 shot，拒绝提交')
+        job.set_status('failed')
+        return
+    if env.get('structured'):
+        _emit('Chain 六段式完整性预检：全局头部(主体/概要/保留分析)=%d 行，分镜区开场风格=%d 行，'
+              '末镜后约束(Shots used/POSITIVE CONSTRAINTS)=%d 行，声景配乐块(overall_soundscape 起)=%d 行；'
+              '每段 prompt 都会重复继承这四类全局文本，仅 detailed_description 分镜体按段替换。'
+              % (len(_chain_lines_from_text(env['head'])),
+                 len(_chain_lines_from_text(env['lead'])),
+                 len(_chain_lines_from_text(env['tail'])),
+                 len(_chain_lines_from_text(env['audio']))))
+    else:
+        _emit('提示词未带 detailed_description 分区头，走旧 common+段落兜底（不启用六段式继承增强）。')
+    seg_sizes = _chain_divmod_sizes(S, K)
+    if seg_sizes is None:
+        _emit('⚠ 校验失败：总 shot S=%d < 段数 K=%d，无法保证每段至少 1 个 shot（每段≈S/K）。'
+              '请减少段数到 ≤%d，或补充 shot。拒绝提交。' % (S, K, S))
+        job.set_status('failed')
+        return
+    # 路数严格按用户设置 loop_routes，不再强制每段一路
+    # 例如 target_segs=4, loop_routes=2 → 2 路，每路 2 段
+    if K > 1 and job.cfg.get('chain_seq_refs', False):
+        _emit('Chain 多段顺序模式：第2段起用上一段尾帧作为首帧参考，避免重复脱衣')
+        if _run_chain_sequential(job, env, blocks, gf, DUR, K):
+            return
+        _emit('⚠ 顺序链失败，回退并行 Chain')
+    if R > K:
+        _emit('⚠ 并发路数 R=%d > 段数 K=%d，多余路无段可跑，收敛为 R=%d' % (R, K, K))
+        R = K
+    route_sizes = _chain_divmod_sizes(K, R)
+    # 段级切片：seg_blocks[j] = 第 j 段包含的 shot 块列表
+    seg_blocks, cur = [], 0
+    for size in seg_sizes:
+        seg_blocks.append(blocks[cur:cur + size])
+        cur += size
+    # 路段分组
+    route_plan_inputs, si = [], 0
+    for r, rs in enumerate(route_sizes, 1):
+        route_plan_inputs.append((r, seg_blocks[si:si + rs]))
+        si += rs
+
+    _emit('Chain 均分方案：S=%d shot × K=%d 段（每段shot=%s）→ R=%d 路并行（每路段数=%s）；'
+          '每段 %ds，理论总时长 %ds；清晰度 %s；参考槽 %d'
+          % (S, K, '/'.join(str(x) for x in seg_sizes), R,
+             '/'.join(str(x) for x in route_sizes), DUR, K * DUR,
+             cfg.get('resolution', 0.2), len(wfc.get('ref_nodes', []))))
+
+    _refs_raw = [p for p in (cfg.get('refs') or []) if p and os.path.exists(p)]
+    refs = []
+    for _p in _refs_raw:
+        if _p not in refs:
+            refs.append(_p)
+    _emit('  参考图输入: %d 张（原始 %d），去重后: %s'
+          % (len(refs), len(_refs_raw), ', '.join(os.path.basename(x) for x in refs) or '无'))
+    if len(refs) < len(_refs_raw):
+        _emit('  参考图去重：%d -> %d（重复图不再塞进多个参考槽）' % (len(_refs_raw), len(refs)))
+    ref_nodes = wfc.get('ref_nodes') or []
+    _emit('  参考槽: %d 个；有图槽=%d，空槽将用空白占位图' % (len(ref_nodes), min(len(refs), len(ref_nodes))))
+    blank = os.path.join(REFS_DIR, 'blank_1x1.png')
+    fn_cache = {}
+
+    def _slot_file(i):
+        if i < len(refs):
+            p = refs[i]
+            if p not in fn_cache:
+                _emit('  上传参考图%d -> %s' % (i + 1, os.path.basename(p)))
+                fn_cache[p] = upload_file(job, p)
+            _emit('  槽%d -> %s' % (i + 1, os.path.basename(p)))
+            return fn_cache[p]
+        if blank not in fn_cache:
+            fn_cache[blank] = upload_file(job, blank)
+        return fn_cache[blank]
+
+    def _run_one(item):
+        r, chosen = item
+        try:
+            wf = copy.deepcopy(_wf_platform) if _wf_platform else json.load(open(gf, encoding='utf-8'))
+            plan = _chain_plan_for_route(env, chosen, DUR)
+            wf['2001']['inputs']['plan_json'] = json.dumps(plan, ensure_ascii=False)
+            if '2009' in wf:
+                wf['2009']['inputs']['copy_to_output'] = True
+                wf['2009']['inputs']['audio_source'] = 'plan'
+            _lens = [len(s['prompt']) for s in plan['shots']]
+            _emit('  路%d plan_json：%d 段，每段完整提示词行数=%s（最少%d行，须非空防空段生成）'
+                  % (r, len(_lens), '/'.join(str(x) for x in _lens),
+                     min(_lens) if _lens else 0))
+            # 清晰度 #115.megapixels；比例 match 保留模板默认 9:16，非 match 走 RATIO_MAP
+            try:
+                # 默认 0.3（与火宝一致）；低于 0.3 会明显糊，只有显式选择才降
+                wf['115']['inputs']['megapixels'] = float(cfg.get('resolution') or 0.3)
+            except Exception:
+                pass
+            ar = (cfg.get('aspect_ratio') or 'match').strip()
+            if ar != 'match' and ar in RATIO_MAP:
+                wf['115']['inputs']['aspect_ratio'] = RATIO_MAP[ar]
+            # 6 参考槽（空槽填空白占位图，避免平台缺图报错）
+            for i, node in enumerate(ref_nodes):
+                if node in wf and isinstance(wf[node].get('inputs'), dict):
+                    wf[node]['inputs']['image'] = _slot_file(i)
+            # 并发生成的后续段：不用穿衣全身参考图当首帧，改用空白槽，让首帧按分镜状态（裸体/插入）生成
+            try:
+                _first_block = chosen[0][0] if chosen and chosen[0] else None
+                if _first_block is not None and env.get('blocks') and _first_block in env['blocks'] and env['blocks'].index(_first_block) > 0:
+                    if '137' in wf:
+                        _refs0 = [x for x in (job.cfg.get('refs') or []) if x and os.path.exists(x)]
+                        if _refs0:
+                            _fc = _face_crop_ref(job, _refs0[0])
+                            if _fc not in job.uploaded:
+                                job.uploaded[_fc] = upload_file(job, _fc)
+                            wf['137']['inputs']['image'] = job.uploaded[_fc]
+                            _emit('  路%d 后续段首帧改用参考图人脸裁切（保留身份，不继承服装）' % r)
+                        else:
+                            wf['137']['inputs']['image'] = _slot_file(99)
+                            _emit('  路%d 后续段首帧参考已置空' % r)
+            except Exception:
+                pass
+            # 输出文件名按路区分（防 CDN 同名覆盖；保留平台 %date:yyyy-MM-dd% 占位）
+            wf['2009']['inputs']['filename'] = 'chain_r%d_' % r + '%date:yyyy-MM-dd%'
+            # 自杀链原样保留（铁律：禁止删除/绕过 901/902/903），仅刷新 sleep 延迟
+            if '901' in wf:
+                wf['901']['inputs']['delay'] = SUICIDE_DELAY
+            _balance_lora(wf, '\n'.join('\n'.join(s['prompt']) for s in plan['shots']))
+            tid = submit(job, ('WF_JSON', wf))
+            _emit('  路%d 已提交: %s（本路 %d 段 / %d shot）'
+                  % (r, tid, len(chosen), sum(len(x) for x in chosen)))
+            nseg = len(chosen)
+            # 时长下限：每段净长约30.67s（#131 量化），叠加 #2008 match_tail 去重叠，取理论 70% 为多段整片门槛；
+            # nseg=1 门槛≈21s 兼容单链；nseg>1 时单段 30.67s 达不到门槛 → 判“回收的是片段而非整片”。
+            min_dur = nseg * DUR * 0.70
+            dest = os.path.join(job.run_dir, 'chain_route_%d.mp4' % r)
+
+            def _set_route(status, info=None, path=None, error=None):
+                """分路状态独立写入快照：某一路完成即可在前端先预览，不必等全部路合成最终片。"""
+                with job.lock:
+                    job.routes[r] = {
+                        'status': status,
+                        'task_id': tid,
+                        'file': os.path.abspath(path) if path else None,
+                        'nseg': nseg,
+                        'info': info or {},
+                        'error': error,
+                    }
+            _set_route('running')
+            out = poll(job, tid, r)
+            cand_files = []  # (local_path, src_tag)
+            def _add_cand(lp, tag):
+                if lp and os.path.exists(lp) and lp.endswith('.mp4') and os.path.getsize(lp) > 0:
+                    cand_files.append((lp, tag))
+            if out:
+                for k, u in enumerate(out):
+                    if u.startswith(job.run_dir):
+                        _add_cand(u, 'ws/local#%d' % k)
+                    else:
+                        cp = os.path.join(job.run_dir, 'chain_route_%d_cand%d.mp4' % (r, k + 1))
+                        download(u, cp)
+                        _add_cand(cp, 'outputs#%d' % k)
+            # 兜底：805 自杀链收尾未走 WS/标准 outputs 时，按 Chain 前缀少量探测 /view
+            if not cand_files:
+                u = None
+                for fn in ('chain_r%d.mp4' % r, 'chain_r%d_00001.mp4' % r,
+                           'chain_multi_r%d.mp4' % r, 'chain_multi_%05d.mp4' % r):
+                    for sub in ('', 'output', 'video'):
+                        u = probe_view(job, fn, sub)
+                        if u:
+                            break
+                    if u:
+                        break
+                if u:
+                    cp = os.path.join(job.run_dir, 'chain_route_%d_fallback.mp4' % r)
+                    download(u, cp)
+                    _add_cand(cp, 'fallback')
+            if not cand_files:
+                # WS 已落盘但 poll 未返回：直接扫描本次 run_dir 的 seg_*/chain_route_* 文件
+                import glob as _g2
+                for _lp in sorted(_g2.glob(os.path.join(job.run_dir, '*.mp4'))):
+                    _add_cand(_lp, 'run_dir')
+                if cand_files:
+                    _emit('  路%d 使用 run_dir 已落盘文件: %s' % (r, os.path.basename(cand_files[-1][0])))
+            if not cand_files:
+                _emit('  路%d 失败：无返回产物（任务失败/自杀链触发且未落片）' % r)
+                no_artifact = {'reason': 'no_artifact', 'nseg': nseg,
+                                'min_dur': round(min_dur, 1)}
+                _set_route('failed', no_artifact, None, '无返回产物')
+                return r, False, None, no_artifact
+            # 质量排序：① 达时长下限 ② 带 audio 流 ③ 时长最长 ④ 体积最大
+            # （避免选中“单段30.67s无声片段”冒充整条多段整片；旧逻辑只取候选 k=0 且不做任何校验）
+            scored = []
+            for cf, tag in cand_files:
+                dur, has_audio, sz = _probe_mp4(cf)
+                scored.append((1 if dur >= min_dur else 0, 1 if has_audio else 0,
+                               dur, sz, cf, tag, has_audio))
+            scored.sort(key=lambda t: (t[0], t[1], t[2], t[3]), reverse=True)
+            _, _, b_dur, b_sz, b_path, b_tag, b_audio = scored[0]
+            b_dur_ok = b_dur >= min_dur
+            try:
+                if os.path.abspath(b_path) != os.path.abspath(dest):
+                    if os.path.exists(dest):
+                        os.remove(dest)
+                    os.replace(b_path, dest)
+            except Exception as e:
+                _emit('  路%d 候选落地异常: %s' % (r, e))
+            good = (os.path.exists(dest) and os.path.getsize(dest) > 100000 and b_dur_ok)
+            warns = []
+            if good and not b_audio:
+                warns.append('无音轨(未检出audio流；#2009 Assemble混音未输出或被回收为无声段)')
+            info = {'nseg': nseg, 'min_dur': round(min_dur, 1), 'dur': round(b_dur, 2),
+                    'audio': bool(b_audio), 'dur_ok': bool(b_dur_ok), 'size': b_sz,
+                    'src': b_tag, 'warns': warns}
+            if good:
+                _emit('  路%d 完成: %s (实测 %.1fs，音轨=%s，%.1fMB，来源=%s)'
+                      % (r, os.path.basename(dest), b_dur, '有' if b_audio else '无',
+                         b_sz / 1048576, b_tag))
+                for w in warns:
+                    _emit('  ⚠ 路%d %s' % (r, w))
+                _set_route('success', info, dest)
+                return r, True, dest, info
+            # 时长不达本路段数下限 → 判失败（旧逻辑“文件>0字节即成功”会把单段30.67s片段误报成功）；
+            # 清理未采用的落地文件，避免被误当成品；info 带回实测值供汇总告警。
+            try:
+                if os.path.exists(dest):
+                    os.remove(dest)
+            except Exception:
+                pass
+            _emit('  路%d 失败：实测 %.1fs / %.1fMB / 音轨=%s，未达本路 %d 段时长下限 %.1fs（不采纳为成功路）'
+                  % (r, b_dur, b_sz / 1048576, '有' if b_audio else '无', nseg, min_dur))
+            _set_route('failed', info, None, '未达时长/质量门槛')
+            return r, False, None, info
+        except Exception as e:
+            _emit('  路%d 异常: %s' % (r, e))
+            try:
+                with job.lock:
+                    job.routes[r] = {
+                        'status': 'failed',
+                        'task_id': locals().get('tid'),
+                        'file': None,
+                        'nseg': locals().get('nseg', 0),
+                        'info': {'error': str(e)[:160]},
+                        'error': str(e)[:160],
+                    }
+            except Exception:
+                pass
+            return r, False, None, {'error': str(e)[:160]}
+
+    job.set_status('submitting')
+    from concurrent.futures import ThreadPoolExecutor
+    res = list(ThreadPoolExecutor(max_workers=max(1, min(R, 32))).map(_run_one, route_plan_inputs))
+    # 失败路自动补投 1 次（平台偶发无产物）；成功后替换原结果
+    for _attempt in range(1, 3):
+        _bad_r = {r for r, good, p, info in res if not (good and p)}
+        if not _bad_r:
+            break
+        _retry_inputs = [it for it in route_plan_inputs if it[0] in _bad_r]
+        _emit('  ↻ 第%d次补投失败路: %s' % (_attempt, ','.join(str(x[0]) for x in _retry_inputs)))
+        _retry = list(ThreadPoolExecutor(max_workers=max(1, min(len(_retry_inputs), 32))).map(_run_one, _retry_inputs))
+        _by_r = {x[0]: x for x in _retry}
+        res = [(_by_r.get(x[0], x) if not (x[1] and x[2]) else x) for x in res]
+    # 补投后仍失败的路：再扫一次 run_dir（WS 可能晚于 poll 落盘），达标即救回
+    import glob as _g3
+    _res2 = []
+    for r, good, path, info in res:
+        if good and path:
+            _res2.append((r, good, path, info)); continue
+        _best = None
+        for _lp in _g3.glob(os.path.join(job.run_dir, '*.mp4')):
+            if os.path.getsize(_lp) < 100000:
+                continue
+            _d, _a, _sz = _probe_mp4(_lp)
+            _min = (info or {}).get('min_dur') or (2 * 30 * 0.7)
+            if _d >= _min:
+                _best = (_lp, _d, _a, _sz)
+                break
+        if _best:
+            _dest = os.path.join(job.run_dir, 'chain_route_%d.mp4' % r)
+            try:
+                if os.path.abspath(_best[0]) != os.path.abspath(_dest):
+                    os.replace(_best[0], _dest)
+            except Exception:
+                _dest = _best[0]
+            _info = {'dur': round(_best[1], 2), 'audio': bool(_best[2]), 'dur_ok': True,
+                     'size': _best[3], 'src': 'run_dir_late'}
+            _emit('  路%d 晚到文件救回: %s (%.1fs，音轨=%s)' % (r, os.path.basename(_dest), _best[1], '有' if _best[2] else '无'))
+            _set_route('success', _info, _dest)
+            _res2.append((r, True, _dest, _info))
+        else:
+            _res2.append((r, good, path, info))
+    res = _res2
+    ok = [(r, p, info) for r, good, p, info in res if good and p]
+    ok.sort(key=lambda x: x[0])
+    bad = [(r, info) for r, good, p, info in res if not good]
+    total_dur = 0.0
+    any_audio = False
+    weak = 0
+    for _r, _p, _info in ok:
+        total_dur += float(_info.get('dur') or 0)
+        any_audio = any_audio or bool(_info.get('audio'))
+        weak += int((not _info.get('dur_ok')) or (not _info.get('audio')))
+    _emit('\n===== Chain 各路完成：成功 %d/%d（实测子片合计≈%.0fs，音轨=%s；质量存疑 %d 路）====='
+          % (len(ok), R, total_dur, '有' if any_audio else '无', weak))
+    for r, _info in bad:
+        _d = _info or {}
+        _detail = ('实测%ss/音轨%s/下限%ss'
+                   % (_d.get('dur', '?'), '有' if _d.get('audio') else '无', _d.get('min_dur', '?')))
+        _emit('  ✗ 路%d 未落片成功（%s；未进入合成）' % (r, _detail))
+    if not ok:
+        job.set_status('failed')
+        _emit('没有任何一路成功，无法合成')
+        return
+    # R=1：子片即整片；R>1：按路序本地 concat（Chain 不做参考图裁头，避免误切角色衔接帧）
+    if len(ok) == 1:
+        final = os.path.join(job.run_dir, '最终视频.mp4')
+        os.replace(ok[0][1], final)
+        job.final_path = final
+        job.final_url = '/media/%s/最终视频.mp4' % os.path.basename(job.run_dir)
+        with job.lock:
+            if ok[0][0] in job.routes:
+                job.routes[ok[0][0]]['file'] = final
+                job.routes[ok[0][0]]['status'] = 'success'
+        fdur, faud, fsz = _probe_mp4(final)
+        _emit('\n✅ Chain 成片: %s (%.1f MB，实测 %.1fs，音轨=%s；本链%d段/理论 %d×%d=%ds)'
+              % (final, fsz / 1048576, fdur, '有' if faud else '无',
+                 ok[0][2].get('nseg') or K, K, DUR, K * DUR))
+        _final_bad = []
+        if not faud:
+            _emit('  ⚠ 成片无音轨：#2009 Assemble(audio_source=plan) 混音未随输出下发，'
+                  '或本地回收命中了无声片段，请复核 copy_to_output 与平台任务详情。')
+            _final_bad.append('无音轨')
+        if fdur < float(ok[0][2].get('min_dur') or 1):
+            _emit('  ⚠ 成片时长低于本路预期下限：回收可能只取到单段/部分段，而非完整链内段数。')
+            _final_bad.append('时长不足(实测%.1fs<下限%.1fs)' % (fdur, ok[0][2].get('min_dur', 0)))
+        if _final_bad:
+            job.set_status('failed')
+            _emit('✗ 单链成片未达标（%s），不记为成功；文件保留供排查，不进入“完成成片”口径。'
+                  % '；'.join(_final_bad))
+            return
+        job.set_status('finished')
+        return
+    job.set_status('trimming')
+    final = os.path.join(job.run_dir, '最终视频.mp4')
+    # 合成前只读打印各子片质量告警（不改 ffmpeg 拼接命令本体，旧分支零影响）
+    for _r, _p, _info in ok:
+        for w in (_info.get('warns') or []):
+            _emit('  ⚠ 子片路%d %s' % (_r, w))
+    if _concat_videos(job, [p for _, p, _ in ok], final):
+        job.final_path = final
+        job.final_url = '/media/%s/最终视频.mp4' % os.path.basename(job.run_dir)
+        fdur, faud, fsz = _probe_mp4(final)
+        _emit('\n✅ Chain 多路合成: %s (%.1f MB，实测整片 %.1fs，音轨=%s；成功 %d/%d 路；'
+              '理论规划 %d段×%ds=%ds，成片以实测为准、不再按理论值宣称)'
+              % (final, fsz / 1048576, fdur, '有' if faud else '无', len(ok), R, K, DUR, K * DUR))
+        if not faud:
+            _emit('  ⚠ 合成成片无音轨：子片本身未带 audio 流，本地 concat(-c copy) 不会凭空补音；'
+                  '需确保平台 #2009 Assemble 整片(带混音)被回收，而非单段无声片段。')
+        if len(ok) < R:
+            _emit('  ⚠ 仅 %d/%d 路成功、缺失路未补片；整片为成功路拼接，不是完整 %d 段。'
+                  % (len(ok), R, K))
+        _final_bad = []
+        if not faud:
+            _final_bad.append('无音轨')
+        if len(ok) < R:
+            _final_bad.append('仅%d/%d路成功（缺路未补片）' % (len(ok), R))
+        if _final_bad:
+            job.set_status('failed')
+            _emit('✗ 多路成片未达标（%s），不记为成功；拼接文件仅作成功路证据，需平台侧补出带音整片后复验。'
+                  % '；'.join(_final_bad))
+            return
+        job.set_status('finished')
+        return
+    job.set_status('failed')
+    _emit('多路拼接失败')
+
+
+# ---------- 任务执行 ----------
 def run_job(job):
     _tls.job = job
     try:
         cfg = job.cfg
         mode = cfg.get('mode', 'global')
         _wfc_c = VIDEO_WFS.get(str(cfg.get('workflow_id') or '')) or {}
+        if _wfc_c.get('mode') == 'h3_chain':
+            _run_chain(job)
+            return
         if _wfc_c.get('mode') == 'chain_light':
             _run_chain_light(job)
             return
