@@ -48,7 +48,7 @@ const ModelLibraryPage = lazy(() =>
 // useHotkeys 内部 useEffect 反复执行 add/remove listener。
 
 function App() {
-  const { apiKey, maskedKey, hasApiKey, isLoaded, saveApiKey, removeApiKey } = useApiKey();
+  const { apiKey, maskedKey, hasApiKey, isLoaded, saveApiKey, removeApiKey, apiTier, setApiTier, consumerKey, maskedConsumerKey, saveConsumerKey, removeConsumerKey } = useApiKey();
   const { yunwuKey, maskedYunwuKey, hasYunwuKey, saveYunwuKey, removeYunwuKey } = useYunwuKey();
   const { backendUrl, saveBackendUrl, resetBackendUrl, defaultUrl } = useBackendUrl();
   const toast = useToast();
@@ -373,6 +373,11 @@ function App() {
               maskedKey={maskedKey}
               onSaveApiKey={saveApiKey}
               onClearApiKey={removeApiKey}
+              apiTier={apiTier}
+              onChangeTier={setApiTier}
+              maskedConsumerKey={maskedConsumerKey}
+              onSaveConsumerKey={saveConsumerKey}
+              onClearConsumerKey={removeConsumerKey}
               // OpenLux
               yunwuKey={yunwuKey}
               maskedYunwuKey={maskedYunwuKey}
@@ -407,6 +412,11 @@ function App() {
                 maskedKey={maskedKey}
                 onSaveApiKey={saveApiKey}
                 onClearApiKey={removeApiKey}
+                apiTier={apiTier}
+                onChangeTier={setApiTier}
+                maskedConsumerKey={maskedConsumerKey}
+                onSaveConsumerKey={saveConsumerKey}
+                onClearConsumerKey={removeConsumerKey}
                 // OpenLux
                 yunwuKey={yunwuKey}
                 maskedYunwuKey={maskedYunwuKey}
@@ -431,7 +441,7 @@ function App() {
 }
 
 function InlineApiKeySetup({ onClose }: { onClose: () => void }) {
-  const { apiKey, maskedKey, saveApiKey } = useApiKey();
+  const { apiKey, maskedKey, saveApiKey, apiTier, setApiTier, maskedConsumerKey, saveConsumerKey } = useApiKey();
   const { yunwuKey, maskedYunwuKey, saveYunwuKey } = useYunwuKey();
   const { backendUrl, saveBackendUrl, defaultUrl } = useBackendUrl();
   return (
@@ -441,6 +451,11 @@ function InlineApiKeySetup({ onClose }: { onClose: () => void }) {
         maskedKey={maskedKey}
         onSaveApiKey={saveApiKey}
         onClearApiKey={() => {}}
+        apiTier={apiTier}
+        onChangeTier={setApiTier}
+        maskedConsumerKey={maskedConsumerKey}
+        onSaveConsumerKey={saveConsumerKey}
+        onClearConsumerKey={() => {}}
         yunwuKey={yunwuKey}
         maskedYunwuKey={maskedYunwuKey}
         onSaveYunwuKey={saveYunwuKey}
@@ -460,6 +475,11 @@ interface InlineApiKeyEditorProps {
   maskedKey: string;
   onSaveApiKey: (key: string) => void;
   onClearApiKey: () => void;
+  apiTier: 'enterprise' | 'consumer';
+  onChangeTier: (tier: 'enterprise' | 'consumer') => void;
+  maskedConsumerKey: string;
+  onSaveConsumerKey: (key: string) => void;
+  onClearConsumerKey: () => void;
   yunwuKey: string | null;
   maskedYunwuKey: string;
   onSaveYunwuKey: (key: string) => void;
@@ -476,6 +496,11 @@ function InlineApiKeyEditor({
   maskedKey,
   onSaveApiKey,
   onClearApiKey,
+  apiTier,
+  onChangeTier,
+  maskedConsumerKey,
+  onSaveConsumerKey,
+  onClearConsumerKey,
   yunwuKey,
   maskedYunwuKey,
   onSaveYunwuKey,
@@ -489,6 +514,9 @@ function InlineApiKeyEditor({
   const [rhInput, setRhInput] = useState('');
   const [rhShow, setRhShow] = useState(false);
   const [rhSaved, setRhSaved] = useState(false);
+  const [consInput, setConsInput] = useState('');
+  const [consShow, setConsShow] = useState(false);
+  const [consSaved, setConsSaved] = useState(false);
   const [yunwuInput, setYunwuInput] = useState('');
   const [yunwuShow, setYunwuShow] = useState(false);
   const [yunwuSaved, setYunwuSaved] = useState(false);
@@ -504,6 +532,15 @@ function InlineApiKeyEditor({
     setRhSaved(true);
     setRhInput('');
     setTimeout(() => setRhSaved(false), 2000);
+  };
+
+  const handleSaveConsumer = () => {
+    const trimmed = consInput.trim();
+    if (!trimmed) return;
+    onSaveConsumerKey(trimmed);
+    setConsSaved(true);
+    setConsInput('');
+    setTimeout(() => setConsSaved(false), 2000);
   };
 
   const handleSaveYunwu = () => {
@@ -548,52 +585,99 @@ function InlineApiKeyEditor({
           <div className="w-6 h-6 rounded-lg bg-blue-500/10 flex items-center justify-center">
             <Image size={13} className="text-blue-500" />
           </div>
-          <h3 className="text-sm font-semibold text-text-primary">RunningHub API Key</h3>
+          <h3 className="text-sm font-semibold text-text-primary">RunningHub API</h3>
         </div>
         <p className="text-[11px] text-text-tertiary -mt-1">用于文生图、图生图、图生视频</p>
-        {apiKey && (
-          <div className="flex items-center gap-2 text-xs text-green-400 bg-green-400/10 px-3 py-2 rounded-lg">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
-            <span className="truncate">已保存: {maskedKey}</span>
-          </div>
-        )}
-        <div className="relative">
-          <input
-            ref={rhRef}
-            type={rhShow ? 'text' : 'password'}
-            value={rhInput}
-            onChange={(e) => setRhInput(e.target.value)}
-            placeholder="请输入 RunningHub API Key"
-            className="w-full bg-bg-elevated border border-border rounded-xl px-4 py-3 pr-12 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-primary transition-colors"
-            autoComplete="off"
-            spellCheck={false}
-          />
+
+        <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
-            onClick={() => setRhShow((v) => !v)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center text-text-secondary hover:text-text-primary transition-colors"
+            onClick={() => onChangeTier('enterprise')}
+            className={`text-left rounded-xl border px-3 py-2.5 transition-colors ${apiTier === 'enterprise' ? 'border-primary bg-primary/10' : 'border-border bg-bg-elevated hover:border-primary/50'}`}
           >
-            {rhShow ? <EyeOff size={16} /> : <Eye size={16} />}
+            <div className="text-xs font-semibold text-text-primary">企业级 API</div>
+            <div className="text-[10px] text-text-tertiary mt-0.5">现有自杀节点，免扣费</div>
           </button>
+          <button
+            type="button"
+            onClick={() => onChangeTier('consumer')}
+            className={`text-left rounded-xl border px-3 py-2.5 transition-colors ${apiTier === 'consumer' ? 'border-primary bg-primary/10' : 'border-border bg-bg-elevated hover:border-primary/50'}`}
+          >
+            <div className="text-xs font-semibold text-text-primary">消费级 API</div>
+            <div className="text-[10px] text-text-tertiary mt-0.5">正常扣费 · 5 并发排队</div>
+          </button>
+        </div>
+        <p className="text-[10px] text-text-tertiary">
+          {apiTier === 'consumer'
+            ? '消费级提交会自动摘除自杀链节点，按平台正常计费；超过 5 个任务排队。'
+            : '企业级保留工作流原有自杀节点，不触发平台扣费。'}
+        </p>
+
+        <div className="space-y-2">
+          <label className="block text-xs font-medium text-text-primary">企业级 API Key</label>
+          {maskedKey && apiTier === 'enterprise' && (
+            <div className="flex items-center gap-2 text-xs text-green-400 bg-green-400/10 px-3 py-2 rounded-lg">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
+              <span className="truncate">已保存: {maskedKey}</span>
+            </div>
+          )}
+          <div className="relative">
+            <input
+              ref={rhRef}
+              type={rhShow ? 'text' : 'password'}
+              value={rhInput}
+              onChange={(e) => setRhInput(e.target.value)}
+              placeholder="请输入企业级 RunningHub API Key"
+              className="w-full bg-bg-elevated border border-border rounded-xl px-4 py-3 pr-12 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-primary transition-colors"
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <button type="button" onClick={() => setRhShow((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center text-text-secondary hover:text-text-primary transition-colors">
+              {rhShow ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={handleSaveRh} disabled={!rhInput.trim()} className={`flex-1 py-2.5 rounded-xl font-medium text-xs transition-all ${rhInput.trim() ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:opacity-90' : 'bg-bg-elevated text-text-secondary cursor-not-allowed'}`}>
+              {rhSaved ? <><Check size={14} className="inline mr-1" />已保存</> : '保存企业级 Key'}
+            </button>
+            {apiTier === 'enterprise' && maskedKey && (
+              <button onClick={onClearApiKey} className="px-3 py-2.5 rounded-xl text-xs bg-red-500/10 text-red-400 hover:bg-red-500/20"><Trash2 size={14} /></button>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <label className="block text-xs font-medium text-text-primary">消费级 API Key</label>
+          {maskedConsumerKey && apiTier === 'consumer' && (
+            <div className="flex items-center gap-2 text-xs text-green-400 bg-green-400/10 px-3 py-2 rounded-lg">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
+              <span className="truncate">已保存: {maskedConsumerKey}</span>
+            </div>
+          )}
+          <div className="relative">
+            <input
+              type={consShow ? 'text' : 'password'}
+              value={consInput}
+              onChange={(e) => setConsInput(e.target.value)}
+              placeholder="请输入消费级 RunningHub API Key"
+              className="w-full bg-bg-elevated border border-border rounded-xl px-4 py-3 pr-12 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-primary transition-colors"
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <button type="button" onClick={() => setConsShow((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center text-text-secondary hover:text-text-primary transition-colors">
+              {consShow ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={handleSaveConsumer} disabled={!consInput.trim()} className={`flex-1 py-2.5 rounded-xl font-medium text-xs transition-all ${consInput.trim() ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:opacity-90' : 'bg-bg-elevated text-text-secondary cursor-not-allowed'}`}>
+              {consSaved ? <><Check size={14} className="inline mr-1" />已保存</> : '保存消费级 Key'}
+            </button>
+            {apiTier === 'consumer' && maskedConsumerKey && (
+              <button onClick={onClearConsumerKey} className="px-3 py-2.5 rounded-xl text-xs bg-red-500/10 text-red-400 hover:bg-red-500/20"><Trash2 size={14} /></button>
+            )}
+          </div>
         </div>
         <p className="text-[11px] text-text-secondary">获取: RunningHub → 右上角头像 → API 控制台</p>
-        <div className="flex gap-3">
-          <button
-            onClick={handleSaveRh}
-            disabled={!rhInput.trim()}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-medium text-sm transition-all ${rhInput.trim() ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:opacity-90 active:scale-[0.98]' : 'bg-bg-elevated text-text-secondary cursor-not-allowed'}`}
-          >
-            {rhSaved ? <><Check size={16} /> 已保存</> : '保存 Key'}
-          </button>
-          {apiKey && (
-            <button
-              onClick={onClearApiKey}
-              className="flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl font-medium text-sm bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
-            >
-              <Trash2 size={15} />清除
-            </button>
-          )}
-        </div>
       </div>
 
       <div className="border-t border-border" />

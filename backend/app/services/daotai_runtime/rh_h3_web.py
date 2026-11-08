@@ -105,6 +105,8 @@ VIDEO_JOB_LOCK = threading.Lock()
 # ================= RunningHub 核心（开放 API 通道，改造自 rh_h3_parallel_32并发.py） =================
 HOST = 'www.runninghub.ai'
 SUICIDE_DELAY = 30
+CONSUMER_CONCURRENCY = 5
+CONSUMER_SEM = threading.BoundedSemaphore(CONSUMER_CONCURRENCY)
 IMG_SUICIDE_DELAY = 60    # 图片自杀链延迟（横屏测试：覆盖487生成耗时，easy sleep 60s 后透传IMAGE）
 REF_NODES = ['28', '273', '285']
 UPLOAD_LOCK = threading.Lock()   # 多路并发提交时保护参考图上传缓存（job.uploaded），避免 6 路竞态重复上传
@@ -1717,8 +1719,104 @@ def build_node_info_list(job, rng, seg_prompt=None, loop_segs=None):
         push('441', 'delay', SUICIDE_DELAY)
     return L
 
+def img_watch_guarded(task_id, api_key, consumer=False):
+    if consumer:
+        with CONSUMER_SEM:
+            return img_watch(task_id, api_key)
+    return img_watch(task_id, api_key)
+
+
+def run_job_guarded(job):
+    """消费级 job 全局 5 并发；企业级不排队。"""
+    if _is_consumer_cfg(job.cfg):
+        with CONSUMER_SEM:
+            return run_job(job)
+    return run_job(job)
+
+
+def _is_consumer_cfg(cfg):
+    return str((cfg or {}).get('api_tier') or '').lower() == 'consumer'
+
+
+def _strip_suicide_nodes(wf):
+    """消费级：移除自杀 SaveImage / delay 节点，保留主输出，让平台正常计费。"""
+    if not isinstance(wf, dict):
+        return
+    for nid, node in list(wf.items()):
+        if not isinstance(node, dict):
+            continue
+        cls = str(node.get('class_type') or '')
+        inputs = node.get('inputs') or {}
+        if 'sleep' in cls.lower():
+            inputs['delay'] = 0
+            continue
+        if 'SaveImage' not in cls:
+            continue
+        prefix = str(inputs.get('filename_prefix') or '')
+        imgs = inputs.get('images')
+        src_cls = ''
+        if isinstance(imgs, list) and imgs and str(imgs[0]) in wf:
+            src_cls = str((wf.get(str(imgs[0])) or {}).get('class_type') or '')
+        if prefix.startswith('../') or 'PurgeVRAM' in src_cls or 'sleep' in src_cls.lower() or 'SaveImage' in src_cls:
+            wf.pop(nid, None)
+    # 再清一遍只服务于自杀 SaveImage 的孤儿 sleep / PurgeVRAM
+    for nid, node in list(wf.items()):
+        if not isinstance(node, dict):
+            continue
+        cls = str(node.get('class_type') or '')
+        if 'sleep' not in cls.lower() and 'PurgeVRAM' not in cls:
+            continue
+        used = False
+        for other in wf.values():
+            if not isinstance(other, dict):
+                continue
+            for v in (other.get('inputs') or {}).values():
+                if isinstance(v, list) and v and str(v[0]) == str(nid):
+                    used = True
+                    break
+            if used:
+                break
+        if not used:
+            wf.pop(nid, None)
+
+
+def _drop_registered_suicide(job, wf):
+    wfc = VIDEO_WFS.get(str((job.cfg or {}).get('workflow_id') or '')) or {}
+    su = wfc.get('suicide') or []
+    if not isinstance(su, (list, tuple)):
+        su = [su]
+    for sn in su:
+        wf.pop(str(sn), None)
+
+
+def _consumer_workflow_from_list(job, node_info_list):
+    wf = copy.deepcopy(job.wf_json or {})
+    if not wf:
+        return None
+    for item in node_info_list or []:
+        nid = str(item.get('nodeId'))
+        fn = item.get('fieldName')
+        if nid in wf and fn:
+            wf[nid].setdefault('inputs', {})[fn] = item.get('fieldValue')
+    _strip_suicide_nodes(wf)
+    _drop_registered_suicide(job, wf)
+    return wf
+
+
 def submit(job, node_info_list):
     cfg = job.cfg
+    # 消费级最终闸门：无论上游返回 nodeInfoList 还是 WF_JSON，都改走完整 workflow，
+    # 并摘掉自杀 SaveImage/delay，避免只改前缀后 903 仍类型报错、平台继续按自杀链处理。
+    if _is_consumer_cfg(cfg):
+        if isinstance(node_info_list, tuple) and len(node_info_list) == 2 and node_info_list[0] == 'WF_JSON':
+            node_info_list = ('WF_JSON', copy.deepcopy(node_info_list[1]))
+            _strip_suicide_nodes(node_info_list[1])
+            _drop_registered_suicide(job, node_info_list[1])
+        elif job.wf_json:
+            _cwf = _consumer_workflow_from_list(job, node_info_list)
+            if _cwf:
+                node_info_list = ('WF_JSON', _cwf)
+                _emit('  B. 消费级 API：已改用完整 workflow 并移除自杀链（正常扣费）')
     # det16 主线：build_node_info_list 返回 ('WF_JSON', wf) → 走 workflow 参数提交（完整修改版工作流 JSON，覆盖 workflowId）
     # 背景：nodeInfoList 只能改已有节点字段，无法新增/断开张量型连接（null 忽略、字符串类型炸、[] 平台拒绝）。
     # workflow 参数可提交完整 JSON → 可新增节点 9999=LoadImage(1×1透明) 接管 276/282 组合图 → LLM 15/228 视觉空。
@@ -4736,8 +4834,23 @@ def img_submit(cfg):
         if 'delay' in inp8 and ct not in ('SaveImage',) and ('Delay' in ct or 'sleep' in ct.lower()):
             push(k8, 'delay', IMG_SUICIDE_DELAY)
             _em('自杀链注入：%s.delay = %d（图片专用，>主图生成耗时保证自杀链在主图后触发）' % (k8, IMG_SUICIDE_DELAY))
-    payload = json.dumps({'apiKey': api_key, 'workflowId': wid, 'nodeInfoList': L,
-                          'instanceType': cfg.get('instance', 'plus')})
+    if _is_consumer_cfg(cfg):
+        _cwf = copy.deepcopy(wf)
+        for _e in L:
+            _nid, _fn, _fv = str(_e.get('nodeId')), _e.get('fieldName'), _e.get('fieldValue')
+            if _fn == 'filename_prefix' and (str(_fv).startswith('../') or len(str(_fv)) > 1000):
+                continue
+            if _fn == 'delay':
+                _fv = 0
+            if _nid in _cwf and _fn:
+                _cwf[_nid].setdefault('inputs', {})[_fn] = _fv
+        _strip_suicide_nodes(_cwf)
+        _em('消费级 API：图片改用完整 workflow 并移除自杀链（正常扣费）')
+        payload = json.dumps({'apiKey': api_key, 'workflowId': wid, 'workflow': json.dumps(_cwf),
+                              'instanceType': cfg.get('instance', 'plus')})
+    else:
+        payload = json.dumps({'apiKey': api_key, 'workflowId': wid, 'nodeInfoList': L,
+                              'instanceType': cfg.get('instance', 'plus')})
     for attempt in range(1, 6):
         try:
             conn = _conn()

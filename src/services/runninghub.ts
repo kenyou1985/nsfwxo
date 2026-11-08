@@ -2,6 +2,8 @@ import JSZip from 'jszip';
 import type { NodeInfo, RunTaskRequest, TaskResponse, UploadResponse, TaskStatus } from '../types';
 import { openDB, idbGet, idbPut, idbDelete } from './idb';
 
+import { getEffectiveRhApiTier } from './storage';
+
 const BASE_URL = 'https://www.runninghub.ai/openapi/v2';
 
 // ─── Local ZIP pack/unpack for img2img workflows that return direct image URLs ───
@@ -348,11 +350,139 @@ async function apiRequest<T>(
   return data as T;
 }
 
+
+function isConsumerTier(apiKey?: string): boolean {
+  return getEffectiveRhApiTier(apiKey) === 'consumer';
+}
+
+async function fetchWorkflowJsonForConsumer(apiKey: string, workflowId: string): Promise<Record<string, any> | null> {
+  try {
+    const res = await fetch('https://www.runninghub.ai/api/openapi/getJsonApiFormat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey, workflowId: String(workflowId) }),
+    });
+    const data = await res.json().catch(() => null);
+    if (!data || data.code !== 0) return null;
+    const prompt = data?.data?.prompt;
+    if (!prompt) return null;
+    return typeof prompt === 'string' ? JSON.parse(prompt) : prompt;
+  } catch {
+    return null;
+  }
+}
+
+/** 消费级：摘掉工作流里的自杀链（SaveImage 接 PurgeVRAM/sleep，或 ../ 前缀）。 */
+function stripSuicideNodesForConsumer(wf: Record<string, any>): void {
+  for (const [nid, node] of Object.entries(wf)) {
+    if (!node || typeof node !== 'object') continue;
+    const cls = String((node as any).class_type || '');
+    const inputs = (node as any).inputs || {};
+    if (cls.includes('sleep')) {
+      inputs.delay = 0;
+      continue;
+    }
+    if (!cls.includes('SaveImage')) continue;
+    const prefix = String(inputs.filename_prefix || '');
+    const images = inputs.images;
+    let sourceCls = '';
+    if (Array.isArray(images) && images.length && wf[String(images[0])]) {
+      sourceCls = String(wf[String(images[0])].class_type || '');
+    }
+    if (prefix.startsWith('../') || sourceCls.includes('PurgeVRAM') || sourceCls.toLowerCase().includes('sleep') || sourceCls.includes('SaveImage')) {
+      delete wf[nid];
+    }
+  }
+  // 反复清理孤儿节点：SaveImage 先删，PurgeVRAM 再删，sleep 最后才成为孤儿。
+  for (let pass = 0; pass < 4; pass += 1) {
+    let removed = 0;
+    for (const [nid, node] of Object.entries(wf)) {
+      if (!node || typeof node !== 'object') continue;
+      const cls = String((node as any).class_type || '');
+      if (!cls.toLowerCase().includes('sleep') && !cls.includes('PurgeVRAM')) continue;
+      let used = false;
+      for (const other of Object.values(wf)) {
+        if (!other || typeof other !== 'object') continue;
+        for (const v of Object.values((other as any).inputs || {})) {
+          if (Array.isArray(v) && v.length && String(v[0]) === String(nid)) { used = true; break; }
+        }
+        if (used) break;
+      }
+      if (!used) { delete wf[nid]; removed += 1; }
+    }
+    if (!removed) break;
+  }
+}
+
+async function runTaskConsumer(
+  apiKey: string,
+  workflowId: string,
+  nodeInfoList: NodeInfo[],
+): Promise<TaskResponse | null> {
+  const wf = await fetchWorkflowJsonForConsumer(apiKey, workflowId);
+  if (!wf) return null;
+  for (const item of nodeInfoList) {
+    const nid = String(item.nodeId);
+    if (wf[nid] && item.fieldName) {
+      wf[nid].inputs = wf[nid].inputs || {};
+      wf[nid].inputs[item.fieldName] = item.fieldValue;
+    }
+  }
+  stripSuicideNodesForConsumer(wf);
+  const res = await fetch('https://www.runninghub.ai/task/openapi/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      apiKey,
+      workflowId: String(workflowId),
+      workflow: JSON.stringify(wf),
+      instanceType: 'default',
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  const taskId = String(data?.data?.taskId || data?.taskId || '');
+  const errorCode = String(data?.errorCode || data?.code || '');
+  if (!taskId) {
+    console.warn('[runTask/consumer] no taskId', data);
+    return {
+      taskId: '',
+      status: '',
+      errorCode,
+      errorMessage: data?.msg || data?.errorMessage || '未获取到 taskId',
+      results: null,
+      clientId: '',
+      promptTips: '',
+      failedReason: {},
+      usage: null,
+      parentTaskId: null,
+      taskUsageList: null,
+    };
+  }
+  return {
+    taskId,
+    status: String(data?.status || ''),
+    errorCode,
+    errorMessage: '',
+    results: null,
+    clientId: String(data?.clientId || ''),
+    promptTips: String(data?.promptTips || ''),
+    failedReason: {},
+    usage: null,
+    parentTaskId: null,
+    taskUsageList: null,
+  };
+}
+
 export async function runTask(
   apiKey: string,
   workflowId: string,
   nodeInfoList: NodeInfo[]
 ): Promise<TaskResponse> {
+  if (isConsumerTier(apiKey)) {
+    const consumerResult = await runTaskConsumer(apiKey, workflowId, nodeInfoList);
+    if (consumerResult) return consumerResult;
+    throw new Error('消费级 API 需要完整工作流 JSON，但拉取失败；已中止提交，避免误触发自杀链。请切回企业级或检查工作流权限。');
+  }
   const body: RunTaskRequest = {
     nodeInfoList,
     instanceType: 'default',

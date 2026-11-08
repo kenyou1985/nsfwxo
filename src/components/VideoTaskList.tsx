@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, forwardRef, useImperat
 import { X, Download, Clock, Coins, CheckCircle, XCircle, Loader2, ZoomIn, ChevronDown, ChevronUp } from 'lucide-react';
 import type { NodeInfo } from '../types';
 import { runTask, getTaskStatus, getTaskResults, extractImagesFromZipAsDataUrls } from '../services/runninghub';
-import { getBackendUrl } from '../services/storage';
+import { getBackendUrl, getEffectiveRhApiTier } from '../services/storage';
 import { getExternalVideoTasks, type ExternalVideoTask } from '../services/videoTaskBridge';
 import { cacheVideo, prefetchVideos } from '../services/videoCache';
 import { CachedVideo } from './CachedVideo';
@@ -884,13 +884,19 @@ export const VideoTaskList = forwardRef<VideoTaskListHandle, VideoTaskListProps>
     console.log(`[VideoTaskList] handleDaotaiSubmit: task ${id} added, QUEUEING. body keys:`, Object.keys(body));
 
     try {
+      const submitBody = {
+        ...body,
+        prompt,
+        workflow_id: body.workflow_id != null ? String(body.workflow_id) : body.workflow_id,
+        api_tier: getEffectiveRhApiTier(apiKey),
+      };
       const resp = await fetch(`${getBackendUrl().replace(/\/$/, '')}/api/daotai/video`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${apiKey}`,
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify(submitBody),
       });
       const data = await resp.json();
       if (!resp.ok) {

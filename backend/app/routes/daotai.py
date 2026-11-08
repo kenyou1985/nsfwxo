@@ -256,6 +256,7 @@ async def submit_video(request: Request):
         # 并发路数：det16 多路并行（设置多少就多少）
         'loop_routes': max(1, int(body.get('loop_routes') or 1)),
         'no_llm': bool(body.get('no_llm')),
+        'api_tier': 'consumer' if str(body.get('api_tier') or '').lower() == 'consumer' else 'enterprise',
     }
     try:
         job = await asyncio.to_thread(rh.Job, cfg)
@@ -270,7 +271,7 @@ async def submit_video(request: Request):
         return JSONResponse(status_code=500, content={'error': _err, 'kind': 'backend_error'})
     with rh.JOBS_LOCK:
         rh.JOBS[job.id] = job
-    job.thread = __import__('threading').Thread(target=rh.run_job, args=(job,), daemon=True)
+    job.thread = __import__('threading').Thread(target=rh.run_job_guarded, args=(job,), daemon=True)
     job.thread.start()
     rh.RH_OPENAPI[job.id] = {'kind': 'video', 'job_id': job.id, 'api_key': key,
                              'run_dir': job.run_dir}
@@ -885,6 +886,7 @@ async def submit_image(request: Request):
         _wid = rh.RH_IMG_WFID
     cfg = {
         'workflow_id': _wid, 'api_key': key,
+        'api_tier': 'consumer' if str(body.get('api_tier') or '').lower() == 'consumer' else 'enterprise',
         'instance': body.get('instance') or 'plus',
         'prompt': body.get('prompt') or '',
         'mode': 'i2i' if (body.get('refs') or []) else 't2i', 'optimize': bool(body.get('optimize')),
@@ -916,7 +918,7 @@ async def submit_image(request: Request):
         return JSONResponse(status_code=500, content={'error': _err, 'kind': 'backend_error', 'trace': _tb.format_exc()[-500:]})
     rh.RH_OPENAPI[str(tid)] = {'kind': 'image', 'api_key': key, 'task_id': str(tid)}
     rh.RH_OPENAPI_LIVE[str(tid)] = True
-    threading.Thread(target=rh.img_watch, args=(str(tid), key), daemon=True).start()
+    threading.Thread(target=rh.img_watch_guarded, args=(str(tid), key, str(body.get('api_tier') or '').lower() == 'consumer'), daemon=True).start()
     return {
         'taskId': str(tid), 'task_id': str(tid),
         'localDir': os.path.basename(rh.IMG_DIRS.get(str(tid), '') or ''),

@@ -13,7 +13,8 @@
  *    （不需要 ZIP 解压环节）
  */
 import type { DaotaiImgConfig } from '../types';
-import { getBackendUrl } from './storage';
+import { getEffectiveRhApiTier } from './storage';
+import { getBackendUrl, getRhApiTier } from './storage';
 
 export interface DaotaiSubmitResponse {
   taskId: string;
@@ -73,6 +74,7 @@ export async function submitDaotaiImage(
       ratio: config.ratio,
       batch: config.batch,
       refs: config.refs || [],
+      api_tier: getEffectiveRhApiTier(apiKey),
     }),
   });
   const data = await resp.json().catch(() => ({}));
@@ -116,7 +118,7 @@ export async function submitDaotaiVideo(
   const resp = await fetch(api('/api/daotai/video'), {
     method: 'POST',
     headers: authHeaders(apiKey),
-    body: JSON.stringify({ prompt, ...body }),
+    body: JSON.stringify({ prompt, api_tier: getEffectiveRhApiTier(apiKey), ...body }),
   });
   const data = await resp.json().catch(() => ({}));
   if (!resp.ok) throw new Error(data?.error || data?.message || `HTTP ${resp.status}`);

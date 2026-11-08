@@ -184,10 +184,15 @@ function addShotStateLines(text: string): string {
     }
     // 只用英文状态句，且每个 shot 只保留一条；中文提示词也统一英文状态，避免中英各一份
     const state = `Current state at this shot: she is ${female === '全裸' ? 'fully nude' : female === '半裸' ? 'partially nude (topless / lower clothing may remain)' : 'still dressed'}; he is ${male === '全裸' ? 'fully nude' : 'still dressed'}${inserted ? '; intercourse is already in progress' : ''}.`;
-    const cleaned = body
+    let cleaned = body
       .replace(/\[State\][^\n]*\n?/g, '')
       .replace(/Current state at this shot:[^\n]*\n?/gi, '')
       .replace(/当前状态：[^\n]*\n?/g, '');
+    // 防空镜：只剩时间戳/台词/状态时，补一句连续动作，避免模型生成空段或重复上一镜
+    const _content = cleaned.replace(/^\[Shot\s+\d+\]\s*\d{2}:\d{2}\.\d{3}\s*/,'').replace(/<d>[\s\S]*?<\/d>/g,'').trim();
+    if (_content.length < 35) {
+      cleaned = cleaned.replace(/\s*$/, ' The same continuous action carries over from the previous shot without resetting position or repeating the entrance.');
+    }
     return cleaned.replace(/^(\[Shot\s+\d+\]\s*\d{2}:\d{2}\.\d{3}\s*)\n?/, `$1\n${state}\n`);
   }).join('');
 }

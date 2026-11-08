@@ -25,6 +25,8 @@ export {
 // per-panel entries that have no usable images left.
 
 const STORAGE_KEY = 'rh_api_key';
+const RH_CONSUMER_KEY = 'rh_consumer_api_key';
+const RH_API_TIER = 'rh_api_tier';
 const YUNWU_KEY = 'yunwu_api_key';
 const BACKEND_URL_KEY = 'prompt_backend_url';
 const EXPAND_HISTORY_KEY = 'ai_prompt_expand_history';
@@ -56,6 +58,64 @@ export function clearApiKey(): void {
   } catch {
     // ignore
   }
+}
+
+export type RhApiTier = 'enterprise' | 'consumer';
+
+export function getConsumerApiKey(): string | null {
+  try { return localStorage.getItem(RH_CONSUMER_KEY); } catch { return null; }
+}
+
+export function setConsumerApiKey(key: string): void {
+  try { localStorage.setItem(RH_CONSUMER_KEY, key.trim()); } catch { /* ignore */ }
+}
+
+export function clearConsumerApiKey(): void {
+  try { localStorage.removeItem(RH_CONSUMER_KEY); } catch { /* ignore */ }
+}
+
+export function getRhApiTier(): RhApiTier {
+  try { return localStorage.getItem(RH_API_TIER) === 'consumer' ? 'consumer' : 'enterprise'; }
+  catch { return 'enterprise'; }
+}
+
+export function setRhApiTier(tier: RhApiTier): void {
+  try { localStorage.setItem(RH_API_TIER, tier); } catch { /* ignore */ }
+}
+
+export function isConsumerApiKey(key?: string | null): boolean {
+  const consumer = getConsumerApiKey();
+  return !!key && !!consumer && key === consumer;
+}
+
+/** 以实际使用的 key 为准：即使 UI 停在 enterprise，只要 key 是消费级 key，也按消费级提交。 */
+export function getEffectiveRhApiTier(key?: string | null): RhApiTier {
+  return getRhApiTier() === 'consumer' || isConsumerApiKey(key) ? 'consumer' : 'enterprise';
+}
+
+export async function detectRhKeyTier(key: string): Promise<RhApiTier | 'unknown'> {
+  const trimmed = (key || '').trim();
+  if (!trimmed) return 'unknown';
+  try {
+    const resp = await fetch('https://www.runninghub.ai/uc/openapi/accountStatus', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey: trimmed }),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!resp.ok) return 'unknown';
+    const json: any = await resp.json();
+    const apiType = String(json?.data?.apiType || '').toUpperCase();
+    if (apiType === 'NORMAL') return 'consumer';
+    if (apiType === 'SHARED' || apiType === 'ENTERPRISE') return 'enterprise';
+    return 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
+export function getActiveApiKey(): string | null {
+  return getRhApiTier() === 'consumer' ? getConsumerApiKey() : getApiKey();
 }
 
 export function maskApiKey(key: string): string {
